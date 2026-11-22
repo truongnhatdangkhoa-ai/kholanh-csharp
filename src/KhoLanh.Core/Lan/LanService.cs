@@ -473,7 +473,9 @@ public sealed class LanService : ISheetSource, IDisposable
         var key = ModuleBridge.PermKey(db);
         var ok = write
             ? (key is not null ? Perm.Has(u, key, Perm.Edit) : Roles.IsAdmin(u.Role))
-            : (key is not null && Perm.Has(u, key)) || Perm.Has(u, "m1") || Perm.Has(u, "m2");
+            : (key is not null && Perm.Has(u, key)) || Perm.Has(u, "m1") || Perm.Has(u, "m2")
+              // Mã hóa sản phẩm / Ánh xạ tên hàng (tong-hop) là danh mục chung: các báo cáo đọc được
+              || (db == "tong-hop" && (Perm.Has(u, "m4") || Perm.Has(u, "m5")));
         if (!ok) throw new BusinessException($"Tài khoản \"{username}\" không có quyền {(write ? "sửa" : "xem")} dữ liệu này.");
     }
 

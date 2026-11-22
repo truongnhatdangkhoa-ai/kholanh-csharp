@@ -101,6 +101,42 @@ using (var c = s.Db.Open())
     th.Save();
 }
 
+// Báo cáo rã đông mẫu: file báo cáo kho giả lập → Bảng 2 → lưu Bảng 3
+{
+    var rnd = new Random(5);
+    string[] sp = { "VRHL", "VRHO", "VRPD" }, tt = { "XXX", "XEC", "XTC", "XAI" }, sz = { "3140", "4150", "5160", "0914", "0030", "0045", "4LXX" };
+    var xlsx = Path.Combine(data, "rd-mau.xlsx");
+    using (var wb = new ClosedXML.Excel.XLWorkbook())
+    {
+        var ws = wb.AddWorksheet("Sheet1");
+        ws.Cell(1, 1).Value = "BÁO CÁO NHẬP XUẤT TRONG NGÀY";
+        var heads = new[] { "Loại chứng từ", "Mã hàng", "Tên hàng", "Số lượng", "Ngày chứng từ", "Trọng lượng", "Net" };
+        for (var i = 0; i < heads.Length; i++) ws.Cell(3, i + 1).Value = heads[i];
+        var r = 4;
+        for (var d = 14; d <= 21; d++)
+            for (var k = 0; k < 14; k++)
+            {
+                var size = sz[rnd.Next(sz.Length)];
+                var code = sp[rnd.Next(sp.Length)] + "BTN" + tt[rnd.Next(tt.Length)] + (rnd.Next(6) == 0 ? "TGS" : "R00") + size + "IME1";
+                var sl = rnd.Next(20, 500); var tl = new[] { 9, 10.8, 12.6 }[rnd.Next(3)];
+                ws.Cell(r, 1).Value = "Xuất xả"; ws.Cell(r, 2).Value = "TPC-" + code;
+                ws.Cell(r, 3).Value = size == "0914" ? "Tôm HLSO, 10%, 91/120 (9 kg x 1 gói)" : "Tôm";
+                ws.Cell(r, 4).Value = sl; ws.Cell(r, 5).Value = new DateTime(2026, 11, d); ws.Cell(r, 6).Value = tl;
+                if (k % 5 != 0) ws.Cell(r, 7).Value = Math.Round(sl * tl, 2);
+                r++;
+            }
+        wb.SaveAs(xlsx);
+    }
+    var rd = s.RaDong; rd.Load();
+    var dt = KhoLanh.Core.RaDong.RaDongService.ReadExcel(xlsx);
+    rd.SetBang1(dt);
+    var plan = rd.DaysFrom().Where(p => p.Key != "2026-11-21").Select(p => new KhoLanh.Core.RaDong.RaDongService.DayPlan { Date = p.Key, Rows = p.Value }).ToList();
+    rd.Apply(plan, dt.FileName, "", 0, "replace");
+    var k0 = rd.Compute().Order.Last();
+    rd.EditGroup(k0, rd.Compute().NetCol, "1234.5");
+    rd.AddRow("2026-11-20", "BTP", "31/40", "12", "");
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -109,7 +145,7 @@ small.Show();
 Snap(small, "03c-man-hinh-1366");
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m6", "20-nhap-lieu") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m6", "20-nhap-lieu") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -125,6 +161,16 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
         tc.SelectedIndex = 1; Snap(main, "21b-tong-hop-bang");
         tc.SelectedIndex = 2; Snap(main, "21c-anh-xa-ten");
+    }
+    if (key == "m4")
+    {
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        tc.SelectedIndex = 1; Snap(main, "22b-ra-dong-bang-3");
+        var days = s.RaDong.SavedRows.Select(x => x.Date).Distinct().OrderBy(x => x).TakeLast(2).Select(d => (d, s.RaDong.SavedRows.Where(x => x.Date == d).ToList())).ToList();
+        KhoLanh.App.Views.DayImageRenderer.Render(days).Save(Path.Combine(outDir, "22c-ra-dong-anh-ngay.png"));
+        tc.SelectedIndex = 0;
+        var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => (t.Content as string)?.StartsWith("Bảng chưa gộp") == true);
+        tg.IsChecked = true; Snap(main, "22d-ra-dong-chua-gop"); tg.IsChecked = false;
     }
     if (key == "m6")
     {

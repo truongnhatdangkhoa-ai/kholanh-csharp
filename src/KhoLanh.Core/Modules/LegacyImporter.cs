@@ -24,7 +24,8 @@ public class LegacyImporter
     public static bool Wanted(string tab) =>
         tab.StartsWith("ton-kho-an-an/") || tab.StartsWith("ton-kho-gui/") ||
         tab is "tong-hop/MaHoa" or "tong-hop/AnhXaCauHinh" or "tong-hop/AnhXaTen" or "tong-hop/M8_Meta"
-           or "tong-hop/MaDaTao" or "tong-hop/TongHop" or "tong-hop/TongHop_Meta";
+           or "tong-hop/MaDaTao" or "tong-hop/TongHop" or "tong-hop/TongHop_Meta"
+           || tab.StartsWith("bao-cao-ra-dong/");
 
     public record Result(int Sheets, int Rows, List<string> Names);
 

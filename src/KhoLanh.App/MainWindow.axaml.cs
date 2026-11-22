@@ -56,6 +56,7 @@ public partial class MainWindow : Window
             ("BÁO CÁO", new[]
             {
                 new NavItem("m3", "Tổng hợp", () => new TongHopView()),
+                new NavItem("m4", "Báo cáo rã đông", () => new RaDongView()),
             }),
             ("NHẬP LIỆU", new[]
             {

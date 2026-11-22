@@ -14,6 +14,7 @@ App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ c
 | Tồn kho An An | Nhúng nguyên module của app cũ (WebView2): nạp file tồn gốc, phân loại, báo cáo Tổng Tồn / HLSO. Xem `web/NGUON.md`. |
 | Tồn kho gửi | Nhúng nguyên module của app cũ: nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính. |
 | Tổng hợp | Viết bằng C# (không WebView2), dùng chung dữ liệu với app cũ (db `tong-hop`). Mã hóa sản phẩm 21 ký tự (10 tổ hợp, danh sách chuẩn), danh sách mã hàng (11.603 mã mặc định, tô đỏ mã sai độ dài, tô vàng mã trùng / tổ hợp chưa khai báo, ghép mã), Bảng 1 nhập từ Excel → Bảng 2 gộp theo Ngày + Tên sản phẩm + Size, ánh xạ tên hàng (quy tắc đơn, kết hợp). Chưa làm: Tra cứu kháng sinh. |
+| Báo cáo rã đông | Viết bằng C# (không WebView2), dùng chung dữ liệu với app cũ (db `bao-cao-ra-dong`). Nạp file báo cáo kho (tự tìm dòng tiêu đề, bỏ tiền tố TPC-), Bảng 2 gộp theo Ngày + Tên sản phẩm + Size (Net thiếu tự tính, sửa tay, bảng chưa gộp, hoàn tác), Bảng 3 lưu theo ngày (thay thế / cập nhật giữ dòng sửa tay / cộng dồn, hoàn tác cập nhật), Excel năm theo mẫu, ảnh bảng ngày. Chưa làm: lấy file từ Đối chiếu hàng ngày (làm cùng module đó). |
 | Nhập liệu | Viết bằng C# (không WebView2). Các trang dạng lưới Excel: gõ / dán thẳng từ Excel (Ctrl+C / Ctrl+V), hoàn tác, điền xuống, tự lưu, mẫu cột (Nhập kho, Xuất kho, Kiểm kê, mẫu tự lưu), nhập / xuất Excel, thùng rác. Lưới dùng chung: `src/KhoLanh.App/Controls/SheetGrid.cs` + `src/KhoLanh.Core/Grid/GridModel.cs`. |
 | Tài khoản | Đăng nhập (nhớ mật khẩu, tự đăng nhập), 3 vai trò + phân quyền tới từng module. Dùng chung cho mọi máy qua Google Sheet: `docs/TAI-KHOAN-DUNG-CHUNG.md`. |
 | Cập nhật | Tự kiểm tra GitHub Releases lúc mở app và mỗi 30 phút, tải ngầm, mở lại là dùng bản mới; quay lại bản trước. |
@@ -23,6 +24,7 @@ App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ c
 
 ![Nhập liệu](docs/anh/20b-nhap-lieu-chon-vung.png)
 ![Tổng hợp](docs/anh/21b-tong-hop-bang.png)
+![Báo cáo rã đông](docs/anh/22-ra-dong.png)
 
 ## Dùng chung qua mạng LAN
 

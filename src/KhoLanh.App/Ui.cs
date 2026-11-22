@@ -79,7 +79,7 @@ public static class Ui
         return "Có lỗi xảy ra: " + string.Join("\n→ ", parts) + (logPath.Length > 0 ? $"\n\nChi tiết đã ghi vào {logPath}" : "");
     }
 
-    private static Window Dialog(string title, Control body, double width = 440) => new()
+    public static Window Dialog(string title, Control body, double width = 440) => new()
     {
         Title = title, Width = width, SizeToContent = SizeToContent.Height, CanResize = false,
         WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
@@ -87,7 +87,7 @@ public static class Ui
         Content = new Border { Padding = new Thickness(22, 18), Child = body },
     };
 
-    private static StackPanel Buttons(params Button[] buttons)
+    public static StackPanel Buttons(params Button[] buttons)
     {
         var p = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8, Margin = new Thickness(0, 18, 0, 0) };
         foreach (var b in buttons) p.Children.Add(b);
