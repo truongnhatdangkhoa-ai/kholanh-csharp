@@ -7,7 +7,7 @@ namespace KhoLanh.App.Views;
 public partial class AuditView : UserControl, IPage
 {
     public string Title => "Nhật ký thao tác";
-    public string Subtitle => "500 thao tác gần nhất: đăng nhập, lập phiếu, hủy phiếu, sửa danh mục, sao lưu...";
+    public string Subtitle => "500 thao tác gần nhất: đăng nhập, tài khoản, phân quyền, sao lưu, cập nhật...";
 
     public AuditView()
     {

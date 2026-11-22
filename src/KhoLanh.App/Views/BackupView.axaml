@@ -6,7 +6,7 @@
     <StackPanel Spacing="16" Margin="0,0,6,0">
       <Border Classes="card">
         <StackPanel Spacing="4">
-          <TextBlock Text="Thông tin in trên phiếu" Classes="section"/>
+          <TextBlock Text="Thông tin công ty" Classes="section"/>
           <TextBlock Text="Tên công ty" Classes="label"/><TextBox x:Name="CompanyBox"/>
           <TextBlock Text="Địa chỉ" Classes="label"/><TextBox x:Name="AddressBox"/>
           <TextBlock Text="Tên kho" Classes="label"/><TextBox x:Name="WarehouseBox" Watermark="VD: Kho lạnh số 1"/>

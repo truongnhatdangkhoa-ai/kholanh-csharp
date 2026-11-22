@@ -7,7 +7,7 @@
         <StackPanel Orientation="Horizontal" Spacing="10">
           <Button Content="+ Tài khoản mới" Classes="primary" Click="OnNew"/>
           <TextBlock Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
-                     Text="Vai trò cho quyền mặc định (Quản trị: toàn quyền · Quản lý: sửa mọi mục trừ tài khoản · Nhân viên: lập phiếu, xem tồn, xem + xuất file 2 module). Có thể chỉnh quyền riêng tới từng màn hình ở khung bên phải."/>
+                     Text="Vai trò cho quyền mặc định (Quản trị: toàn quyền · Quản lý: sửa mọi mục trừ tài khoản · Nhân viên: xem + xuất file 2 module). Có thể chỉnh quyền riêng tới từng màn hình ở khung bên phải."/>
         </StackPanel>
       </Border>
       <DataGrid x:Name="Grid" SelectionChanged="OnSelect">

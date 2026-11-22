@@ -35,8 +35,8 @@ public class PermTests : IDisposable
     public void Role_defaults_apply_when_no_custom_permissions()
     {
         var staff = new User { Role = Roles.Staff };
-        Assert.True(Perm.Has(staff, "out", Perm.Edit));
-        Assert.False(Perm.Has(staff, "cancel", Perm.Edit));
+        Assert.False(Perm.Has(staff, "backup", Perm.Edit));
+        Assert.False(Perm.Has(staff, "audit"));
         Assert.Equal(Perm.Export, Perm.Level(staff, "m1"));
         Assert.True(Perm.Has(new User { Role = Roles.Manager }, "m2", Perm.Edit));
         Assert.False(Perm.Has(new User { Role = Roles.Manager }, "users"));
@@ -46,11 +46,12 @@ public class PermTests : IDisposable
     public void Custom_permissions_limit_screens_and_module_writes()
     {
         var u = _s.Auth.CreateUser("kho1", "Kho", "matkhau1", Roles.Manager,
-            Perm.Serialize(new Dictionary<string, string> { ["m1"] = Perm.Edit, ["m2"] = Perm.View, ["stock"] = Perm.View }));
+            Perm.Serialize(new Dictionary<string, string> { ["m1"] = Perm.Edit, ["m2"] = Perm.View, ["audit"] = Perm.View }));
         _s.Auth.Login("kho1", "matkhau1");
         Assert.True(_s.Session.Can("m1", Perm.Edit));
-        Assert.False(_s.Session.Can("in"));
-        Assert.Throws<BusinessException>(() => _s.Catalog.SaveProduct(new Product { Code = "A", Name = "A" }));
+        Assert.False(_s.Session.Can("backup"));
+        Assert.True(_s.Session.Can("audit"));
+        Assert.Throws<BusinessException>(() => _s.Backup.ManualBackup(Path.Combine(_dir, "x.db")));
         Assert.True(Write("ton-kho-an-an"));
         Assert.False(Write("ton-kho-gui"));
         Assert.Equal("quanly", Auth("/html/ton-kho-an-an.html"));
@@ -70,8 +71,9 @@ public class PermTests : IDisposable
     [Fact]
     public void Invalid_levels_are_dropped()
     {
-        var d = Perm.Parse("{\"in\":\"xuat\",\"m1\":\"xuat\",\"la\":\"sua\"}");
-        Assert.False(d.ContainsKey("in"));
+        var d = Perm.Parse("{\"in\":\"sua\",\"audit\":\"xuat\",\"m1\":\"xuat\",\"la\":\"sua\"}");
+        Assert.False(d.ContainsKey("in"));   // mục cũ đã gỡ: bỏ qua
+        Assert.False(d.ContainsKey("audit")); // mức không hợp lệ
         Assert.Equal("xuat", d["m1"]);
         Assert.False(d.ContainsKey("la"));
     }

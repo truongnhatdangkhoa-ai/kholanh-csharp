@@ -12,11 +12,7 @@ public class AppServices
     public AuditService Audit { get; }
     public SettingsService Settings { get; }
     public AuthService Auth { get; }
-    public CatalogService Catalog { get; }
-    public VoucherService Vouchers { get; }
-    public StockService Stock { get; }
     public BackupService Backup { get; }
-    public ExportService Export { get; } = new();
     public ModuleStore Modules { get; }
     public ModuleBridge Bridge { get; }
     public LegacyImporter Legacy { get; }
@@ -31,9 +27,6 @@ public class AppServices
         Audit = new AuditService(Db);
         Settings = new SettingsService(Db);
         Auth = new AuthService(Db, Session, Audit);
-        Catalog = new CatalogService(Db, Session, Audit);
-        Vouchers = new VoucherService(Db, Session, Audit);
-        Stock = new StockService(Db);
         Backup = new BackupService(Db, Session, Audit);
         Modules = new ModuleStore(Db, Session);
         Legacy = new LegacyImporter(Modules, Session);
@@ -43,6 +36,5 @@ public class AppServices
         Accounts.Updates = Updates;
         Remember = new LoginMemory(Settings);
         Bridge = new ModuleBridge(Modules, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
-        Catalog.EnsureDefaults();
     }
 }

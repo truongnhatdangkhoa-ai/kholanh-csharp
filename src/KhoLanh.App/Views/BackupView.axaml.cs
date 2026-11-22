@@ -9,7 +9,7 @@ namespace KhoLanh.App.Views;
 public partial class BackupView : UserControl, IPage
 {
     public string Title => "Sao lưu và cài đặt";
-    public string Subtitle => "Thông tin công ty in trên phiếu, cập nhật phần mềm, sao lưu và khôi phục dữ liệu.";
+    public string Subtitle => "Thông tin công ty, cập nhật phần mềm, tài khoản dùng chung, sao lưu và khôi phục dữ liệu.";
 
     private record BackupRow(string Name, string FullName, DateTime LastWriteTime, long Kb);
 

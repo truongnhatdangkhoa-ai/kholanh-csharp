@@ -46,30 +46,12 @@ public partial class MainWindow : Window
 
         _menu = new()
         {
-            ("TỔNG QUAN", new[] { new NavItem("dash", "Tổng quan", () => new DashboardView()) }),
-            ("NGHIỆP VỤ", new[]
-            {
-                new NavItem("in", "Phiếu nhập", () => new VoucherEditView(VoucherTypes.In)),
-                new NavItem("out", "Phiếu xuất", () => new VoucherEditView(VoucherTypes.Out)),
-                new NavItem("list", "Danh sách phiếu", () => new VoucherListView()),
-            }),
-            ("KHO", new[]
-            {
-                new NavItem("stock", "Tồn kho", () => new StockView()),
-                new NavItem("ledger", "Sổ kho", () => new LedgerView()),
-                new NavItem("nxt", "Báo cáo NXT", () => new ReportView()),
-            }),
             ("TỒN KHO GỐC", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => Module("m1", "ton-kho-an-an.html", "Tồn kho An An",
                     "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ.")),
                 new NavItem("m2", "Tồn kho gửi", () => Module("m2", "ton-kho-gui.html", "Tồn kho gửi",
                     "Nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính — chạy nguyên mã module của app cũ.")),
-            }),
-            ("DANH MỤC", new[]
-            {
-                new NavItem("products", "Mã hàng", () => new ProductsView()),
-                new NavItem("owners", "Chủ hàng", () => new OwnersView()),
             }),
             ("HỆ THỐNG", new[]
             {
@@ -78,20 +60,18 @@ public partial class MainWindow : Window
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
             }),
         };
-        // Menu ngang: nhóm có 1 mục là nút thẳng; nhóm nhiều mục (Danh mục, Hệ thống) là nút thả xuống.
-        // Nhóm NGHIỆP VỤ và KHO được trải phẳng vì dùng nhiều nhất.
+        // Menu ngang: các module trải phẳng thành nút; nhóm Hệ thống là nút thả xuống.
+        // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới), thêm mục quyền trong Perm.Items.
         foreach (var (group, items) in _menu)
         {
             var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
-            var flat = group is "TỔNG QUAN" or "NGHIỆP VỤ" or "KHO" or "TỒN KHO GỐC";
+            var flat = group != "HỆ THỐNG";
             if (flat)
             {
                 foreach (var item in visible)
                 {
                     var b = new Button { Content = item.Label, Classes = { "topnav" } };
-                    var hotkey = item.Key switch { "in" => "F2", "out" => "F3", "stock" => "F4", _ => null };
-                    if (hotkey is not null) ToolTip.SetTip(b, $"Phím tắt {hotkey}");
                     b.Click += (_, _) => Navigate(item.Key);
                     _buttons[item.Key] = b;
                     NavPanel.Children.Add(b);
@@ -117,13 +97,12 @@ public partial class MainWindow : Window
         UserButton.Content = $"{u.Username}  ▾";
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
         UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
-        KeyDown += OnKeyDown;
         // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
         AppUpdater.Ready += OnUpdateReady;
         Closed += (_, _) => AppUpdater.Ready -= OnUpdateReady;
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
-        Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "dash");
+        Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
 
     private static bool _autoStarted;
@@ -139,7 +118,7 @@ public partial class MainWindow : Window
     {
         var v = AppUpdater.StagedVersion;
         if (v is null) { UpdateButton.IsVisible = false; return; }
-        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu phiếu đang lập dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
         if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
             AppUpdater.ExitForUpdate();
     }
@@ -147,11 +126,6 @@ public partial class MainWindow : Window
     private static string GroupLabel(string group) =>
         string.Concat(group[..1], group[1..].ToLower(System.Globalization.CultureInfo.GetCultureInfo("vi-VN")));
 
-    private void OnKeyDown(object? sender, KeyEventArgs e)
-    {
-        var key = e.Key switch { Key.F2 => "in", Key.F3 => "out", Key.F4 => "stock", _ => null };
-        if (key is not null) { Navigate(key); e.Handled = true; }
-    }
 
     public void Navigate(string key) => Show(key, null);
 

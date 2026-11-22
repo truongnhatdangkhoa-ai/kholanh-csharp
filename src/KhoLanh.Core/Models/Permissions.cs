@@ -14,19 +14,9 @@ public static class Perm
 
     public static readonly Item[] Items =
     {
-        new("dash", "Tổng quan", "Chung", new[] { View }, "Trang tổng quan"),
-        new("in", "Phiếu nhập", "Nghiệp vụ", new[] { Edit }, "Lập phiếu nhập"),
-        new("out", "Phiếu xuất", "Nghiệp vụ", new[] { Edit }, "Lập phiếu xuất"),
-        new("list", "Danh sách phiếu", "Nghiệp vụ", new[] { View }, "Xem, in lại phiếu"),
-        new("cancel", "Hủy phiếu", "Nghiệp vụ", new[] { Edit }, "Hủy phiếu đã lưu"),
-        new("stock", "Tồn kho", "Kho", new[] { View }, ""),
-        new("ledger", "Sổ kho", "Kho", new[] { View }, ""),
-        new("nxt", "Báo cáo NXT", "Kho", new[] { View }, ""),
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
-        new("products", "Mã hàng", "Danh mục", new[] { View, Edit }, ""),
-        new("owners", "Chủ hàng", "Danh mục", new[] { View, Edit }, ""),
-        new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, chép dữ liệu app cũ, thông tin phiếu"),
+        new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
     };
 
@@ -46,8 +36,7 @@ public static class Perm
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         if (role == Roles.Staff)
         {
-            d["cancel"] = None; d["backup"] = None; d["audit"] = None;
-            d["products"] = View; d["owners"] = View;
+            d["backup"] = None; d["audit"] = None;
             d["m1"] = Export; d["m2"] = Export;
         }
         return d;
