@@ -68,13 +68,13 @@ public partial class App : Application
         Services = new AppServices(Path.Combine(DataFolder, "khodata.db"));
     }
 
-    public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop)
+    public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop, bool afterLogout = false)
     {
-        var login = new LoginWindow();
+        var login = new LoginWindow { AfterLogout = afterLogout };
         login.LoggedIn += () =>
         {
             var main = new MainWindow();
-            main.LoggedOut += () => { ShowLogin(desktop); main.Close(); };
+            main.LoggedOut += () => { ShowLogin(desktop, afterLogout: true); main.Close(); };
             main.Closed += (_, _) => { if (!main.IsLoggingOut) desktop.Shutdown(); };
             desktop.MainWindow = main;
             main.Show();

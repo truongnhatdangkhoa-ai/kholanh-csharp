@@ -22,6 +22,7 @@ public class AppServices
     public LegacyImporter Legacy { get; }
     public UpdateService Updates { get; }
     public AccountSyncService Accounts { get; internal set; }
+    public LoginMemory Remember { get; }
 
     public AppServices(string dbPath)
     {
@@ -40,6 +41,7 @@ public class AppServices
         Accounts = new AccountSyncService(Db, Settings, Session, Audit);
         Auth.Sync = Accounts;
         Accounts.Updates = Updates;
+        Remember = new LoginMemory(Settings);
         Bridge = new ModuleBridge(Modules, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
         Catalog.EnsureDefaults();
     }

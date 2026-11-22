@@ -76,3 +76,24 @@ public class PermTests : IDisposable
         Assert.False(d.ContainsKey("la"));
     }
 }
+
+public class LoginMemoryTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "klcs-nho-" + Guid.NewGuid().ToString("N"));
+    public void Dispose() { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); try { Directory.Delete(_dir, true); } catch { } }
+
+    [Xunit.Fact]
+    public void Remember_and_auto_login_settings()
+    {
+        var s = new AppServices(Path.Combine(_dir, "kho.db"));
+        var m = s.Remember;
+        Xunit.Assert.False(m.Remember);
+        m.Save("nv1", "matkhau2", remember: false, auto: false);
+        Xunit.Assert.Equal("nv1", m.Username); Xunit.Assert.False(m.Remember); Xunit.Assert.Equal("", m.Password);
+        m.Save("nv1", "matkhau2", remember: false, auto: true); // tự đăng nhập kéo theo nhớ mật khẩu
+        Xunit.Assert.True(m.Remember); Xunit.Assert.True(m.Auto); Xunit.Assert.Equal("matkhau2", m.Password);
+        if (OperatingSystem.IsWindows()) Xunit.Assert.DoesNotContain("matkhau2", s.Settings.Get("login_pass")); // DPAPI
+        m.Forget();
+        Xunit.Assert.False(m.Remember); Xunit.Assert.False(m.Auto); Xunit.Assert.Equal("nv1", m.Username);
+    }
+}

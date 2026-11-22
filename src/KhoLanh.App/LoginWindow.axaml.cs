@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using KhoLanh.Core.Services;
 
 namespace KhoLanh.App;
@@ -9,6 +10,9 @@ public partial class LoginWindow : Window
     private bool _firstRun;
     public event Action? LoggedIn;
     public bool Succeeded { get; private set; }
+    /// <summary>Mở lại sau khi bấm Đăng xuất: không tự đăng nhập, không hỏi cập nhật.</summary>
+    public bool AfterLogout { get; init; }
+    private TaskCompletionSource? _skip;
 
     public LoginWindow()
     {
@@ -27,9 +31,16 @@ public partial class LoginWindow : Window
             UserBox.Text = "admin";
             JoinButton.IsVisible = true;
         }
-        else if (s.Accounts.Enabled)
-            SubHeading.Text = "Tài khoản dùng chung cho mọi máy (Google Sheet). Nhập tài khoản được cấp để vào phần mềm.";
-        Opened += (_, _) => (_firstRun ? FullNameBox : UserBox).Focus();
+        else
+        {
+            if (s.Accounts.Enabled)
+                SubHeading.Text = "Tài khoản dùng chung cho mọi máy (Google Sheet). Nhập tài khoản được cấp để vào phần mềm.";
+            var m = s.Remember;
+            UserBox.Text = m.Username;
+            if (m.Remember) { PassBox.Text = m.Password; RememberBox.IsChecked = true; AutoBox.IsChecked = m.Auto; }
+            Opened += async (_, _) => await StartupAsync();
+        }
+        Opened += (_, _) => (_firstRun ? FullNameBox : (UserBox.Text ?? "").Length > 0 ? PassBox : UserBox).Focus();
         // Bộ cài cho máy mới (KhoLanh.exe + ket-noi.txt): tự nhận tài khoản từ Google Sheet, chỉ cần đăng nhập.
         if (_firstRun && AccountSyncService.BundledCode() is { } code)
         {
@@ -43,7 +54,80 @@ public partial class LoginWindow : Window
         }
     }
 
-    private async void OnLogin(object? sender, RoutedEventArgs e)
+    // ---------------- mở app: kiểm tra bản mới, rồi tự đăng nhập ----------------
+
+    private async Task StartupAsync()
+    {
+        if (AfterLogout) return;
+        if (await UpdateBeforeLogin()) return;
+        var m = App.Services.Remember;
+        if (m.Auto && (UserBox.Text ?? "").Length > 0 && (PassBox.Text ?? "").Length > 0)
+            await DoLogin(auto: true);
+    }
+
+    /// <summary>
+    /// Hỏi GitHub có bản mới không (chờ tối đa 10 giây; mất mạng / chưa có mã thì vào luôn). Có bản mới → tải (hiện %),
+    /// xong thì mở bản mới. Người dùng bấm "Bỏ qua" thì vào làm việc, bản mới tiếp tục tải ngầm. True = đang mở bản mới.
+    /// </summary>
+    private async Task<bool> UpdateBeforeLogin()
+    {
+        if (AppUpdater.ExePath is null || !OperatingSystem.IsWindows() || !App.Services.Updates.Auto) return false;
+        UpdatePanel.IsVisible = true;
+        UpdText.Text = "Đang kiểm tra bản cập nhật…";
+        LoginButton.IsEnabled = false;
+        _skip = new TaskCompletionSource();
+        var downloading = false;
+        void OnProg(string msg) => Dispatcher.UIThread.Post(() =>
+        {
+            UpdText.Text = msg;
+            var i = msg.LastIndexOf(": ", StringComparison.Ordinal);
+            if (msg.StartsWith("Đang tải") && i > 0 && int.TryParse(msg[(i + 2)..].TrimEnd('%'), out var pct))
+            {
+                downloading = true; SkipButton.IsVisible = true;
+                UpdBar.IsIndeterminate = false; UpdBar.Value = pct;
+            }
+        });
+        AppUpdater.Progress += OnProg;
+        var restarting = false;
+        try
+        {
+            var task = AppUpdater.CheckAndStageAsync(quiet: true);
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (!task.IsCompleted && !_skip.Task.IsCompleted && (downloading || sw.Elapsed < TimeSpan.FromSeconds(10)))
+                await Task.WhenAny(task, _skip.Task, Task.Delay(200));
+            if (!task.IsCompleted)
+            {
+                _ = task.ContinueWith(t => _ = t.Exception, TaskScheduler.Default); // tải tiếp ngầm; xong thì nút Cập nhật hiện trên menu
+                return false;
+            }
+            Version? v;
+            try { v = await task; } catch { v = null; }
+            if (v is null) return false;
+            UpdText.Text = $"Đã tải xong bản {v} — đang mở bản mới…";
+            await Task.Delay(300);
+            try { restarting = AppUpdater.ApplyAndRestart(); } catch { restarting = false; }
+            if (restarting)
+            {
+                Succeeded = true; // không coi là đóng cửa sổ đăng nhập bình thường
+                (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+            }
+            return restarting;
+        }
+        finally
+        {
+            AppUpdater.Progress -= OnProg;
+            if (!restarting) { UpdatePanel.IsVisible = false; LoginButton.IsEnabled = true; }
+        }
+    }
+
+    private void OnSkipUpdate(object? sender, RoutedEventArgs e) => _skip?.TrySetResult();
+
+    private void OnRememberChanged(object? sender, RoutedEventArgs e) { if (RememberBox.IsChecked != true) AutoBox.IsChecked = false; }
+    private void OnAutoChanged(object? sender, RoutedEventArgs e) { if (AutoBox.IsChecked == true) RememberBox.IsChecked = true; }
+
+    private async void OnLogin(object? sender, RoutedEventArgs e) => await DoLogin(auto: false);
+
+    private async Task DoLogin(bool auto)
     {
         ErrorText.Text = "";
         var s = App.Services;
@@ -67,12 +151,14 @@ public partial class LoginWindow : Window
                 s.Auth.CreateFirstAdmin(user, FullNameBox.Text ?? "", pass);
             }
             s.Auth.Login(user, pass);
+            s.Remember.Save(user, pass, RememberBox.IsChecked == true, AutoBox.IsChecked == true);
             Succeeded = true;
             LoggedIn?.Invoke();
         }
         catch (BusinessException ex)
         {
-            ErrorText.Text = ex.Message;
+            ErrorText.Text = auto ? "Không tự đăng nhập được: " + ex.Message + " Đã bỏ mật khẩu đã nhớ — nhập lại." : ex.Message;
+            if (auto) { s.Remember.Forget(); RememberBox.IsChecked = AutoBox.IsChecked = false; }
             PassBox.Text = "";
             PassBox.Focus();
         }
