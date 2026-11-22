@@ -32,13 +32,7 @@ jobs:
           path: |
             publish/win-x64/KhoLanh.exe
             publish/win-x64/KhoLanh.exe.sha256
-      - name: Phát hành (khi gắn tag v*) — app tự cập nhật lấy KhoLanh.exe + KhoLanh.exe.sha256 từ đây
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            publish/win-x64/KhoLanh.exe
-            publish/win-x64/KhoLanh.exe.sha256
+
 
   tu-kiem-windows:
     # Mở thật 2 module gốc trong WebView2 trên Windows, kiểm tra cầu nối dữ liệu + thư viện Excel.
@@ -69,3 +63,36 @@ jobs:
           if (-not (Test-Path "$t\data\da-cap-nhat.txt")) { throw 'Bản mới không được mở lại' }
           if (-not (Test-Path "$t\KhoLanh.exe.cu")) { throw 'Không giữ bản cũ (.cu)' }
           if (Test-Path "$t\KhoLanh.exe.moi") { throw 'Bản chờ (.moi) chưa được đưa vào chỗ' }
+
+  phat-hanh:
+    # Đổi <Version> trong Directory.Build.props rồi đẩy lên main → sau khi kiểm thử + tự kiểm tra Windows đạt,
+    # tự tạo bản phát hành vX.Y.Z (nếu chưa có). App ở máy người dùng tự cập nhật từ đây.
+    needs: [build, tu-kiem-windows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Đọc phiên bản
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then echo "moi=0" >> "$GITHUB_OUTPUT"; else echo "moi=1" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/download-artifact@v4
+        if: steps.ver.outputs.moi == '1'
+        with:
+          name: KhoLanh-win-x64
+          path: out
+      - name: Tạo bản phát hành
+        if: steps.ver.outputs.moi == '1'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Kho Lạnh ${{ steps.ver.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          body: Bản ${{ steps.ver.outputs.v }} — phần mềm tự tải và cập nhật (không cần cài lại).
+          files: |
+            out/KhoLanh.exe
+            out/KhoLanh.exe.sha256
