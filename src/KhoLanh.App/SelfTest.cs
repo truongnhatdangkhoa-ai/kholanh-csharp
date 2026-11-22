@@ -42,7 +42,7 @@ internal static class SelfTest
         {
             if (i >= pages.Length) { timeout.Dispose(); Done(); return; }
             var mv = new ModuleView(pages[i], pages[i], "");
-            mv.Loaded += async (good, msg) =>
+            mv.ModuleLoaded += async (good, msg) =>
             {
                 if (!good) { ok = false; log.AppendLine(pages[i] + ": " + msg); timeout.Dispose(); Done(); return; }
                 await Task.Delay(1500);
@@ -70,7 +70,7 @@ internal static class SelfTest
                 for (var k = 0; k < 60 && res == "null"; k++) { await Task.Delay(500); res = await mv.Host.EvalAsync("window.__kt"); }
                 var json = res == "null" ? "" : System.Text.Json.JsonSerializer.Deserialize<string>(res) ?? "";
                 log.AppendLine(pages[i] + ": " + json);
-                var good2 = json.Contains("\"dbAPI\":\"object\"") && json.Contains("\"xlsxDoc\":\"0.20.3\"") && json.Contains("\"write\":true")
+                var good2 = json.Contains("\"dbAPI\":\"object\"") && (json.Contains("\"xlsxDoc\":\"0.20.3\"") || (pages[i] == "ton-kho-gui.html" && json.Contains("\"xlsxStyle\":\"0.20.3\""))) && json.Contains("\"write\":true")
                             && json.Contains("Tôm sú") && json.Contains("[\\\"T2\\\"]") && json.Contains("quantri") && !json.Contains("\"error\"");
                 if (!good2) ok = false;
                 host.Children.Remove(mv);

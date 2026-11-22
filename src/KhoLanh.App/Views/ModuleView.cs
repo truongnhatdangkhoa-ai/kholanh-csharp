@@ -32,13 +32,13 @@ public class ModuleView : Grid, IPage
             return;
         }
         _host = new WebModuleHost(page);
-        _host.Status += msg => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _status.Text = msg; _status.IsVisible = true; _host.IsVisible = false; Loaded?.Invoke(false, msg); });
-        _host.Ready += () => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _status.IsVisible = false; Loaded?.Invoke(true, ""); });
+        _host.Status += msg => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _status.Text = msg; _status.IsVisible = true; _host.IsVisible = false; ModuleLoaded?.Invoke(false, msg); });
+        _host.Ready += () => Avalonia.Threading.Dispatcher.UIThread.Post(() => { _status.IsVisible = false; ModuleLoaded?.Invoke(true, ""); });
         Children.Add(_host);
     }
 
     public WebModuleHost? Host => _host;
-    public event Action<bool, string>? Loaded;
+    public event Action<bool, string>? ModuleLoaded;
 
     public void SetActive(bool active)
     {
