@@ -55,6 +55,15 @@ public class UpdateService
         _settings.Set(KeyAuto, auto ? "1" : "0");
     }
 
+    /// <summary>Mã GitHub để đóng vào mã kết nối / bộ cài cho máy khác (chỉ Quản trị).</summary>
+    public string ShareToken() { _session.RequireAdmin(); return Token(); }
+
+    /// <summary>Nhận mã GitHub từ mã kết nối / bộ cài (máy mới chưa có ai đăng nhập). Chỉ ghi khi máy chưa có mã.</summary>
+    public void ImportToken(string token)
+    {
+        if (token.Trim().Length > 0 && !HasToken) _settings.Set(KeyToken, Secret.Protect(token.Trim()));
+    }
+
     /// <summary>Mã truy cập: ưu tiên cấu hình trong app, sau đó file github-token.txt cạnh KhoLanh.exe (dòng # là ghi chú).</summary>
     private string Token()
     {

@@ -27,11 +27,34 @@ public class AccountSyncService
     private readonly Session _session;
     private readonly AuditService _audit;
     private readonly HttpMessageHandler? _handler;
+    /// <summary>Để mã kết nối mang theo mã GitHub (máy mới tự cập nhật được ngay).</summary>
+    public UpdateService? Updates { get; set; }
+    public const string BundleFile = "ket-noi.txt";
 
     public AccountSyncService(Database db, SettingsService settings, Session session, AuditService audit, HttpMessageHandler? handler = null)
     {
         _db = db; _settings = settings; _session = session; _audit = audit; _handler = handler;
     }
+
+    /// <summary>Mã kết nối đóng sẵn trong file ket-noi.txt cạnh KhoLanh.exe (bộ cài cho máy mới), hoặc null.</summary>
+    public static string? BundledCode(string? dir = null)
+    {
+        try
+        {
+            dir ??= Path.GetDirectoryName(Environment.ProcessPath ?? "") ?? "";
+            var f = Path.Combine(dir, BundleFile);
+            if (!File.Exists(f)) return null;
+            return File.ReadAllLines(f).Select(x => x.Trim()).FirstOrDefault(x => x.StartsWith(CodePrefix));
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Nội dung file ket-noi.txt của bộ cài cho máy mới (mã máy nhân viên, chỉ đọc).</summary>
+    public string BundleText() =>
+        "# Kho Lạnh — mã kết nối tài khoản dùng chung (Google Sheet) + mã cập nhật phần mềm.\r\n" +
+        "# Để file này CẠNH KhoLanh.exe: lần mở đầu tiên máy tự nhận tài khoản, chỉ cần đăng nhập.\r\n" +
+        "# Chỉ dùng cho máy của công ty, không gửi cho người ngoài.\r\n" +
+        ConnectionCode(forAdmin: false) + "\r\n";
 
     public string Url => _settings.Get(KeyUrl);
     private string Token => Secret.Unprotect(_settings.Get(KeyToken));
@@ -73,10 +96,13 @@ public class AccountSyncService
         if (forAdmin && !CanWrite) throw new BusinessException("Máy này không có mã quản trị.");
         var o = new JsonObject { ["u"] = Url, ["t"] = Token };
         if (forAdmin) o["a"] = AdminKey;
+        if (Updates?.ShareToken() is { Length: > 0 } g) o["g"] = g;
         return CodePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(o.ToJsonString())).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
-    internal static (string url, string token, string admin) ParseCode(string code)
+    internal static (string url, string token, string admin) ParseCode(string code) { var r = ParseFull(code); return (r.url, r.token, r.admin); }
+
+    internal static (string url, string token, string admin, string github) ParseFull(string code)
     {
         var t = new string(code.Trim().Where(ch => !char.IsWhiteSpace(ch)).ToArray());
         if (!t.StartsWith(CodePrefix)) throw new BusinessException("Mã kết nối không đúng (phải bắt đầu bằng " + CodePrefix + ").");
@@ -85,7 +111,7 @@ public class AccountSyncService
             var b = t[CodePrefix.Length..].Replace('-', '+').Replace('_', '/');
             b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
             var o = JsonNode.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(b)))!.AsObject();
-            return (o["u"]!.GetValue<string>(), o["t"]!.GetValue<string>(), o["a"]?.GetValue<string>() ?? "");
+            return (o["u"]!.GetValue<string>(), o["t"]!.GetValue<string>(), o["a"]?.GetValue<string>() ?? "", o["g"]?.GetValue<string>() ?? "");
         }
         catch { throw new BusinessException("Mã kết nối bị thiếu hoặc sai — chép lại đủ cả dòng mã."); }
     }
@@ -111,8 +137,8 @@ public class AccountSyncService
     public async Task<ConnectResult> ConnectAsync(string input, CancellationToken ct = default)
     {
         if (HasAnyUser()) _session.RequireAdmin();
-        string url, token, admin;
-        if (input.Trim().StartsWith(CodePrefix)) (url, token, admin) = ParseCode(input);
+        string url, token, admin, github = "";
+        if (input.Trim().StartsWith(CodePrefix)) (url, token, admin, github) = ParseFull(input);
         else
         {
             token = Secret.Unprotect(_settings.Get(KeyPendToken));
@@ -143,6 +169,7 @@ public class AccountSyncService
         _settings.Set(KeyToken, Secret.Protect(token));
         _settings.Set(KeyAdmin, admin.Length > 0 ? Secret.Protect(admin) : "");
         _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
+        if (github.Length > 0) Updates?.ImportToken(github);
         _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         _audit.Log(_session.Username, "Kết nối tài khoản dùng chung", $"{(uploaded ? "đưa lên" : "tải về")} {count} tài khoản{(admin.Length > 0 ? ", máy quản trị" : "")}");
         return new ConnectResult(uploaded, count, admin.Length > 0);

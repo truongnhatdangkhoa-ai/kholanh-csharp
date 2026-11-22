@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using KhoLanh.Core.Models;
 using KhoLanh.Core.Services;
 
@@ -90,6 +91,35 @@ public partial class BackupView : UserControl, IPage
         if (await Ui.RunAsync(this, async () => n = await App.Services.Accounts.PullAsync(TimeSpan.FromSeconds(30))))
             AcctMsg.Text = $"Đã đồng bộ {n} tài khoản từ Google Sheet.";
         ShowAccounts();
+    }
+
+    /// <summary>Thư mục chép sang máy mới: KhoLanh.exe + ket-noi.txt (mã máy nhân viên + mã GitHub). Máy mới mở lên chỉ cần đăng nhập.</summary>
+    private async void OnAcctBundle(object? sender, RoutedEventArgs e)
+    {
+        var top = TopLevel.GetTopLevel(this);
+        if (top is null) return;
+        var picked = await top.StorageProvider.OpenFolderPickerAsync(new Avalonia.Platform.Storage.FolderPickerOpenOptions { Title = "Chọn nơi tạo bộ cài (VD: USB hoặc Desktop)" });
+        var root = picked.FirstOrDefault()?.TryGetLocalPath();
+        if (root is null) return;
+        string? dir = null;
+        if (!await Ui.RunAsync(this, () => Task.Run(() =>
+        {
+            var text = App.Services.Accounts.BundleText();
+            dir = Path.Combine(root, "KhoLanh-cai-may-moi");
+            Directory.CreateDirectory(dir);
+            if (AppUpdater.ExePath is { } exe) File.Copy(exe, Path.Combine(dir, "KhoLanh.exe"), true);
+            File.WriteAllText(Path.Combine(dir, AccountSyncService.BundleFile), text);
+            File.WriteAllText(Path.Combine(dir, "DOC-TRUOC.txt"),
+                "Cài Kho Lạnh cho máy mới:\r\n" +
+                "1. Chép CẢ thư mục này sang máy mới (VD vào Desktop). Giữ ket-noi.txt cạnh KhoLanh.exe.\r\n" +
+                "2. Mở KhoLanh.exe (máy cần Internet lần đầu). Phần mềm tự nhận tài khoản và phân quyền từ Google Sheet.\r\n" +
+                "3. Đăng nhập bằng tài khoản được cấp. Phần mềm tự cập nhật bản mới, không cần cài lại.\r\n" +
+                "Nếu Windows hỏi (SmartScreen): bấm Thông tin thêm > Vẫn chạy.\r\n");
+        }))) return;
+        AcctMsg.Text = $"Đã tạo bộ cài ở {dir}. Chép cả thư mục sang máy mới, mở KhoLanh.exe là chỉ cần đăng nhập."
+                       + (AppUpdater.ExePath is null ? " (Chưa chép được KhoLanh.exe — hãy tự chép file exe vào thư mục đó.)" : "")
+                       + (App.Services.Updates.HasToken ? "" : " Lưu ý: chưa có mã GitHub nên máy mới chưa tự cập nhật được.");
+        Ui.OpenExternal(dir!);
     }
 
     private async void OnAcctCodeStaff(object? sender, RoutedEventArgs e)

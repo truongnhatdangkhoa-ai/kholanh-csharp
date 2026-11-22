@@ -57,8 +57,9 @@
             <Button Content="Kết nối" Classes="primary" Click="OnAcctConnect"/>
           </StackPanel>
           <WrapPanel x:Name="AcctOnPanel" ItemSpacing="8" LineSpacing="8">
+            <Button Content="Tạo bộ cài cho máy mới…" Classes="primary" Click="OnAcctBundle"/>
             <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
-            <Button Content="Chép mã cho máy nhân viên" Classes="primary" Click="OnAcctCodeStaff"/>
+            <Button Content="Chép mã cho máy nhân viên" Click="OnAcctCodeStaff"/>
             <Button x:Name="AcctCodeAdminButton" Content="Chép mã cho máy quản trị" Click="OnAcctCodeAdmin"/>
             <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
           </WrapPanel>

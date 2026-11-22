@@ -39,6 +39,7 @@ public class AppServices
         Updates = new UpdateService(Settings, Session);
         Accounts = new AccountSyncService(Db, Settings, Session, Audit);
         Auth.Sync = Accounts;
+        Accounts.Updates = Updates;
         Bridge = new ModuleBridge(Modules, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
         Catalog.EnsureDefaults();
     }

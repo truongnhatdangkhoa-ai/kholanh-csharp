@@ -58,6 +58,7 @@ public class AccountSyncTests : IDisposable
         // Cùng Web App giả lập cho mọi máy.
         var acc = new AccountSyncService(s.Db, s.Settings, s.Session, s.Audit, _web);
         s.Auth.Sync = acc;
+        acc.Updates = s.Updates;
         s.Accounts = acc;
         return s;
     }
@@ -183,6 +184,31 @@ public class AccountSyncTests : IDisposable
 
     private string CodeFor() =>
         AccountSyncService.CodePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(new JsonObject { ["u"] = Url, ["t"] = _web.Token }.ToJsonString())).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    [Fact]
+    public async Task New_machine_with_bundle_file_only_needs_login_and_gets_update_token()
+    {
+        var a = await AdminMachine();
+        a.Updates.SaveConfig("", "ghp_doc_chi", true);
+        a.Auth.CreateUser("nv1", "NV", "matkhau2", Roles.Staff, Perm.Serialize(new Dictionary<string, string> { ["m1"] = Perm.Edit }));
+        var bundle = Path.Combine(_dir, "usb");
+        Directory.CreateDirectory(bundle);
+        File.WriteAllText(Path.Combine(bundle, AccountSyncService.BundleFile), a.Accounts.BundleText());
+        Assert.DoesNotContain(_web.Admin, Encoding.UTF8.GetString(Convert.FromBase64String(Pad(a.Accounts.BundleText().Split('\n').First(l => l.StartsWith("KLTK1-"))[6..].Trim()))));
+
+        var b = Machine("B");
+        Assert.False(b.Updates.HasToken);
+        var code = AccountSyncService.BundledCode(bundle);
+        Assert.NotNull(code);
+        await b.Accounts.ConnectAsync(code!);         // màn đăng nhập tự làm bước này
+        b.Auth.Login("nv1", "matkhau2");
+        Assert.True(b.Session.Can("m1", Perm.Edit));
+        Assert.False(b.Accounts.CanWrite);
+        Assert.True(b.Updates.HasToken);
+        Assert.Null(AccountSyncService.BundledCode(Path.Combine(_dir, "khong-co")));
+    }
+
+    private static string Pad(string b64url) { var b = b64url.Replace('-', '+').Replace('_', '/'); return b.PadRight(b.Length + (4 - b.Length % 4) % 4, '='); }
 
     [Fact]
     public void Codes_and_urls_are_validated()

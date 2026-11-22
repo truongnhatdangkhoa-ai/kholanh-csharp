@@ -30,6 +30,17 @@ public partial class LoginWindow : Window
         else if (s.Accounts.Enabled)
             SubHeading.Text = "Tài khoản dùng chung cho mọi máy (Google Sheet). Nhập tài khoản được cấp để vào phần mềm.";
         Opened += (_, _) => (_firstRun ? FullNameBox : UserBox).Focus();
+        // Bộ cài cho máy mới (KhoLanh.exe + ket-noi.txt): tự nhận tài khoản từ Google Sheet, chỉ cần đăng nhập.
+        if (_firstRun && AccountSyncService.BundledCode() is { } code)
+        {
+            Heading.Text = "Đăng nhập";
+            SubHeading.Text = "Đang nhận danh sách tài khoản từ Google Sheet…";
+            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = JoinButton.IsVisible = false;
+            LoginButton.IsEnabled = false;
+            LoginButton.Content = "Đăng nhập";
+            UserBox.Text = "";
+            Opened += async (_, _) => await AutoJoin(code);
+        }
     }
 
     private async void OnLogin(object? sender, RoutedEventArgs e)
@@ -67,9 +78,36 @@ public partial class LoginWindow : Window
         }
     }
 
+    private async Task AutoJoin(string code)
+    {
+        try
+        {
+            var r = await App.Services.Accounts.ConnectAsync(code);
+            _firstRun = false;
+            Heading.Text = "Đăng nhập";
+            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = false;
+            LoginButton.Content = "Đăng nhập";
+            SubHeading.Text = $"Máy này dùng chung {r.Users} tài khoản với các máy khác. Nhập tài khoản được cấp để vào phần mềm.";
+            UserBox.Focus();
+        }
+        catch (BusinessException ex)
+        {
+            // Không nhận được (mất mạng…): cho thử lại, hoặc thiết lập tay như máy đầu tiên.
+            Heading.Text = "Thiết lập lần đầu";
+            SubHeading.Text = "Chưa nhận được tài khoản từ Google Sheet: " + ex.Message + " Kiểm tra Internet rồi bấm nút dưới để thử lại.";
+            JoinButton.IsVisible = true;
+            JoinButton.Content = "Thử nhận tài khoản lại";
+            _retryCode = code;
+        }
+        finally { LoginButton.IsEnabled = true; if (_firstRun) { FullNamePanel.IsVisible = ConfirmPanel.IsVisible = true; LoginButton.Content = "Tạo tài khoản và vào phần mềm"; } }
+    }
+
+    private string? _retryCode;
+
     /// <summary>Máy mới: dán mã kết nối từ máy quản trị → nhận danh sách tài khoản từ Google Sheet, khỏi tạo Quản trị riêng.</summary>
     private async void OnJoin(object? sender, RoutedEventArgs e)
     {
+        if (_retryCode is { } rc) { JoinButton.IsEnabled = false; await AutoJoin(rc); JoinButton.IsEnabled = true; if (!_firstRun) { _retryCode = null; Heading.Text = "Đăng nhập"; JoinButton.IsVisible = false; } return; }
         var code = await Ui.Prompt(this, "Dán mã kết nối (bắt đầu bằng KLTK1-) chép từ máy quản trị › Sao lưu và cài đặt › Tài khoản dùng chung:", "Dùng chung tài khoản");
         if (string.IsNullOrWhiteSpace(code)) return;
         ErrorText.Text = "";

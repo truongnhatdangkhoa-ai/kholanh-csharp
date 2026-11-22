@@ -22,17 +22,23 @@ Cách làm giống app kho cũ (Apps Script Web App): **không cần Google Clou
 6. Chép **URL ứng dụng web** (kết thúc bằng `/exec`) và dán vào ô trong phần mềm. Bấm **Kết nối**.
    Phần mềm đưa các tài khoản đang có trên máy này lên Sheet (tab *TaiKhoan*).
 
-## B. Nối các máy khác
+## B. Cài cho máy mới: chỉ cần đăng nhập
 
-1. Trên máy quản trị, bấm **Chép mã cho máy nhân viên**. Bạn được một dòng mã `KLTK1-…`; gửi mã đó sang máy kia, ví dụ qua Zalo.
-2. Máy kia có hai trường hợp:
-   - **Máy mới** (mở phần mềm lần đầu): bấm **Dùng chung tài khoản với máy khác…**, dán mã. Máy nhận toàn bộ tài khoản, rồi bạn đăng nhập bình thường.
-   - **Máy đã dùng**: đăng nhập bằng tài khoản Quản trị của máy đó, vào **Sao lưu và cài đặt › Tài khoản dùng chung**, dán mã vào ô, bấm **Kết nối**. Danh sách tài khoản của máy đó được thay bằng danh sách trên Sheet.
-3. Nếu muốn thêm một máy quản trị nữa, bấm **Chép mã cho máy quản trị**. Chỉ gửi mã này cho người quản trị.
+1. Trên máy quản trị, bấm **Tạo bộ cài cho máy mới…** và chọn nơi lưu, ví dụ USB hoặc Desktop.
+   Phần mềm tạo thư mục `KhoLanh-cai-may-moi` gồm 3 file:
+   - `KhoLanh.exe`;
+   - `ket-noi.txt`, chứa mã kết nối và mã cập nhật GitHub;
+   - `DOC-TRUOC.txt`.
+2. Chép **cả thư mục** sang máy mới bằng USB, mạng LAN, Google Drive hoặc cách khác.
+3. Trên máy mới, mở `KhoLanh.exe` (máy cần có Internet). Phần mềm tự nhận tài khoản và phân quyền rồi hiện màn **Đăng nhập**.
+   Từ đó phần mềm tự cập nhật bản mới.
+
+Cách khác cho máy đã có phần mềm: trên máy quản trị, bấm **Chép mã cho máy nhân viên**. Trên máy kia, dán mã ở màn mở lần đầu (nút **Dùng chung tài khoản với máy khác…**). Nếu máy kia đã có tài khoản, dán mã ở **Sao lưu và cài đặt › Tài khoản dùng chung** rồi bấm **Kết nối**.
+Muốn thêm một máy quản trị, bấm **Chép mã cho máy quản trị** và chỉ gửi cho người quản trị.
 
 ## Lưu ý
 
 - Đừng sửa tay tab *TaiKhoan* trên Google Sheet. Mọi thay đổi làm trong phần mềm, ở **Hệ thống › Tài khoản**.
-- Đừng chia sẻ Google Sheet hay file Apps Script cho người ngoài, vì trong đó có mã kết nối.
+- Đừng chia sẻ Google Sheet, file Apps Script hay thư mục bộ cài (file `ket-noi.txt`) cho người ngoài, vì trong đó có mã kết nối.
 - Nếu lộ mã, bấm **Tạo lại mã Apps Script**, dán lại vào Apps Script, rồi chọn **Triển khai › Quản lý triển khai › sửa › Phiên bản mới**. Sau đó kết nối lại các máy.
 - Máy nhân viên không tự đổi được mật khẩu. Nhờ Quản trị đặt lại.
