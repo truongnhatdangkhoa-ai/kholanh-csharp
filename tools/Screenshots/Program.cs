@@ -137,6 +137,61 @@ using (var c = s.Db.Open())
     rd.AddRow("2026-11-20", "BTP", "31/40", "12", "");
 }
 
+// Đối chiếu hàng ngày mẫu: 2 file Kho (thay thùng / rã đông) + 1 file Xưởng 2 sheet, có lệch / chỉ 1 bên / nằm nhầm file
+{
+    var rnd = new Random(11);
+    string Code(int i) => "VRPDBTN" + new[] { "XXX", "XEC", "XTC", "XAI" }[i % 4] + "R00" + new[] { "3140", "4150", "5160", "2630", "1620", "6170" }[i % 6] + "IM" + (char)('A' + i % 7) + "1";
+    var days = Enumerable.Range(18, 4).Select(d => new DateTime(2026, 11, d)).ToList();
+    var thay = new List<(DateTime d, string ma, double sl, double tl)>(); var rad = new List<(DateTime d, string ma, double sl, double tl)>();
+    for (var di = 0; di < days.Count; di++)
+        for (var k = 0; k < 7; k++)
+        {
+            var row = (days[di], Code(di * 7 + k), (double)rnd.Next(10, 300), new[] { 9.0, 10.8, 12.6 }[rnd.Next(3)]);
+            if (k < 4) thay.Add(row); else rad.Add(row);
+        }
+    string KhoFile(string name, List<(DateTime d, string ma, double sl, double tl)> rows)
+    {
+        var path = Path.Combine(data, name);
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.AddWorksheet("Xuat");
+        ws.Cell(1, 1).Value = "BẢNG KÊ " + name.ToUpperInvariant();
+        var heads = new[] { "Ngày", "Mã hàng", "Tên hàng", "Số lượng", "Trọng lượng", "Net" };
+        for (var i = 0; i < heads.Length; i++) ws.Cell(3, i + 1).Value = heads[i];
+        var r = 4;
+        foreach (var g in rows.GroupBy(x => x.d))
+        {
+            var first = r;
+            foreach (var x in g) { ws.Cell(r, 1).Value = x.d; ws.Cell(r, 2).Value = "TPC-" + x.ma; ws.Cell(r, 3).Value = "Tôm PD size " + x.ma[13..17]; ws.Cell(r, 4).Value = x.sl; ws.Cell(r, 5).Value = x.tl; ws.Cell(r, 6).Value = x.sl * x.tl; r++; }
+            ws.Cell(r, 1).Value = g.Key; ws.Cell(r, 4).FormulaA1 = $"SUM(D{first}:D{r - 1})"; ws.Cell(r, 6).FormulaA1 = $"SUM(F{first}:F{r - 1})"; r++;
+        }
+        wb.RecalculateAllFormulas();   // ghi sẵn kết quả công thức như Excel lưu
+        wb.SaveAs(path);
+        return path;
+    }
+    // Xưởng: lệch 1 mã ngày 19, mã cuối ngày 20 của Thay thùng Xưởng ghi ở sheet Rã đông (nằm nhầm file), thêm 1 mã chỉ Xưởng có
+    var xThay = thay.Select(x => (x.d, x.ma, x.sl, net: x.sl * x.tl)).ToList(); var xRad = rad.Select(x => (x.d, x.ma, x.sl, net: x.sl * x.tl)).ToList();
+    var li = xThay.FindIndex(x => x.d.Day == 19); xThay[li] = (xThay[li].d, xThay[li].ma, xThay[li].sl - 5, xThay[li].net - 5 * 10.8);
+    var mv = xThay.FindLastIndex(x => x.d.Day == 20); xRad.Add(xThay[mv]); xThay.RemoveAt(mv);
+    xRad.Add((days[3], Code(40), 24, 24 * 12.6));
+    var xu = Path.Combine(data, "xuong.xlsx");
+    using (var wb = new ClosedXML.Excel.XLWorkbook())
+    {
+        foreach (var (name, rows) in new[] { ("Thay thùng", xThay), ("Rã đông", xRad) })
+        {
+            var ws = wb.AddWorksheet(name);
+            var heads = new[] { "Ngày", "Mã hàng", "Số lượng", "Net" };
+            for (var i = 0; i < heads.Length; i++) ws.Cell(1, i + 1).Value = heads[i];
+            var r = 2;
+            foreach (var x in rows.OrderBy(x => x.d)) { ws.Cell(r, 1).Value = x.d; ws.Cell(r, 2).Value = x.ma; ws.Cell(r, 3).Value = x.sl; ws.Cell(r, 4).Value = x.net; r++; }
+        }
+        wb.SaveAs(xu);
+    }
+    var dc = s.DoiChieu; dc.Load();
+    dc.LinkFile("kho1", KhoFile("xuat-thay-thung.xlsx", thay)); dc.LinkFile("kho2", KhoFile("xuat-ra-dong.xlsx", rad)); dc.LinkFile("xuong", xu);
+    var fix = rad.First(x => x.d.Day == 18);
+    dc.ApplyOps(new() { new KhoLanh.Core.DoiChieu.DcxEngine.Op { Type = "setsl", Slot = 2, Ngay = "2026-11-18", Ma = fix.ma, Target = fix.sl + 2 } }, $"Đổi SL {fix.ma} ngày 18/11/2026 ở Xuất rã đông thành {fix.sl + 2}");
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -145,7 +200,7 @@ small.Show();
 Snap(small, "03c-man-hinh-1366");
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m6", "20-nhap-lieu") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -171,6 +226,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tc.SelectedIndex = 0;
         var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => (t.Content as string)?.StartsWith("Bảng chưa gộp") == true);
         tg.IsChecked = true; Snap(main, "22d-ra-dong-chua-gop"); tg.IsChecked = false;
+    }
+    if (key == "m5")
+    {
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        g.Select(3, 1); Snap(main, "23-doi-chieu");
+        tc.SelectedIndex = 1; Snap(main, "23b-doi-chieu-lien-ket");
+        tc.SelectedIndex = 2; Snap(main, "23c-doi-chieu-lich-su");
+        tc.SelectedIndex = 0;
     }
     if (key == "m6")
     {

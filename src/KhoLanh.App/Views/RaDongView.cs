@@ -403,10 +403,48 @@ public sealed class RaDongView : UserControl, IPage
 
     // ---------- nạp file
 
-    private async Task ImportFile(bool update)
+    /// <summary>File "Xuất rã đông" đã liên kết ở Đối chiếu hàng ngày (máy này, tài khoản này) — null nếu chưa liên kết.</summary>
+    private static string? LinkedRaDongFile()
+    {
+        try { return App.Services.DoiChieu.LinkedPath("kho2"); } catch { return null; }
+    }
+
+    /// <summary>Cập nhật Bảng 3 từ file Xuất rã đông đang liên kết ở Đối chiếu hàng ngày (không phải chọn file).</summary>
+    private async Task FromDoiChieu()
+    {
+        var path = LinkedRaDongFile();
+        if (path is null) { await Ui.Message(this, "Chưa liên kết file “Xuất rã đông” ở module Đối chiếu hàng ngày (trên máy này, với tài khoản này). Liên kết ở đó trước, hoặc bấm “Nạp file cập nhật…” để chọn file."); return; }
+        await ImportFile(update: true, path);
+    }
+
+    /// <summary>So các ngày trong file Xuất rã đông với Bảng 3: ngày chưa lưu, ngày Net khác nhau.</summary>
+    private async Task CheckMissingDays()
+    {
+        if (!_ready) { await Ui.Message(this, "Chưa đọc được dữ liệu đã lưu. Bấm \"Tải lại\" rồi thử lại."); return; }
+        var path = LinkedRaDongFile() ?? await Ui.OpenFile(this, "Chọn file báo cáo kho để kiểm", "xlsx", "Excel");
+        if (path is null) return;
+        SortedDictionary<string, List<RaDongService.DayRow>>? days = null;
+        if (!await Ui.RunAsync(this, () => Task.Run(() => days = Svc.DaysFrom(RaDongService.ReadExcel(path))))) return;
+        var missing = new List<string>(); var diff = new List<string>();
+        foreach (var (d, rows) in days!)
+        {
+            if (!RaDongService.IsoOk(d)) continue;
+            var saved = Svc.SavedRows.Where(r => r.Date == d).ToList();
+            var fileNet = Math.Round(rows.Sum(r => r.Net), 2);
+            if (saved.Count == 0) missing.Add(RaDongService.Dmy(d));
+            else if (Math.Abs(RaDongService.DaySum(saved) - fileNet) > 0.5) diff.Add($"{RaDongService.Dmy(d)}: đã lưu {RaDongService.DaySum(saved):#,0.##} kg, file {fileNet:#,0.##} kg");
+        }
+        var msg = $"File: {Path.GetFileName(path)} ({days!.Count} ngày)\n\n" +
+            (missing.Count == 0 ? "✔ Không thiếu ngày nào." : $"Chưa lưu {missing.Count} ngày: " + string.Join(", ", missing)) + "\n" +
+            (diff.Count == 0 ? "✔ Các ngày đã lưu khớp Net với file." : $"Khác Net {diff.Count} ngày:\n• " + string.Join("\n• ", diff.Take(30))) +
+            (missing.Count + diff.Count > 0 ? "\n\nBấm “⤓ Lấy từ Đối chiếu hàng ngày” (hoặc “Nạp file cập nhật…”) để cập nhật." : "");
+        await Ui.Message(this, msg, "Kiểm ngày thiếu");
+    }
+
+    private async Task ImportFile(bool update, string? given = null)
     {
         if (!_ready) { await Ui.Message(this, "Chưa đọc được dữ liệu đã lưu. Bấm \"Tải lại\" ở Bảng 3 rồi thử lại."); return; }
-        var path = await Ui.OpenFile(this, update ? "Chọn file cập nhật (cùng mẫu báo cáo kho)" : "Chọn file báo cáo kho", "xlsx", "Excel");
+        var path = given ?? await Ui.OpenFile(this, update ? "Chọn file cập nhật (cùng mẫu báo cáo kho)" : "Chọn file báo cáo kho", "xlsx", "Excel");
         if (path is null) return;
         RaDongService.Data? d = null;
         if (!await Ui.RunAsync(this, () => Task.Run(() => d = RaDongService.ReadExcel(path)))) return;
@@ -469,12 +507,14 @@ public sealed class RaDongView : UserControl, IPage
         if (_edit)
         {
             bar.Children.Add(Btn("⬆ Nạp file cập nhật…", async () => await ImportFile(update: true)));
+            bar.Children.Add(Btn("⤓ Lấy từ Đối chiếu hàng ngày", async () => await FromDoiChieu()));
             bar.Children.Add(_undoUpd);
             bar.Children.Add(Btn("＋ Thêm dòng", () => { _addBox.IsVisible = !_addBox.IsVisible; if (_addBox.IsVisible && string.IsNullOrEmpty(_addDate.Text)) _addDate.Text = DateTime.Today.ToString("dd/MM/yyyy"); }));
             bar.Children.Add(Btn("Xóa dòng đã chọn", async () => await DeleteSavedRows()));
             bar.Children.Add(Btn("Xóa ngày đã chọn", async () => await DeleteSavedDays()));
             bar.Children.Add(_delMonth);
         }
+        bar.Children.Add(Btn("Kiểm ngày thiếu", async () => await CheckMissingDays()));
         bar.Children.Add(Btn("🖼 Ảnh ngày đã chọn…", async () => await DayImage()));
         if (Svc.CanExport) bar.Children.Add(_exportYear);
 
