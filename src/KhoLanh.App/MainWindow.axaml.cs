@@ -141,7 +141,7 @@ public partial class MainWindow : Window
         if (v is null) { UpdateButton.IsVisible = false; return; }
         if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu phiếu đang lập dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
         if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
-            (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+            AppUpdater.ExitForUpdate();
     }
 
     private static string GroupLabel(string group) =>

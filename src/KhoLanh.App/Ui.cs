@@ -46,7 +46,7 @@ public static class Ui
     {
         try { action(); return true; }
         catch (BusinessException e) { await Message(v, e.Message, "Không thực hiện được"); }
-        catch (Exception e) { await Message(v, "Có lỗi xảy ra: " + e.Message, "Lỗi"); }
+        catch (Exception e) { await Message(v, Describe(e), "Lỗi"); }
         return false;
     }
 
@@ -54,8 +54,29 @@ public static class Ui
     {
         try { await action(); return true; }
         catch (BusinessException e) { await Message(v, e.Message, "Không thực hiện được"); }
-        catch (Exception e) { await Message(v, "Có lỗi xảy ra: " + e.Message, "Lỗi"); }
+        catch (Exception e) { await Message(v, Describe(e), "Lỗi"); }
         return false;
+    }
+
+    /// <summary>Nội dung lỗi luôn có chi tiết (kể cả khi lỗi không kèm lời nhắn) và ghi vào logs\loi.log để gửi cho người hỗ trợ.</summary>
+    public static string Describe(Exception e)
+    {
+        var parts = new List<string>();
+        for (Exception? x = e; x is not null && parts.Count < 4; x = x.InnerException)
+        {
+            var msg = string.IsNullOrWhiteSpace(x.Message) ? "(không có lời nhắn)" : x.Message.Trim();
+            parts.Add($"{msg} [{x.GetType().Name}, 0x{x.HResult:X8}]");
+        }
+        string logPath = "";
+        try
+        {
+            var dir = Path.Combine(App.DataFolder, "logs");
+            Directory.CreateDirectory(dir);
+            logPath = Path.Combine(dir, "loi.log");
+            File.AppendAllText(logPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} bản {KhoLanh.Core.Services.UpdateService.Current}\n{e}\n\n");
+        }
+        catch { logPath = ""; }
+        return "Có lỗi xảy ra: " + string.Join("\n→ ", parts) + (logPath.Length > 0 ? $"\n\nChi tiết đã ghi vào {logPath}" : "");
     }
 
     private static Window Dialog(string title, Control body, double width = 440) => new()

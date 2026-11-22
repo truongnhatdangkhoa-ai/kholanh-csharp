@@ -113,41 +113,81 @@ public static class AppUpdater
 
     // ---------------- áp dụng / quay lại ----------------
 
-    /// <summary>Đưa bản đã tải vào chỗ KhoLanh.exe rồi mở lại app. True = đã mở bản mới, nơi gọi phải thoát app ngay.</summary>
+    /// <summary>
+    /// Đưa bản đã tải vào chỗ KhoLanh.exe rồi mở lại app. True = đã giao việc cho tiến trình phụ, nơi gọi phải thoát app ngay
+    /// (gọi <see cref="ExitForUpdate"/>).
+    /// KHÔNG đổi tên exe khi app còn chạy: bản .exe một-file đọc tiếp mã của chính nó từ đường dẫn exe, đổi file dưới chân
+    /// làm app lỗi (hộp "Có lỗi xảy ra" trống). Tiến trình phụ (PowerShell ẩn) chờ app thoát hẳn rồi mới đổi file và mở lại.
+    /// </summary>
     public static bool ApplyAndRestart()
     {
-        if (StagedVersion is null) return false;
-        var exe = ExePath!;
-        try { if (File.Exists(Previous)) File.Delete(Previous); }
-        catch { /* .cu đang bị khóa: bỏ qua lần này */ return false; }
-        File.Move(exe, Previous);
-        try { File.Move(Staged, exe); }
-        catch
-        {
-            File.Move(Previous, exe); // trả lại như cũ
-            throw;
-        }
-        try { File.Delete(StagedMeta); } catch { }
-        Restart(exe, "--da-cap-nhat");
+        if (StagedVersion is null || ExePath is null) return false;
+        if (!CanWriteHere()) throw new BusinessException("Không ghi được vào thư mục chứa KhoLanh.exe — chép KhoLanh.exe ra thư mục thường (VD Desktop\\KhoLanh) rồi mở lại.");
+        RunHelper(ExePath, rollback: false);
         return true;
     }
 
-    /// <summary>Đổi chỗ bản đang dùng với bản trước (KhoLanh.exe.cu) rồi mở lại.</summary>
+    /// <summary>Đổi chỗ bản đang dùng với bản trước (KhoLanh.exe.cu) rồi mở lại — cũng do tiến trình phụ làm sau khi app thoát.</summary>
     public static bool RollbackAndRestart()
     {
         if (!HasPrevious) return false;
-        var exe = ExePath!;
-        var tmp = exe + ".doi";
-        try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
-        File.Move(exe, tmp);
-        try { File.Move(Previous, exe); }
-        catch { File.Move(tmp, exe); throw; }
-        File.Move(tmp, Previous);
-        try { File.Delete(Staged); File.Delete(StagedMeta); } catch { }
-        Restart(exe, "--da-quay-lai");
+        RunHelper(ExePath!, rollback: true);
         return true;
     }
 
-    private static void Restart(string exe, string arg) =>
-        Process.Start(new ProcessStartInfo(exe, arg) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe)! });
+    /// <summary>Thoát app để tiến trình phụ thay exe; nếu sau 5 giây còn kẹt (WebView2…) thì buộc thoát.</summary>
+    public static void ExitForUpdate()
+    {
+        (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+        _ = Task.Delay(5000).ContinueWith(_ => Environment.Exit(0));
+    }
+
+    internal static string HelperScript(string exe, int pid, bool rollback, string log)
+    {
+        static string Q(string x) => "'" + x.Replace("'", "''") + "'";
+        var swap = rollback
+            ? """
+              Retry { Move-Item -LiteralPath $exe -Destination $doi -Force }
+              try { Retry { Move-Item -LiteralPath $cu -Destination $exe -Force } } catch { Move-Item -LiteralPath $doi -Destination $exe -Force; throw }
+              Retry { Move-Item -LiteralPath $doi -Destination $cu -Force }
+              Remove-Item -LiteralPath $moi, ($moi + '.json') -Force -ErrorAction SilentlyContinue
+              $arg = '--da-quay-lai'
+              """
+            : """
+              Retry { if (Test-Path -LiteralPath $cu) { Remove-Item -LiteralPath $cu -Force } }
+              Retry { Move-Item -LiteralPath $exe -Destination $cu -Force }
+              try { Retry { Move-Item -LiteralPath $moi -Destination $exe -Force } } catch { Move-Item -LiteralPath $cu -Destination $exe -Force; throw }
+              Remove-Item -LiteralPath ($moi + '.json') -Force -ErrorAction SilentlyContinue
+              $arg = '--da-cap-nhat'
+              """;
+        return $$"""
+            $ErrorActionPreference = 'Stop'
+            $exe = {{Q(exe)}}; $moi = $exe + '.moi'; $cu = $exe + '.cu'; $doi = $exe + '.doi'; $log = {{Q(log)}}
+            function Retry([scriptblock]$b) { for ($i = 0; $i -lt 30; $i++) { try { & $b; return } catch { Start-Sleep -Milliseconds 500 } }; & $b }
+            try {
+              $p = Get-Process -Id {{pid}} -ErrorAction SilentlyContinue
+              if ($p) { if (-not $p.WaitForExit(60000)) { throw 'KhoLanh.exe chưa thoát sau 60 giây' } }
+              Start-Sleep -Milliseconds 700
+            {{swap}}
+              Start-Process -FilePath $exe -ArgumentList $arg -WorkingDirectory (Split-Path -LiteralPath $exe)
+            } catch {
+              Add-Content -LiteralPath $log -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $_.ToString())
+              if (Test-Path -LiteralPath $exe) { Start-Process -FilePath $exe -WorkingDirectory (Split-Path -LiteralPath $exe) }
+            }
+            """;
+    }
+
+    private static void RunHelper(string exe, bool rollback)
+    {
+        var log = Path.Combine(Path.GetDirectoryName(exe)!, "loi-cap-nhat.log");
+        var script = HelperScript(exe, Environment.ProcessId, rollback, log);
+        var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+        var ps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+        var psi = new ProcessStartInfo(File.Exists(ps) ? ps : "powershell.exe",
+            $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand {encoded}")
+        {
+            UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetDirectoryName(exe)!,
+        };
+        Process.Start(psi);
+    }
 }

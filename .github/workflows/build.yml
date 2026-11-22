@@ -65,6 +65,23 @@ jobs:
           if (-not (Test-Path "$t\data\da-cap-nhat.txt")) { throw 'Bản mới không được mở lại' }
           if (-not (Test-Path "$t\KhoLanh.exe.cu")) { throw 'Không giữ bản cũ (.cu)' }
           if (Test-Path "$t\KhoLanh.exe.moi") { throw 'Bản chờ (.moi) chưa được đưa vào chỗ' }
+      - name: Tự kiểm tra bấm Cập nhật khi app đang mở (cửa sổ chính + WebView2)
+        shell: pwsh
+        run: |
+          $t = "$env:RUNNER_TEMP\capnhat2"; New-Item -ItemType Directory -Force $t | Out-Null
+          Copy-Item publish\KhoLanh.exe "$t\KhoLanh.exe"; Copy-Item publish\KhoLanh.exe "$t\KhoLanh.exe.moi"
+          Copy-Item publish\KhoLanh.exe "$t\KhoLanh.exe.cu"   # như máy người dùng: đã có bản trước từ lần cập nhật cũ
+          '{"version":"99.0.0"}' | Set-Content "$t\KhoLanh.exe.moi.json"
+          $env:KHOLANH_DATA = "$t\data"; $env:KHOLANH_TU_KIEM_THOAT = "1"
+          $p = Start-Process -FilePath "$t\KhoLanh.exe" -ArgumentList '--tu-kiem-cap-nhat' -PassThru
+          for ($i = 0; $i -lt 120 -and -not (Test-Path "$t\data\da-cap-nhat.txt"); $i++) { Start-Sleep -Seconds 1 }
+          Get-ChildItem $t | Format-Table Name, Length
+          if (Test-Path "$t\data\loi-tu-kiem.txt") { Get-Content "$t\data\loi-tu-kiem.txt"; throw 'Cập nhật báo lỗi' }
+          if (Test-Path "$t\loi-cap-nhat.log") { Get-Content "$t\loi-cap-nhat.log"; throw 'Tiến trình phụ báo lỗi' }
+          if (-not (Test-Path "$t\data\da-cap-nhat.txt")) { throw 'Bản mới không tự mở lại' }
+          if (-not $p.HasExited) { throw 'Bản cũ chưa thoát' }
+          if (Test-Path "$t\KhoLanh.exe.moi") { throw 'Bản chờ (.moi) chưa được đưa vào chỗ' }
+          if (-not (Test-Path "$t\KhoLanh.exe.cu")) { throw 'Không giữ bản cũ (.cu)' }
 
   phat-hanh:
     # Đổi <Version> trong Directory.Build.props rồi đẩy lên main → sau khi kiểm thử + tự kiểm tra Windows đạt,

@@ -109,7 +109,7 @@ public partial class LoginWindow : Window
             if (restarting)
             {
                 Succeeded = true; // không coi là đóng cửa sổ đăng nhập bình thường
-                (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+                AppUpdater.ExitForUpdate();
             }
             return restarting;
         }

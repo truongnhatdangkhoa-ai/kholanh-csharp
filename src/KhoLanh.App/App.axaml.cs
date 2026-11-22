@@ -37,9 +37,25 @@ public partial class App : Application
                     File.WriteAllText(Path.Combine(DataFolder, "da-cap-nhat.txt"), Environment.ProcessPath ?? "");
                     desktop.Shutdown(); base.OnFrameworkInitializationCompleted(); return;
                 }
+                if (Array.IndexOf(Program.Args, "--tu-kiem-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
+                {
+                    // Chỉ dùng cho kiểm thử tự động: cập nhật khi app ĐANG MỞ (cửa sổ chính + module WebView2), như người dùng bấm Cập nhật.
+                    if (!Services.Auth.HasAnyUser()) Services.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
+                    Services.Auth.Login("admin", "matkhau1");
+                    var main = new MainWindow();
+                    desktop.MainWindow = main;
+                    main.Show();
+                    main.Navigate("m1");
+                    Avalonia.Threading.DispatcherTimer.RunOnce(() =>
+                    {
+                        try { if (AppUpdater.ApplyAndRestart()) AppUpdater.ExitForUpdate(); }
+                        catch (Exception ex) { File.WriteAllText(Path.Combine(DataFolder, "loi-tu-kiem.txt"), ex.ToString()); desktop.Shutdown(1); }
+                    }, TimeSpan.FromSeconds(10));
+                    base.OnFrameworkInitializationCompleted(); return;
+                }
                 if (OperatingSystem.IsWindows() && AppUpdater.StagedVersion is not null && Services.Updates.Auto)
                 {
-                    try { if (AppUpdater.ApplyAndRestart()) { desktop.Shutdown(); base.OnFrameworkInitializationCompleted(); return; } }
+                    try { if (AppUpdater.ApplyAndRestart()) { AppUpdater.ExitForUpdate(); base.OnFrameworkInitializationCompleted(); return; } }
                     catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
                 }
                 try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
