@@ -19,6 +19,11 @@ App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ c
 
 **Thêm module mới:** thêm `NavItem` trong `MainWindow.axaml.cs` và mục quyền trong `Perm.Items` (`src/KhoLanh.Core/Models/Permissions.cs`).
 
+## Dùng chung qua mạng LAN
+
+Nhiều máy trong mạng nội bộ dùng chung dữ liệu module: máy chủ chính, máy dự phòng tự thay khi máy chủ tắt, máy con.
+Mất máy chủ vẫn làm việc được, có máy chủ lại thì tự gộp. Xem [docs/MANG-LAN.md](docs/MANG-LAN.md).
+
 ## Cài đặt và chạy
 
 1. Máy đầu tiên: tải `KhoLanh.exe` ở **Releases**. Máy tiếp theo: dùng nút **Tạo bộ cài cho máy mới** trong app.

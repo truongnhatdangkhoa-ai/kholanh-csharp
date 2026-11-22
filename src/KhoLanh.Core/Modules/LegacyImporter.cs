@@ -17,6 +17,8 @@ public class LegacyImporter
     private readonly Session _session;
 
     public LegacyImporter(ModuleStore store, Session session) { _store = store; _session = session; }
+    /// <summary>Nơi ghi (LAN: ghi lên máy chủ); null = ghi thẳng database của máy.</summary>
+    public ISheetSource? Target { get; set; }
 
     /// <summary>Các bảng được chép: toàn bộ 2 module + bảng mã hóa / ánh xạ tên của Tổng hợp (ô tìm chung, nhãn size dùng).</summary>
     public static bool Wanted(string tab) =>
@@ -54,7 +56,7 @@ public class LegacyImporter
             }
         }
         if (names.Count == 0) throw new BusinessException("Database app cũ chưa có dữ liệu Tồn kho An An / Tồn kho gửi.");
-        foreach (var (dbKey, sheets) in byKey) _store.WriteSheets(dbKey, sheets);
+        foreach (var (dbKey, sheets) in byKey) (Target ?? new LocalSheetSource(_store)).Write(dbKey, sheets);
         return new Result(names.Count, total, names);
     }
 

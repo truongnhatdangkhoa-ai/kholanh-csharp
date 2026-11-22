@@ -59,6 +59,7 @@ public partial class App : Application
                     catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
                 }
                 try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
+                StartLan(desktop);
                 ShowLogin(desktop);
             }
             catch (Exception ex)
@@ -81,7 +82,21 @@ public partial class App : Application
     public static void InitServices(string dataFolder)
     {
         DataFolder = dataFolder;
-        Services = new AppServices(Path.Combine(DataFolder, "khodata.db"));
+        var db = Path.Combine(DataFolder, "khodata.db");
+        Services = new AppServices(db);
+        // Bộ cài máy mới có mã LAN → máy này làm máy con (dùng chung dữ liệu với máy chủ).
+        if (!Services.Auth.HasAnyUser() && !Services.Lan.Enabled && KhoLanh.Core.Lan.LanService.BundledCode() is { } lan)
+        {
+            try { KhoLanh.Core.Lan.LanService.ImportBundle(Services.Settings, lan); Services = new AppServices(db); }
+            catch { /* mã hỏng: dùng như máy đơn */ }
+        }
+    }
+
+    /// <summary>Bật chế độ LAN (nếu đã cấu hình) và tắt khi thoát.</summary>
+    public static void StartLan(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        try { Services.Lan.Start(); } catch (Exception ex) { Ui.Describe(ex); }
+        desktop.Exit += (_, _) => { try { Services.Lan.Dispose(); } catch { } };
     }
 
     public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop, bool afterLogout = false)

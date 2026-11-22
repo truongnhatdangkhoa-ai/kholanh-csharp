@@ -63,9 +63,13 @@ public class BackupService
     /// Khôi phục từ file sao lưu: kiểm tra file hợp lệ, sao lưu bản hiện tại trước, rồi chép đè nội dung.
     /// Sau khi khôi phục cần đăng nhập lại.
     /// </summary>
+    /// <summary>Trả về lý do không cho khôi phục (ví dụ đang dùng LAN); null = được.</summary>
+    public Func<string?>? Guard { get; set; }
+
     public string Restore(string sourcePath)
     {
         _session.RequireAdmin();
+        if (Guard?.Invoke() is { } why) throw new BusinessException(why);
         if (!File.Exists(sourcePath)) throw new BusinessException("Không tìm thấy file sao lưu.");
         using (var check = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         {

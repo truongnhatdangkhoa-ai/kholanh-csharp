@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KhoLanh.App.Views.LanView">
+  <Grid ColumnDefinitions="400,*" ColumnSpacing="16">
+    <ScrollViewer>
+      <StackPanel Spacing="16" Margin="0,0,6,0">
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Trạng thái" Classes="section"/>
+            <TextBlock x:Name="StatusText" TextWrapping="Wrap" FontWeight="SemiBold"/>
+            <TextBlock x:Name="DetailText" Classes="muted" TextWrapping="Wrap"/>
+            <TextBlock x:Name="SyncText" Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Vai của máy này" Classes="section"/>
+            <RadioButton x:Name="RoleSingle" GroupName="role" Content="Máy đơn (không dùng LAN)" IsCheckedChanged="OnRoleChanged"/>
+            <RadioButton x:Name="RoleServer" GroupName="role" Content="Máy chủ chính — giữ database chính" IsCheckedChanged="OnRoleChanged"/>
+            <RadioButton x:Name="RoleStandby" GroupName="role" Content="Máy dự phòng — tự thay khi máy chủ tắt" IsCheckedChanged="OnRoleChanged"/>
+            <RadioButton x:Name="RoleClient" GroupName="role" Content="Máy con — đọc / ghi vào máy chủ" IsCheckedChanged="OnRoleChanged"/>
+            <StackPanel x:Name="CodePanel" Spacing="4">
+              <TextBlock Text="Mã LAN (KLLAN1-…) chép từ máy chủ chính" Classes="label"/>
+              <TextBox x:Name="CodeBox" TextWrapping="Wrap" Height="60"/>
+            </StackPanel>
+            <StackPanel x:Name="PortPanel" Spacing="4">
+              <TextBlock Text="Cổng (mặc định 47820)" Classes="label"/>
+              <TextBox x:Name="PortBox" Width="120" HorizontalAlignment="Left"/>
+            </StackPanel>
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                       Text="Đổi vai xong phần mềm tự mở lại. Máy con / dự phòng tải lại toàn bộ dữ liệu từ máy chủ (dữ liệu module đang có trong máy được thay bằng dữ liệu máy chủ). Mọi máy cần dùng chung tài khoản (Google Sheet) để máy chủ nhận ra người dùng."/>
+            <Button Content="Lưu và mở lại phần mềm" Classes="primary" Click="OnSave" Margin="0,4,0,0"/>
+          </StackPanel>
+        </Border>
+        <Border Classes="card" x:Name="ShareCard">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Mã LAN cho máy khác" Classes="section"/>
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                       Text="Dán mã này vào máy dự phòng / máy con (Hệ thống › Mạng LAN). Bộ cài cho máy mới (Sao lưu và cài đặt) cũng tự kèm mã này. Windows có thể hỏi cho phép KhoLanh qua tường lửa: chọn Cho phép (mạng riêng)."/>
+            <Button Content="Chép mã LAN" Click="OnCopyCode"/>
+            <TextBlock x:Name="ShareMsg" Classes="muted" TextWrapping="Wrap"/>
+          </StackPanel>
+        </Border>
+        <Border Classes="card">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Khi máy chủ tắt" Classes="section"/>
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                       Text="• Có máy dự phòng: sau khoảng 10 giây máy dự phòng tự làm máy chủ, các máy con tự chuyển sang, làm việc bình thường. Máy chủ chính bật lại sẽ chép phần thiếu rồi nhận lại vai.&#10;• Không có máy nào làm chủ: mỗi máy làm tiếp trên dữ liệu riêng, ghi vào sổ chờ. Có máy chủ lại thì tự gửi lên: chỉ một bên sửa → lấy luôn; sửa khác dòng → tự gộp; cùng sửa một dòng hoặc nạp lại cả bảng → giữ bản máy chủ, bản máy con nằm ở danh sách bên phải để Quản trị chọn.&#10;• Nên để chỉ một máy nạp file cho mỗi module trong lúc mất máy chủ."/>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Column="1" RowDefinitions="Auto,200,Auto,*" RowSpacing="8">
+      <TextBlock Text="Các máy đang nối (5 phút gần nhất)" Classes="section"/>
+      <DataGrid Grid.Row="1" x:Name="MachinesGrid" IsReadOnly="True">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Máy" Binding="{Binding Name}" Width="160"/>
+          <DataGridTextColumn Header="Vai" Binding="{Binding RoleLabel}" Width="130"/>
+          <DataGridTextColumn Header="Địa chỉ" Binding="{Binding Addr}" Width="*"/>
+          <DataGridTextColumn Header="Lần cuối" Binding="{Binding At, StringFormat='HH:mm:ss'}" Width="100"/>
+          <DataGridTextColumn Header="Sổ chờ" Binding="{Binding Pending}" Width="90"/>
+        </DataGrid.Columns>
+      </DataGrid>
+      <DockPanel Grid.Row="2" Margin="0,8,0,0">
+        <TextBlock Text="Trùng sửa / tự gộp cần xem" Classes="section" VerticalAlignment="Center"/>
+        <CheckBox x:Name="AllBox" Content="Hiện cả mục đã xử lý" Margin="16,0,0,0" IsCheckedChanged="OnAllChanged"/>
+        <WrapPanel HorizontalAlignment="Right" ItemSpacing="6">
+          <Button x:Name="UseClientButton" Content="Dùng bản máy con" Click="OnUseClient"/>
+          <Button x:Name="KeepServerButton" Content="Giữ bản máy chủ" Click="OnKeepServer"/>
+          <Button x:Name="UndoButton" Content="Hoàn tác gộp" Click="OnUndo"/>
+          <Button x:Name="SeenButton" Content="Đã xem" Click="OnSeen"/>
+        </WrapPanel>
+      </DockPanel>
+      <DataGrid Grid.Row="3" x:Name="ConflictsGrid" IsReadOnly="True" SelectionChanged="OnSelection">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Lúc" Binding="{Binding At}" Width="150"/>
+          <DataGridTextColumn Header="Máy" Binding="{Binding Machine}" Width="110"/>
+          <DataGridTextColumn Header="Người sửa" Binding="{Binding Username}" Width="90"/>
+          <DataGridTextColumn Header="Module" Binding="{Binding ModuleLabel}" Width="130"/>
+          <DataGridTextColumn Header="Bảng" Binding="{Binding Sheet}" Width="110"/>
+          <DataGridTextColumn Header="Tình trạng" Binding="{Binding StatusLabel}" Width="170"/>
+          <DataGridTextColumn Header="Số dòng con/chủ/gộp" Binding="{Binding Rows}" Width="150"/>
+          <DataGridTextColumn Header="Ghi chú" Binding="{Binding Note}" Width="260"/>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Grid>
+  </Grid>
+</UserControl>

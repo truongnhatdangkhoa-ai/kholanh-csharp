@@ -74,6 +74,15 @@ public class Database
             c.Execute("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '';", transaction: tx);
             c.Execute("PRAGMA user_version = 3;", transaction: tx);
             tx.Commit();
+            version = 3;
+        }
+        if (version < 4)
+        {
+            // v4: mạng LAN — số phiên bản từng bảng, lịch sử bản trước, sổ chờ (máy con), xung đột (máy chủ).
+            using var tx = c.BeginTransaction();
+            c.Execute(SchemaV4, transaction: tx);
+            c.Execute("PRAGMA user_version = 4;", transaction: tx);
+            tx.Commit();
         }
     }
 
@@ -91,6 +100,27 @@ public class Database
             updated_by TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (db_key, sheet)
         );
+        """;
+
+    private const string SchemaV4 = """
+        ALTER TABLE module_sheets ADD COLUMN version INTEGER NOT NULL DEFAULT 0;
+        UPDATE module_sheets SET version = rowid;
+        CREATE TABLE IF NOT EXISTS lan_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL DEFAULT '');
+        CREATE TABLE IF NOT EXISTS sheet_tombstones (
+            db_key TEXT NOT NULL, sheet TEXT NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (db_key, sheet));
+        CREATE TABLE IF NOT EXISTS sheet_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, db_key TEXT NOT NULL, sheet TEXT NOT NULL,
+            version INTEGER NOT NULL, data TEXT NOT NULL, saved_at TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS ix_sheet_history ON sheet_history(db_key, sheet, version);
+        CREATE TABLE IF NOT EXISTS lan_pending (
+            db_key TEXT NOT NULL, sheet TEXT NOT NULL, op_id TEXT NOT NULL, data TEXT,
+            base_version INTEGER NOT NULL, base_data TEXT, username TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+            PRIMARY KEY (db_key, sheet));
+        CREATE TABLE IF NOT EXISTS lan_applied (op_id TEXT PRIMARY KEY, at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS lan_conflicts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, machine TEXT NOT NULL, username TEXT NOT NULL,
+            db_key TEXT NOT NULL, sheet TEXT NOT NULL, status TEXT NOT NULL,
+            base_data TEXT, client_data TEXT, server_data TEXT, result_data TEXT, note TEXT NOT NULL DEFAULT '');
         """;
 
     private const string SchemaV1 = """

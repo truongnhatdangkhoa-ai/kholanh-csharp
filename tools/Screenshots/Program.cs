@@ -52,6 +52,22 @@ login.UserBox.Text = "admin";
 Snap(login, "02-dang-nhap");
 login.Close();
 
+// Chế độ LAN: máy này làm máy chủ chính (cổng ngẫu nhiên để không đụng máy thật) + một mục trùng sửa mẫu.
+s.Settings.Set("lan_addrs", "192.168.1.10:47820");
+s.Settings.Set("lan_name", "MAY-CHU-KHO");
+KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleServer, null, 47000 + Random.Shared.Next(900));
+App.InitServices(data);
+s = App.Services;
+s.Auth.Login("admin", "matkhau1");
+s.Lan.Speed = 0.01; s.Lan.TickMs = 20;
+s.Lan.Start();
+for (var i = 0; i < 100 && !s.Lan.Serving; i++) Thread.Sleep(30);
+using (var c = s.Db.Open())
+{
+    Dapper.SqlMapper.Execute(c, "INSERT INTO lan_conflicts(at, machine, username, db_key, sheet, status, base_data, client_data, server_data, result_data, note) VALUES('22/11/2026 15:42','MAY-KHO-2','nv1','ton-kho-gui','PhieuXuat','cho','[]','[{},{},{}]','[{},{}]',NULL,'hai bên cùng sửa hoặc xóa một dòng')");
+    Dapper.SqlMapper.Execute(c, "INSERT INTO lan_conflicts(at, machine, username, db_key, sheet, status, base_data, client_data, server_data, result_data, note) VALUES('22/11/2026 15:42','MAY-KHO-2','nv1','ton-kho-an-an','DacTinh','gop','[]','[{},{}]','[{}]','[{},{},{}]','tự gộp: máy con bỏ 0 dòng, thêm 1 dòng')");
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -60,7 +76,7 @@ small.Show();
 Snap(small, "03c-man-hinh-1366");
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("audit", "14-nhat-ky") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -72,4 +88,5 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "13b-tai-khoan-dung-chung");
     }
 }
+s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);

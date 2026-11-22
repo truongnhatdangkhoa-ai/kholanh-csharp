@@ -105,6 +105,8 @@ public partial class BackupView : UserControl, IPage
         if (!await Ui.RunAsync(this, () => Task.Run(() =>
         {
             var text = App.Services.Accounts.BundleText();
+            if (App.Services.Lan.BundleLine() is { } lan)
+                text += "# Mã LAN: máy mới tự làm máy con, dùng chung dữ liệu với máy chủ trong mạng nội bộ.\r\n" + lan + "\r\n";
             dir = Path.Combine(root, "KhoLanh-cai-may-moi");
             Directory.CreateDirectory(dir);
             if (AppUpdater.ExePath is { } exe) File.Copy(exe, Path.Combine(dir, "KhoLanh.exe"), true);

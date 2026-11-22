@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key == "users" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -57,6 +57,7 @@ public partial class MainWindow : Window
             {
                 new NavItem("users", "Tài khoản", () => new UsersView()),
                 new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
+                new NavItem("lan", "Mạng LAN", () => new LanView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
             }),
         };
@@ -102,8 +103,33 @@ public partial class MainWindow : Window
         Closed += (_, _) => AppUpdater.Ready -= OnUpdateReady;
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
+        s.Lan.Changed += OnLanChanged;
+        Closed += (_, _) => s.Lan.Changed -= OnLanChanged;
+        _lanTimer.Tick += (_, _) => ShowLan();
+        _lanTimer.Start();
+        Closed += (_, _) => _lanTimer.Stop();
+        ShowLan();
         Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
+
+    private readonly Avalonia.Threading.DispatcherTimer _lanTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+    private void OnLanChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(ShowLan);
+
+    /// <summary>Ô trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
+    private void ShowLan()
+    {
+        var lan = App.Services.Lan;
+        LanPill.IsVisible = lan.Enabled;
+        if (!lan.Enabled) return;
+        LanText.Text = lan.Short;
+        LanText.Foreground = Avalonia.Media.Brushes.White;
+        LanDot.Fill = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(lan.Health == 2 ? "#F0A030" : "#3FB950"));
+        ToolTip.SetTip(LanPill, lan.Health == 2
+            ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
+            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : ""));
+    }
+
+    private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
 
     private static bool _autoStarted;
 
