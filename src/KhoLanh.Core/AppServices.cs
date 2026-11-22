@@ -1,4 +1,5 @@
 using KhoLanh.Core.Data;
+using KhoLanh.Core.Modules;
 using KhoLanh.Core.Services;
 
 namespace KhoLanh.Core;
@@ -16,6 +17,9 @@ public class AppServices
     public StockService Stock { get; }
     public BackupService Backup { get; }
     public ExportService Export { get; } = new();
+    public ModuleStore Modules { get; }
+    public ModuleBridge Bridge { get; }
+    public LegacyImporter Legacy { get; }
 
     public AppServices(string dbPath)
     {
@@ -28,6 +32,9 @@ public class AppServices
         Vouchers = new VoucherService(Db, Session, Audit);
         Stock = new StockService(Db);
         Backup = new BackupService(Db, Session, Audit);
+        Modules = new ModuleStore(Db, Session);
+        Legacy = new LegacyImporter(Modules, Session);
+        Bridge = new ModuleBridge(Modules, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
         Catalog.EnsureDefaults();
     }
 }

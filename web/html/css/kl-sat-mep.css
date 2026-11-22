@@ -1,0 +1,29 @@
+/* =====================================================================================================
+   PC 4.75 — TOÀN ỨNG DỤNG: THU KHOẢNG TRỐNG GIỮA THẺ / BẢNG VÀ NỀN, THẺ SÁT MÉP.
+   Trước: mỗi trang có khung bọc đệm 16–32px hai bên + thẻ bo góc có viền → thấy dải nền xám hai bên và giữa các thẻ.
+   Nay: khung bọc không đệm ngang; thẻ / bảng trải hết bề ngang, không bo góc, không viền trái–phải; khoảng cách dọc giữa thẻ còn 8px.
+   Phần tử không phải thẻ (tiêu đề, thanh nút…) nằm trực tiếp trong khung bọc vẫn được đệm ngang 12px để chữ không dính mép.
+   Nạp SAU CÙNG ở mọi trang. Muốn trả lại kiểu cũ cho 1 trang: thêm class `kl-giu-le` vào <body>.
+   ===================================================================================================== */
+:root{
+  --sm-gap:8px;                 /* khoảng cách dọc giữa các thẻ */
+  --sm-in:12px;                 /* đệm ngang cho phần tử không phải thẻ */
+  --sm-card:.sl-card,.ls-filters,.px-card,.dcx-card,.panel-box,.ld-panel,.settings-card,.pnx-lp-w,.klg-scroll,.tk-card,.card;
+}
+/* 1) khung bọc trang: bỏ đệm ngang + bỏ giới hạn bề rộng */
+html body:not(.kl-giu-le) :is(.sl-page,.ls-page,.px-page,.dcx-page,.pnx-page,.tk-page,.sk-main,.main > .content,.content-area,body > .wrap){
+  padding-left:0 !important; padding-right:0 !important; max-width:none !important;
+}
+html body:not(.kl-giu-le) :is(.sl-page,.ls-page,.px-page,.dcx-page,.pnx-page,.tk-page){ padding-top:8px !important; padding-bottom:16px !important; }
+html body:not(.kl-giu-le) .content-area{ padding-top:8px !important; padding-bottom:16px !important; }
+/* 2) thẻ / bảng trải hết bề ngang */
+html body:not(.kl-giu-le) :is(.sl-card,.ls-filters,.px-card,.dcx-card,.panel-box,.ld-panel,.settings-card,.pnx-lp-w,.klg-scroll,.tk-card){
+  border-left:0 !important; border-right:0 !important; border-radius:0 !important; margin-left:0 !important; margin-right:0 !important; box-shadow:none;
+}
+html body:not(.kl-giu-le) :is(.sl-card,.dcx-card,.ls-filters,.px-card){ margin-bottom:var(--sm-gap) !important; }
+html body:not(.kl-giu-le) .settings-card{ margin-bottom:var(--sm-gap) !important; max-width:none !important; }
+/* 3) phần tử lẻ trực tiếp trong khung bọc: đệm ngang để chữ không dính mép */
+html body:not(.kl-giu-le) :is(.sl-page,.ls-page,.px-page,.dcx-page,.pnx-page,.tk-page,.sk-main,.main > .content,.content-area) > :is(h1,h2,h3,p,small,.hint,.note,.muted,.toolbar,.tk-kpis,[class*="head"],[class*="title"],[class*="sub"]):not(:is(.sl-card,.ls-filters,.px-card,.dcx-card,.panel-box,.ld-panel,.settings-card,.pnx-lp-w,.klg-scroll,.tk-card)){
+  padding-left:var(--sm-in); padding-right:var(--sm-in);
+}
+html body:not(.kl-giu-le) .content-area > :is(button,.btn,[class*="actions"],[class*="action-row"]){ margin-left:var(--sm-in); }

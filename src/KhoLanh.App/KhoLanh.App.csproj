@@ -9,6 +9,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+    <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Screenshots" />
@@ -16,12 +18,18 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
+  <!-- Mã gốc 2 module Tồn kho An An / Tồn kho gửi (thư mục web/ ở gốc repo) nhúng vào exe; khi chạy giải nén ra %LOCALAPPDATA%\KhoLanhCS\web. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\web\**\*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Web\kl-bridge.js" LogicalName="kl-bridge.js" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.12" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.12" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\KhoLanh.Core\KhoLanh.Core.csproj" />

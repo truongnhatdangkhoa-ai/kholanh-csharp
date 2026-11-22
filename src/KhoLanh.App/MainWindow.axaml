@@ -8,7 +8,7 @@
     <!-- Thanh menu ngang -->
     <Border DockPanel.Dock="Top" Background="{StaticResource BrandDark}" Padding="14,0">
       <Grid ColumnDefinitions="Auto,*,Auto" Height="54">
-        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center" Margin="0,0,18,0">
+        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center" Margin="0,0,10,0">
           <Image Source="/Assets/logo.png" Width="30" Height="30"/>
           <StackPanel VerticalAlignment="Center">
             <TextBlock Text="KHO LẠNH" Foreground="White" FontWeight="Bold" FontSize="16"/>
@@ -18,7 +18,7 @@
         <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center">
           <StackPanel x:Name="NavPanel" Orientation="Horizontal" Spacing="2"/>
         </ScrollViewer>
-        <Button Grid.Column="2" x:Name="UserButton" Classes="topnav" VerticalAlignment="Center" Margin="12,0,0,0">
+        <Button Grid.Column="2" x:Name="UserButton" Classes="topnav" VerticalAlignment="Center" Margin="6,0,0,0">
           <Button.Flyout>
             <MenuFlyout Placement="BottomEdgeAlignedRight">
               <MenuItem x:Name="UserInfo" IsEnabled="False"/>
@@ -41,6 +41,10 @@
       </Grid>
     </Border>
 
-    <ContentControl x:Name="PageHost" Margin="16"/>
+    <Panel>
+      <ContentControl x:Name="PageHost" Margin="16"/>
+      <!-- 2 module gốc (WebView2) giữ sống suốt phiên, chỉ ẩn / hiện khi chuyển menu -->
+      <Panel x:Name="ModuleLayer"/>
+    </Panel>
   </DockPanel>
 </Window>

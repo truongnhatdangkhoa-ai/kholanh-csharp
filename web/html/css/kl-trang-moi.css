@@ -1,0 +1,45 @@
+/* PC 1.70 — khung chung cho 2 trang mới: Sổ giao dịch kho (so-giao-dich.html) và Danh mục mã hàng (danh-muc-ma-hang.html). Màu theo css/kl-ds.css (--kl-*), sáng / tối tự theo. */
+body{ margin:0; padding:14px 18px; font:13px/1.5 var(--kl-font, "Segoe UI", Arial, sans-serif); color:var(--kl-text); background:var(--kl-bg); }
+.km-h{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.km-h h1{ font-size:19px; margin:0 6px 0 0; } .km-sub{ color:var(--kl-text-2); font-size:12.5px; } .km-sp{ flex:1; }
+.km-btn{ font:600 13px var(--kl-font, "Segoe UI", Arial, sans-serif); min-height:32px; padding:4px 13px; border-radius:7px; cursor:pointer; color:var(--kl-text); background:var(--kl-surface); border:1px solid var(--kl-line-strong, var(--kl-line)); }
+.km-btn:hover{ background:var(--kl-surface-2); } .km-btn.pri{ background:var(--kl-blue); color:#fff; border-color:transparent; } .km-btn:disabled{ opacity:.5; cursor:default; }
+.km-tabs{ display:flex; flex-wrap:wrap; gap:4px; padding:4px; background:var(--kl-surface); border:1px solid var(--kl-line); border-radius:8px; margin-bottom:10px; }
+.km-tabs button{ font:inherit; font-size:13px; min-height:34px; padding:6px 14px; border:0; border-radius:6px; background:transparent; color:var(--kl-text-2); cursor:pointer; }
+.km-tabs button.on{ background:var(--kl-blue-soft); color:var(--kl-blue-strong, var(--kl-blue)); font-weight:600; }
+.km-tabs .km-badge{ background:var(--kl-red-base, #b8332d); color:#fff; border-radius:999px; padding:0 7px; font-size:11.5px; margin-left:4px; }
+.km-bar{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:10px; padding:10px 12px; background:var(--kl-surface); border:1px solid var(--kl-line); border-radius:8px; margin-bottom:10px; }
+.km-f{ display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--kl-text-2); }
+.km-f input, .km-f select{ font:inherit; font-size:13px; height:30px; box-sizing:border-box; border:1px solid var(--kl-line-strong, var(--kl-line)); border-radius:5px; background:var(--kl-surface); color:var(--kl-text); padding:0 8px; }
+.km-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.km-chip{ font:600 12.5px var(--kl-font, "Segoe UI", Arial, sans-serif); border-radius:999px; padding:4px 11px; border:1px solid var(--kl-line-strong, var(--kl-line)); background:var(--kl-surface); color:var(--kl-text-2); cursor:pointer; }
+.km-chip.on{ background:var(--kl-blue-soft); border-color:var(--kl-blue); color:var(--kl-blue-strong, var(--kl-blue)); }
+.km-note{ font-size:12.5px; padding:8px 12px; border-radius:7px; margin-bottom:10px; background:var(--kl-blue-soft); border:1px solid var(--kl-blue-line, var(--kl-line)); color:var(--kl-text); }
+.km-warn{ background:var(--kl-gold-soft); border-color:var(--kl-gold-base, #d9a930); }
+.km-ok{ background:var(--kl-green-soft); border-color:var(--kl-green-base, #4e8f49); }
+.km-body{ display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start; }
+.km-main{ flex:999 1 640px; min-width:0; }
+.km-side{ flex:1 1 340px; min-width:0; background:var(--kl-surface); border:1px solid var(--kl-line); border-radius:10px; padding:14px; position:sticky; top:8px; max-height:calc(100vh - 30px); overflow:auto; }
+.km-side h3{ margin:0 0 6px; font-size:12px; color:var(--kl-text-3); font-weight:600; } .km-mono{ font-family:ui-monospace, Consolas, monospace; }
+.km-tw{ overflow:auto; max-height:calc(100vh - 230px); border:1px solid var(--kl-line-strong, var(--kl-line)); border-radius:8px; background:var(--kl-surface); }
+.km-t{ border-collapse:separate; border-spacing:0; width:100%; font-size:13px; }
+.km-t th{ position:sticky; top:0; z-index:1; background:var(--kl-surface-2); color:var(--kl-text-2); font-weight:600; text-align:left; padding:6px 8px; border-bottom:1px solid var(--kl-line-strong, var(--kl-line)); white-space:nowrap; }
+.km-t td{ padding:4px 8px; border-bottom:1px solid var(--kl-line); white-space:nowrap; height:22px; }
+.km-t td.n, .km-t th.n{ text-align:right; font-variant-numeric:tabular-nums; }
+.km-t tbody tr{ cursor:pointer; } .km-t tbody tr:hover td{ background:var(--kl-surface-2); } .km-t tbody tr.on td{ background:var(--kl-blue-soft); }
+.km-t td.neg{ color:var(--kl-red); font-weight:600; } .km-t td.pos{ color:var(--kl-green); font-weight:600; }
+.km-pill{ display:inline-block; font-size:12px; font-weight:600; border-radius:999px; padding:1px 9px; }
+.km-pill.nap{ background:var(--kl-blue-soft); color:var(--kl-blue-strong, var(--kl-blue)); } .km-pill.nhap, .km-pill.tang, .km-pill.chuyen_den{ background:var(--kl-green-soft); color:var(--kl-green); }
+.km-pill.xuat, .km-pill.chuyen_di{ background:var(--kl-red-soft); color:var(--kl-red); } .km-pill.dieuchinh, .km-pill.tondau{ background:var(--kl-surface-2); color:var(--kl-text-2); border:1px solid var(--kl-line); }
+.km-pill.chenh{ background:var(--kl-gold-soft); color:var(--kl-gold); }
+.km-empty{ padding:24px; text-align:center; color:var(--kl-text-3); }
+.km-tl{ display:flex; flex-direction:column; } .km-tl .it{ display:flex; gap:10px; }
+.km-tl .dot{ width:12px; height:12px; border-radius:999px; margin-top:4px; flex:none; background:var(--kl-blue); } .km-tl .ln{ display:flex; flex-direction:column; align-items:center; width:14px; }
+.km-tl .bar{ flex:1; width:2px; background:var(--kl-line); min-height:16px; } .km-tl .tx{ flex:1; padding-bottom:10px; } .km-tl .tt{ display:flex; justify-content:space-between; gap:8px; }
+.km-tl .s{ font-size:12px; color:var(--kl-text-2); }
+.km-segs{ display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; margin-bottom:10px; }
+.km-seg{ border:1px solid var(--kl-line); border-radius:6px; padding:5px 6px; background:var(--kl-surface-2); display:flex; flex-direction:column; gap:1px; }
+.km-seg b{ font-family:ui-monospace, Consolas, monospace; } .km-seg span{ font-size:11px; color:var(--kl-text-2); line-height:1.3; } .km-seg.miss span{ color:var(--kl-gold); }
+.km-kv{ display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--kl-line); font-size:13px; }
+.km-toast{ position:fixed; right:18px; bottom:16px; background:#1f2a36; color:#fff; padding:9px 16px; border-radius:10px; z-index:9999; } .km-toast.bad{ background:#8f1c13; }
+.km-more{ padding:8px; text-align:center; font-size:12.5px; color:var(--kl-text-2); }

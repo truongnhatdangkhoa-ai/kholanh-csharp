@@ -1,0 +1,35 @@
+/* =====================================================================================================
+   ĐỒNG NHẤT MÀU THẺ KPI — toàn bộ trang tổng quan dùng MỘT màu (xanh chủ đạo #0B57D0 của Tổng quan).
+   Trước đây mỗi thẻ 1 màu (xanh · lá · cam · đỏ cam · tím). Nay: 1 bộ biến --kpi-* dùng chung cho
+   thẻ .tq-k (cột trái Tổng quan), thẻ .tc-k (Trang Chủ), vạch màu thẻ lịch xuất nhập (.lx-k), chấm .dv-dot.
+   Muốn đổi màu cả trang: chỉ sửa 3 biến --kpi-bg / --kpi-fg / --kpi-bd ở đây. Nạp SAU CÙNG.
+   ===================================================================================================== */
+:root{
+  --kpi-bg:#E6EDFB; --kpi-fg:#0B57D0; --kpi-bd:#CBD9F3;
+  --tq-k1-bg:var(--kpi-bg); --tq-k1-fg:var(--kpi-fg); --tq-k1-bd:var(--kpi-bd);
+  --tq-k2-bg:var(--kpi-bg); --tq-k2-fg:var(--kpi-fg); --tq-k2-bd:var(--kpi-bd);
+  --tq-k3-bg:var(--kpi-bg); --tq-k3-fg:var(--kpi-fg); --tq-k3-bd:var(--kpi-bd);
+  --tq-k4-bg:var(--kpi-bg); --tq-k4-fg:var(--kpi-fg); --tq-k4-bd:var(--kpi-bd);
+}
+html[data-theme="dark"]{
+  --kpi-bg:#1C222B; --kpi-fg:#A9BAD0; --kpi-bd:#2A3340;
+  --tq-k1-bg:var(--kpi-bg); --tq-k1-fg:var(--kpi-fg); --tq-k1-bd:var(--kpi-bd);
+  --tq-k2-bg:var(--kpi-bg); --tq-k2-fg:var(--kpi-fg); --tq-k2-bd:var(--kpi-bd);
+  --tq-k3-bg:var(--kpi-bg); --tq-k3-fg:var(--kpi-fg); --tq-k3-bd:var(--kpi-bd);
+  --tq-k4-bg:var(--kpi-bg); --tq-k4-fg:var(--kpi-fg); --tq-k4-bd:var(--kpi-bd);
+}
+
+/* Trang Chủ — 4 thẻ .tc-k (Tổng tồn · An An · Kho gửi · Container) */
+.tc .k-tot, .tc .k-a, .tc .k-g, .tc .k-c,
+html[data-theme="dark"] .tc .k-tot, html[data-theme="dark"] .tc .k-a, html[data-theme="dark"] .tc .k-g, html[data-theme="dark"] .tc .k-c,
+.k-tot, .k-a, .k-g, .k-c, html[data-theme="dark"] .k-tot{
+  --tc-fg:var(--kpi-fg); background:var(--kpi-bg); border-color:var(--kpi-bd);
+}
+.tc-pg i{ background:var(--kpi-fg); }
+
+/* Lịch xuất nhập hàng — vạch màu đầu 6 ô số liệu: xuất / nhập cùng một màu */
+.lx-k > div.k-out, .lx-k > div.k-in{ border-top:2px solid var(--kpi-fg); }
+#dvCont .lx-k > div b, .lx-k > div b{ color:var(--kpi-fg); }
+
+/* Chấm màu cạnh tên thẻ */
+.dv-dot.da, .dv-dot.db, .dv-dot.dc, .dv-dot.dd{ background:var(--kpi-fg) !important; }

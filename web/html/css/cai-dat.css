@@ -1,0 +1,496 @@
+  :root{
+    --r-lg:14px;
+    --r-md:8px;
+    --r-sm:6px;
+    --shadow-1:0 1px 2px rgba(0,0,0,.20);
+    --shadow-2:0 8px 20px rgba(0,0,0,.28);
+    --shadow-3:0 16px 40px rgba(0,0,0,.38);
+    --ease:cubic-bezier(.4,0,.2,1);
+    --fast:.15s var(--ease);
+    --med:.22s var(--ease);
+    --wrap-rgb: var(--theme-wrap-rgb);
+    --wrap-border-rgb: 255,255,255;
+    --bg:var(--theme-bg); --panel:var(--theme-panel); --border:var(--theme-border); --text:var(--theme-text);
+    --muted:var(--theme-text-dim); --accent:var(--theme-accent); --danger:#ffffff; --indigo:#8c8c8c;
+    --nav-active-bg:var(--theme-accent-glow); --nav-active-border:var(--accent); --nav-active-text:var(--theme-accent);
+  }
+  html[data-theme="light"]{
+    --shadow-1:2px 2px 0 rgba(17,24,39,.05);
+    --shadow-2:3px 4px 0 rgba(17,24,39,.07);
+    --shadow-3:4px 6px 0 rgba(17,24,39,.10);
+    --wrap-rgb: 238,243,250;
+    --wrap-border-rgb: 13,35,64;
+    --bg:#E9EBEE; --panel:#ffffff; --border:#C9CDD3; --text:#111827;
+    --muted:#374151; --accent:#0B57D0; --danger:#a1362b; --indigo:#0B57D0;
+    --nav-active-bg:rgba(183,121,31,.18); --nav-active-border:#b7791f; --nav-active-text:#E9EBEE;
+    /* Sidebar sáng dùng nền xanh navy đậm riêng, tách khỏi --panel trắng của nội dung. */
+    --side-bg:#111827; --side-active-bg:#0A1C26; --side-text:#E9EBEE; --side-text-muted:#9FB8C4;
+  }
+  /* ============================================================
+     THEME RIÊNG CHO CHẾ ĐỘ SÁNG — "Phiếu Kho" (Trắng - Xanh Dương - Xanh Lá):
+     nội dung phẳng không glass, sidebar giữ tông navy đậm, điểm nhấn mục đang
+     chọn dùng xanh lá. Chỉ áp dụng khi html[data-theme="light"].
+     ============================================================ */
+  html[data-theme="light"] .theme-shell{
+    background: var(--bg);
+  }
+  html[data-theme="light"] .sidebar{
+    background: var(--side-bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border-right-color: rgba(255,255,255,.08);
+  }
+  html[data-theme="light"] .brand{ border-bottom-color: rgba(255,255,255,.10); }
+  html[data-theme="light"] .brand-title{ color: var(--side-text); }
+  html[data-theme="light"] .sidebar-toggle-row{ border-bottom-color: rgba(255,255,255,.10); }
+  html[data-theme="light"] .sidebar-toggle{ color: var(--side-text-muted); }
+  html[data-theme="light"] .sidebar-toggle:hover{ color:#fff; background:rgba(255,255,255,.08); }
+  html[data-theme="light"] .sidebar-foot{ border-top-color: rgba(255,255,255,.10); color: var(--side-text-muted); }
+  html[data-theme="light"] .tab-item{ color: var(--side-text-muted); }
+  html[data-theme="light"] .tab-item::before{
+    background-image: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.16) 45%, transparent 60%);
+  }
+  html[data-theme="light"] .tab-item:hover{
+    color: var(--side-text);
+    background: rgba(255,255,255,.08);
+    border-color: rgba(255,255,255,.14);
+  }
+  html[data-theme="light"] .tab-item.active{
+    color: var(--nav-active-text);
+    background: var(--side-active-bg);
+    border-color: var(--nav-active-border);
+  }
+  *{box-sizing:border-box;}
+  ::selection{background:rgba(255,255,255,.25);color:var(--accent);}
+
+  body{
+    background:
+      radial-gradient(1100px 700px at 10% -10%, rgba(255,255,255,0.05), transparent 60%),
+      radial-gradient(900px 700px at 100% 0%, rgba(255,255,255,0.035), transparent 55%),
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.012) 0 2px, transparent 2px 5px),
+      var(--bg);
+    background-attachment:fixed;
+    color:var(--text);
+    font-family:'Inter',sans-serif; margin:0; padding:0;
+    min-height:100vh;
+  }
+  .theme-shell{
+    display:flex;flex-direction:column;align-items:stretch;min-height:100vh;
+    width:100%;
+    background: radial-gradient(120% 130% at 85% -10%, #0d0d0d 0%, #000000 55%, #000000 100%);
+    overflow:hidden;
+  }
+
+  /* ===== Menu ngang phía trên (trước đây là sidebar dọc bên trái) — chuyển theo đúng mẫu
+     module "Tồn Kho An An". ===== */
+  .sidebar{
+    width:100%;min-width:0;max-width:none;flex-shrink:0;
+    background: rgba(0,0,0,.55);
+    border-right:none;
+    border-bottom:1px solid rgba(255,255,255,.09);
+    display:flex;flex-direction:row;align-items:center;
+    position:sticky;top:0;align-self:auto;
+    height:auto;max-height:none;
+    padding:0 18px;gap:14px;
+    overflow:visible;
+    z-index:40;
+  }
+  html:not([data-theme="light"]) .sidebar{
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .content-area{
+    flex:1;min-width:0;padding:24px 32px;overflow-y:auto;
+  }
+
+  .brand{ display:flex; align-items:center; gap:10px; padding:12px 16px 12px 0; border-bottom:none; border-right:1px solid var(--border); flex-shrink:0; }
+
+  /* Đồng hồ kiểu "digital display" — đồng bộ với các module khác trong ứng dụng */
+  .gauge{
+    font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:var(--nav-active-text);
+    display:flex;align-items:center;gap:8px;letter-spacing:.03em;white-space:nowrap;
+    background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 13px;
+    flex-shrink:0;
+  }
+  .gauge-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;
+    animation:gaugePulse 2.4s ease-in-out infinite;}
+  @keyframes gaugePulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .vn-flag-logo{
+    width:28px; height:28px; border-radius:7px; flex-shrink:0;
+    background:linear-gradient(150deg, #EE342A 0%, #DA251D 55%, #B81C16 100%);
+    border:1px solid rgba(255,205,0,0.35);
+    box-shadow:0 4px 16px rgba(218,37,29,0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .vn-flag-logo svg{ width:15px; height:15px; }
+  .brand-title{ font-family:'Sora', sans-serif; font-weight:700; font-size:14.5px; color:var(--text); }
+
+  /* Nút "Thu gọn" của menu dọc không còn ý nghĩa ở dạng ngang — ẩn đi. */
+  .sidebar-toggle-row{ display:none; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel); border:1px solid var(--border); color:var(--text);
+    padding:12px 20px; border-radius:10px; font-size:13px; opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease; z-index:50;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.error{ border-color:rgba(255,255,255,.4); color:var(--danger); }
+
+  /* ===== POPUP THÔNG BÁO SAO LƯU GOOGLE DRIVE — hiện khi bấm "☁️ Sao lưu Drive" (từng module)
+     hoặc "⬇ Sao lưu ngay" (tab Google Drive). Khác với .toast (chỉ 1 dòng, tự biến mất), đây là
+     hộp thoại giữa màn hình, phải bấm "Đã hiểu" mới đóng — dùng cho kết quả quan trọng hơn. ===== */
+  .drive-modal-overlay{
+    position:fixed; inset:0; z-index:200;
+    background:rgba(0,0,0,0.6);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;
+    transition:opacity .18s ease;
+  }
+  .drive-modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .drive-modal{
+    width:min(380px, 90vw);
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    padding:24px 24px 20px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.55);
+    transform:translateY(10px) scale(0.97); transition:transform .18s ease;
+    text-align:center;
+  }
+  .drive-modal-overlay.show .drive-modal{ transform:translateY(0) scale(1); }
+  .drive-modal-icon{
+    width:48px; height:48px; margin:0 auto 14px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.35); color:var(--accent);
+  }
+  .drive-modal.is-error .drive-modal-icon{
+    background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.4); color:var(--danger);
+  }
+  .drive-modal-title{ font-size:16px; font-weight:700; margin-bottom:8px; }
+  .drive-modal-msg{ font-size:13px; color:var(--muted); line-height:1.55; margin-bottom:20px; }
+  .drive-modal-ok{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 28px; border-radius:9px; border:none; cursor:pointer;
+    background:var(--accent); color:#000000; font-weight:600; font-size:13.5px;
+    font-family:inherit; transition:filter .15s ease;
+  }
+  .drive-modal-ok:hover{ filter:brightness(1.1); }
+  .drive-modal.is-error .drive-modal-ok{ background:var(--danger); color:#000000; }
+
+  /* Popup "Khôi phục tất cả" */
+  .restore-modal{ width:min(560px, 92vw); text-align:left; max-height:88vh; display:flex; flex-direction:column; }
+  .restore-modal .drive-modal-icon, .restore-modal .drive-modal-title{ align-self:center; text-align:center; }
+  .restore-modal-body{ overflow:auto; margin-bottom:16px; }
+  .restore-folder{ font-family:monospace; font-size:12px; word-break:break-all; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); margin:0 0 10px; }
+  .restore-list{ list-style:none; margin:0 0 10px; padding:0; border:1px solid var(--border); border-radius:10px; }
+  .restore-list li{ display:flex; justify-content:space-between; gap:12px; padding:7px 10px; font-size:12.5px; }
+  .restore-list li + li{ border-top:1px solid var(--border); }
+  .restore-list .rl-meta{ color:var(--muted); white-space:nowrap; }
+  .restore-list .rl-bad{ color:var(--danger); }
+  .restore-warn{ margin:0 0 6px; color:var(--text); }
+  .restore-modal-actions{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .restore-modal-actions .drive-modal-ok.is-ghost{ background:transparent; color:var(--text); border:1px solid var(--border); }
+
+  /* ===== TAB ĐIỀU HƯỚNG — đồng bộ kiểu đơn giản (thẻ bo góc có viền) giống menu các module
+     khác, dùng chung 1 màu nhấn duy nhất khi hover/active. ===== */
+  .tab-nav{ display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:4px; margin:0; max-width:none; background:transparent; border:none; border-radius:0; padding:10px 4px; flex:1; overflow:visible; min-width:0; }
+  .nav-icon{width:16px;height:16px;flex-shrink:0;color:#97979C;transition:color var(--fast), transform var(--fast);}
+  .tab-item:hover .nav-icon{color:var(--accent); transform:scale(1.08);}
+  .tab-item.active .nav-icon{color:var(--nav-active-text); filter:drop-shadow(0 0 5px var(--nav-active-bg));}
+  .tab-item{
+    position:relative; display:flex; align-items:center; width:auto; gap:8px; padding:9px 14px;
+    border-radius:8px; border:1px solid transparent; color:#ffffff; font-size:12.5px;
+    font-weight:500; cursor:pointer; overflow:hidden; text-align:left; white-space:nowrap; flex-shrink:0;
+    transition:color var(--fast), background var(--fast), border-color var(--fast), box-shadow var(--fast), transform var(--fast);
+  }
+  /* Ánh sáng quét chéo qua bề mặt kính khi hover/active — đồng bộ với thẻ module
+     "Kính Băng" ở Bảng Điều Khiển, thay cho vạch sáng trái cũ. */
+  .tab-item::before{
+    content:"";
+    position:absolute; inset:0; z-index:0;
+    background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.16) 45%, transparent 60%);
+    background-size:220% 220%; background-position:120% 0%;
+    transition:background-position .6s ease;
+    pointer-events:none;
+  }
+  .tab-item:hover::before, .tab-item.active::before{ background-position:-20% 0%; }
+  .tab-item > *{ position:relative; z-index:1; }
+  .tab-item:hover{ color:var(--text); background:rgba(255,255,255,.075); border-color:rgba(255,255,255,.16); transform:translateY(-1px); }
+  .tab-item.active{
+    color:var(--nav-active-text); background:rgba(255,255,255,.11);
+    border-color:var(--accent); box-shadow:0 8px 16px -10px rgba(255,255,255,.4), inset 0 0 0 1px rgba(255,255,255,.08);
+    font-weight:600;
+  }
+
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .soon-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--r-lg);
+    padding:50px 24px; max-width:960px; text-align:center; color:var(--muted);
+  }
+  .soon-card .soon-ic{ font-size:32px; margin-bottom:14px; opacity:.6; }
+  .soon-card .soon-title{ font-size:15px; font-weight:600; color:var(--text); margin-bottom:6px; }
+  .soon-card .soon-desc{ font-size:13px; }
+
+  /* ===== TAB "CÀI ĐẶT" — Chuyển giao diện Sáng/Tối ===== */
+  .settings-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--r-lg);
+    padding:22px 26px; max-width:720px;
+  }
+  .settings-row{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+  .settings-title{ font-size:15px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .settings-desc{ font-size:12.5px; color:var(--muted); max-width:420px; line-height:1.6; }
+  .theme-switch{ position:relative; display:inline-block; cursor:pointer; flex-shrink:0; }
+  .theme-switch input{ position:absolute; opacity:0; width:0; height:0; }
+  .switch-track{ display:block; width:46px; height:26px; border-radius:20px; background:var(--border); transition:background .2s ease; }
+  .switch-thumb{ display:block; width:20px; height:20px; margin:3px; border-radius:50%; background:#fff; transition:transform .2s ease; }
+  .theme-switch input:checked + .switch-track{ background:var(--accent); }
+  .theme-switch input:checked + .switch-track .switch-thumb{ transform:translateX(20px); }
+
+  /* ===== TAB "CHỨC NĂNG 2" — Quản lý dữ liệu module (Sao lưu / Khôi phục / Mở module) ===== */
+  .dm-toolbar{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    max-width:1080px; margin:0 0 18px;
+    padding:14px 18px; background:var(--panel); border:1px solid var(--border); border-radius:var(--r-md);
+  }
+  .dm-toolbar-hint{ font-size:12px; color:var(--muted); }
+  .dm-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; max-width:1080px; }
+  .dm-card{ background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--mc, var(--accent)); border-radius:var(--r-md); padding:20px 22px; }
+  .dm-card.full{ grid-column:1 / -1; }
+  .dm-title{ display:flex; align-items:center; gap:8px; font-size:14.5px; font-weight:600; margin:0 0 4px; }
+  .dm-title .ic{ color:var(--mc, var(--accent)); font-size:16px; }
+  .dm-file{ font-size:11.5px; color:var(--muted); font-family:monospace; margin:0 0 14px; }
+  .dm-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+  .dm-row:last-of-type{ border-bottom:none; }
+  .dm-row .rname{ color:var(--muted); }
+  .dm-row .rcount{ font-weight:700; color:var(--text); min-width:30px; text-align:right; }
+  .dm-actions{ display:flex; gap:8px; margin-top:16px; align-items:center; }
+  .dm-btn{
+    border:none; padding:9px 16px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer;
+    display:inline-flex; align-items:center; gap:6px; transition:opacity .15s ease;
+  }
+  .dm-btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .dm-btn-primary{ background:var(--mc, var(--accent)); color:#000000; }
+  .dm-btn-ghost{ background:transparent; border:1px solid var(--border); color:var(--muted); }
+  .dm-btn-ghost:hover{ border-color:var(--mc, var(--accent)); color:var(--text); }
+  .dm-btn-link{ background:transparent; border:1px solid var(--border); color:var(--muted); margin-left:auto; }
+  .dm-btn-link:hover{ border-color:var(--mc, var(--accent)); color:var(--mc, var(--accent)); }
+
+
+/* ============================================================
+   BÔI ĐEN Ô ĐỂ TÍNH TỔNG KIỂU EXCEL — xem cuối file JS tương ứng. Đồng bộ với module "Tồn Kho An An".
+   ============================================================ */
+table.excel-select-enabled td.cell-selected{
+  background: rgba(255,255,255,0.22) !important;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+table.excel-select-enabled tbody td{ user-select:none; -webkit-user-select:none; }
+.excel-status-bar{
+  display:none;
+  position:fixed; left:0; right:0; bottom:0; z-index:200;
+  align-items:center; gap:22px;
+  padding:8px 22px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 18px rgba(0,0,0,.45);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.excel-status-bar b{ color: var(--accent); font-weight:700; margin-left:5px; }
+.excel-status-bar .esb-clear{
+  margin-left:auto; cursor:pointer; color: var(--muted);
+  font-family: 'Inter', sans-serif; font-size:11.5px;
+  border:1px solid var(--border); border-radius:6px; padding:3px 9px;
+  background:transparent;
+}
+.excel-status-bar .esb-clear:hover{ color: var(--accent); border-color: var(--accent); }
+
+/* Bảng cơ sở dùng cho "Đồng bộ ngay" (.pq-table sh-pick-table); phần Phân quyền điện thoại đã bỏ ở PC 6.6 */
+.pq-table{ width:100%; border-collapse:collapse; font-size:13px; }
+.pq-table th{ text-align:left; font-weight:600; color:var(--muted); padding:6px 8px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.pq-table td{ padding:8px; border-bottom:1px solid var(--border); vertical-align:top; }
+.pq-table tr.pq-off td{ opacity:.5; }
+.pq-table tr.pq-off td:first-child{ opacity:1; }
+/* "Đồng bộ ngay" — bảng chọn mục đồng bộ (thay cho dãy checkbox nằm ngang cũ, dễ nhìn/chọn hơn). */
+.sh-pick-table{ max-width:none; }
+.sh-pick-table td:first-child, .sh-pick-table th:first-child{ width:64px; text-align:center; }
+.sh-pick-table td:first-child input[type="checkbox"]{ width:16px; height:16px; cursor:pointer; }
+.sh-pick-table tr.sh-pick-all td{ font-weight:600; background:rgba(127,127,127,.08); }
+.sh-pick-table td:last-child{ color:var(--muted); font-size:12px; }
+/* Module đang ẩn trên điện thoại: làm mờ cả dòng, không cho tick (checkbox disabled). */
+.sh-pick-table tr.sh-pick-off td{ opacity:.5; }
+.sh-pick-table tr.sh-pick-off td:first-child input[type="checkbox"]{ cursor:not-allowed; }
+/* ===== BỐ CỤC FULL KHUNG, CO GIÃN THEO MÀN HÌNH (09/2026) =====
+   Trước đây nội dung bị giới hạn 720–1080px nên màn rộng trống nửa bên phải. Nay:
+   - Tab Backup: 8 thẻ module chia 4 cột (màn ≥ 1680px, VD Full HD) / 2 cột (≥ 1000px) / 1 cột.
+   - Các tab có nhiều khung cài đặt (Google Drive, Điện Thoại): khung xếp lưới tự co giãn
+     (mỗi khung ≥ 640px → Full HD 2 cột); */
+.dm-toolbar{ max-width:none; }
+.dm-grid{ max-width:none; grid-template-columns:1fr; }
+/* 8 thẻ module: chọn số cột chia hết cho 8 để không lẻ ô trống — 4 cột (màn rộng) / 2 cột / 1 cột */
+@media (min-width:1000px){ .dm-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+@media (min-width:1680px){
+  .dm-grid{ grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  /* 4 cột: nút gọn hơn để Sao lưu / Khôi phục / Sao lưu Drive / Mở module nằm cùng 1 hàng */
+  .dm-card{ padding:18px 18px; }
+  .dm-actions{ gap:6px; }
+  .dm-actions .dm-btn{ padding:8px 10px; font-size:12px; white-space:nowrap; }
+}
+.dm-actions{ flex-wrap:wrap; }
+.settings-desc{ max-width:80ch; }
+#panel-tab6.active{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 640px), 1fr)); gap:16px; align-items:start;
+}
+.tab-panel.active > .settings-card{ max-width:none; margin-top:0 !important; min-width:0; }
+#panel-tab5 .settings-card{ max-width:none; }
+
+/* ===== Tab "Đồng bộ điện thoại" — 2 menu con ===== */
+.sh-subnav{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 16px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+.sh-subtab{
+  padding:9px 16px; border-radius:8px; border:1px solid var(--border); background:var(--panel);
+  color:var(--muted); font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+  transition:color var(--fast), background var(--fast), border-color var(--fast);
+}
+.sh-subtab:hover{ color:var(--text); border-color:rgba(255,255,255,.2); }
+.sh-subtab.active{ color:var(--nav-active-text); background:rgba(255,255,255,.11); border-color:var(--accent); }
+.sh-subpanel{ display:none; }
+.sh-subpanel.active{ display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr); gap:16px; align-items:start; }
+.sh-subpanel.active > .settings-card{ max-width:none; margin-top:0 !important; min-width:0; }
+#sh-sub1.active{ grid-template-columns:minmax(0,1fr); }
+/* PC 3.49: thẻ Kết nối Google Sheet bị ẩn → cột còn lại chiếm cả hàng */
+.sh-subpanel.active:has(> .sh-col-main[hidden]){ grid-template-columns:minmax(0,1fr); }
+@media (max-width:1000px){ .sh-subpanel.active{ grid-template-columns:minmax(0,1fr); } }
+
+/* Thẻ chuẩn: đầu thẻ – thân – chân */
+.sh-card{ padding:0 !important; overflow:hidden; }
+.sh-card-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; padding:18px 22px 14px; border-bottom:1px solid var(--border); }
+.sh-card-head .settings-desc{ margin-top:4px; }
+.sh-card-body{ padding:18px 22px; }
+.sh-card-foot{ display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; padding:14px 22px; border-top:1px solid var(--border); background:rgba(127,127,127,.06); }
+.sh-foot-left{ display:flex; flex-direction:column; gap:4px; min-width:0; flex:1 1 320px; }
+.sh-foot-left .settings-desc{ margin:0; max-width:none; }
+.sh-foot-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.sh-count{ font-weight:600; font-size:13px; }
+
+/* Dòng trạng thái dạng "viên thuốc" */
+.sh-status{ display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:rgba(127,127,127,.08); color:var(--muted); font-size:12px; line-height:1.4; max-width:100%; }
+.sh-status::before{ content:""; flex:0 0 8px; width:8px; height:8px; border-radius:50%; background:var(--muted); opacity:.7; }
+
+/* Bảng chọn: toàn chiều rộng, cột rõ ràng */
+.sh-table-wrap{ width:100%; overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+.sh-table-wrap .pq-table th{ padding:10px 14px; background:rgba(127,127,127,.08); }
+.sh-table-wrap .pq-table td{ padding:10px 14px; vertical-align:middle; }
+.sh-table-wrap .pq-table tr:last-child td{ border-bottom:none; }
+.sh-pick-table td:first-child, .sh-pick-table th:first-child{ width:96px; }
+.sh-pick-table td:last-child, .sh-pick-table th:last-child{ width:240px; }
+.sh-pick-table tbody tr:hover td{ background:rgba(127,127,127,.06); }
+
+/* Biểu mẫu */
+.sh-form{ display:flex; flex-direction:column; gap:18px; }
+.sh-field{ display:flex; flex-direction:column; gap:6px; }
+.sh-label{ font-size:12.5px; font-weight:600; }
+.sh-input{ width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-family:inherit; font-size:13px; }
+select.sh-input{ font-weight:600; cursor:pointer; }
+.sh-input:focus{ outline:none; border-color:var(--accent); }
+.sh-input.is-locked, .sh-input:disabled{ opacity:.55; cursor:not-allowed; }
+.sh-lock-note{ display:block; margin-top:6px; font-size:12px; opacity:.75; }
+.sh-input-group{ display:flex; gap:8px; align-items:stretch; }
+.sh-input-group .sh-input{ flex:1; min-width:0; }
+.sh-input-group .dm-btn{ white-space:nowrap; }
+.sh-help{ margin-top:2px; }
+.sh-help summary{ cursor:pointer; color:var(--muted); font-size:12px; }
+.sh-help .settings-desc{ margin-top:6px; max-width:none; }
+
+/* Thanh nút chung — trạng thái bên trái, nút bên phải (nút chính ở ngoài cùng bên phải) */
+
+/* Thanh nút đầu trang (3 menu con của tab Điện Thoại): dòng riêng, canh trái */
+.sh-toolbar{ grid-column:1 / -1; display:flex; flex-direction:column; align-items:flex-start; gap:10px; width:100%; margin:0; }
+.sh-toolbar-row{ display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; }
+.sh-toolbar:not(.sh-toolbar-full):not(.sh-toolbar-inline){ flex-direction:row; flex-wrap:wrap; gap:8px; }
+.sh-toolbar-inline{ margin:0; }
+
+/* Tab "Cập nhật" (js/cap-nhat.js) */
+.up-input{ padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text); font-family:inherit; font-size:13px; min-width:0; }
+.up-input:focus{ outline:none; border-color:var(--accent, #22d3ee); }
+.up-new{ color:#16a34a; font-weight:700; }
+.up-err{ color:#e5484d; font-weight:600; }
+
+/* Tab "Mạng LAN" (js/mang-lan.js) */
+.lan-modes{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-top:12px; }
+.lan-mode{ display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; cursor:pointer; }
+.lan-mode input{ margin-top:3px; accent-color: var(--accent, #22d3ee); }
+.lan-mode[hidden]{ display:none !important; } /* PC 7.49: display:flex ở trên đè thuộc tính hidden → ô "Máy chủ" vẫn hiện với tài khoản thường */
+.lan-sec[hidden]{ display:none !important; }
+.lan-mode b{ display:block; font-size:14px; } .lan-mode small{ color:var(--muted); font-size:12px; }
+.lan-mode:has(input:checked){ border-color: var(--accent, #22d3ee); background: color-mix(in srgb, var(--accent, #22d3ee) 8%, transparent); }
+.lan-grid{ display:grid; grid-template-columns: 170px minmax(0, 420px); gap:10px 14px; align-items:center; margin-top:12px; }
+.lan-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.lan-row .up-input{ flex:1; min-width:140px; }
+.lan-val{ font-weight:600; }
+.lan-ok{ color:#16a34a; font-weight:600; } .lan-bad{ color:#e5484d; font-weight:600; }
+.lan-auto{ display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:13px; color:var(--muted); cursor:pointer; }
+.lan-auto input{ margin-top:3px; accent-color: var(--accent, #22d3ee); } .lan-auto b{ color: var(--text); }
+
+/* ===== Tab "Sao lưu & Drive" (gộp Backup + Google Drive, PC 2.2) ===== */
+.bk-sec-h{ display:flex; align-items:center; gap:10px; margin:4px 0 12px; font-size:14px; font-weight:700; color:var(--text); }
+.bk-sec-h::after{ content:""; flex:1; height:1px; background:var(--border); }
+.bk-sec-h:not(:first-child){ margin-top:26px; }
+.bk-drive-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap:16px; align-items:stretch; }
+.bk-drive-grid > .settings-card{ max-width:none; margin:0; min-width:0; }
+
+/* ===== Menu con "Cài đặt chung" (PC 3.1) — Giao diện / Cập nhật / Mạng LAN ===== */
+.cd-subnav{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 16px; padding:5px; border:1px solid var(--border); border-radius:12px; background:var(--surface, transparent); width:max-content; max-width:100%; }
+.cd-subnav[hidden]{ display:none; }
+.cd-subtab{ height:36px; padding:0 16px; border:0; border-radius:9px; background:transparent; color:var(--muted, inherit); font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.cd-subtab:hover{ color:var(--text); background:var(--surface-hover, rgba(127,127,127,.12)); }
+.cd-subtab.active{ background:var(--accent, #1d5fd1); color:#1a1206; }
+html[data-theme="light"] .cd-subtab.active{ background:#0B57D0; color:#ffffff; }
+
+/* Máy con Mạng LAN: phần Google Drive bị khoá (PC 3.2, js/cai-dat.js › lanClientDriveOff) */
+.bk-lan-note{ display:flex; flex-direction:column; gap:4px; margin:0 0 14px; padding:12px 16px; border-radius:12px;
+  border:1px solid var(--accent); background:var(--nav-active-bg, rgba(127,127,127,.08)); color:var(--text); font-size:13px; line-height:1.5; }
+.bk-lan-note b{ font-weight:700; }
+.is-lan-client .bk-drive-grid{ opacity:.45; pointer-events:none; filter:grayscale(.4); }
+.is-lan-client [data-action="drivebackup"]{ display:none !important; }
+
+/* Chọn module sao lưu lên Drive (PC 4.9) */
+.bk-mod-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:6px 14px; margin-top:10px; }
+.bk-mod{ display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; }
+.bk-mod input{ width:17px; height:17px; accent-color: var(--accent, #22d3ee); }
+.is-lan-client #bkModulesCard{ opacity:.45; pointer-events:none; }
+
+/* Tab "Tài khoản" (PC 6.4): khung nhúng tai-khoan.html */
+#panel-tab11 #slFrame{ display:block; width:100%; height:calc(100vh - 118px); min-height:480px; border:0; border-radius:12px; background:transparent; }
+#panel-tab10 #taiKhoanFrame{ display:block; width:100%; height:calc(100vh - 118px); min-height:480px; border:0; border-radius:12px; background:transparent; }
+.tab-item[hidden]{ display:none !important; }
+.cd-subtab[hidden]{ display:none !important; }
+
+/* PC 6.8: Sao lưu & Drive ở chế độ "chỉ khôi phục" */
+#panel-tab2.bk-readonly .bk-drive-grid{ opacity:.55; pointer-events:none; user-select:none; }
+#panel-tab2.bk-readonly #btnBackupAllDrive,
+#panel-tab2.bk-readonly .dm-btn[data-action="drivebackup"]{ display:none !important; }
+.bk-ro-note{ margin:0 0 14px; padding:11px 14px; border-radius:12px; border:1px solid var(--accent, #1d5fd1); background:rgba(29,95,209,.10); font-size:13px; line-height:1.5; }
+.bk-ro-note[hidden]{ display:none !important; }
+
+/* PC 7.0: thẻ "Nguồn cập nhật (GitHub)" chỉ admin thấy — [hidden] phải thắng display của .settings-card */
+#upSourceCard[hidden], #upFixedNote[hidden]{ display:none !important; }
+
+/* PC 2.00 — 3 tab nhúng module (Phiếu xuất hệ thống · Đồng bộ điện thoại · Lịch sử thao tác) */
+#panel-tabDcn #dcnFrame, #panel-tabPx #pxFrame, #panel-tabDb #dbFrame, #panel-tabLs #lsFrame, #panel-tabNap #napFrame{ display:block; width:100%; height:calc(100vh - 118px); min-height:480px; border:0; border-radius:12px; background:transparent; }
+
+/* Thanh kéo cỡ chữ / thu phóng giao diện (Cài đặt › Giao diện) */
+.zoom-row{ display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
+.zoom-row input[type=range]{ flex:1 1 220px; min-width:160px; max-width:420px; accent-color:var(--accent); cursor:pointer; }
+.zoom-a{ font-weight:700; color:var(--muted); user-select:none; }
+.zoom-a-s{ font-size:12px; } .zoom-a-l{ font-size:20px; }
+.zoom-val{ min-width:48px; text-align:right; font-variant-numeric:tabular-nums; }
+.zoom-reset{ padding:6px 12px; border-radius:8px; border:1px solid var(--border, rgba(128,128,128,.4)); background:transparent; color:inherit; cursor:pointer; font:inherit; }
+.zoom-reset:hover{ background:rgba(128,128,128,.15); }
+
+/* PC 1.31: menu con theo nhóm — nút của nhóm khác / không có quyền phải ẨN THẬT (kl-tabs-g.css ép display nên [hidden] không đủ) */
+html body .cd-subnav .cd-subtab[hidden],
+html body .tab-nav .tab-item[hidden]{ display:none !important; }

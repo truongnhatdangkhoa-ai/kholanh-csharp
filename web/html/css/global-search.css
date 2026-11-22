@@ -1,0 +1,161 @@
+/* ==========================================================================
+   TÌM TRONG TOÀN KHO — popup mở từ ô tìm kiếm trang chính (js/global-search.js).
+   Dùng biến màu của index.css (--panel, --border, --text, --muted, --mono, --track) nên tự theo theme
+   sáng/tối. KHÔNG dùng backdrop-filter trên lớp phủ (xem CLAUDE.md, Đợt 3 mục 15).
+   ========================================================================== */
+:root{ --gs-c1:#4DB3DE; --gs-c2:#b98a68; --gs-c3:#7cc2a8; --gs-c4:#8fb0e6; --gs-c5:#f2c46b; --gs-c6:#d98a8a; --gs-hl:rgba(77,179,222,.32); --gs-act:rgba(77,179,222,.10); }
+html[data-theme="light"]{ --gs-c1:#0B57D0; --gs-c2:#b45309; --gs-c3:#0f8a6a; --gs-c4:#7c3aed; --gs-c5:#0891b2; --gs-c6:#be123c; --gs-hl:rgba(11,87,208,.20); --gs-act:rgba(11,87,208,.07); }
+
+.gs-ov{ position:fixed; inset:0; z-index:9000; background:rgba(3,6,12,.62); display:none; padding:4vh 4vw; }
+html[data-theme="light"] .gs-ov{ background:rgba(17,24,39,.38); }
+.gs-ov.open{ display:block; }
+.gs-pop{ height:100%; max-width:1280px; margin:0 auto; background:var(--panel); border:1px solid var(--border); border-radius:16px;
+  box-shadow:0 30px 90px rgba(0,0,0,.45); display:flex; flex-direction:column; overflow:hidden; color:var(--text);
+  font-family:'Inter',sans-serif; }
+.gs-top{ display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid var(--border); }
+.gs-qbox{ flex:1; display:flex; align-items:center; gap:10px; border:1.5px solid var(--mono); border-radius:11px; padding:9px 13px;
+  background:var(--track, transparent); }
+.gs-qbox svg{ width:20px; height:20px; color:var(--mono); flex-shrink:0; }
+.gs-qbox input{ flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text); font:600 17px 'Sora','Inter',sans-serif; }
+.gs-qbox input::placeholder{ color:var(--muted); font-weight:500; }
+.gs-x{ width:40px; height:40px; border:1px solid var(--border); background:transparent; border-radius:10px; cursor:pointer; color:var(--muted); font-size:16px; }
+.gs-x:hover{ color:var(--text); border-color:var(--border-hover); }
+.gs-x:focus-visible, .gs-ma:focus-visible, .gs-btn:focus-visible{ outline:2px solid var(--mono); outline-offset:2px; }
+.gs-status{ font-size:12px; color:var(--muted); padding:6px 16px; border-bottom:1px solid var(--border); display:none; }
+.gs-status.show{ display:block; }
+.gs-status.err{ color:#e5484d; }
+
+.gs-body{ flex:1; display:flex; min-height:0; position:relative; }
+.gs-tw{ flex:1; overflow:auto; min-width:0; }
+.gs-tw table{ border-collapse:collapse; width:100%; font-size:13.5px; }
+.gs-tw th{ position:sticky; top:0; z-index:1; background:var(--panel); text-align:left; font-weight:700; color:var(--muted); font-size:12.5px;
+  padding:9px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.gs-tw td{ padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+.gs-tw th.num, .gs-tw td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+.gs-tw td.mod{ font-weight:700; }
+.gs-tw td.mod i{ display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--c); margin-right:8px; }
+.gs-tw tbody tr:hover{ background:var(--panel-hover); }
+.gs-tw tbody tr.act{ background:var(--gs-act); box-shadow:inset 3px 0 0 var(--mono); }
+.gs-tw tr.first td{ border-top:1px solid var(--border-hover); }
+.gs-tw tfoot td{ position:sticky; bottom:0; background:var(--panel); font-weight:700; border-top:1px solid var(--border-hover); border-bottom:0; }
+.gs-tw mark{ background:var(--gs-hl); color:inherit; border-radius:3px; padding:0 1px; }
+.gs-dim{ color:var(--muted); }
+.gs-ma{ border:0; background:transparent; padding:0; cursor:pointer; color:var(--text); font:inherit;
+  text-decoration:underline; text-decoration-color:var(--border-hover); text-underline-offset:3px; }
+.gs-ma:hover{ color:var(--mono); text-decoration-color:var(--mono); }
+.gs-more{ display:block; width:100%; border:0; border-top:1px solid var(--border); background:transparent; padding:9px; cursor:pointer;
+  color:var(--mono); font-weight:600; font-size:12.5px; }
+.gs-empty{ padding:50px 16px; text-align:center; color:var(--muted); line-height:1.6; }
+
+/* Bảng chi tiết 1 mã hàng */
+.gs-detail{ width:0; overflow:hidden; border-left:1px solid var(--border); background:var(--bg); transition:width .18s; }
+.gs-detail.open{ width:410px; }
+.gs-din{ width:410px; height:100%; overflow:auto; padding:18px; }
+.gs-dtop{ display:flex; align-items:flex-start; gap:10px; }
+.gs-dtop h2{ margin:0; font:700 16px 'Sora',sans-serif; word-break:break-all; flex:1; }
+.gs-dname{ color:var(--muted); font-size:12.5px; margin-top:6px; }
+.gs-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+.gs-tag{ font-size:12px; font-weight:700; padding:2px 9px; border-radius:6px; background:color-mix(in srgb, var(--mono) 14%, transparent); color:var(--mono); }
+.gs-tag.o{ background:transparent; border:1px solid var(--border); color:var(--text); }
+.gs-sec{ margin-top:18px; }
+.gs-sec h4{ margin:0 0 8px; font:700 13px 'Sora',sans-serif; }
+.gs-kpi{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.gs-kpi div{ border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:var(--panel); }
+.gs-kpi small{ display:block; color:var(--muted); font-size:11.5px; }
+.gs-kpi b{ font:700 17px 'Sora',sans-serif; }
+.gs-brk{ display:grid; grid-template-columns:112px 1fr auto; gap:8px 10px; align-items:center; font-size:12.5px; }
+.gs-brk .tr{ height:8px; border-radius:5px; background:var(--border); overflow:hidden; }
+.gs-brk .tr div{ height:100%; background:var(--c); border-radius:5px; }
+.gs-brk .lb{ display:inline-flex; align-items:center; gap:6px; font-weight:600; }
+.gs-brk .lb i{ width:7px; height:7px; border-radius:50%; background:var(--c); }
+.gs-vt{ display:flex; flex-direction:column; gap:6px; }
+.gs-vti{ display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid var(--border); border-radius:9px;
+  padding:7px 10px; background:var(--panel); font-size:12.5px; }
+.gs-vti .sub{ color:var(--muted); font-size:11.5px; }
+.gs-vti .q{ text-align:right; white-space:nowrap; }
+.gs-dec{ display:grid; grid-template-columns:auto auto 1fr; gap:5px 10px; font-size:12.5px; }
+.gs-dec code{ font:600 12px ui-monospace,Consolas,monospace; color:var(--mono); }
+.gs-btns{ display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+.gs-btn{ border:1px solid var(--border); background:transparent; border-radius:10px; padding:8px 13px; cursor:pointer; color:var(--text); font-weight:600; font-size:12.5px; }
+.gs-btn.pri{ background:var(--mono); border-color:var(--mono); color:#fff; }
+html:not([data-theme="light"]) .gs-btn.pri{ color:#1a0f06; }
+.gs-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--text); color:var(--bg); padding:10px 16px;
+  border-radius:10px; font-weight:600; font-size:13px; z-index:9100; opacity:0; transition:opacity .2s; pointer-events:none; }
+.gs-toast.show{ opacity:1; }
+.search-box .gs-kbd{ font:600 11px 'Inter',sans-serif; border:1px solid var(--border); border-radius:6px; padding:1px 6px; color:var(--muted); white-space:nowrap; }
+@media (max-width:1000px){
+  .gs-ov{ padding:0; } .gs-pop{ border-radius:0; border:0; }
+  .gs-detail.open{ position:absolute; right:0; top:0; bottom:0; width:min(410px,100%); z-index:3; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  .gs-din{ width:min(410px,100vw); }
+}
+
+/* ---------- Lọc theo cột kiểu Excel, phân tầng (dùng chung js/table-col-search.js) ----------
+   Popup lọc (#colSearchPopover) gắn vào <body> → z-index phải cao hơn lớp phủ .gs-ov (9000).
+   Cột đang lọc: tiêu đề nền đỏ — GIỐNG quy ước các module khác (xem doi-chieu-kho-hang.css). */
+.gs-tw th .gs-th{ display:inline-flex; align-items:center; gap:2px; }
+.gs-tw th.num .gs-th{ justify-content:flex-end; width:100%; }
+.gs-tw .th-filter-btn{ width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border-radius:7px; cursor:pointer;
+  color:var(--muted); background:transparent; border:1px solid transparent; margin-left:3px; padding:0; }
+.gs-tw .th-filter-btn:hover{ border-color:var(--border); color:var(--text); }
+.gs-tw .th-filter-btn svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; }
+.gs-tw thead th.has-filter{ background:#c0392b !important; }
+.gs-tw thead th.has-filter, .gs-tw thead th.has-filter *{ color:#fff !important; }
+.gs-clear{ border:1px solid #c0392b; background:transparent; color:#e5484d; border-radius:10px; padding:0 12px; height:40px; cursor:pointer; font-weight:600; font-size:12.5px; white-space:nowrap; display:none; }
+.gs-clear.show{ display:inline-block; }
+.gs-clear:hover{ background:rgba(192,57,43,.12); }
+#colSearchPopover.col-search-popover{ position:fixed; z-index:9500; width:250px; display:none; padding:9px; font-size:13px;
+  background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.5); color:var(--text); }
+#colSearchPopover.col-search-popover.open{ display:block; }
+#colSearchPopover input[type="text"]{ width:100%; box-sizing:border-box; background:var(--bg); border:1px solid var(--border); border-radius:6px;
+  padding:6px 8px; font-size:12px; color:var(--text); outline:none; margin-bottom:7px; font-family:inherit; }
+#colSearchPopover input[type="text"]:focus{ border-color:var(--mono); }
+#colSearchPopover .col-search-selectall{ display:flex; align-items:center; gap:8px; padding:6px 7px; border-bottom:1px solid var(--border); margin-bottom:4px; cursor:pointer; font-size:12.5px; }
+#colSearchPopover .col-search-list{ max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:1px; margin-bottom:4px; }
+#colSearchPopover .col-search-item{ display:flex; align-items:center; gap:8px; padding:6px 7px; border-radius:6px; font-size:12.5px; cursor:pointer; }
+#colSearchPopover .col-search-item:hover{ background:var(--panel-hover); }
+#colSearchPopover .col-search-item span{ flex:1; min-width:0; word-break:break-word; }
+#colSearchPopover .col-cb{ accent-color:var(--mono); flex-shrink:0; width:14px; height:14px; cursor:pointer; }
+#colSearchPopover .col-search-empty{ padding:8px 4px; font-size:12px; color:var(--muted); }
+#colSearchPopover .col-search-footer{ display:flex; justify-content:space-between; margin-top:4px; padding-top:6px; border-top:1px solid var(--border); }
+#colSearchPopover .col-search-clear, #colSearchPopover .col-search-close{ font-size:11.5px; color:var(--muted); cursor:pointer; padding:2px 4px; }
+#colSearchPopover .col-search-clear:hover{ color:#e5484d; }
+#colSearchPopover .col-search-close:hover{ color:var(--mono); }
+
+/* Nút "⬆ Có bản mới" trang chính (js/update-notice.js) */
+.upd-notice{ height:38px; padding:0 14px; border-radius:999px; border:1px solid #16a34a; background:rgba(22,163,74,.14); color:#22c55e;
+  font:700 13px 'Inter',sans-serif; cursor:pointer; white-space:nowrap; }
+html[data-theme="light"] .upd-notice{ color:#15803d; background:rgba(22,163,74,.10); }
+.upd-notice:hover{ background:rgba(22,163,74,.24); }
+.upd-notice:disabled{ opacity:.7; cursor:default; }
+
+/* Popup "Có phiên bản mới" (js/update-notice.js) */
+.upd-ov{ position:fixed; inset:0; z-index:9600; background:rgba(3,6,12,.62); display:flex; align-items:center; justify-content:center; padding:20px; }
+html[data-theme="light"] .upd-ov{ background:rgba(17,24,39,.38); }
+.upd-box{ width:min(460px,100%); background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:18px;
+  box-shadow:0 30px 90px rgba(0,0,0,.45); padding:26px 24px 20px; text-align:center; font-family:'Inter',sans-serif; }
+.upd-icon{ width:54px; height:54px; margin:0 auto 10px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:26px; background:rgba(22,163,74,.15); color:#22c55e; }
+.upd-box h2{ margin:0 0 12px; font:800 20px 'Sora','Inter',sans-serif; }
+.upd-ver{ display:flex; justify-content:center; align-items:center; gap:10px; flex-wrap:wrap; font-size:14px; color:var(--muted); }
+.upd-ver b{ color:var(--text); font-size:16px; }
+.upd-arrow{ color:#22c55e; font-weight:800; }
+.upd-date{ font-size:12px; color:var(--muted); margin-top:6px; }
+.upd-notes{ text-align:left; margin:16px 0 0; padding:12px 14px; border:1px solid var(--border); border-radius:12px; font-size:13px; line-height:1.55; max-height:180px; overflow:auto; }
+.upd-notes-h{ font-weight:700; margin-bottom:4px; }
+.upd-safe{ margin-top:14px; font-size:12px; color:var(--muted); line-height:1.5; }
+.upd-msg{ margin-top:10px; font-size:13px; min-height:18px; }
+.upd-err{ color:#e5484d; font-weight:600; }
+.upd-btns{ display:flex; gap:10px; margin-top:14px; }
+.upd-btns button{ flex:1; height:44px; border-radius:12px; font:700 14px 'Inter',sans-serif; cursor:pointer; }
+.upd-later{ background:transparent; border:1px solid var(--border); color:var(--text); }
+.upd-go{ background:#15803d; border:1px solid #16a34a; color:#fff; }
+.upd-btns button:disabled{ opacity:.7; cursor:default; }
+.upd-btns button:focus-visible{ outline:2px solid #22c55e; outline-offset:2px; }
+
+/* PC 2.72 — khối «Phiếu · LSX · Số cont» của Ctrl+K */
+.gs-docs{ padding:6px 14px 8px; border-bottom:1px solid var(--kl-line, #E0E0E0); display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.gs-docs[hidden]{ display:none; }
+.gs-docs-h{ width:100%; font-size:12px; font-weight:700; color:var(--kl-text-3, #595959); }
+.gs-doc{ display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; max-width:340px; padding:6px 10px; border:1px solid var(--kl-line, #E0E0E0); border-radius:8px; background:var(--kl-surface-2, #F5F5F5); color:var(--kl-text, #000); cursor:pointer; text-align:left; font:inherit; }
+.gs-doc:hover, .gs-doc:focus-visible{ border-color:var(--kl-blue, #0B57D0); background:var(--kl-blue-soft, #E8F0FE); outline:none; }
+.gs-doc b{ font-size:13px; } .gs-doc span{ font-size:12px; color:var(--kl-text-3, #595959); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }

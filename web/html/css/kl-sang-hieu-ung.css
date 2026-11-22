@@ -1,0 +1,35 @@
+/* =====================================================================================================
+   PC 2.34 — GIAO DIỆN SÁNG: HIỆU ỨNG MENU + CHUYỂN TRANG, MẪU E3 "SẮC BIỂN" (anh chọn từ mẫu).
+   CHỈ có tác dụng khi html[data-theme="light"] — giao diện Tối không đổi. Nạp SAU kl-shell.css (chỉ ở index.html).
+   • Menu trái: nền chuyển màu xanh biển → lục, chữ trắng (tương phản ≥ 5.3:1); mục đang chọn có "viên kính" trắng mờ TRƯỢT sang mục mới
+     (js/kl-nav-pill.js dựng + định vị; không có JS thì mục đang chọn vẫn tô kính mờ nhờ --kl-side-3 bên dưới).
+   • Chuyển trang: khung module / Tổng quan hiện dần + phóng nhẹ 0.975 → 1 (0.42 giây). Máy bật "giảm chuyển động" thì tắt (kl-ds.css).
+   Muốn bỏ hiệu ứng: gỡ dòng <link> + <script kl-nav-pill.js> ở index.html.
+   ===================================================================================================== */
+html[data-theme="light"] .kl-side{
+  --kl-side-text:#FFFFFF; --kl-side-hi:#FFFFFF; --kl-side-muted:#F1F7FB; --kl-side-line:rgba(255,255,255,.2);
+  --kl-side-2:rgba(255,255,255,.13); --kl-side-3:rgba(255,255,255,.22);
+  background:linear-gradient(170deg,#1F4A7C 0%,#25708A 55%,#2E7A52 100%);
+  border-right-color:rgba(255,255,255,.18);
+}
+html[data-theme="light"] .kl-nav{ position:relative; scrollbar-color:rgba(255,255,255,.45) transparent; }
+html[data-theme="light"] .kl-nav::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.45); border-color:transparent; }
+html[data-theme="light"] .kl-nav::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,.7); }
+html[data-theme="light"] .kl-nav__item.is-active svg{ color:#FFFFFF; }
+html[data-theme="light"] .kl-nav__item:focus-visible{ outline-color:#FFFFFF !important; }
+html[data-theme="light"] .kl-nav__item{ transition:background-color var(--kl-fast) var(--kl-ease), color var(--kl-fast) var(--kl-ease), transform var(--kl-fast) var(--kl-ease); }
+html[data-theme="light"] .kl-nav__item:not(.is-active):hover{ transform:translateX(3px); }
+
+/* viên kính trượt */
+.kl-nav__pill{ position:absolute; left:0; top:0; width:0; height:0; border-radius:var(--kl-r2); pointer-events:none; opacity:0;
+  background:rgba(255,255,255,.2); box-shadow:inset 0 0 0 1px rgba(255,255,255,.55), 0 4px 14px rgba(8,30,50,.25);
+  transition:transform .38s var(--kl-ease), width .38s var(--kl-ease), height .38s var(--kl-ease), opacity .2s; }
+.kl-nav__pill.on{ opacity:1; }
+.kl-nav__pill.no-anim{ transition:none; }
+html:not([data-theme="light"]) .kl-nav__pill{ display:none; }
+html[data-theme="light"] .kl-nav.has-pill .kl-nav__item.is-active{ background:transparent; }
+html[data-theme="light"] .kl-nav.has-pill .kl-nav__item.is-active::before{ display:none; }
+
+/* chuyển trang */
+@keyframes klPgIn{ from{ opacity:0; transform:scale(.975); } to{ opacity:1; transform:none; } }
+html[data-theme="light"] .kl-view, html[data-theme="light"] #dashboardView{ animation:klPgIn .42s var(--kl-ease) backwards; }

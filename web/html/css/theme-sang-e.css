@@ -1,0 +1,162 @@
+/* =====================================================================================================
+   GIAO DIỆN SÁNG — MẪU 4 "XÁM EXCEL" (PC 3.87, 02/11/2026; trước đó "Băng nhạt" xanh ngọc #12607F — xem lịch sử PC 8.82 "Mật ong")
+   Bảng màu: nền #E9EBEE · thẻ #FFFFFF · tiêu đề bảng #F3F4F6 · lưới #C9CDD3 · viền ô nhập #6B7280 · chữ #111827 / #374151 / #566070 · nhấn xanh dương #0B57D0 (đậm #2448A3, nền nhạt #E6EDFB). Các mô tả màu "mật ong" bên dưới là của đợt cũ.
+   -----------------------------------------------------------------------------------------------------
+   Lấy theo mẫu số 5 "Mật ong" trong kho-theme-mau.html, có CHỈNH ĐỂ ĐỦ TƯƠNG PHẢN (WCAG AA ≥ 4.5 cho chữ thường):
+   • Nền trang #E9EBEE · thẻ/panel #ffffff · menu & thanh điều hướng #DDE0E4 · nền nhạt/hover #E8F0F4 / #E6EDFB.
+   • Chữ chính #111827 (≈12–13:1) · chữ phụ #374151 (≈6.4–7:1) · chữ mờ #566070 (≥ 5.2:1).
+   • Màu nhấn: mẫu gốc #0B57D0 chỉ đạt 4.3:1 khi làm CHỮ trên nền nhạt #E6EDFB → dùng #0B57D0 (chữ trắng trên nền
+     này 5.7:1; làm chữ trên nền nhạt ≥ 5.0:1); rê chuột / đậm #2448A3. Viền / nền: từ PC 1.35 lấy theo --kl-* trong css/kl-ds.css (mẫu Excel B), không ghi cứng ở đây nữa.
+   • Thanh điều hướng module: nền #DDE0E4, mục đang mở = thẻ trắng chữ nhấn + gạch chân.
+   • Bảng: tiêu đề nền #F3F4F6 chữ #1F3743 đậm, rê chuột #E8F0F4.
+   • Cột số có màu: Tồn đầu (xám be) · Nhập (xanh lá) · Xuất (đỏ) · Tồn cuối (vàng mật) — lib/theme-sync.js dò
+     tiêu đề cột và gắn data-tint; thân bảng tô nhạt bằng 1 quy tắc nth-child mỗi cột.
+   File này nạp CUỐI CÙNG trên mọi trang và CHỈ có tác dụng khi html[data-theme="light"] — giao diện Tối không đổi.
+   ===================================================================================================== */
+html[data-theme="light"]{
+  /* biến dùng chung (theme-shared.css) */
+  --theme-bg:#E9EBEE; --theme-panel:#ffffff; --theme-panel-2:#E8F0F4;
+  --theme-border:var(--kl-line, #BFBFBF); --theme-border-strong:var(--kl-line-strong, #7A7A7A);
+  --theme-text:#111827; --theme-text-dim:#374151; --theme-text-faint:#566070;
+  --theme-accent:#0B57D0; --theme-accent-dim:#2448A3; --theme-accent-glow:rgba(11,87,208,.12);
+  --theme-wrap-rgb:255,252,242;
+  /* tên biến riêng của các module (ghi đè đủ bộ; module nào không dùng thì vô hại) */
+  --bg:#E9EBEE; --bg-elevated:#DDE0E4; --surface:#ffffff; --surface-hover:#E8F0F4;
+  --panel:#ffffff; --panel-hover:#E8F0F4;
+  --border:var(--kl-line, #BFBFBF); --border-strong:var(--kl-line-strong, #7A7A7A); --border-hover:var(--kl-line-strong, #7A7A7A);
+  --text:#111827; --text-muted:#374151; --text-faint:#566070; --muted:#374151;
+  --ice:#0B57D0; --ice-dim:#2448A3; --ice-glow:rgba(11,87,208,.12);
+  --wrap-rgb:255,252,242; --wrap-border-rgb:59,42,6;
+  /* thanh điều hướng module: nền mật ong nhạt */
+  --side-bg:#DDE0E4; --side-active-bg:#ffffff; --side-text:#111827; --side-text-muted:#374151;
+  --nav-active-bg:#ffffff; --nav-active-border:var(--kl-line, #BFBFBF); --nav-active-text:#0B57D0;
+  /* màu cột số */
+  --tint-dau:#E4EAEE;  --tint-dau-t:#33444E;  --tint-dau-b:rgba(11,87,208,.035);
+  --tint-nhap:#D9F0E3; --tint-nhap-t:#14532d; --tint-nhap-b:rgba(22,163,74,.04);
+  --tint-xuat:#FBDEDB; --tint-xuat-t:#8f1c13; --tint-xuat-b:rgba(220,38,38,.035);
+  --tint-cuoi:#E6EDFB; --tint-cuoi-t:#2448A3; --tint-cuoi-b:rgba(11,87,208,.10);
+}
+
+/* ---------- thanh điều hướng / thanh trên của module ---------- */
+html[data-theme="light"] .sidebar,
+html[data-theme="light"] .topbar{
+  border-color:var(--kl-line, #BFBFBF) !important;
+  box-shadow:none;
+}
+html[data-theme="light"] .sidebar::before{ opacity:0 !important; }
+html[data-theme="light"] .brand,
+html[data-theme="light"] .sidebar-toggle-row,
+html[data-theme="light"] .sidebar-foot{ border-color:var(--kl-line, #BFBFBF) !important; }
+html[data-theme="light"] .brand-title,
+html[data-theme="light"] .topbar h1,
+html[data-theme="light"] .page-title{ color:var(--kl-text, #111827) !important; font-weight:800; }
+html[data-theme="light"] .brand-sub,
+html[data-theme="light"] .topbar p,
+html[data-theme="light"] .page-crumb{ color:var(--kl-text-2, #374151) !important; }
+
+html[data-theme="light"] .nav-item,
+html[data-theme="light"] .nav-subitem,
+html[data-theme="light"] .tab-item,
+html[data-theme="light"] .menu-item,
+html[data-theme="light"] .menu-subitem{ color:var(--kl-text-2, #374151); font-weight:600; }
+html[data-theme="light"] .nav-item:hover,
+html[data-theme="light"] .nav-subitem:hover,
+html[data-theme="light"] .tab-item:hover,
+html[data-theme="light"] .menu-item:hover,
+html[data-theme="light"] .menu-subitem:hover{
+  color:var(--kl-text, #111827); background:rgba(255,255,255,.65); border-color:var(--kl-line, #BFBFBF);
+}
+html[data-theme="light"] .nav-item.active,
+html[data-theme="light"] .nav-subitem.active,
+html[data-theme="light"] .tab-item.active,
+html[data-theme="light"] .menu-item.active,
+html[data-theme="light"] .menu-subitem.active{
+  color:#0B57D0 !important; background:var(--kl-surface, #FFFFFF) !important; border-color:var(--kl-line, #BFBFBF) !important;
+  box-shadow:0 1px 2px rgba(17,24,39,.08), inset 0 -2px 0 #0B57D0 !important;
+  animation:none !important;
+}
+html[data-theme="light"] .nav-item.active svg,
+html[data-theme="light"] .tab-item.active svg,
+html[data-theme="light"] .menu-item.active svg{ color:#0B57D0; }
+html[data-theme="light"] .tab-item::before,
+html[data-theme="light"] .nav-item::before{ background-image:none !important; }
+html[data-theme="light"] .nav-sub{ background:var(--kl-surface, #FFFFFF); border-color:var(--kl-line, #BFBFBF); }
+html[data-theme="light"] .nav-subitem-num{ color:var(--kl-text-2, #374151); background:var(--kl-surface-2, #DDE0E4); }
+html[data-theme="light"] .sidebar-toggle{ color:var(--kl-text-2, #374151); }
+html[data-theme="light"] .sidebar-toggle:hover{ color:var(--kl-text, #111827) !important; background:rgba(255,255,255,.65) !important; }
+html[data-theme="light"] .sidebar .gauge,
+html[data-theme="light"] .topbar .gauge,
+html[data-theme="light"] .stat-chip,
+html[data-theme="light"] .topbar .search-box{
+  color:var(--kl-text, #111827) !important; background:var(--kl-surface, #FFFFFF) !important; border-color:var(--kl-line, #BFBFBF) !important;
+}
+
+/* ---------- bảng ---------- */
+html[data-theme="light"] thead th{
+  background:var(--kl-surface-2, #E2E2E2); color:var(--kl-text, #1F3743); font-weight:700;
+  border-color:var(--kl-line, #BFBFBF);
+}
+html[data-theme="light"] tbody td{ border-color:var(--kl-line, #BFBFBF); }
+html[data-theme="light"] tbody tr:hover > td{ background-color:color-mix(in srgb, var(--kl-blue-soft, #D0E0F2) 70%, transparent); }
+html[data-theme="light"] .table-wrap,
+html[data-theme="light"] .table-shell{ border-color:var(--kl-line, #BFBFBF); background:var(--kl-surface, #FFFFFF); }
+
+/* cột số có màu — tiêu đề (data-tint do lib/theme-sync.js gắn) */
+html[data-theme="light"] th[data-tint="dau"]{ background:var(--tint-dau) !important; color:var(--tint-dau-t) !important; }
+html[data-theme="light"] th[data-tint="nhap"]{ background:var(--tint-nhap) !important; color:var(--tint-nhap-t) !important; }
+html[data-theme="light"] th[data-tint="xuat"]{ background:var(--tint-xuat) !important; color:var(--tint-xuat-t) !important; }
+html[data-theme="light"] th[data-tint="cuoi"]{ background:var(--tint-cuoi) !important; color:var(--tint-cuoi-t) !important; }
+
+/* ---------- nút chính ---------- */
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] .btn.primary,
+html[data-theme="light"] .btn.pri,
+html[data-theme="light"] .dc-btn.pri{ background:#0B57D0; border-color:#0B57D0; color:#ffffff; }
+html[data-theme="light"] .btn-primary:hover,
+html[data-theme="light"] .btn.primary:hover,
+html[data-theme="light"] .btn.pri:hover,
+html[data-theme="light"] .dc-btn.pri:hover{ background:#2448A3; border-color:#2448A3; }
+
+/* chữ xanh nhạt viết thẳng trong JS (cột "nhập" của NXT Bột/Sốt) quá mờ trên nền sáng → nâu mật đậm (≥ 6:1) */
+html[data-theme="light"] td[style*="7FA8F5" i]{ color:#2448A3 !important; }
+
+/* PC 3.89 — thanh tab phụ (.sidebar) + thanh tiêu đề (.topbar) của module: CÙNG MÀU MENU TRÁI (than #17212B).
+   Đặt lại bộ biến chữ / nền / viền NGAY TRÊN 2 thanh này (biến kế thừa xuống chip tab, tiêu đề, ô tìm, chip thống kê) → chữ sáng trên nền tối, phần nội dung bên dưới không đổi. */
+html[data-theme="light"] .sidebar,
+html[data-theme="light"] .topbar{
+  background:#17212B !important; border-color:#263240 !important; color:#DCE3EA; color-scheme:dark;
+  --kl-text:#FFFFFF; --kl-text-2:#DCE3EA; --kl-text-3:#8F9CA9;
+  --kl-surface:#1F2B37; --kl-surface-2:#1F2B37; --kl-line:#263240; --kl-line-strong:#3A4D5E;
+  --text:#FFFFFF; --text-muted:#DCE3EA; --text-faint:#8F9CA9; --muted:#8F9CA9;
+  --surface:#1F2B37; --panel:#1F2B37; --border:#263240; --border-strong:#3A4D5E;
+}
+
+/* ===== PC 3.90 — MẪU 2 "PHÂN ĐOẠN" cho thanh tab phụ + thống kê của module (chỉ giao diện sáng) =====
+   Tab: nằm trong khay tối #0F171F, mục đang chọn tô xanh #0B57D0 chữ trắng, chấm màu chuyển trắng. Thống kê: chip nền #1F2B37 viền #2E3E4F, số trắng + nhãn viết hoa mờ, cho xuống dòng (không cắt). */
+html[data-theme="light"] body .sidebar{ padding:8px 14px; }
+html[data-theme="light"] body .sidebar :is(nav, .nav, .module-nav, .tab-nav){
+  display:inline-flex !important; flex-wrap:wrap; width:auto !important; max-width:100%; gap:2px !important; padding:3px !important;
+  background:#0F171F !important; border:0 !important; border-radius:10px !important;
+}
+html[data-theme="light"] body .sidebar :is(.nav-item, .tab-btn, .menu-item, .module-tab, .tab-item, nav.menu > button),
+html[data-theme="light"] body .sidebar #navList > *{
+  height:30px !important; border:1px solid transparent !important; border-radius:8px !important; background:transparent !important; color:#9FB0C2 !important;
+}
+html[data-theme="light"] body .sidebar :is(.nav-item, .tab-btn, .menu-item, .module-tab, .tab-item, nav.menu > button):hover,
+html[data-theme="light"] body .sidebar #navList > *:hover{ background:rgba(255,255,255,.07) !important; color:#FFFFFF !important; }
+html[data-theme="light"] body .sidebar :is(.nav-item, .tab-btn, .menu-item, .module-tab, .tab-item, nav.menu > button):is(.active, .on, .is-on, [aria-selected="true"], [aria-current="page"]),
+html[data-theme="light"] body .sidebar #navList > :is(.active, .on, .is-on, [aria-selected="true"], [aria-current="page"]){
+  background:#0B57D0 !important; color:#FFFFFF !important; border-color:transparent !important; font-weight:700 !important; box-shadow:0 1px 3px rgba(0,0,0,.4) !important;
+}
+html[data-theme="light"] body .sidebar :is(.nav-item, .tab-btn, .menu-item, .module-tab, .tab-item, nav.menu > button, #navList > *):is(.active, .on, .is-on, [aria-selected="true"], [aria-current="page"])::before{ background:#FFFFFF !important; }
+
+html[data-theme="light"] body .topbar{ padding:8px 14px 12px; }
+html[data-theme="light"] body .topbar:has(#topbarStats){ justify-content:flex-start !important; }
+html[data-theme="light"] body .topbar-stats{ flex-wrap:wrap !important; justify-content:flex-start !important; overflow:visible !important; gap:6px !important; padding:0 !important; }
+html[data-theme="light"] body .topbar-stats .stat-chip{
+  display:flex !important; flex-direction:row !important; align-items:baseline !important; gap:6px !important; padding:5px 10px !important;
+  background:#1F2B37 !important; border:1px solid #2E3E4F !important; border-radius:8px !important; box-shadow:none !important;
+}
+html[data-theme="light"] body .topbar-stats .stat-chip .v{ color:#FFFFFF !important; font-size:13px !important; font-weight:700 !important; }
+html[data-theme="light"] body .topbar-stats .stat-chip .l{ color:#8F9CA9 !important; font-size:10px !important; letter-spacing:.04em !important; text-transform:uppercase; margin:0 !important; }
+

@@ -1,0 +1,254 @@
+/* =====================================================================================================
+   KHO LẠNH 1.0 — HỆ THỐNG THIẾT KẾ DÙNG CHUNG (nạp CUỐI CÙNG trên mọi trang)
+   -----------------------------------------------------------------------------------------------------
+   • 1 phông: Be Vietnam Pro (css/fonts-local.css). Số trong bảng / ô nhập thẳng cột (tabular-nums).
+   • Màu lấy từ logo và mang NGHĨA cố định ở mọi màn hình:
+       xanh dương = thao tác chính / thông tin · xanh lá = bình thường, đã xong · vàng = cảnh báo, chờ · đỏ = lệch, lỗi, xoá.
+     Nền / chữ / viền là thang xám lạnh trung tính.
+   • Bo góc theo cấp: 4px nhãn · 6px nút & ô nhập · 10px khung / hộp thoại.
+   • Biến --kl-* là NGUỒN DUY NHẤT. Các tên biến cũ của từng module (--bg, --panel, --theme-*, --nb-*…) được trỏ về đây
+     để css cũ của module tự đổi màu theo, không phải sửa từng file.
+   Muốn đổi màu cả app: chỉ sửa 2 khối :root / html[data-theme="dark"] ngay dưới.
+   ===================================================================================================== */
+/* PC 2.68: ÁP DỤNG MẪU B "TRẮNG / ĐEN CHUẨN" (người dùng chốt 18/11/2026). SÁNG: nền + thẻ trắng #FFFFFF, chữ đen #000000, tiêu đề bảng #F5F5F5, viền #E0E0E0 (ô nhập / nút #757575 = 4.6:1), nhấn xanh #0B57D0.
+   TỐI: nền đen #000000, thẻ #0F0F0F, tiêu đề bảng #1A1A1A, viền #2C2C2C (ô nhập #8C8C8C), chữ #FFFFFF / #D6D6D6 / #A6A6A6, nhấn xanh sáng #6EA8FE, chữ trên nút xanh = đen. Xanh lá / vàng / đỏ giữ nghĩa cũ.
+   Cũ (PC 1.91 / 2.34): SÁNG bg #F2F5FA surface-2 #EEF2F8 line #D5DDE8 strong #8A98AB text #14202E #33465C #5B6878 blue #2F6199; TỐI bg #0E0E0F surface #171718 surface-2 #212123 line #2E2E30 strong #5A5A5E text #E6E6E8 #BDBDC1 #97979C blue #8EA3BC. */
+:root, html[data-theme="light"]{
+  color-scheme: light;
+  --kl-font: 'Be Vietnam Pro', 'Segoe UI', system-ui, sans-serif;
+  /* nền & chữ */
+  /* PC 1.34: GIAO DIỆN SÁNG — tăng độ tương phản của VIỀN và tách tầng nền để đỡ lóa, đỡ "một màu":
+       trang (nền) #D0D8E0 → thẻ / bảng #EFF2F5 → tiêu đề bảng #DFE5EB (trước: 3 tầng gần như trùng nhau, chênh 1.07–1.14 lần);
+       viền thường 1.5 → 2.1 lần so với nền thẻ; viền ô nhập / nút 2.3 → 4.4 lần (chuẩn WCAG 1.4.11 yêu cầu ≥ 3). */
+  /* PC 1.35: theo mẫu B "Excel, viền rõ hơn" (đã chọn): ô trắng #FFFFFF + chữ đen như Excel, nền ngoài xám #E6E6E6,
+       tiêu đề bảng xám #E2E2E2, đường lưới #BFBFBF (Excel gốc #D4D4D4 — nhạt hơn nên tăng lên), viền tiêu đề / ô nhập / nút #7A7A7A (4.3 lần, WCAG ≥ 3). */
+  /* PC 2.34: GIAO DIỆN SÁNG — phương án L2 "Giấy ấm" (đã chọn từ mẫu): nền be nhạt, thẻ trắng ngà, chữ nâu đen — đỡ chói khi nhìn lâu. CHỈ đổi nền / viền / chữ; màu nhấn giữ nguyên.
+       Cũ (PC 1.35, Excel): bg #E6E6E6 surface #FFFFFF surface-2 #E2E2E2 sunken #D0D0D0 line #BFBFBF strong #7A7A7A text #000000 #333333 #4D4D4D.
+       Tương phản trên thẻ: chữ 18.2:1 · chữ phụ 12.1:1 · chữ mờ 7.9:1 · viền ô nhập 4.7:1 (WCAG ≥ 3) · nền ngoài ÷ thẻ 1.28 · thẻ ÷ tiêu đề bảng 1.20. */
+  /* PC 2.77: GIAO DIỆN SÁNG THEO ẢNH MẪU "Tổng quan kho" (anh gửi 29/10/2026 — màu lấy trực tiếp từ ảnh): nền nội dung #E9EBEE (trắng xanh nhạt, hết ngả vàng),
+        thẻ / ô / bảng trắng #FFFFFF, tiêu đề bảng #F3F4F6, chữ #111827 / #374151 / #566070, nhấn xanh ngọc #0B57D0 (nền nhạt #E6EDFB). Các màu CHỮ nhỏ được làm đậm hơn ảnh mẫu
+        cho đạt tương phản ≥ 4.5 (nhãn nhạt mẫu #8A9BA5 chỉ 2.9 → #566070; chữ xanh lá #1E8A5A 3.8 → #1A7A50; chữ cam #C97A12 3.0 → #8A5200). Đo: chữ chính 14.2 · chữ phụ 10.5 · chữ mờ 4.8 · nhấn trên thẻ 7.0 · viền ô nhập 4.1.
+        Đường lưới #C9CDD3 (mẫu #DCE5EA, hơi đậm hơn để bảng dày vẫn rõ ô). Cũ (PC 2.76 trắng ngà): bg #FAF8F2 surface #FFFFFF surface-2 #F3F0E8 sunken #E9E5DA line #CFC9BC strong #7A7266 text #17140F #3A352D #575045 blue #2B5E99.
+        Cũ hơn (PC 2.34 "Giấy ấm"): bg #E7E2D9 surface #FFFEFB surface-2 #EEE9E0 sunken #D8D2C6 line #C4BCAF. */
+  /* PC 1.91: CHUẨN GIAO DIỆN SÁNG = MẪU E "Trang Chủ" (người dùng chốt 15/11/2026): nền #F2F5FA, thẻ trắng, tiêu đề bảng #EEF2F8, viền #D5DDE8 (ô nhập #8A98AB), chữ #14202E / #33465C / #5B6878,
+       nhấn xanh #2F6199. Chữ nhỏ vẫn ≥ 4.5:1 trên thẻ trắng (chữ chính 16.6 · phụ 9.6 · mờ 5.9). Cũ (PC 2.77): bg #E9EBEE surface-2 #F3F4F6 sunken #DDE0E4 line #C9CDD3 strong #6B7280 text #111827 #374151 #566070. */
+  /* PC 2.76: GIẢM CHÓI giao diện Sáng (người dùng báo 18/11/2026: trắng #FFFFFF + chữ đen #000 quá chói): nền ngoài xám nhạt #E9ECEF, thẻ / bảng / ô trắng NGÀ #F7F8FA (không còn trắng tinh),
+       tiêu đề bảng #EEF0F3, viền #D3D8DE (ô nhập #6B7480), chữ #1A1D21 / #3A3F46 / #5B626B (dịu hơn đen tuyền; vẫn ≥ 4.5:1 trên thẻ: chính ~16 · phụ ~10 · mờ ~5.8). Tông trung tính (không ngả vàng), màu nhấn không đổi.
+       Cũ (PC 2.68 mẫu B): bg #FFFFFF surface #FFFFFF surface-2 #F5F5F5 sunken #E8E8E8 line #E0E0E0 strong #757575 text #000000 #2B2B2B #595959. */
+  --kl-bg:#E9ECEF; --kl-surface:#F7F8FA; --kl-surface-2:#EEF0F3; --kl-sunken:#DFE3E8;
+  --kl-line:#D3D8DE; --kl-line-strong:#6B7480;
+  --kl-text:#1A1D21; --kl-text-2:#3A3F46; --kl-text-3:#5B626B;
+  /* 4 màu logo */
+  --kl-blue:#0B57D0; --kl-blue-strong:#0842A0; --kl-blue-soft:#E8F0FE; --kl-blue-line:#B3CDF5;
+  --kl-green:#0B6B3A; --kl-green-base:#2F9E62; --kl-green-soft:#E6F4EA;
+  --kl-gold:#7A4B00; --kl-gold-base:#E0A02A; --kl-gold-soft:#FFF4D6;
+  --kl-red:#B3261E; --kl-red-base:#D64540; --kl-red-soft:#FDECEA;
+  /* thanh menu trái (tối ở cả 2 giao diện) */
+  --kl-side:#17212B; --kl-side-2:#1F2B37; --kl-side-3:#283749; --kl-side-text:#DCE3EA; --kl-side-muted:#8F9CA9; --kl-side-line:#263240;
+  /* hình khối */
+  --kl-r1:4px; --kl-r2:8px; --kl-r3:14px;   /* PC 1.91: theo mẫu E — nút / ô nhập 8px, thẻ / khung 14px */
+  --kl-sh1:0 1px 3px rgba(28,46,74,.08); --kl-sh2:0 4px 14px rgba(28,46,74,.12); --kl-sh3:0 18px 48px rgba(28,46,74,.20);
+  --kl-ease:cubic-bezier(.2,.7,.2,1); --kl-fast:.12s; --kl-med:.22s;
+  --kl-focus:0 0 0 3px rgba(11,87,208,.30);
+}
+html[data-theme="dark"]{
+  color-scheme: dark;
+  /* PC 2.34: GIAO DIỆN TỐI — mẫu 5 "Đen than chì" (đã chọn từ mẫu): nền gần đen, xám trung tính; màu nhấn / trạng thái GIẢM BÃO HÒA, dịu mắt.
+       Cũ (PC 2.33, Than chì): bg #161616 surface #202020 surface-2 #2B2B2B sunken #101010 line #434343 strong #7C7C7C text #F2F2F2 #D2D2D2 #B3B3B3 blue #6FA3DE #8DB8EA soft #1B2B3E green #72C27E gold #E8C25A red #F08D86. */
+  /* PC 3.17: NỀN TỐI NHẠT HƠN — mẫu A «Than chì nhạt» (người dùng chọn 20/11/2026). Cũ (PC 2.68): bg #000000 surface #0F0F0F surface-2 #1A1A1A sunken #000000 line #2C2C2C strong #8C8C8C text #FFFFFF #D6D6D6 #A6A6A6 blue #6EA8FE soft #0D2142 green #5BD08C #0C2418 gold #F0C05A #2A2108 red #FF8A80 #2E1210. */
+  --kl-bg:#17181B; --kl-surface:#202226; --kl-surface-2:#282B30; --kl-sunken:#131416;
+  --kl-line:#33373D; --kl-line-strong:#7A818C;
+  --kl-text:#ECEEF1; --kl-text-2:#C9CDD3; --kl-text-3:#9AA1AB;
+  --kl-blue:#6FA8FF; --kl-blue-strong:#9CC3FF; --kl-blue-soft:#1E2A3D; --kl-blue-line:#34507D;
+  --kl-green:#5FCB8A; --kl-green-base:#3FAA6F; --kl-green-soft:#1B2A22;
+  --kl-gold:#F0C24B; --kl-gold-base:#D9A930; --kl-gold-soft:#2B2616;
+  --kl-red:#FF8A80; --kl-red-base:#E5584F; --kl-red-soft:#2E1E20;
+  --kl-side:#131416; --kl-side-2:#202226; --kl-side-3:#282B30; --kl-side-text:#E3E6EA; --kl-side-muted:#9AA1AB; --kl-side-line:#33373D;
+  --kl-sh1:0 1px 2px rgba(0,0,0,.4); --kl-sh2:0 6px 18px rgba(0,0,0,.45); --kl-sh3:0 20px 56px rgba(0,0,0,.65);
+  --kl-focus:0 0 0 3px rgba(110,168,254,.40);
+}
+
+/* ---------- TÊN BIẾN CŨ của các module → trỏ về --kl-* ---------- */
+:root, html[data-theme="light"], html[data-theme="dark"]{
+  --theme-bg:var(--kl-bg); --theme-panel:var(--kl-surface); --theme-panel-2:var(--kl-surface-2);
+  --theme-border:var(--kl-line); --theme-border-strong:var(--kl-line-strong);
+  --theme-text:var(--kl-text); --theme-text-dim:var(--kl-text-2); --theme-text-faint:var(--kl-text-3);
+  --theme-accent:var(--kl-blue); --theme-accent-dim:var(--kl-blue-strong); --theme-accent-glow:var(--kl-blue-soft);
+  --bg:var(--kl-bg); --bg-grid:var(--kl-bg); --bg-void:var(--kl-bg); --void:var(--kl-bg);
+  --bg-panel:var(--kl-surface); --bg-panel-2:var(--kl-surface-2); --bg-elevated:var(--kl-surface-2);
+  --panel:var(--kl-surface); --panel-hover:var(--kl-surface-2); --bg-card:var(--kl-surface); --bg-elevated-solid:var(--kl-surface-2);
+  --surface:var(--kl-surface); --surface-2:var(--kl-surface-2); --surface-2-solid:var(--kl-surface-2); --surface-hover:var(--kl-surface-2);
+  --border:var(--kl-line); --border-soft:var(--kl-line); --border-strong:var(--kl-line-strong); --border-hover:var(--kl-line-strong);
+  --line:var(--kl-line); --line-soft:var(--kl-line);
+  --text:var(--kl-text); --text-main:var(--kl-text); --text-hi:var(--kl-text); --ink:var(--kl-text);
+  --text-mid:var(--kl-text-2); --text-muted:var(--kl-text-2); --muted:var(--kl-text-2); --text-dim:var(--kl-text-2);
+  --text-faint:var(--kl-text-3); --text-low:var(--kl-text-3);
+  --accent:var(--kl-blue); --accent-dim:var(--kl-blue-soft); --ice:var(--kl-blue); --ice-dim:var(--kl-blue-soft);
+  --steel:var(--kl-text-2); --steel-bright:var(--kl-text);
+  --ok:var(--kl-green); --green:var(--kl-green); --warn:var(--kl-gold); --amber:var(--kl-gold); --yellow:var(--kl-gold); --orange:var(--kl-gold);
+  --danger:var(--kl-red); --red:var(--kl-red); --red-bg:var(--kl-red-soft); --t-blue:var(--kl-blue);
+  --st-ok:var(--kl-green); --st-ok-bg:var(--kl-green-soft); --st-warn:var(--kl-gold); --st-warn-bg:var(--kl-gold-soft);
+  --st-bad:var(--kl-red); --st-bad-bg:var(--kl-red-soft); --st-info:var(--kl-blue); --st-info-bg:var(--kl-blue-soft);
+  --nav-active-bg:var(--kl-blue-soft); --nav-active-text:var(--kl-blue); --nav-active-border:var(--kl-blue);
+  --side-bg:var(--kl-surface); --side-text:var(--kl-text); --side-text-muted:var(--kl-text-2); --side-active-bg:var(--kl-blue-soft);
+  --wrap-bg:var(--kl-bg); --wrap-glow-1:transparent; --wrap-glow-2:transparent; --wrap-texture:none; --wrap-border:var(--kl-line);
+  --track:var(--kl-sunken);
+  --r-sm:var(--kl-r1); --r-md:var(--kl-r2); --r-lg:var(--kl-r3); --radius:var(--kl-r3);
+  --shadow:var(--kl-sh2); --shadow-1:var(--kl-sh1); --shadow-2:var(--kl-sh2); --shadow-3:var(--kl-sh3);
+  --fast:var(--kl-fast); --med:var(--kl-med); --ease:var(--kl-ease);
+  --body:var(--kl-font); --display:var(--kl-font);
+  --mono:var(--kl-blue); --mono-2:var(--kl-blue-line); /* --mono là MÀU nhấn (từ bản 8.86), không phải phông */
+  /* nút dùng chung (css/nut-dong-bo.css) */
+  --nb-primary:var(--kl-blue); --nb-primary-hover:var(--kl-blue-strong); --nb-on-primary:#fff;
+  --nb-sec-bg:var(--kl-surface); --nb-sec-border:var(--kl-line-strong); --nb-sec-text:var(--kl-text);
+  --nb-sec-hover-bg:var(--kl-blue-soft); --nb-sec-hover-border:var(--kl-blue); --nb-sec-hover-text:var(--kl-blue);
+  --nb-danger-border:var(--kl-red-soft); --nb-danger-text:var(--kl-red);
+  --nb-danger-hover-bg:var(--kl-red-soft); --nb-danger-hover-border:var(--kl-red); --nb-danger-hover-text:var(--kl-red);
+  --nb-ok:var(--kl-green); --nb-ok-hover:var(--kl-green); --nb-radius:var(--kl-r2);
+}
+html[data-theme="light"]{ --theme-wrap-rgb:255,255,255; --wrap-rgb:255,255,255; --wrap-border-rgb:224,224,224; }   /* PC 2.77: = surface / line mới (theo ảnh mẫu) */
+html[data-theme="dark"]{ --theme-wrap-rgb:32,34,38; --wrap-rgb:32,34,38; --wrap-border-rgb:51,55,61; --nb-on-primary:#000000; }   /* PC 2.33: = surface / line mới */
+
+/* GIAO DIỆN TỐI CHỈ CÒN 1 MẪU: THAN CHÌ (xám đen trung tính — là bộ màu gốc ở khối html[data-theme="dark"] phía trên). PC 5.51: đã xóa Rêu tối, Tím than, Nâu ấm và nút chọn màu. */
+
+/* ---------- NỀN TẢNG ---------- */
+html, body{ font-family:var(--kl-font) !important; }
+body{ background:var(--kl-bg); color:var(--kl-text); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+button, input, select, textarea{ font-family:inherit; }
+::selection{ background:var(--kl-blue-soft); color:var(--kl-text); }
+:focus-visible{ outline:2px solid var(--kl-blue) !important; outline-offset:2px; }
+table td, table th, input[type="number"], .num, .r{ font-variant-numeric:tabular-nums; }
+*{ scrollbar-width:thin; scrollbar-color:var(--kl-line-strong) transparent; }
+::-webkit-scrollbar{ width:10px; height:10px; } ::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{ background:var(--kl-line-strong); border-radius:6px; border:2px solid transparent; background-clip:content-box; }
+::-webkit-scrollbar-thumb:hover{ background:var(--kl-text-3); background-clip:content-box; }
+@media (prefers-reduced-motion: reduce){ *, *::before, *::after{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; } }
+
+/* Logo trong đầu trang từng module (thay cờ cũ) */
+.vn-flag-logo, .brand-mark, .kla-brand-mark, .brand-flag{ background:none !important; border:0 !important; box-shadow:none !important; border-radius:0 !important; padding:0 !important; display:inline-flex; align-items:center; justify-content:center; }
+.vn-flag-logo img, .brand-mark img, .kla-brand-mark img, .brand-flag img{ width:100%; height:100%; object-fit:contain; display:block; }
+.vn-flag-logo::before, .vn-flag-logo::after, .brand-mark::before, .brand-mark::after, .kla-brand-mark::before, .kla-brand-mark::after{ content:none !important; }
+
+/* ---------- BẢNG DỮ LIỆU ---------- */
+.table-wrap{ border-radius:var(--kl-r3); border-color:var(--kl-line); background:var(--kl-surface); }
+table{ border-color:var(--kl-line); }
+thead th{
+  background:var(--kl-surface-2) !important; color:var(--kl-text-2) !important;
+  text-transform:none !important; letter-spacing:0 !important;
+  font-weight:600; font-size:12.5px; border-color:var(--kl-line) !important;
+}
+tbody td{ border-color:var(--kl-line); }
+html[data-theme="light"] thead th{ border-bottom:2px solid var(--kl-line-strong) !important; } /* PC 1.34 / 1.35: ranh giới tiêu đề — dữ liệu rõ hơn */
+/* PC 1.35: đường lưới DỌC giữa các cột như Excel — chỉ bảng dữ liệu (có thead); cột cuối không kẻ để khỏi đúp với viền khung */
+html[data-theme="light"] table:has(> thead) > :is(thead, tbody, tfoot) > tr > :is(th, td){ border-right:1px solid var(--kl-line); }
+html[data-theme="light"] table:has(> thead) > :is(thead, tbody, tfoot) > tr > :is(th, td):last-child{ border-right:0; }
+tbody tr:hover > td{ background-color:color-mix(in srgb, var(--kl-blue-soft) 70%, transparent); }
+tfoot td, tfoot th, tr.total > td, tr.tong > td{ font-weight:700; background:var(--kl-surface-2); }
+
+/* ---------- NÚT ---------- */
+:is(.btn, .lx-btn, .c3d-btn, .pnx-btn, .dc-btn, .dcx-btn, .dm-btn, .sl-btn, .tk-btn, .px-btn, .px-modal-btn, .dt-btn, .ld-btn, .gs-btn, .up-btn, .cal-btn){
+  border-radius:var(--kl-r2) !important; font-family:inherit !important; font-weight:600;
+  transition:background-color var(--kl-fast) var(--kl-ease), border-color var(--kl-fast) var(--kl-ease), color var(--kl-fast) var(--kl-ease);
+}
+:is(.btn-primary, .btn-accent, .dcx-btn-primary, button.primary, button.pri, a.pri, .lx-btn.pri, .gs-btn.pri, .c3d-btn.pri, .pnx-btn.pri, .dc-btn.pri){
+  background:var(--kl-blue) !important; border-color:var(--kl-blue) !important; color:var(--nb-on-primary) !important;
+}
+:is(.btn-primary, .btn-accent, .dcx-btn-primary, button.primary, button.pri, a.pri, .lx-btn.pri, .gs-btn.pri, .c3d-btn.pri, .pnx-btn.pri, .dc-btn.pri):hover:not(:disabled){
+  background:var(--kl-blue-strong) !important; border-color:var(--kl-blue-strong) !important;
+}
+:is(.btn-danger, button.danger, .dt-btn.danger, .btn.danger){ color:var(--kl-red) !important; border-color:color-mix(in srgb, var(--kl-red) 35%, transparent) !important; background:var(--kl-surface) !important; }
+:is(.btn-danger, button.danger, .dt-btn.danger, .btn.danger):hover:not(:disabled){ background:var(--kl-red-soft) !important; border-color:var(--kl-red) !important; }
+button:disabled, .btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ---------- Ô NHẬP ---------- */
+:is(input[type="text"], input[type="search"], input[type="number"], input[type="password"], input[type="date"], input[type="month"], input[type="email"], input:not([type]), select, textarea){
+  border-color:var(--kl-line-strong); border-radius:var(--kl-r2);
+  background-color:var(--kl-surface); color:var(--kl-text);
+}
+:is(input[type="text"], input[type="search"], input[type="number"], input[type="password"], input[type="date"], input[type="month"], input[type="email"], input:not([type]), select, textarea):focus{
+  border-color:var(--kl-blue) !important; box-shadow:var(--kl-focus) !important; outline:none;
+}
+::placeholder{ color:var(--kl-text-3); opacity:1; }
+input[type="checkbox"], input[type="radio"]{ accent-color:var(--kl-blue); }
+
+/* ---------- MENU NGANG TRONG MODULE (thanh tab trên cùng mỗi trang) ---------- */
+.sidebar{ background:var(--kl-surface) !important; border-color:var(--kl-line) !important; box-shadow:none !important; }
+.sidebar :is(.nav-item, .tab-btn, .menu-item){ color:var(--kl-text-2); border-radius:var(--kl-r2) !important; }
+.sidebar :is(.nav-item, .tab-btn, .menu-item):hover{ background:var(--kl-surface-2) !important; color:var(--kl-text); }
+.sidebar :is(.nav-item, .tab-btn, .menu-item):is(.active, .on, [aria-selected="true"]){
+  background:var(--kl-blue-soft) !important; color:var(--kl-blue) !important; box-shadow:inset 0 -2px 0 var(--kl-blue) !important; border-color:transparent !important;
+}
+
+/* ---------- HỘP THOẠI, THẺ, NHÃN TRẠNG THÁI ---------- */
+:is(.modal, .modal-content, .modal-box, .px-modal, .lx-dlg, .dlg, .dialog)[role="dialog"], :is(.modal-content, .modal-box, .lx-dlg){
+  border-radius:var(--kl-r3) !important; box-shadow:var(--kl-sh3) !important; border-color:var(--kl-line) !important;
+}
+.st{ display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:var(--kl-r1); font-size:12.5px; font-weight:600; white-space:nowrap; }
+.st.ok{ background:var(--kl-green-soft); color:var(--kl-green); } .st.warn{ background:var(--kl-gold-soft); color:var(--kl-gold); }
+.st.bad{ background:var(--kl-red-soft); color:var(--kl-red); } .st.info{ background:var(--kl-blue-soft); color:var(--kl-blue); }
+
+/* ---------- PANEL CHI TIẾT DÒNG (js/chi-tiet-dong.js) ---------- */
+#ctdPanel{ position:fixed; top:0; right:0; bottom:0; width:360px; max-width:92vw; z-index:9000; display:flex; flex-direction:column; gap:10px; padding:18px;
+  background:var(--kl-surface); color:var(--kl-text); border-left:1px solid var(--kl-line); box-shadow:var(--kl-sh3); overflow-y:auto; font-size:13.5px; }
+#ctdPanel[hidden]{ display:none; }
+#ctdPanel .ctd-h{ display:flex; justify-content:space-between; align-items:center; gap:8px; } #ctdPanel .ctd-h b{ font-size:16px; overflow-wrap:anywhere; }
+#ctdPanel button{ min-height:34px; padding:6px 12px; border-radius:var(--kl-r2); border:1px solid var(--kl-line-strong); background:var(--kl-surface); color:var(--kl-text); font:600 13px var(--kl-font); cursor:pointer; }
+#ctdPanel button:hover{ background:var(--kl-blue-soft); border-color:var(--kl-blue); color:var(--kl-blue); }
+#ctdPanel #ctdClose{ min-width:34px; font-size:20px; line-height:1; }
+#ctdPanel .ctd-st{ display:flex; flex-wrap:wrap; gap:6px; } #ctdPanel .ctd-st:empty{ display:none; }
+#ctdPanel .ctd-l{ margin:0; display:grid; } #ctdPanel .ctd-l > div{ display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-top:1px solid var(--kl-line); }
+#ctdPanel dt{ color:var(--kl-text-2); flex:0 0 42%; } #ctdPanel dd{ margin:0; text-align:right; font-weight:600; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+#ctdPanel .ctd-f{ display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; }
+tr.ctd-row > td{ background:var(--kl-blue-soft) !important; }
+
+/* Trang module trong khung: bỏ khối logo + tên trang (thanh trên của khung đã hiện đường dẫn + mã module) */
+html.kl-embedded :is(.sidebar, .topbar, .top-nav, header, nav) > :is(.brand, .kla-brand){ display:none !important; }
+
+/* Bỏ dòng bản quyền mờ cố định ở góc phải dưới của các trang module (đã có ở Cài đặt › Giới thiệu) */
+body > footer:not(.kl-keep){ display:none !important; }
+
+/* ---------- Ô LƯỚI NHẬP LIỆU KIỂU EXCEL (PC 2.60) ----------
+   Quy tắc "Ô NHẬP" chung ở trên (bo góc + vòng sáng + outline lệch 2px khi focus) làm ô input NẰM TRONG ô bảng hiện ra thêm 1 khung nhỏ bên trong.
+   Với lưới nhập liệu (M05 #grid, KLGrid .klg dùng ở M03 / M04): input phủ kín ô, chữ SÁT viền như Excel (đệm 3px), không bo góc / không vòng sáng riêng;
+   khi vào ô thì CHÍNH VIỀN CỦA Ô (td) đổi màu đậm — không thêm khung. */
+:is(#grid td, .klg td) :is(input.cell, input[type="text"]),
+:is(#grid td, .klg td) :is(input.cell, input[type="text"]):is(:focus, :focus-visible){
+  border:0 !important; border-radius:0 !important; box-shadow:none !important; outline:none !important; padding-left:3px !important; padding-right:3px !important;   /* màu nền ô (định dạng người dùng, ô Net tự tính…) nằm ở <td> / lớp riêng nên KHÔNG đụng tới */
+}
+:is(#grid td, .klg td) :is(input.cell, input[type="text"]):focus{ background-color:transparent !important; }   /* đang gõ: nền ô giữ nguyên, chỉ đổi viền ô */
+:is(#grid td, .klg td):focus-within{ outline:2px solid var(--kl-blue) !important; outline-offset:-2px; position:relative; z-index:2; }
+
+
+/* ---------- PC 2.21: ĐỘ TƯƠNG PHẢN chữ trên nền xanh nhấn ----------
+   Giao diện Tối dùng xanh NHẠT (#8EA3BC) làm màu nhấn → chữ trắng trên đó chỉ đạt ~2,6:1 (khó đọc). Ở Tối đổi sang chữ xanh than đậm (~6,5:1);
+   giao diện Sáng giữ chữ trắng trên xanh đậm. Dùng token --kl-on-blue cho code mới; danh sách dưới là các nút/ô chọn cũ còn gán #fff cứng. */
+:root{ --kl-on-blue:#fff; }
+html[data-theme="dark"]{ --kl-on-blue:#000000; --nb-on-primary:#000000; }
+html[data-theme="dark"] :is(.lan-fresh button,
+  .dc-avatar,
+  .gs-btn.pri,
+  .kec-btn.on,
+  .klg-pop .klg-pf button.pri,
+  .klm-b.pri,
+  .lx-col.today .hd .dt,
+  .au-btn,
+  .tc-seg button[aria-pressed="true"],
+  .tc-acts .lx-btn.pri,
+  .km-btn.pri,
+  .cg-xl .cg-ins,
+  .sk-btn.pri,
+  .sk-segb.on,
+  .rf-btn.active,
+  .imp-chip.on,
+  .tl-btn:not(.ghost),
+  .dc-btn.pri,
+  .dc-sug-b.on,
+  .dc-cf.on,
+  .d2-mode button.on,
+  .d2-btn.pri,
+  .d2-go){ color:#000000 !important; }
+html[data-theme="dark"] .dc-avatar{ color:#000000; }
+
+
+/* PC 2.78: nút góc của module (⛶ ▭✕ ✕) nổi ở góc phải trên cùng — hàng tab / thanh đầu của trang module chừa lề phải để không bị che (khỏi phải có dải trống 40px phía trên). */
+html.kl-embedded :is(.theme-shell > .sidebar, .dcx-page > .dcx-head){ padding-right:104px !important; }

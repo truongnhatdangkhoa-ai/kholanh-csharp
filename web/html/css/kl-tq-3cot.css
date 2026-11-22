@@ -1,0 +1,21 @@
+/* =====================================================================================================
+   PC 1.74 — TRANG TỔNG QUAN BỐ CỤC 3 CỘT (mẫu C đã chọn): [Tồn kho & container | Lịch xuất khẩu | Việc cần làm].
+   Cột trái = các thẻ số liệu xếp dọc (rộng 300px); giữa = lịch; phải = khung "Việc cần làm" (có sẵn trong lịch, .lx-side).
+   Màn hình hẹp (≤1100px) quay về bố cục cũ: thẻ số liệu nằm ngang phía trên, lịch bên dưới. Nạp SAU CÙNG.
+   ===================================================================================================== */
+@media (min-width:1101px){
+  .dv-body{ grid-template-columns:300px minmax(0,1fr); gap:14px; align-items:start; }
+  .dv-body > .dv-col-side{ grid-column:1; grid-row:1; position:sticky; top:0; }
+  .dv-body > .dv-col-main{ grid-column:2; grid-row:1; }
+  .dv-body:has(#dvTop[hidden]){ grid-template-columns:minmax(0,1fr); }
+  .dv-body:has(#dvTop[hidden]) > .dv-col-main{ grid-column:1; }
+  .dv-col-side .dv-top.dv-band{ grid-template-columns:minmax(0,1fr); gap:12px; }
+  .dv-col-side .dv-top.dv-band > .tq-k3{ grid-column:auto; }
+  .dv-col-side .dv-band .tq-k .dv-big b{ font-size:clamp(24px,1.9vw,28px); }
+  /* khung "Việc cần làm" = cột PHẢI của lịch (trước đây nằm vắt ngang phía trên lịch) */
+  .dv-lich:not([data-view="sum"]) .lx-body{ flex-direction:row; flex-wrap:nowrap; gap:14px; align-items:flex-start; }
+  .dv-lich:not([data-view="sum"]) .lx-main{ flex:1 1 0; width:auto; min-width:0; }
+  .dv-lich:not([data-view="sum"]) .lx-side{ order:0; flex:0 0 300px; width:300px; max-width:300px; flex-direction:column; flex-wrap:nowrap; gap:12px; }
+  .dv-lich:not([data-view="sum"]) .lx-side > .lx-pv{ flex:none; width:100%; box-sizing:border-box; padding:12px 14px; border-radius:12px; gap:8px; }
+  .dv-lich:not([data-view="sum"]) .lx-side:empty{ display:none; }
+}

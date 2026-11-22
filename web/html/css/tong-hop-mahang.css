@@ -1,0 +1,93 @@
+/* PC 1.07 — Tổng hợp › Danh sách mã hàng: thanh lọc phân tầng, thanh chọn / xóa hàng loạt, bảng xem trước khi nhập.
+   Dùng biến màu của tong-hop.css (--bg-panel, --bg-panel-2, --line, --text-main, --text-dim, --accent, --danger). */
+.rf-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.rf-title { font-size: 12px; color: var(--text-dim, #8a97ad); margin-right: 2px; }
+.rf-btn { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, #2a3a56); background: var(--bg-panel-2, transparent); color: var(--text-main, inherit); cursor: pointer; }
+.rf-btn:hover { border-color: var(--accent, #4a90e2); }
+.rf-btn.active { background: var(--accent, #4a90e2); border-color: var(--accent, #4a90e2); color: #fff; font-weight: 600; }
+.rf-clear { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--danger, #d6403a); background: transparent; color: var(--danger, #d6403a); cursor: pointer; }
+.rf-info { font-size: 12px; color: var(--text-dim, #8a97ad); }
+.sel-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; padding: 8px 12px; border-radius: 10px; background: var(--bg-panel-2, rgba(74,144,226,.12)); border: 1px solid var(--line, #2a3a56); font-size: 13px; }
+.sb-btn { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line, #2a3a56); background: var(--bg-panel, transparent); color: var(--text-main, inherit); cursor: pointer; }
+.sb-btn:hover { border-color: var(--accent, #4a90e2); }
+.sb-btn.danger { background: var(--danger, #d6403a); border-color: var(--danger, #d6403a); color: #fff; }
+.sb-undo { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.col-check { width: 36px; text-align: center; }
+#resultsTable tr.sel-on { background: rgba(74, 144, 226, .14); }
+
+/* ----- bảng xem trước khi nhập ----- */
+.imp-mask { position: fixed; inset: 0; z-index: 2000; background: rgba(5, 12, 25, .62); display: flex; align-items: center; justify-content: center; padding: 18px; }
+.imp-dlg { width: min(1100px, 100%); height: min(760px, 100%); display: flex; flex-direction: column; gap: 10px; background: var(--bg-panel, #16233a); color: var(--text-main, #e8eefb); border: 1px solid var(--line, #26385a); border-radius: 16px; padding: 16px 18px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+.imp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.imp-head h3 { margin: 0 0 2px; font-size: 17px; }
+.imp-src { font-size: 12.5px; color: var(--text-dim, #8a97ad); }
+.imp-x { border: 0; background: transparent; color: var(--text-dim, #8a97ad); font-size: 24px; line-height: 1; cursor: pointer; }
+.imp-opts { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; font-size: 13px; }
+.imp-opts label { display: flex; align-items: center; gap: 6px; }
+.imp-opts select { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line, #2a3a56); background: var(--bg-panel-2, transparent); color: var(--text-main, inherit); max-width: 230px; }
+.imp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.imp-chip { font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, #2a3a56); background: transparent; color: var(--text-main, inherit); cursor: pointer; }
+.imp-chip b { opacity: .75; margin-left: 3px; }
+.imp-chip.on { background: var(--accent, #4a90e2); border-color: var(--accent, #4a90e2); color: #fff; }
+.imp-tw { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--line, #2a3a56); border-radius: 10px; }
+.imp-t { width: 100%; border-collapse: collapse; font-size: 13px; }
+.imp-t th { position: sticky; top: 0; background: var(--bg-panel-2, #1b2b46); text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line, #2a3a56); z-index: 1; }
+.imp-t td { padding: 5px 8px; border-bottom: 1px solid var(--line, #2a3a56); vertical-align: top; }
+.imp-t tr.on { background: rgba(74, 144, 226, .12); }
+.imp-t .mono { font-family: ui-monospace, Consolas, monospace; }
+.imp-empty { text-align: center; color: var(--text-dim, #8a97ad); padding: 24px !important; }
+.imp-old { font-size: 12px; color: var(--text-dim, #8a97ad); margin-top: 2px; }
+.imp-b { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px; margin: 1px 2px 1px 0; }
+.imp-b.ok { background: rgba(31, 157, 85, .2); color: #3ecf82; }
+.imp-b.warn { background: rgba(214, 160, 40, .2); color: #e6b34a; }
+.imp-b.bad { background: rgba(214, 64, 58, .2); color: #ff8b85; }
+.imp-b.org { background: rgba(230, 120, 40, .2); color: #f0975a; }
+.imp-b.gray { background: rgba(140, 150, 170, .2); color: var(--text-dim, #8a97ad); }
+.imp-foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.imp-foot #impSum { font-size: 13px; }
+.imp-pager { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.imp-btns { display: flex; gap: 8px; }
+
+/* ----- PC 1.08 — tab Ánh xạ tên hàng ----- */
+.ax-box { gap: 12px; }
+.ax-hint code { font-family: ui-monospace, Consolas, monospace; }
+.ax-opts { display: flex; flex-wrap: wrap; gap: 12px; }
+.ax-optbox { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; border: 1px solid var(--line, #2a3a56); border-radius: 12px; background: var(--bg-panel-2, transparent); font-size: 13px; min-width: 280px; }
+.ax-optbox label { display: flex; align-items: center; gap: 6px; }
+.ax-sub { color: var(--text-dim, #8a97ad); font-weight: 400; font-size: 12px; }
+.ax-test { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 13px; }
+.ax-test input, .ax-add input, .ax-add select, .ax-in { font: inherit; font-size: 13px; padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line, #2a3a56); background: var(--bg-panel-2, transparent); color: var(--text-main, inherit); }
+.ax-test input { width: 250px; font-family: ui-monospace, Consolas, monospace; }
+.ax-testout { color: var(--text-main, inherit); flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; }
+.ax-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ax-add input[type=text]:not(#axAddMa) { flex: 1; min-width: 180px; }
+.ax-in { width: 100%; box-sizing: border-box; }
+.ax-foot { display: flex; gap: 8px; }
+
+/* ----- PC 1.40 — Ánh xạ: tab con · quy tắc kết hợp · loại quy tắc ----- */
+.ax-subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.ax-subtab { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px; cursor: pointer; border: 1px solid var(--kl-line, var(--line, #2a3a56)); background: transparent; color: var(--kl-text-2, var(--text-dim, #8a97ad)); }
+.ax-subtab:hover { background: var(--kl-surface-2, rgba(128, 128, 128, .14)); color: var(--kl-text, var(--text-main, inherit)); }
+.ax-subtab.active { background: var(--kl-blue-soft, rgba(80, 140, 255, .18)); border-color: var(--kl-blue-line, #5b8def); color: var(--kl-blue-strong, var(--kl-blue, #5b8def)); }
+.ax-cnt { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 4px; border-radius: 999px; font-size: 11px; font-weight: 700; text-align: center; background: var(--kl-sunken, rgba(128, 128, 128, .22)); color: inherit; }
+.ax-pane { display: flex; flex-direction: column; gap: 12px; }
+.ax-pane[hidden], .ax-warn[hidden] { display: none; }
+.ax-why { color: var(--kl-text-3, var(--text-dim, #8a97ad)); font-size: 12px; }
+.ax-warn { padding: 8px 12px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; background: var(--kl-gold-soft, rgba(240, 180, 40, .16)); border: 1px solid var(--kl-gold, #d4a017); color: var(--kl-text, var(--text-main, inherit)); }
+.ax-combo-add { align-items: flex-end; }
+.ax-conds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.ax-cond { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--kl-text-2, var(--text-dim, #8a97ad)); }
+.ax-add .ax-cond input[type=text]:not(#axAddMa), .ax-add .ax-cond input[type=number] { flex: none; min-width: 0; font-family: ui-monospace, Consolas, monospace; text-transform: uppercase; }
+.ax-combo-add > input[type=text] { flex: 1; min-width: 180px; }
+.ax-box .row-btn[disabled] { opacity: .35; cursor: not-allowed; }
+.ax-chip { display: inline-block; margin-right: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
+.ax-chip.on { background: var(--kl-green-soft, rgba(60, 180, 110, .18)); border-color: var(--kl-green, #3cb46e); color: var(--kl-green, #3cb46e); }
+.ax-chip.off { background: var(--kl-sunken, rgba(128, 128, 128, .18)); color: var(--kl-text-3, var(--text-dim, #8a97ad)); }
+.ax-cchip { display: inline-flex; align-items: baseline; gap: 5px; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 8px; font-size: 12px; background: var(--kl-blue-soft, rgba(80, 140, 255, .16)); border: 1px solid var(--kl-blue-line, #5b8def); }
+.ax-cchip i { font-style: normal; color: var(--kl-text-2, var(--text-dim, #8a97ad)); }
+.ax-cchip b { font-family: ui-monospace, Consolas, monospace; }
+#axSegTable .ax-in[type=number] { width: 70px; }
+
+/* PC 1.78: bổ sung diễn giải đầy đủ (diễn giải bị cắt 100 ký tự) */
+.imp-full { margin-top: 3px; font-size: 12px; color: #3ecf82; }
+.bsd-add { background: rgba(62, 207, 130, .22); color: inherit; border-radius: 3px; padding: 0 2px; font-weight: 600; }

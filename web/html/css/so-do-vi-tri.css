@@ -1,0 +1,75 @@
+/* PC 2.04 — Sơ đồ kho */
+.vt-kpi{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.vt-kpi div{background:var(--kl-surface);border:1px solid var(--kl-line);border-radius:8px;padding:6px 14px;min-width:96px}
+.vt-kpi b{display:block;font-size:19px;font-variant-numeric:tabular-nums}.vt-kpi span{font-size:12px;color:var(--kl-text-2)}
+.vt-kpi .ov b{color:var(--kl-gold)}
+.vt-wrap{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.vt-fil{flex:0 0 190px;display:flex;flex-direction:column;gap:10px;background:var(--kl-surface);border:1px solid var(--kl-line);border-radius:10px;padding:12px}
+.vt-fil .km-f input,.vt-fil .km-f select{width:100%}
+.vt-ck{font-size:13px;display:flex;gap:6px;align-items:center}
+.vt-wrap .km-main{flex:999 1 560px}
+.km-t td.vt-h{white-space:normal;max-width:430px;line-height:1.35}
+.km-t td.vt-h small{color:var(--kl-text-2)}
+.km-t tr.ov td:first-child{box-shadow:inset 3px 0 0 var(--kl-gold)}
+.km-pill.vt-e{background:var(--kl-surface-2);color:var(--kl-text-2);border:1px solid var(--kl-line)}
+.km-pill.vt-u{background:var(--kl-green-soft);color:var(--kl-green)}
+.km-pill.vt-mm{background:var(--kl-blue-soft);color:var(--kl-blue-strong,var(--kl-blue))}
+.km-pill.vt-ov{background:var(--kl-gold-soft);color:var(--kl-gold)}
+.vt-khu{margin-bottom:16px}.vt-khu h3{margin:0 0 6px;font-size:14px}
+.vt-g{display:inline-grid;gap:3px;background:var(--kl-surface);border:1px solid var(--kl-line);border-radius:8px;padding:8px}
+.vt-gh{font-size:11px;text-align:center;color:var(--kl-text-2)}
+.vt-c{display:grid;grid-template-columns:repeat(7,9px);gap:1px;padding:2px;border:1px solid transparent;border-radius:4px}
+.vt-c i{display:block;width:9px;height:9px;background:var(--kl-surface-2);border:1px solid var(--kl-line);box-sizing:border-box;cursor:pointer}
+.vt-c i.u{background:var(--kl-green-base,#4e8f49)}.vt-c i.mm{background:var(--kl-blue)}.vt-c i.sel{outline:2px solid var(--kl-text)}
+.vt-c.ov{border-color:var(--kl-gold-base,#d9a930)}
+.vt-sc{width:56px;height:20px;font-size:12px;border:1px solid var(--kl-line);border-radius:4px;background:var(--kl-surface);color:inherit;text-align:right}
+.vt-in{width:62px;height:24px;font:inherit;border:1px solid var(--kl-line-strong,var(--kl-line));border-radius:4px;background:var(--kl-surface);color:inherit;text-align:right}
+.vt-dlg{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:9000}
+.vt-dlg[hidden]{display:none}
+.vt-box{background:var(--kl-surface);color:var(--kl-text);border-radius:12px;padding:18px 20px;width:min(560px,94vw);max-height:90vh;overflow:auto}
+.vt-box h3{margin:0 0 10px}.vt-box .row{display:flex;gap:8px;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap}
+.vt-box .acts{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.vt-rv{font-size:12.5px;line-height:1.55;background:var(--kl-surface-2);border-radius:8px;padding:8px 10px;margin-top:6px}
+
+.vt-box.vt-wide{width:min(1000px,96vw)}.vt-ed input{border:1px solid transparent;background:transparent;font:inherit;padding:2px 4px}.vt-ed input:focus,.vt-ed input:hover{border-color:var(--kl-border,#c3c9d0);background:var(--kl-surface,#fff)}
+.vt-kkbar{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}.vt-kktw{max-height:calc(100vh - 230px);overflow:auto}
+.vt-ed tr.vt-mv td{background:var(--kl-gold-soft);box-shadow:inset 3px 0 0 var(--kl-gold-base)}.vt-ed input{color:var(--kl-text)}.vt-ed tr.vt-mv input{color:var(--kl-text)}.vt-ed input:focus,.vt-ed input:hover{background:var(--kl-surface);color:var(--kl-text);border-color:var(--kl-text-3)}
+
+/* PC 2.16: ô nhập trong phiếu kiểm kê luôn đầy ô (không đặt px cố định), bảng rộng theo nội dung */
+.vt-ed{table-layout:auto;width:100%}.vt-ed td{padding:2px 3px !important}.vt-ed td>input{display:block;width:100%;min-width:0;box-sizing:border-box;height:26px;padding:2px 5px}
+
+/* PC 2.59: mức đầy của tầng + làm sáng dòng hàng khớp khi tìm mã */
+.vt-bar{height:6px;border-radius:3px;background:var(--kl-surface-2,rgba(127,127,127,.2));margin-top:4px;overflow:hidden;min-width:60px}.vt-bar i{display:block;height:100%;border-radius:3px}
+.vt-bar.lv-ok i,.lv.ok{background:#30a46c}.vt-bar.lv-near i,.lv.near{background:#f5a524}.vt-bar.lv-full i,.lv.full{background:#e8590c}.vt-bar.lv-over i,.lv.over{background:#e5484d}.vt-bar.lv-unk i,.lv.unk{background:#8b8d98}
+.vt-leg{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12px;opacity:.85;margin:0 0 6px}.vt-leg .lv{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:-6px}
+.vt-sum{padding:8px 12px;margin:0 0 8px;border-radius:8px;background:var(--kl-blue-soft,rgba(47,125,246,.14));font-size:13px}
+.vt-hit{background:rgba(245,165,36,.28);box-shadow:0 0 0 2px rgba(245,165,36,.45);border-radius:4px;padding:0 3px;font-weight:700}.vt-dim{opacity:.4}
+
+/* PC 2.90 — khóa kiểm kê */
+.vt-lkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 8px;padding:8px 12px;border-radius:8px;background:var(--kl-gold-soft, rgba(138,82,0,.14));color:var(--kl-gold, #8a5200);border:1px solid var(--kl-gold, #8a5200)}
+.vt-lkbar b{font-weight:700}.vt-lkbar .sp{flex:1}
+.vt-lk{margin-left:4px;font-size:12px}
+.vt-lkchip{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 11px;margin:0 6px 6px 0;border:1px solid var(--kl-line-strong, var(--kl-line));border-radius:14px;background:var(--kl-surface);color:var(--kl-text);font:inherit;cursor:pointer}
+.vt-lkchip.on{background:var(--kl-blue-soft);border-color:var(--kl-blue);color:var(--kl-blue-strong, var(--kl-blue));font-weight:600}
+.vt-lkchip.lock{background:var(--kl-gold-soft, rgba(138,82,0,.14));border-color:var(--kl-gold, #8a5200);color:var(--kl-gold, #8a5200);cursor:default}
+.vt-lkd td.x{color:var(--kl-red, #b3261e);font-weight:600}.vt-lkd td.nh{color:var(--kl-green, #0f6b3e);font-weight:600}
+
+/* PC 2.91 — các nút (Tải lại, Khóa kiểm kê, Cấu hình kho, Xuất Excel) nằm CÙNG DÒNG với 3 tab Danh sách / Phiếu In vị trí / Quy cách pallet */
+.vt-tabrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.vt-tabrow .km-tabs{margin-bottom:0}
+.vt-acts{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.vt-locked td:first-child{box-shadow:inset 3px 0 0 var(--kl-warn,#d97706)}
+.vt-seg-l{font-size:12px;color:var(--kl-text-2,var(--text-secondary,#666))}
+.vt-seg{display:inline-flex;border:1px solid var(--kl-line,#cbd5e1);border-radius:8px;overflow:hidden}
+.vt-seg button{border:0;background:transparent;padding:5px 12px;font-size:12px;cursor:pointer;color:inherit}
+.vt-seg button.on{background:var(--kl-accent,#2563eb);color:#fff;font-weight:600}
+
+/* PC 3.40 — Phiếu in vị trí: kéo dãn độ rộng cột / chiều cao dòng */
+.vt-rs th{white-space:nowrap}
+.vt-rsc{position:absolute;top:0;right:-3px;width:8px;height:100%;cursor:col-resize;z-index:3;user-select:none}
+.vt-rsc:hover,.vt-rsing .vt-rsc{background:rgba(11,87,208,.35)}
+.vt-rsr{position:absolute;left:0;bottom:-3px;width:100%;height:8px;cursor:row-resize;z-index:3;user-select:none}
+.vt-rsr:hover{background:rgba(11,87,208,.35)}
+.vt-rsing{cursor:col-resize;user-select:none}
+.vt-rs tbody tr:not(.th) td{height:var(--kkh,auto)}
+.vt-rs tbody tr:not(.th) td>input{height:calc(var(--kkh,26px) - 4px);min-height:26px}

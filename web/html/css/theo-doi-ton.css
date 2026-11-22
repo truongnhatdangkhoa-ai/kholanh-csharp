@@ -1,0 +1,40 @@
+/* PC 3.92 — tab "Theo Dõi Tồn" (js/theo-doi-ton.js) */
+.tdt-wrap{display:flex;flex-direction:column;gap:10px;padding:10px 4px}
+.tdt-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between}
+.tdt-chips{display:flex;flex-wrap:wrap;gap:6px}
+.tdt-chip{background:var(--surface);border:1px solid var(--border);color:var(--text-muted);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tdt-chip .n{margin-left:4px;font-family:var(--mono);color:var(--text)}
+.tdt-chip:hover{border-color:var(--frost)}
+.tdt-chip.active{background:var(--tkx-on-bg);border-color:var(--tkx-on-bg);color:var(--tkx-on-fg)}/* PC 4.02: không dùng --frost (giao diện Sáng = #10181e → chip đen, chữ đen) */
+.tdt-chip.active .n{color:var(--tkx-on-fg)}
+.tdt-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tdt-search{min-width:240px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-size:12.5px;padding:6px 10px}
+.tdt-search:focus{outline:none;border-color:var(--frost)}
+.tdt-th{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 10px;font-size:12px;color:var(--text-muted);white-space:nowrap}
+.tdt-th input{width:52px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;font-family:var(--mono);padding:3px 6px;text-align:center}
+.tdt-th input:focus{outline:none;border-color:var(--frost)}
+.tdt-xl{background:var(--surface);border:1px solid var(--border-strong,var(--border));color:var(--text);border-radius:var(--r-sm);padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer}
+.tdt-xl:hover{border-color:var(--frost)}
+.tdt-hint{font-size:12px;color:var(--text-muted)}
+.tdt-hint b{color:var(--text)}
+.tdt-scroll{height:68vh}
+.tdt-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.tdt-table th{position:sticky;top:0;z-index:2;background:var(--bg-elevated);color:var(--text-muted);font-size:11.5px;font-weight:700;text-align:left;padding:8px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tdt-table td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:middle;color:var(--text)}
+.tdt-table tbody tr:hover{background:rgba(120,160,200,.07)}
+.tdt-table .c{text-align:center}
+.tdt-table .num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.tdt-table .mono{font-family:var(--mono);font-size:12px;white-space:nowrap}
+.tdt-note-cell{min-width:320px;width:34%}
+.tdt-note{width:100%;resize:none;box-sizing:border-box;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;color:var(--text);font:inherit;font-size:12.5px;padding:5px 8px;line-height:1.35;overflow:hidden}
+.tdt-note:focus{outline:none;border-color:var(--frost)}
+.tdt-when{font-size:11.5px;color:var(--text-muted);white-space:nowrap}
+.tdt-ok{background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:6px;padding:3px 9px;font-size:11.5px;cursor:pointer;white-space:nowrap}
+.tdt-ok:hover:not(:disabled){border-color:#34D399;color:#34D399}
+.tdt-ok:disabled{opacity:.35;cursor:default}
+.tdt-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;margin:0 2px}
+.tdt-badge.low{background:#FBBF2433;color:#F59E0B}
+.tdt-badge.old{background:#F8717133;color:#F87171}
+.tdt-badge.ok{background:#34D39922;color:#34D399}
+.tdt-empty{text-align:center;color:var(--text-muted);padding:28px 0}
+.tdt-done td{color:var(--text-muted)}

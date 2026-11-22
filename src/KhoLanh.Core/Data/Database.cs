@@ -57,8 +57,32 @@ public class Database
             c.Execute(SchemaV1, transaction: tx);
             c.Execute("PRAGMA user_version = 1;", transaction: tx);
             tx.Commit();
+            version = 1;
+        }
+        if (version < 2)
+        {
+            using var tx = c.BeginTransaction();
+            c.Execute(SchemaV2, transaction: tx);
+            c.Execute("PRAGMA user_version = 2;", transaction: tx);
+            tx.Commit();
         }
     }
+
+    /// <summary>
+    /// v2: dữ liệu của các module gốc (Tồn kho An An, Tồn kho gửi) — mỗi (db_key, sheet) là một mảng dòng JSON,
+    /// đúng cách app cũ lưu qua window.dbAPI.readSheet / writeSheet.
+    /// </summary>
+    private const string SchemaV2 = """
+        CREATE TABLE IF NOT EXISTS module_sheets (
+            db_key TEXT NOT NULL,
+            sheet TEXT NOT NULL,
+            data TEXT NOT NULL DEFAULT '[]',
+            row_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL DEFAULT '',
+            updated_by TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (db_key, sheet)
+        );
+        """;
 
     private const string SchemaV1 = """
         CREATE TABLE IF NOT EXISTS users (

@@ -25,6 +25,13 @@ public partial class MainWindow : Window
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
     private string _current = "";
+    private readonly Dictionary<string, ModuleView> _modules = new();
+
+    private ModuleView Module(string key, string page, string title, string subtitle)
+    {
+        if (!_modules.TryGetValue(key, out var v)) _modules[key] = v = new ModuleView(page, title, subtitle);
+        return v;
+    }
 
     public MainWindow()
     {
@@ -50,6 +57,13 @@ public partial class MainWindow : Window
                 new NavItem("ledger", "Sổ kho", () => new LedgerView(), Any),
                 new NavItem("nxt", "Báo cáo NXT", () => new ReportView(), Any),
             }),
+            ("TỒN KHO GỐC", new[]
+            {
+                new NavItem("m1", "Tồn kho An An", () => Module("m1", "ton-kho-an-an.html", "Tồn kho An An",
+                    "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ."), Any),
+                new NavItem("m2", "Tồn kho gửi", () => Module("m2", "ton-kho-gui.html", "Tồn kho gửi",
+                    "Nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính — chạy nguyên mã module của app cũ."), Any),
+            }),
             ("DANH MỤC", new[]
             {
                 new NavItem("products", "Mã hàng", () => new ProductsView(), Any),
@@ -68,7 +82,7 @@ public partial class MainWindow : Window
         {
             var visible = items.Where(i => i.Allowed(u.Role)).ToList();
             if (visible.Count == 0) continue;
-            var flat = group is "TỔNG QUAN" or "NGHIỆP VỤ" or "KHO";
+            var flat = group is "TỔNG QUAN" or "NGHIỆP VỤ" or "KHO" or "TỒN KHO GỐC";
             if (flat)
             {
                 foreach (var item in visible)
@@ -80,7 +94,7 @@ public partial class MainWindow : Window
                     _buttons[item.Key] = b;
                     NavPanel.Children.Add(b);
                 }
-                NavPanel.Children.Add(new Border { Width = 1, Height = 22, Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A4D6B")), Margin = new Avalonia.Thickness(6, 0) });
+                NavPanel.Children.Add(new Border { Width = 1, Height = 22, Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A4D6B")), Margin = new Avalonia.Thickness(3, 0) });
             }
             else
             {
@@ -123,7 +137,19 @@ public partial class MainWindow : Window
         if (item is null) return;
         if (!item.Allowed(App.Services.Session.Role)) return;
         page ??= item.Create();
-        PageHost.Content = page;
+        if (page is ModuleView mv)
+        {
+            if (!ModuleLayer.Children.Contains(mv)) ModuleLayer.Children.Add(mv);
+            foreach (var other in _modules.Values) if (other != mv) other.SetActive(false);
+            PageHost.IsVisible = false;
+            mv.SetActive(true);
+        }
+        else
+        {
+            foreach (var other in _modules.Values) other.SetActive(false);
+            PageHost.IsVisible = true;
+            PageHost.Content = page;
+        }
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         if (_buttons.TryGetValue(key, out var now)) now.Classes.Add("active");

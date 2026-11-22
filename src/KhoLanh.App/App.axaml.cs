@@ -18,6 +18,13 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var ti = Array.IndexOf(Program.Args, "--tu-kiem-module");
+            if (ti >= 0)
+            {
+                SelfTest.Run(desktop, Program.Args.Length > ti + 1 ? Program.Args[ti + 1] : "tu-kiem-module.json");
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
             try
             {
                 InitServices(Environment.GetEnvironmentVariable("KHOLANH_DATA") is { Length: > 0 } custom

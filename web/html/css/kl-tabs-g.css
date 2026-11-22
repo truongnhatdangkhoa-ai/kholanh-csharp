@@ -1,0 +1,86 @@
+/* ============================================================================================
+   MẪU G — MENU PHỤ DẠNG CHIP NHỎ (PC 1.10). Áp cho MỌI thanh menu phụ / tab của các module.
+   Mỗi mục: chấm màu (8px) + chữ 12px, cao 30px. Mục đang chọn: viền + nền nhạt theo màu của mục, chữ đậm.
+   Màu của mục: biến --tc. Mặc định lấy theo thứ tự trong thanh (8 màu bên dưới, cùng bảng màu đã dùng ở Tồn kho An An);
+   Tồn kho An An đặt --tc riêng cho từng module qua style trực tiếp (js/ton-kho-an-an.js › renderNav).
+   Chỉ đổi cách HIỂN THỊ — không đổi DOM, không đổi sự kiện của các module. Nạp CUỐI mỗi trang (sau kl-ds.css).
+   Muốn thêm thanh menu mới theo kiểu này: thêm bộ chọn của nó vào danh sách G_ITEMS bên dưới (đủ 3 chỗ: kiểu chip, chấm màu, ẩn icon).
+   ============================================================================================ */
+:root { --g-c1: #A78BFA; --g-c2: #22D3EE; --g-c3: #60A5FA; --g-c4: #34D399; --g-c5: #F59E0B; --g-c6: #F472B6; --g-c7: #818CF8; --g-c8: #94A3B8; }
+
+/* ---- 1) kiểu chip ---- */
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button) {
+  --tc: var(--g-c8);
+  position: relative !important; display: inline-flex !important; align-items: center !important; justify-content: flex-start !important; gap: 6px !important;
+  width: auto !important; height: 30px !important; min-height: 0 !important; margin: 0 !important; padding: 0 11px !important;
+  border: 1px solid transparent !important; border-radius: 8px !important; background: transparent !important; box-shadow: none !important;
+  color: var(--kl-text-2, #55637d) !important; font-size: 12px !important; font-weight: 500 !important; line-height: 1 !important; white-space: nowrap !important;
+  transform: none !important; animation: none !important; filter: none !important; transition: background .12s, border-color .12s, color .12s !important;
+  text-decoration: none !important; cursor: pointer;
+}
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):hover {
+  background: color-mix(in srgb, var(--tc) 10%, transparent) !important; border-color: transparent !important; color: var(--kl-text, #14213a) !important; transform: none !important;
+}
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):is(.active, .on, .is-on, [aria-selected="true"], [aria-current="page"]) {
+  background: color-mix(in srgb, var(--tc) 18%, transparent) !important; border-color: var(--tc) !important; color: var(--kl-text, #14213a) !important;
+  font-weight: 700 !important; box-shadow: none !important;
+}
+
+/* ---- 2) chấm màu thay cho biểu tượng ---- */
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button)::before {
+  content: '' !important; display: block !important; position: static !important; inset: auto !important; flex: none !important;
+  width: 8px !important; height: 8px !important; margin: 0 !important; border-radius: 50% !important; background: var(--tc) !important;
+  opacity: 1 !important; transform: none !important; z-index: auto !important; box-shadow: none !important; animation: none !important;
+}
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button) > :is(svg, .nav-icon, .tab-icon, .ic) {
+  display: none !important;
+}
+html body :is(.pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn) .num { font-size: 10.5px !important; opacity: .65; color: inherit !important; }
+html body :is(.pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn):is(.active) .num { opacity: .9; }
+
+/* ---- 3) màu theo thứ tự trong thanh (8 màu quay vòng) ---- */
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+1) { --tc: var(--g-c1); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+2) { --tc: var(--g-c2); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+3) { --tc: var(--g-c3); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+4) { --tc: var(--g-c4); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+5) { --tc: var(--g-c5); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+6) { --tc: var(--g-c6); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n+7) { --tc: var(--g-c7); }
+html body :is(.sidebar .nav-item, .sidebar .tab-btn, .sidebar .menu-item, .sidebar .module-tab, .sidebar .tab-item, .sidebar nav.menu > button,
+  .pl-subnav .pl-subtab-btn, .dt-subnav .dt-subtab-btn, .ld-tabbar .ld-tab, .subnav .subnav-item, .tabs > .tab, .dcx-tabs .dcx-tab,
+  .pnx-tabs .pnx-tab, .fm-tabs > button, .kl-subtabs .kl-subtab, .cd-subnav .cd-subtab, .sh-subnav .sh-subtab, .lx-em-tabs > *, .lq-tabs > *, .d2-views > button):nth-child(8n) { --tc: var(--g-c8); }
+
+/* ---- 4) khoảng cách giữa các nhóm (Tồn kho An An gắn class g-gap vào mục đầu mỗi nhóm) ---- */
+html body .sidebar .nav-item.g-gap { margin-left: 12px !important; }
+
+/* ---- 5) khung chứa: gọn lại, các chip xuống dòng khi hẹp ---- */
+html body :is(.pl-subnav, .dt-subnav, .ld-tabbar, .subnav, .tabs, .dcx-tabs, .pnx-tabs, .fm-tabs, .kl-subtabs, .cd-subnav, .sh-subnav, .lx-em-tabs, .lq-tabs, .d2-views, .sidebar .nav, .sidebar nav.menu, .sidebar .module-nav, .sidebar .tab-nav) {
+  gap: 4px !important; align-items: center !important;
+}
+
+/* ---- 6) compact-layout.css đặt cỡ chữ / bo góc cho `.sidebar #navList > *` bằng id + !important → ghi đè lại cho khớp chip ---- */
+html body .sidebar #navList > *, html body .sidebar nav > button { padding: 0 11px !important; font-size: 12px !important; gap: 6px !important; border-radius: 8px !important; min-height: 0 !important; }

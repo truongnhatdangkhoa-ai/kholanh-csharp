@@ -62,7 +62,7 @@
   <Style Selector="Button.topnav">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="Foreground" Value="#C9DCEB"/>
-    <Setter Property="Padding" Value="12,8"/>
+    <Setter Property="Padding" Value="9,8"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="FontSize" Value="14"/>
     <Setter Property="VerticalAlignment" Value="Center"/>

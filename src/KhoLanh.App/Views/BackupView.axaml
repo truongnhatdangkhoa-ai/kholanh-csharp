@@ -23,6 +23,16 @@
           </StackPanel>
         </StackPanel>
       </Border>
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Chép dữ liệu Tồn kho An An / Tồn kho gửi từ app cũ" Classes="section"/>
+          <TextBlock Classes="muted" TextWrapping="Wrap"
+                     Text="Chép Đặc tính, điều kiện lọc, chuyển mã thủ công, phiếu xuất, số liệu ngoài sổ sách và dữ liệu đã nạp của 2 module từ file database app cũ (thư mục app cũ › app › database › engine › khokhanh.db). Chỉ ĐỌC file cũ, không sửa gì bên app cũ. Dữ liệu 2 module hiện có trong app mới sẽ được thay bằng bản chép."/>
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Chọn khokhanh.db và chép..." Click="OnImportLegacy"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
     </StackPanel>
     <Border Grid.Column="1" Classes="card">
       <DockPanel>

@@ -1,0 +1,57 @@
+/* =====================================================================================================
+   PC 3.37 — MÀN HÌNH NHỎ (laptop 1366×768, cao ≤ 860px): thu gọn thanh menu / công cụ để BẢNG ĐỐI CHIẾU có nhiều dòng hơn.
+   Thanh tiêu đề 44→36 · thanh công cụ gọn · bỏ thanh công thức (xem nguyên nhân: bấm dòng) · nút Toàn màn hình nổi trên bảng (không chiếm dòng) ·
+   chip kho / khu + bộ lọc gọn · tiêu đề cột 1 dòng, hàng ô tìm thấp · mỗi dòng dữ liệu 1 dòng chữ (nguyên nhân cắt "…", rê chuột xem đủ) · thanh trang gọn.
+   Nạp SAU CÙNG (sau m05-xl.css). Chỉ đổi cách HIỂN THỊ.
+   ===================================================================================================== */
+@media (max-height: 860px) {
+  body.m05-xl .sidebar{height:36px;min-height:36px;padding:0 10px;gap:10px;}
+  body.m05-xl .sheet-tabs{height:36px;}
+  body.m05-xl .sheet-tabs .tab-btn{padding:0 11px;font-size:12.5px;border-bottom-width:2px;}
+  body.m05-xl .sidebar .brand-title{font-size:14px;}
+  body.m05-xl .m05-dirty{padding:3px 10px;font-size:12px;}
+  .gk-xl-tool{padding:3px 10px;gap:6px;}
+  .gk-xl-tool .btn,.gk-xl-tool button{padding:3px 11px;font-size:12.5px;min-height:28px;line-height:1.2;}
+  .gk-xl-fx{display:none !important;}                       /* thanh công thức: nguyên nhân xem ở khung chi tiết khi bấm dòng */
+  #gkTongBox .kl-tf-bar{position:absolute;right:6px;top:2px;z-index:6;height:24px;margin:0;padding:0;}
+  #gkTongBox{position:relative;}
+  #gkTongBox .kl-tf-btn{height:24px;width:26px;}
+  .gk-tabs{margin:4px 0 4px;gap:5px;padding-right:40px;}
+  .gk-tab{padding:2px 11px;font-size:12.5px;}
+  .gk-tab .badge{padding:0 6px;font-size:11px;}
+  .gk-tool{margin:0 0 4px;gap:4px 8px;}
+  .gk-sel,.gk-q{padding:3px 8px;font-size:12.5px;}
+  .gk-tool .btn,.gk-tool button{padding:3px 10px;font-size:12.5px;min-height:26px;}
+  .gk-table th{padding:4px 8px;font-size:12px;line-height:1.2;}
+  .gk-table th br{display:none;}                            /* "Kiểm kê (kiện)" nằm 1 dòng thay vì 2 */
+  .gk-table td{padding:3px 8px;font-size:12.5px;line-height:1.3;}
+  .gk-table td.gk-nn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px;min-width:180px;}
+  .gk-table td.gk-note{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .gk-table .gk-lv{padding:0 7px;font-size:11px;line-height:1.5;}
+  .gk-table .status-pill{padding:0 8px;font-size:11.5px;line-height:1.5;}
+  .kcf-table .kcf-filters th,.kcf-table .kcf-row th,.kcf-table tr.kcf-filter-row th{padding:2px 4px;}
+  .kcf-table input[type="search"],.kcf-table .kcf-input input,.kcf-table .kcf-filter input{height:22px;padding:0 6px;font-size:11.5px;}
+  .kcf-table .kcf-filter button,.kcf-table .kcf-input button{height:22px;width:22px;padding:0;}
+  .gk-pager{padding:3px 0;gap:8px;}
+  .gk-pager .btn,.gk-pager button{padding:2px 12px;font-size:12px;min-height:24px;}
+  .gk-wrap{margin-top:0;}
+  /* chip kho / khu và bộ lọc (Chỉ dòng lệch · tìm mã · Ẩn cột trống) nằm CHUNG 1 hàng khi đủ rộng */
+  .gk-xl-grid #gkTong:not(.kl-fs-cover){display:flex;flex-wrap:wrap;align-items:center;column-gap:10px;padding:0 6px;}
+  .gk-xl-grid #gkTong:not(.kl-fs-cover) > .gk-tabs{flex:0 1 auto;padding-right:0;}
+  .gk-xl-grid #gkTong:not(.kl-fs-cover) > .gk-tool{flex:1 1 auto;min-width:0;}
+  .gk-xl-grid #gkTong:not(.kl-fs-cover) > .gk-wrap,.gk-xl-grid #gkTong:not(.kl-fs-cover) > .table-wrap{flex:0 0 100%;}
+  .gk-xl-grid #gkTong:not(.kl-fs-cover) .gk-sel{max-width:240px;}
+  .gk-xl-grid #gkTong:not(.kl-fs-cover) > .gk-tool{padding-right:36px;}   /* chừa chỗ cho nút Toàn màn hình nổi ở góc phải */
+  .gk-xl-grid .gk-wrap{max-height:calc(100vh - 170px);}     /* bảng lấp tới thanh trạng thái (trước: trừ 262px cho đủ menu) */
+  /* Số liệu tổng + các tab khác dùng chung thanh công cụ */
+  #tab-bangsolieu .slb-tool,#tab-bangsolieu .gk-xl-tool{padding:3px 10px;}
+  /* Kiểm kê nhanh */
+  .kkn{padding:6px 8px;}.kkn-views{margin-bottom:4px}.kkn-vt{padding:3px 12px}
+  .kkn-t2 td{padding:2px 7px}.kkn-t2 th{padding:3px 7px}.kkn-t2 tr:nth-child(2) th{top:23px}
+  .kkn-bar{padding:4px 8px}.kkn-chip{padding:1px 10px}
+}
+@media (max-height: 700px) {
+  body.m05-xl .m05-period{display:none;}
+  .gk-tabs{margin:2px 0;}
+  .gk-table td{padding:2px 7px;}
+}

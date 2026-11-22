@@ -1,0 +1,135 @@
+/* ==========================================================================
+   TRANG CHÍNH bản 10/2026 — js/dashboard-overview.js. Tinh gọn: 1 hàng 3 thẻ (Tổng · An An · Kho gửi) +
+   các bảng thanh ngang (nhóm size M01/M02, M03 theo loại hàng, M04 theo size). Phần chưa có số liệu → ẩn.
+   KHÔNG NHẢY DÒNG ở mọi cỡ màn hình: mọi chữ/số nowrap + ellipsis; bố cục co giãn theo CHÍNH ô chứa
+   (container query) chứ không theo cỡ cửa sổ — ô hẹp thì bỏ bớt cột %, thu cột nhãn, xếp chỉ số 2×2.
+   Màu: 1 sắc --mono của giao diện (Tối: cam đồng · Sáng: xanh dương) — An An đậm, Kho gửi nhạt.
+   ========================================================================== */
+.dv{
+  --da: var(--mono);
+  --db: color-mix(in srgb, var(--mono) 52%, var(--panel));
+  --dc: #7cc2a8;
+  --dd: #8fb0e6;
+  --dtrack: color-mix(in srgb, var(--border) 80%, transparent);
+  --dwarn: #e0a53d; --dok: #3fb68b;
+  display: flex; flex-direction: column; gap: clamp(12px, 1.2vw, 16px); min-width: 0;
+}
+html[data-theme="light"] .dv{ --db: color-mix(in srgb, var(--mono) 45%, #ffffff); --dc: #0f8a6a; --dd: #7c3aed; --dwarn: #b7791f; --dok: #0f8a5f; }
+.dv [hidden]{ display: none !important; }
+.dv-card{ background: var(--panel); border: 1px solid var(--border); border-radius: 14px; min-width: 0; }
+.dv-click{ cursor: pointer; transition: border-color var(--fast, .15s); }
+.dv-click:hover{ border-color: var(--border-hover); }
+.dv-dot{ width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.dv-dot.da{ background: var(--da); } .dv-dot.db{ background: var(--db); }
+.dv-dot.dc{ background: var(--dc); } .dv-dot.dd{ background: var(--dd); }
+.dv-num, .dv-big b, .dv-row .v, .dv-row .p, .dv-mstat b{ font-variant-numeric: tabular-nums; }
+.dv-empty{ padding: 28px 16px; text-align: center; color: var(--muted); font-size: 13.5px; border: 1px dashed var(--border); border-radius: 14px; }
+
+/* ---------- Hàng 3 thẻ ---------- */
+.dv-top{ display: grid; gap: clamp(12px, 1.2vw, 16px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }
+.dv-kpi{ padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; container-type: inline-size; }
+.dv-kh{ display: flex; align-items: center; gap: 8px; min-height: 24px; min-width: 0; white-space: nowrap; }
+.dv-name{ font: 700 13.5px 'Sora', sans-serif; color: var(--text); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dv-code{ color: var(--muted); opacity: .75; font-size: 11px; font-weight: 600; flex: 0 0 auto; }
+.dv-fresh{ margin-left: auto; flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+.dv-fresh::before{ content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--dok); }
+.dv-fresh.old{ color: var(--dwarn); } .dv-fresh.old::before{ background: var(--dwarn); }
+.dv-fresh:empty{ display: none; }
+.dv-big{ display: flex; align-items: baseline; gap: 5px; white-space: nowrap; min-width: 0; }
+.dv-big b{ font: 700 clamp(22px, 2.1vw, 31px)/1.1 'Sora', sans-serif; color: var(--text); letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; }
+.dv-big small{ font-size: 13px; color: var(--muted); font-weight: 500; }
+.dv-share{ display: flex; height: 6px; border-radius: 4px; overflow: hidden; background: var(--dtrack); margin-top: 2px; }
+.dv-share i{ display: block; height: 100%; }
+.dv-share .sa{ background: var(--da); } .dv-share .sb{ background: var(--db); }
+.dv-facts{ display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 0; overflow: hidden; }
+.dv-facts > span{ overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dv-facts .sp{ flex: 1 1 auto; }
+.dv-facts .sq{ display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.dv-facts .sq.a{ background: var(--da); } .dv-facts .sq.b{ background: var(--db); }
+@container (max-width: 270px){
+  .dv-fresh{ padding: 2px 7px; font-size: 11px; }
+  .dv-fresh .ago{ display: none; }
+  .dv-facts{ gap: 8px; }
+}
+
+/* ---------- Bảng thanh ngang ---------- */
+.dv-panels{ display: grid; gap: clamp(12px, 1.2vw, 16px); grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.dv-panel{ padding: 18px 20px; container-type: inline-size; }
+.dv-ph{ display: flex; align-items: center; gap: 8px; margin-bottom: 14px; white-space: nowrap; min-width: 0; }
+.dv-ph b{ font: 700 14px 'Sora', sans-serif; color: var(--text); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dv-link{ margin-left: auto; flex: 0 0 auto; border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted); font-size: 12px; font-family: inherit; }
+.dv-link:hover{ color: var(--mono); }
+.dv-rows{ display: grid; align-items: center; row-gap: 11px; column-gap: 12px; font-size: 13px; white-space: nowrap;
+  /* 1 lưới CHUNG cho mọi dòng (dòng = display:contents) → cột thanh/số thẳng hàng giữa các dòng */
+  grid-template-columns: minmax(52px, max-content) minmax(36px, 1fr) max-content 3.2em; }
+.dv-row{ display: contents; }
+.dv-row .k{ color: var(--muted); font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dv-row.top .k{ color: var(--text); }
+.dv-row .bar{ height: 8px; border-radius: 5px; background: var(--dtrack); overflow: hidden; min-width: 0; }
+.dv-row .bar i{ display: block; height: 100%; border-radius: 5px; background: var(--c, var(--mono)); }
+.dv-row .v{ text-align: right; font-weight: 600; color: var(--text); }
+.dv-row .p{ text-align: right; color: var(--muted); opacity: .8; font-size: 12px; }
+.dv-row.extra .k{ opacity: .8; }
+.dv-rows > .dv-more{ grid-column: 1 / -1; justify-self: start; }
+.dv-row .k{ max-width: 12em; }
+.dv-more{ margin-top: 2px; border: 1px dashed var(--border-hover); background: transparent; color: var(--muted);
+  border-radius: 9px; padding: 6px 12px; font: 600 12.5px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.dv-more:hover{ color: var(--mono); border-color: var(--mono); }
+/* Chỉ số nhanh (M03, M04) */
+.dv-mstat{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: -4px 0 16px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); row-gap: 10px; }
+.dv-mstat > div{ padding: 0 12px; border-left: 1px solid var(--border); min-width: 0; white-space: nowrap; }
+.dv-mstat > div:first-child{ padding-left: 0; border-left: 0; }
+.dv-mstat small{ display: block; color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+.dv-mstat b{ display: block; font: 700 16px 'Sora', sans-serif; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.dv-mstat em{ font: 500 11.5px 'Inter', sans-serif; color: var(--muted); font-style: normal; }
+.dv-mstat .up{ color: var(--dok); } .dv-mstat .down{ color: var(--dwarn); }
+
+/* Ô hẹp: bỏ cột %, thu cột nhãn; chỉ số xếp 2×2 */
+@container (max-width: 470px){
+  .dv-mstat{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dv-mstat > div:nth-child(3){ padding-left: 0; border-left: 0; }
+}
+@container (max-width: 400px){
+  .dv-rows{ grid-template-columns: minmax(48px, max-content) minmax(30px, 1fr) max-content; column-gap: 10px; }
+  .dv-row .p{ display: none; }
+  .dv-row .k{ max-width: 8em; }
+}
+@container (max-width: 300px){
+  .dv-rows{ grid-template-columns: minmax(48px, 1fr) max-content; }
+  .dv-row .bar{ display: none; }
+}
+
+/* Mạng LAN (js/lan-status.js) */
+.lan-badge{ display:inline-flex; align-items:center; gap:7px; height:38px; padding:0 13px; border-radius:999px; border:1px solid var(--border);
+  background: var(--panel); color: var(--muted); font: 600 12.5px 'Inter', sans-serif; cursor: pointer; white-space: nowrap; }
+.lan-badge i{ width:8px; height:8px; border-radius:50%; background:#3fb68b; }
+.lan-badge.bad{ color:#e5484d; border-color: color-mix(in srgb, #e5484d 50%, var(--border)); }
+.lan-badge.bad i{ background:#e5484d; }
+.lan-fresh{ display:flex; align-items:center; gap:8px; margin-left:auto; margin-right:10px; padding:4px 6px 4px 12px; border-radius:999px;
+  background: color-mix(in srgb, var(--mono) 14%, transparent); border:1px solid color-mix(in srgb, var(--mono) 45%, transparent);
+  color: var(--text); font: 600 12.5px 'Inter', sans-serif; white-space: nowrap; }
+.lan-fresh button{ border:0; border-radius:999px; padding:4px 11px; background: var(--mono); color:#fff; font:700 12px 'Inter',sans-serif; cursor:pointer; }
+html:not([data-theme="light"]) .lan-fresh button{ color:#1a0f06; }
+.lan-fresh button.x{ background:transparent; color: var(--muted); padding:4px 6px; }
+.lan-offline{ position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:9800; max-width:calc(100vw - 32px);
+  padding:10px 16px; border-radius:12px; background:#7a2e14; color:#fff; font:500 13px 'Inter',sans-serif; box-shadow:0 10px 30px rgba(0,0,0,.35);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+html[data-theme="light"] .lan-offline{ background:#b4461f; }
+
+/* ===== PC 7.57: thu gọn các thẻ tổng quan để dành chỗ cho Lịch xuất nhập hàng ===== */
+.dv{ gap: 10px; }
+.dv-top{ gap: 10px; }
+.dv-kpi{ padding: 9px 14px; gap: 3px; }
+.dv-kh{ min-height: 20px; }
+.dv-big b{ font-size: clamp(19px, 1.6vw, 24px); }
+.dv-share{ height: 5px; margin-top: 0; }
+.dv-facts{ font-size: 11.5px; }
+@media (max-height: 900px){ .g-top .g-sub{ display: none; } }
+/* 2 bảng M03/M04: mặc định THU GỌN, bấm thanh tiêu đề để mở (nhớ lựa chọn) */
+.dv-pn-toggle{ grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 14px; border-radius: 12px;
+  border: 1px dashed var(--border-hover, var(--border)); background: transparent; color: var(--muted); font: 600 12.5px 'Inter', sans-serif; cursor: pointer; }
+.dv-pn-toggle:hover{ color: var(--mono); border-color: var(--mono); }
+.dv-pn-toggle .ar{ display: inline-block; transition: transform .15s; }
+.dv:not(.pn-off) .dv-pn-toggle .ar{ transform: rotate(90deg); }
+.dv.pn-off .dv-panels > .dv-panel{ display: none; }
