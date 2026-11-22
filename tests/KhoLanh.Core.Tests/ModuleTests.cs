@@ -75,7 +75,7 @@ public class ModuleTests : IDisposable
         _s.Auth.Login("nv1", "matkhau1");
         Assert.False(Call("writeSheet", "ton-kho-gui", "X", new JsonArray())["ok"]!.GetValue<bool>());
         Assert.True(Call("readSheet", "ton-kho-gui", "X")["ok"]!.GetValue<bool>());
-        var st = Call("authState");
+        var st = Call("authState", "/html/ton-kho-gui.html");
         Assert.Equal("xuat", st["user"]!["vaiTro"]!.GetValue<string>());
         Assert.False(st["user"]!["canWrite"]!.GetValue<bool>());
     }

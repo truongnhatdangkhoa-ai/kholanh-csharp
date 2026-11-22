@@ -8,7 +8,7 @@ namespace KhoLanh.App.Views;
 public partial class BackupView : UserControl, IPage
 {
     public string Title => "Sao lưu và cài đặt";
-    public string Subtitle => "Thông tin công ty in trên phiếu, sao lưu và khôi phục dữ liệu.";
+    public string Subtitle => "Thông tin công ty in trên phiếu, cập nhật phần mềm, sao lưu và khôi phục dữ liệu.";
 
     private record BackupRow(string Name, string FullName, DateTime LastWriteTime, long Kb);
 
@@ -23,6 +23,48 @@ public partial class BackupView : UserControl, IPage
         var admin = Roles.IsAdmin(s.Session.Role);
         RestoreFileButton.IsVisible = RestoreSelButton.IsVisible = admin;
         LoadBackups();
+        // Cập nhật online
+        var u = s.Updates;
+        UpdVersionText.Text = $"Đang dùng bản {UpdateService.Current}" + (AppUpdater.StagedVersion is { } sv ? $" · đã tải sẵn bản {sv}, chờ áp dụng" : "")
+                              + (u.LastCheck.Length > 0 ? $" · lần hỏi gần nhất {u.LastCheck}" : "");
+        UpdRepoBox.Text = u.Repo;
+        UpdAutoBox.IsChecked = u.Auto;
+        UpdTokenBox.Watermark = u.HasToken ? "Đã có mã — để trống = giữ nguyên" : "Chưa có mã — dán token vào đây";
+        UpdConfigPanel.IsVisible = UpdSaveButton.IsVisible = admin;
+        UpdRollbackButton.IsVisible = admin && AppUpdater.HasPrevious;
+        AppUpdater.Progress += OnUpdProgress;
+        DetachedFromVisualTree += (_, _) => AppUpdater.Progress -= OnUpdProgress;
+    }
+
+    private void OnUpdProgress(string msg) => Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdStatus.Text = msg);
+
+    private async void OnUpdSave(object? sender, RoutedEventArgs e)
+    {
+        var token = string.IsNullOrWhiteSpace(UpdTokenBox.Text) ? null : UpdTokenBox.Text;
+        if (await Ui.Run(this, () => App.Services.Updates.SaveConfig(UpdRepoBox.Text ?? "", token, UpdAutoBox.IsChecked == true)))
+        {
+            UpdTokenBox.Text = "";
+            UpdTokenBox.Watermark = App.Services.Updates.HasToken ? "Đã có mã — để trống = giữ nguyên" : "Chưa có mã — dán token vào đây";
+            UpdStatus.Text = "Đã lưu cài đặt cập nhật.";
+        }
+    }
+
+    private async void OnUpdCheck(object? sender, RoutedEventArgs e)
+    {
+        Version? v = null;
+        if (!await Ui.RunAsync(this, async () => v = await AppUpdater.CheckAndStageAsync(quiet: false))) return;
+        if (v is not null && await Ui.Confirm(this, $"Đã tải xong bản {v}. Cập nhật ngay (phần mềm tự mở lại, dữ liệu giữ nguyên)?", "Cập nhật phần mềm", "Cập nhật ngay"))
+        {
+            if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
+                (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+        }
+    }
+
+    private async void OnUpdRollback(object? sender, RoutedEventArgs e)
+    {
+        if (!await Ui.Confirm(this, "Quay lại bản phần mềm trước lần cập nhật gần nhất? Phần mềm sẽ tự mở lại. Dữ liệu giữ nguyên.", "Quay lại bản trước", "Quay lại")) return;
+        if (await Ui.Run(this, () => { if (!AppUpdater.RollbackAndRestart()) throw new BusinessException("Không còn bản trước để quay lại."); }))
+            (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
     }
 
     private void LoadBackups() =>
@@ -34,7 +76,7 @@ public partial class BackupView : UserControl, IPage
         var s = App.Services;
         if (await Ui.Run(this, () =>
             {
-                s.Session.RequireManager();
+                s.Session.Require("backup");
                 s.Settings.Set(SettingsService.CompanyName, (CompanyBox.Text ?? "").Trim());
                 s.Settings.Set(SettingsService.CompanyAddress, (AddressBox.Text ?? "").Trim());
                 s.Settings.Set(SettingsService.WarehouseName, (WarehouseBox.Text ?? "").Trim());

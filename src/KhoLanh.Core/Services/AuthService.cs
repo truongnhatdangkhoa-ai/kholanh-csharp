@@ -60,12 +60,25 @@ public class AuthService
         return c.Query<User>("SELECT * FROM users ORDER BY username").ToList();
     }
 
-    public User CreateUser(string username, string fullName, string password, string role)
+    public User CreateUser(string username, string fullName, string password, string role, string? permissions = null)
     {
         _session.RequireAdmin();
         var u = Insert(username, fullName, password, role);
+        if (!string.IsNullOrEmpty(permissions)) SetPermissions(u.Id, permissions);
         _audit.Log(_session.Username, "Tạo tài khoản", $"{u.Username} ({Roles.Label(role)})");
         return u;
+    }
+
+    /// <summary>Lưu quyền chỉnh riêng (JSON {mục: mức}); chuỗi rỗng = theo vai trò.</summary>
+    public void SetPermissions(long id, string permissions)
+    {
+        _session.RequireAdmin();
+        var clean = string.IsNullOrWhiteSpace(permissions) ? "" : Perm.Serialize(Perm.Parse(permissions));
+        using var c = _db.Open();
+        var name = c.ExecuteScalar<string?>("SELECT username FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        c.Execute("UPDATE users SET permissions=@clean WHERE id=@id", new { id, clean });
+        _audit.Log(_session.Username, "Phân quyền", $"{name}: {(clean.Length == 0 ? "theo vai trò" : clean)}");
+        if (_session.CurrentUser?.Id == id) _session.CurrentUser.Permissions = clean;
     }
 
     public void UpdateUser(long id, string fullName, string role, bool isActive)

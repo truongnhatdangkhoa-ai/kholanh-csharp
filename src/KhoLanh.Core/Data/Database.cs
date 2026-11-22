@@ -65,6 +65,15 @@ public class Database
             c.Execute(SchemaV2, transaction: tx);
             c.Execute("PRAGMA user_version = 2;", transaction: tx);
             tx.Commit();
+            version = 2;
+        }
+        if (version < 3)
+        {
+            // v3: phân quyền riêng từng tài khoản tới từng màn hình.
+            using var tx = c.BeginTransaction();
+            c.Execute("ALTER TABLE users ADD COLUMN permissions TEXT NOT NULL DEFAULT '';", transaction: tx);
+            c.Execute("PRAGMA user_version = 3;", transaction: tx);
+            tx.Commit();
         }
     }
 

@@ -41,6 +41,7 @@ public class VoucherService
     {
         _session.RequireLogin();
         if (v.Type is not (VoucherTypes.In or VoucherTypes.Out)) throw new BusinessException("Loại phiếu không hợp lệ.");
+        _session.Require(v.Type == VoucherTypes.In ? "in" : "out");
         if (v.OwnerId == 0) throw new BusinessException("Chưa chọn chủ hàng.");
         var lines = v.Lines.Where(l => l.ProductId != 0 || l.Quantity != 0).ToList();
         if (lines.Count == 0) throw new BusinessException("Phiếu chưa có dòng hàng nào.");
@@ -110,7 +111,7 @@ public class VoucherService
 
     public void Cancel(long id, string reason)
     {
-        _session.RequireManager();
+        _session.Require("cancel");
         if (string.IsNullOrWhiteSpace(reason)) throw new BusinessException("Cần ghi lý do hủy phiếu.");
         using var c = _db.Open();
         using var tx = c.BeginTransaction();

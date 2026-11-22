@@ -29,6 +29,15 @@ public class Session
         if (!Roles.CanManage(Role)) throw new BusinessException("Chức năng này cần quyền Quản lý trở lên.");
     }
 
+    public bool Can(string key, string level = Perm.View) => Perm.Has(CurrentUser, key, level);
+
+    public void Require(string key, string level = Perm.Edit)
+    {
+        RequireLogin();
+        if (!Can(key, level))
+            throw new BusinessException($"Bạn chưa được cấp quyền \"{Perm.LevelLabel(level)}\" cho mục {Perm.Find(key)?.Label ?? key}. Nhờ Quản trị cấp quyền ở Hệ thống › Tài khoản.");
+    }
+
     public void RequireAdmin()
     {
         RequireLogin();

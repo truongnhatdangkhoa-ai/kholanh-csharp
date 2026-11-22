@@ -7,12 +7,15 @@ namespace KhoLanh.App.Views;
 public partial class UsersView : UserControl, IPage
 {
     public string Title => "Tài khoản";
-    public string Subtitle => "Tạo tài khoản, phân quyền, khóa tài khoản và đặt lại mật khẩu.";
+    public string Subtitle => "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
     private User _editing = new();
+    private readonly Dictionary<string, ComboBox> _permBoxes = new();
+    private bool _loading;
 
     public UsersView()
     {
         InitializeComponent();
+        BuildPermGrid();
         Load();
         Edit(new User());
     }
@@ -30,7 +33,78 @@ public partial class UsersView : UserControl, IPage
         PassPanel.IsVisible = isNew; PassBox.Text = "";
         ActiveBox.IsChecked = u.IsActive;
         ResetButton.IsVisible = !isNew;
+        _loading = true;
+        CustomBox.IsChecked = u.Role != Roles.Admin && u.Permissions.Length > 0;
+        _loading = false;
+        ShowPerms();
     }
+
+    private string SelectedRole => (RoleBox.SelectedItem as ComboBoxItem)?.Tag as string ?? Roles.Staff;
+
+    /// <summary>Bảng mục / mức quyền: mỗi màn hình một ô chọn Không / Xem / Xem + xuất file / Sửa.</summary>
+    private void BuildPermGrid()
+    {
+        var row = 0;
+        string? group = null;
+        foreach (var item in Perm.Items)
+        {
+            if (item.Group != group)
+            {
+                group = item.Group;
+                PermGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                var g = new TextBlock { Text = group.ToUpper(), Classes = { "label" }, Margin = new Avalonia.Thickness(0, row == 0 ? 0 : 8, 0, 2) };
+                Avalonia.Controls.Grid.SetRow(g, row++); Avalonia.Controls.Grid.SetColumnSpan(g, 2);
+                PermGrid.Children.Add(g);
+            }
+            PermGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            var label = new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+            if (item.Hint.Length > 0) ToolTip.SetTip(label, item.Hint);
+            var levels = new[] { Perm.None }.Concat(item.Levels).ToList();
+            var box = new ComboBox
+            {
+                ItemsSource = levels.Select(l => new ComboBoxItem { Content = Perm.LevelLabel(l), Tag = l }).ToList(),
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Avalonia.Thickness(0, 2),
+            };
+            Avalonia.Controls.Grid.SetRow(label, row); Avalonia.Controls.Grid.SetRow(box, row); Avalonia.Controls.Grid.SetColumn(box, 1);
+            row++;
+            PermGrid.Children.Add(label); PermGrid.Children.Add(box);
+            _permBoxes[item.Key] = box;
+        }
+    }
+
+    /// <summary>Hiện mức quyền: quyền riêng (nếu có) hoặc mặc định theo vai trò đang chọn.</summary>
+    private void ShowPerms()
+    {
+        var role = SelectedRole;
+        var custom = CustomBox.IsChecked == true && role != Roles.Admin;
+        CustomBox.IsEnabled = role != Roles.Admin;
+        var map = role == Roles.Admin
+            ? Perm.Effective(new User { Role = Roles.Admin })
+            : custom && _editing.Permissions.Length > 0 && _editing.Role == role
+                ? Perm.Effective(_editing)
+                : custom ? CurrentBoxes() ?? Perm.Defaults(role) : Perm.Defaults(role);
+        foreach (var (key, box) in _permBoxes)
+        {
+            var lv = map.GetValueOrDefault(key, Perm.None);
+            box.SelectedItem = box.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag! == lv);
+            box.IsEnabled = custom;
+        }
+        PermHint.Text = role == Roles.Admin ? "Quản trị luôn có toàn quyền."
+            : custom ? "Đang dùng quyền riêng — chọn mức cho từng màn hình rồi bấm Lưu."
+            : $"Đang theo quyền mặc định của vai trò {Roles.Label(role)}. Đánh dấu ô trên để chỉnh riêng.";
+    }
+
+    private Dictionary<string, string>? CurrentBoxes()
+    {
+        if (_permBoxes.Values.Any(b => b.SelectedItem is null)) return null;
+        return _permBoxes.ToDictionary(p => p.Key, p => (string)((ComboBoxItem)p.Value.SelectedItem!).Tag!);
+    }
+
+    private void OnCustomChanged(object? sender, RoutedEventArgs e) { if (!_loading) ShowPerms(); }
+    private void OnRoleChanged(object? sender, SelectionChangedEventArgs e) { if (!_loading && _permBoxes.Count > 0) ShowPerms(); }
+
+    private string PermissionsToSave() =>
+        CustomBox.IsChecked == true && SelectedRole != Roles.Admin && CurrentBoxes() is { } m ? Perm.Serialize(m) : "";
 
     private void OnSelect(object? sender, SelectionChangedEventArgs e)
     {
@@ -41,15 +115,20 @@ public partial class UsersView : UserControl, IPage
 
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
-        var role = (RoleBox.SelectedItem as ComboBoxItem)?.Tag as string ?? Roles.Staff;
+        var role = SelectedRole;
+        var perms = PermissionsToSave();
         var ok = await Ui.Run(this, () =>
         {
             if (_editing.Id == 0)
             {
-                var u = App.Services.Auth.CreateUser(UserBox.Text ?? "", NameBox.Text ?? "", PassBox.Text ?? "", role);
+                var u = App.Services.Auth.CreateUser(UserBox.Text ?? "", NameBox.Text ?? "", PassBox.Text ?? "", role, perms);
                 if (ActiveBox.IsChecked != true) App.Services.Auth.UpdateUser(u.Id, u.FullName, role, false);
             }
-            else App.Services.Auth.UpdateUser(_editing.Id, NameBox.Text ?? "", role, ActiveBox.IsChecked == true);
+            else
+            {
+                App.Services.Auth.UpdateUser(_editing.Id, NameBox.Text ?? "", role, ActiveBox.IsChecked == true);
+                App.Services.Auth.SetPermissions(_editing.Id, perms);
+            }
         });
         if (ok) { Load(); Edit(new User()); }
     }

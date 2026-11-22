@@ -20,6 +20,7 @@ public class AppServices
     public ModuleStore Modules { get; }
     public ModuleBridge Bridge { get; }
     public LegacyImporter Legacy { get; }
+    public UpdateService Updates { get; }
 
     public AppServices(string dbPath)
     {
@@ -34,6 +35,7 @@ public class AppServices
         Backup = new BackupService(Db, Session, Audit);
         Modules = new ModuleStore(Db, Session);
         Legacy = new LegacyImporter(Modules, Session);
+        Updates = new UpdateService(Settings, Session);
         Bridge = new ModuleBridge(Modules, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
         Catalog.EnsureDefaults();
     }

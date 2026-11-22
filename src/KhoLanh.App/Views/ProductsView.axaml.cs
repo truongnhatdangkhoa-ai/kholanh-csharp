@@ -16,7 +16,7 @@ public partial class ProductsView : UserControl, IPage
     public ProductsView()
     {
         InitializeComponent();
-        var canEdit = Roles.CanManage(App.Services.Session.Role);
+        var canEdit = App.Services.Session.Can("products", Perm.Edit);
         SaveButton.IsVisible = DeleteButton.IsVisible = NewButton.IsVisible = ImportButton.IsVisible = canEdit;
         ReadOnlyText.IsVisible = !canEdit;
         SearchBox.KeyDown += (_, e) => { if (e.Key == Key.Enter) Load(); };

@@ -1,13 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.UsersView">
-  <Grid ColumnDefinitions="*,360" ColumnSpacing="16">
+  <Grid ColumnDefinitions="*,460" ColumnSpacing="16">
     <DockPanel>
       <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,14">
         <StackPanel Orientation="Horizontal" Spacing="10">
           <Button Content="+ Tài khoản mới" Classes="primary" Click="OnNew"/>
           <TextBlock Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap"
-                     Text="Quản trị: toàn quyền · Quản lý: sửa danh mục, hủy phiếu, sao lưu · Nhân viên: lập phiếu, xem tồn và báo cáo."/>
+                     Text="Vai trò cho quyền mặc định (Quản trị: toàn quyền · Quản lý: sửa mọi mục trừ tài khoản · Nhân viên: lập phiếu, xem tồn, xem + xuất file 2 module). Có thể chỉnh quyền riêng tới từng màn hình ở khung bên phải."/>
         </StackPanel>
       </Border>
       <DataGrid x:Name="Grid" SelectionChanged="OnSelect">
@@ -20,12 +20,13 @@
       </DataGrid>
     </DockPanel>
     <Border Grid.Column="1" Classes="card">
+      <ScrollViewer>
       <StackPanel Spacing="4">
         <TextBlock x:Name="FormTitle" Text="Tài khoản mới" Classes="section"/>
         <TextBlock Text="Tên đăng nhập *" Classes="label"/><TextBox x:Name="UserBox"/>
         <TextBlock Text="Họ tên" Classes="label"/><TextBox x:Name="NameBox"/>
         <TextBlock Text="Vai trò" Classes="label"/>
-        <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch">
+        <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" SelectionChanged="OnRoleChanged">
           <ComboBoxItem Content="Nhân viên" Tag="staff"/>
           <ComboBoxItem Content="Quản lý" Tag="manager"/>
           <ComboBoxItem Content="Quản trị" Tag="admin"/>
@@ -34,11 +35,16 @@
           <TextBlock Text="Mật khẩu * (ít nhất 6 ký tự)" Classes="label" Margin="0,4,0,3"/><TextBox x:Name="PassBox" PasswordChar="•"/>
         </StackPanel>
         <CheckBox x:Name="ActiveBox" Content="Đang dùng (bỏ chọn để khóa)" IsChecked="True" Margin="0,6,0,0"/>
+        <TextBlock Text="Phân quyền" Classes="section" Margin="0,14,0,0"/>
+        <CheckBox x:Name="CustomBox" Content="Chỉnh quyền riêng cho tài khoản này" IsCheckedChanged="OnCustomChanged"/>
+        <TextBlock x:Name="PermHint" Classes="muted" TextWrapping="Wrap" FontSize="12"/>
+        <Grid x:Name="PermGrid" ColumnDefinitions="*,190" Margin="0,4,0,0"/>
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
           <Button Content="Lưu" Classes="primary" Click="OnSave"/>
           <Button x:Name="ResetButton" Content="Đặt lại mật khẩu" Click="OnReset"/>
         </StackPanel>
       </StackPanel>
+      </ScrollViewer>
     </Border>
   </Grid>
 </UserControl>

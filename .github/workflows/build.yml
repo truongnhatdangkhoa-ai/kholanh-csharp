@@ -20,20 +20,25 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Kiểm thử
         run: dotnet test tests/KhoLanh.Core.Tests -c Release
-      - name: Đóng gói Windows (1 file .exe, không cần cài .NET)
-        run: >
-          dotnet publish src/KhoLanh.App -c Release -r win-x64 --self-contained true
-          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:DebugType=none -o publish/win-x64
+      - name: Đóng gói Windows (1 file .exe nén, không cần cài .NET)
+        run: |
+          dotnet publish src/KhoLanh.App -c Release -r win-x64 --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish/win-x64
+          cd publish/win-x64 && sha256sum KhoLanh.exe | cut -d' ' -f1 > KhoLanh.exe.sha256 && cat KhoLanh.exe.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: KhoLanh-win-x64
-          path: publish/win-x64/KhoLanh.exe
-      - name: Đính kèm vào bản phát hành (khi gắn tag v*)
+          path: |
+            publish/win-x64/KhoLanh.exe
+            publish/win-x64/KhoLanh.exe.sha256
+      - name: Phát hành (khi gắn tag v*) — app tự cập nhật lấy KhoLanh.exe + KhoLanh.exe.sha256 từ đây
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: publish/win-x64/KhoLanh.exe
+          files: |
+            publish/win-x64/KhoLanh.exe
+            publish/win-x64/KhoLanh.exe.sha256
 
   tu-kiem-windows:
     # Mở thật 2 module gốc trong WebView2 trên Windows, kiểm tra cầu nối dữ liệu + thư viện Excel.
@@ -51,3 +56,16 @@ jobs:
           $p = Start-Process -FilePath publish\KhoLanh.exe -ArgumentList '--tu-kiem-module', "$PWD\kq.json" -Wait -PassThru
           if (Test-Path kq.json) { Get-Content kq.json } else { Write-Host 'Không có kq.json' }
           if ($p.ExitCode -ne 0) { throw "Tự kiểm tra lỗi (mã $($p.ExitCode))" }
+      - name: Tự kiểm tra thay exe khi cập nhật
+        shell: pwsh
+        run: |
+          $t = "$env:RUNNER_TEMP\capnhat"; New-Item -ItemType Directory -Force $t | Out-Null
+          Copy-Item publish\KhoLanh.exe "$t\KhoLanh.exe"; Copy-Item publish\KhoLanh.exe "$t\KhoLanh.exe.moi"
+          '{"version":"99.0.0"}' | Set-Content "$t\KhoLanh.exe.moi.json"
+          $env:KHOLANH_DATA = "$t\data"; $env:KHOLANH_TU_KIEM_THOAT = "1"
+          Start-Process -FilePath "$t\KhoLanh.exe" -Wait
+          for ($i = 0; $i -lt 60 -and -not (Test-Path "$t\data\da-cap-nhat.txt"); $i++) { Start-Sleep -Seconds 1 }
+          Get-ChildItem $t | Format-Table Name, Length
+          if (-not (Test-Path "$t\data\da-cap-nhat.txt")) { throw 'Bản mới không được mở lại' }
+          if (-not (Test-Path "$t\KhoLanh.exe.cu")) { throw 'Không giữ bản cũ (.cu)' }
+          if (Test-Path "$t\KhoLanh.exe.moi") { throw 'Bản chờ (.moi) chưa được đưa vào chỗ' }

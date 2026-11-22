@@ -37,6 +37,6 @@
     listSheets: function (dbKey) { return call('listSheets', [dbKey]); },
     logError: function (rec) { return call('logError', [rec || {}]); }
   };
-  window.authAPI = { state: function () { return call('authState', []); } };
+  window.authAPI = { state: function () { return call('authState', [location.pathname]); } };
   window.__klCSharp = true;
 })();

@@ -35,7 +35,7 @@ public partial class VoucherDetailWindow : Window
         CancelText.Text = v.Cancelled ? $"ĐÃ HỦY: {v.CancelReason}" : "";
         TotalText.Text = $"{lines.Count} dòng · {Ui.Num(lines.Sum(l => l.Quantity))} đơn vị · {Ui.Num(lines.Sum(l => l.Weight))} kg";
         LinesGrid.ItemsSource = lines;
-        CancelButton.IsVisible = !v.Cancelled && Roles.CanManage(App.Services.Session.Role);
+        CancelButton.IsVisible = !v.Cancelled && App.Services.Session.Can("cancel", Perm.Edit);
     }
 
     public static async Task<bool> Open(Visual owner, long id)

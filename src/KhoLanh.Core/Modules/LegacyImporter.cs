@@ -27,7 +27,7 @@ public class LegacyImporter
 
     public Result Import(string oldDbPath)
     {
-        _session.RequireManager();
+        _session.Require("backup");
         if (!File.Exists(oldDbPath)) throw new BusinessException("Không tìm thấy file database của app cũ.");
         var cs = new SqliteConnectionStringBuilder { DataSource = oldDbPath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString();
         var byKey = new Dictionary<string, Dictionary<string, JsonArray?>>();

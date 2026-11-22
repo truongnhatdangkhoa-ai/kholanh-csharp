@@ -20,7 +20,10 @@ public partial class MainWindow : Window
     public event Action? LoggedOut;
     public bool IsLoggingOut { get; private set; }
 
-    private record NavItem(string Key, string Label, Func<Control> Create, Func<string, bool> Allowed);
+    private record NavItem(string Key, string Label, Func<Control> Create);
+
+    /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
+    private static bool Allowed(NavItem i) => i.Key == "users" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -41,46 +44,45 @@ public partial class MainWindow : Window
         VersionText.Text = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
         WarehouseText.Text = s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho");
 
-        static bool Any(string _) => true;
         _menu = new()
         {
-            ("TỔNG QUAN", new[] { new NavItem("dash", "Tổng quan", () => new DashboardView(), Any) }),
+            ("TỔNG QUAN", new[] { new NavItem("dash", "Tổng quan", () => new DashboardView()) }),
             ("NGHIỆP VỤ", new[]
             {
-                new NavItem("in", "Phiếu nhập", () => new VoucherEditView(VoucherTypes.In), Any),
-                new NavItem("out", "Phiếu xuất", () => new VoucherEditView(VoucherTypes.Out), Any),
-                new NavItem("list", "Danh sách phiếu", () => new VoucherListView(), Any),
+                new NavItem("in", "Phiếu nhập", () => new VoucherEditView(VoucherTypes.In)),
+                new NavItem("out", "Phiếu xuất", () => new VoucherEditView(VoucherTypes.Out)),
+                new NavItem("list", "Danh sách phiếu", () => new VoucherListView()),
             }),
             ("KHO", new[]
             {
-                new NavItem("stock", "Tồn kho", () => new StockView(), Any),
-                new NavItem("ledger", "Sổ kho", () => new LedgerView(), Any),
-                new NavItem("nxt", "Báo cáo NXT", () => new ReportView(), Any),
+                new NavItem("stock", "Tồn kho", () => new StockView()),
+                new NavItem("ledger", "Sổ kho", () => new LedgerView()),
+                new NavItem("nxt", "Báo cáo NXT", () => new ReportView()),
             }),
             ("TỒN KHO GỐC", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => Module("m1", "ton-kho-an-an.html", "Tồn kho An An",
-                    "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ."), Any),
+                    "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ.")),
                 new NavItem("m2", "Tồn kho gửi", () => Module("m2", "ton-kho-gui.html", "Tồn kho gửi",
-                    "Nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính — chạy nguyên mã module của app cũ."), Any),
+                    "Nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính — chạy nguyên mã module của app cũ.")),
             }),
             ("DANH MỤC", new[]
             {
-                new NavItem("products", "Mã hàng", () => new ProductsView(), Any),
-                new NavItem("owners", "Chủ hàng", () => new OwnersView(), Any),
+                new NavItem("products", "Mã hàng", () => new ProductsView()),
+                new NavItem("owners", "Chủ hàng", () => new OwnersView()),
             }),
             ("HỆ THỐNG", new[]
             {
-                new NavItem("users", "Tài khoản", () => new UsersView(), Roles.IsAdmin),
-                new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView(), Roles.CanManage),
-                new NavItem("audit", "Nhật ký thao tác", () => new AuditView(), Roles.CanManage),
+                new NavItem("users", "Tài khoản", () => new UsersView()),
+                new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
+                new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
             }),
         };
         // Menu ngang: nhóm có 1 mục là nút thẳng; nhóm nhiều mục (Danh mục, Hệ thống) là nút thả xuống.
         // Nhóm NGHIỆP VỤ và KHO được trải phẳng vì dùng nhiều nhất.
         foreach (var (group, items) in _menu)
         {
-            var visible = items.Where(i => i.Allowed(u.Role)).ToList();
+            var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
             var flat = group is "TỔNG QUAN" or "NGHIỆP VỤ" or "KHO" or "TỒN KHO GỐC";
             if (flat)
@@ -116,7 +118,30 @@ public partial class MainWindow : Window
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
         UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
         KeyDown += OnKeyDown;
-        Navigate("dash");
+        // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
+        AppUpdater.Ready += OnUpdateReady;
+        Closed += (_, _) => AppUpdater.Ready -= OnUpdateReady;
+        if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
+        if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
+        Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "dash");
+    }
+
+    private static bool _autoStarted;
+
+    private void OnUpdateReady(Version v) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        UpdateButton.Content = $"⬆ Cập nhật {v}";
+        ToolTip.SetTip(UpdateButton, $"Đã tải xong bản {v}. Bấm để dùng ngay (app tự mở lại, dữ liệu giữ nguyên).");
+        UpdateButton.IsVisible = true;
+    });
+
+    private async void OnUpdateClick(object? sender, RoutedEventArgs e)
+    {
+        var v = AppUpdater.StagedVersion;
+        if (v is null) { UpdateButton.IsVisible = false; return; }
+        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu phiếu đang lập dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
+            (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
     }
 
     private static string GroupLabel(string group) =>
@@ -135,7 +160,7 @@ public partial class MainWindow : Window
     {
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
-        if (!item.Allowed(App.Services.Session.Role)) return;
+        if (!Allowed(item)) return;
         page ??= item.Create();
         if (page is ModuleView mv)
         {

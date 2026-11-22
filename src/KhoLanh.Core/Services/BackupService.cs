@@ -48,7 +48,7 @@ public class BackupService
 
     public string ManualBackup(string targetPath)
     {
-        _session.RequireManager();
+        _session.Require("backup");
         BackupTo(targetPath);
         _audit.Log(_session.Username, "Sao lưu", targetPath);
         return targetPath;

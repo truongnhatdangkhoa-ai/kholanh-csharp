@@ -110,15 +110,24 @@ public class ModuleBridge
         _store = store; _session = session; _logFolder = logFolder;
     }
 
-    /// <summary>Vai trò app mới → vai trò app cũ (kla-role.js): admin = quantri, manager = quanly, staff = xuat (xem + xuất file).</summary>
-    public static string OldRole(string role) => role switch
+    /// <summary>Mục phân quyền tương ứng database / trang của module.</summary>
+    public static string? PermKey(string dbKeyOrPage) => dbKeyOrPage switch
     {
-        Roles.Admin => "quantri",
-        Roles.Manager => "quanly",
-        _ => "xuat",
+        var x when x.Contains("ton-kho-an-an") => "m1",
+        var x when x.Contains("ton-kho-gui") => "m2",
+        _ => null,
     };
 
-    public bool CanWrite => _session.CurrentUser is not null && Roles.CanManage(_session.Role);
+    /// <summary>Mức quyền app mới → vai trò app cũ (kla-role.js): sửa = quanly (Quản trị = quantri), xem + xuất = xuat, xem = xem.</summary>
+    public static string OldRole(string role, string level) =>
+        role == Roles.Admin ? "quantri" : level switch { Perm.Edit => "quanly", Perm.Export => "xuat", _ => "xem" };
+
+    /// <summary>Ghi vào database của module cần quyền Sửa của đúng module đó; database khác chỉ Quản trị.</summary>
+    public bool CanWrite(string dbKey) =>
+        _session.CurrentUser is not null &&
+        (PermKey(dbKey) is { } k ? _session.Can(k, Perm.Edit) : Roles.IsAdmin(_session.Role));
+
+    private bool CanRead => _session.Can("m1") || _session.Can("m2");
 
     /// <summary>Xử lý một yêu cầu: chuỗi JSON {op, args:[...]} → chuỗi JSON kết quả. Không bao giờ ném lỗi ra ngoài.</summary>
     public string Handle(string requestJson)
@@ -133,6 +142,7 @@ public class ModuleBridge
             {
                 case "readSheet":
                 {
+                    if (!CanRead) throw new BusinessException("Bạn chưa được cấp quyền xem module này.");
                     var key = S(0); var sheet = S(1);
                     var json = _store.ReadSheetJson(key, sheet);
                     if (key == "ton-kho-an-an" && sheet == "LoadData") json = StripTpcRows(json);
@@ -140,14 +150,14 @@ public class ModuleBridge
                 }
                 case "writeSheet":
                 {
-                    RequireWrite();
+                    RequireWrite(S(0));
                     var rows = args.Count > 2 ? args[2] as JsonArray : null;
                     _store.WriteSheets(S(0), new Dictionary<string, JsonArray?> { [S(1)] = rows?.DeepClone().AsArray() ?? new JsonArray() });
                     return "{\"ok\":true,\"ignored\":0}";
                 }
                 case "writeSheets":
                 {
-                    RequireWrite();
+                    RequireWrite(S(0));
                     var map = new Dictionary<string, JsonArray?>();
                     if (args.Count > 1 && args[1] is JsonObject o)
                         foreach (var (name, node) in o)
@@ -169,12 +179,13 @@ public class ModuleBridge
                 {
                     var u = _session.CurrentUser;
                     if (u is null) return "{\"ok\":true,\"user\":null}";
+                    var level = PermKey(S(0)) is { } pk ? Perm.Level(u, pk) : Perm.View;
                     var user = new JsonObject
                     {
                         ["ten"] = u.Username,
                         ["tenHienThi"] = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName,
-                        ["vaiTro"] = OldRole(u.Role),
-                        ["canWrite"] = CanWrite,
+                        ["vaiTro"] = OldRole(u.Role, level),
+                        ["canWrite"] = level == Perm.Edit,
                         ["pc"] = null,
                     };
                     return new JsonObject { ["ok"] = true, ["user"] = user }.ToJsonString(Json.Options);
@@ -187,9 +198,9 @@ public class ModuleBridge
         catch (Exception e) { WriteLog("bridge: " + e); return Error(e.Message); }
     }
 
-    private void RequireWrite()
+    private void RequireWrite(string dbKey)
     {
-        if (!CanWrite) throw new BusinessException("Bạn không được cấp quyền ghi dữ liệu (cần vai trò Quản lý trở lên).");
+        if (!CanWrite(dbKey)) throw new BusinessException("Bạn không được cấp quyền sửa dữ liệu module này (cần mức \"Sửa\" trong phân quyền tài khoản).");
     }
 
     private static string Error(string msg) =>

@@ -29,6 +29,19 @@ public partial class App : Application
             {
                 InitServices(Environment.GetEnvironmentVariable("KHOLANH_DATA") is { Length: > 0 } custom
                     ? custom : Database.DefaultDataFolder);
+                // Bản mới đã tải ngầm từ lần trước → áp dụng ngay trước khi hiện cửa sổ (không cần cài lại).
+                AppUpdater.Cleanup();
+                if (Array.IndexOf(Program.Args, "--da-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
+                {
+                    // Chỉ dùng cho kiểm thử tự động: xác nhận bản mới đã được mở lại sau khi thay exe.
+                    File.WriteAllText(Path.Combine(DataFolder, "da-cap-nhat.txt"), Environment.ProcessPath ?? "");
+                    desktop.Shutdown(); base.OnFrameworkInitializationCompleted(); return;
+                }
+                if (OperatingSystem.IsWindows() && AppUpdater.StagedVersion is not null && Services.Updates.Auto)
+                {
+                    try { if (AppUpdater.ApplyAndRestart()) { desktop.Shutdown(); base.OnFrameworkInitializationCompleted(); return; } }
+                    catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
+                }
                 try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
                 ShowLogin(desktop);
             }

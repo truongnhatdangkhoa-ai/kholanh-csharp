@@ -42,7 +42,7 @@ public class CatalogService
 
     public Product SaveProduct(Product p)
     {
-        _session.RequireManager();
+        _session.Require("products");
         p.Code = p.Code.Trim().ToUpperInvariant();
         p.Name = p.Name.Trim();
         if (p.Code.Length == 0) throw new BusinessException("Chưa nhập mã hàng.");
@@ -77,7 +77,7 @@ public class CatalogService
     /// <summary>Xóa mã hàng chưa phát sinh phiếu; đã có phiếu thì chỉ ngừng dùng.</summary>
     public string DeleteProduct(long id)
     {
-        _session.RequireManager();
+        _session.Require("products");
         using var c = _db.Open();
         var p = c.QuerySingleOrDefault<Product>("SELECT * FROM products WHERE id=@id", new { id })
                 ?? throw new BusinessException("Không tìm thấy mã hàng.");
@@ -100,7 +100,7 @@ public class CatalogService
     /// </summary>
     public (int added, int updated, List<string> errors) ImportProducts(string xlsxPath)
     {
-        _session.RequireManager();
+        _session.Require("products");
         var errors = new List<string>();
         int added = 0, updated = 0;
         using var wb = new XLWorkbook(xlsxPath);
@@ -163,7 +163,7 @@ public class CatalogService
 
     public Owner SaveOwner(Owner o)
     {
-        _session.RequireManager();
+        _session.Require("owners");
         o.Code = o.Code.Trim().ToUpperInvariant();
         o.Name = o.Name.Trim();
         if (o.Code.Length == 0) throw new BusinessException("Chưa nhập mã chủ hàng.");
@@ -187,7 +187,7 @@ public class CatalogService
 
     public string DeleteOwner(long id)
     {
-        _session.RequireManager();
+        _session.Require("owners");
         using var c = _db.Open();
         var o = c.QuerySingleOrDefault<Owner>("SELECT * FROM owners WHERE id=@id", new { id })
                 ?? throw new BusinessException("Không tìm thấy chủ hàng.");

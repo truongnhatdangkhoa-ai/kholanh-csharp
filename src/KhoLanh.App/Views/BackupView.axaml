@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.BackupView">
   <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-    <StackPanel Spacing="16">
+    <ScrollViewer>
+    <StackPanel Spacing="16" Margin="0,0,6,0">
       <Border Classes="card">
         <StackPanel Spacing="4">
           <TextBlock Text="Thông tin in trên phiếu" Classes="section"/>
@@ -24,6 +25,26 @@
         </StackPanel>
       </Border>
       <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Cập nhật phần mềm (online)" Classes="section"/>
+          <TextBlock x:Name="UpdVersionText" TextWrapping="Wrap"/>
+          <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                     Text="Phần mềm tự hỏi GitHub lúc mở và mỗi 30 phút, tải ngầm bản mới; bấm nút Cập nhật trên thanh menu (hoặc mở lại phần mềm) là dùng bản mới. Không cần cài lại, dữ liệu giữ nguyên, giữ bản trước để quay lại."/>
+          <StackPanel x:Name="UpdConfigPanel" Spacing="4">
+            <TextBlock Text="Kho GitHub" Classes="label"/><TextBox x:Name="UpdRepoBox"/>
+            <TextBlock Text="Mã truy cập GitHub (token chỉ-đọc, cần khi kho riêng tư)" Classes="label"/>
+            <TextBox x:Name="UpdTokenBox" PasswordChar="•" Watermark="Để trống = giữ mã đã lưu"/>
+            <CheckBox x:Name="UpdAutoBox" Content="Tự động kiểm tra và tải bản mới"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+            <Button x:Name="UpdSaveButton" Content="Lưu" Click="OnUpdSave"/>
+            <Button Content="Kiểm tra cập nhật" Classes="primary" Click="OnUpdCheck"/>
+            <Button x:Name="UpdRollbackButton" Content="Quay lại bản trước" Click="OnUpdRollback"/>
+          </StackPanel>
+          <TextBlock x:Name="UpdStatus" Classes="muted" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="Chép dữ liệu Tồn kho An An / Tồn kho gửi từ app cũ" Classes="section"/>
           <TextBlock Classes="muted" TextWrapping="Wrap"
@@ -34,6 +55,7 @@
         </StackPanel>
       </Border>
     </StackPanel>
+    </ScrollViewer>
     <Border Grid.Column="1" Classes="card">
       <DockPanel>
         <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">

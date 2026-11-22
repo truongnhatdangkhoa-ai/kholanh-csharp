@@ -31,7 +31,9 @@ public class User
     public string Salt { get; set; } = "";
     public string Role { get; set; } = Roles.Staff;
     public bool IsActive { get; set; } = true;
-    public string RoleLabel => Roles.Label(Role);
+    /// <summary>Quyền chỉnh riêng (JSON {mục: mức}); rỗng = theo vai trò.</summary>
+    public string Permissions { get; set; } = "";
+    public string RoleLabel => Roles.Label(Role) + (Role != Roles.Admin && Permissions.Length > 0 ? " (riêng)" : "");
     public string StatusLabel => IsActive ? "Đang dùng" : "Đã khóa";
 }
 
