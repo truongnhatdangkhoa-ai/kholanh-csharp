@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KhoLanh.App.MainWindow"
+        Title="Kho Lạnh" Width="1360" Height="820" MinWidth="1024" MinHeight="640"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized" Icon="/Assets/app.ico"
+        Background="{StaticResource PageBg}">
+  <DockPanel>
+    <!-- Thanh menu ngang -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource BrandDark}" Padding="14,0">
+      <Grid ColumnDefinitions="Auto,*,Auto" Height="54">
+        <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center" Margin="0,0,18,0">
+          <Image Source="/Assets/logo.png" Width="30" Height="30"/>
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="KHO LẠNH" Foreground="White" FontWeight="Bold" FontSize="16"/>
+            <TextBlock x:Name="WarehouseText" Foreground="#7FA3C0" FontSize="10.5"/>
+          </StackPanel>
+        </StackPanel>
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" VerticalAlignment="Center">
+          <StackPanel x:Name="NavPanel" Orientation="Horizontal" Spacing="2"/>
+        </ScrollViewer>
+        <Button Grid.Column="2" x:Name="UserButton" Classes="topnav" VerticalAlignment="Center" Margin="12,0,0,0">
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem x:Name="UserInfo" IsEnabled="False"/>
+              <Separator/>
+              <MenuItem Header="Đổi mật khẩu" Click="OnChangePassword"/>
+              <Separator/>
+              <MenuItem Header="Đăng xuất" Click="OnLogout"/>
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- Tiêu đề trang -->
+    <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="20,8">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock x:Name="PageTitle" Classes="title" FontSize="18" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" x:Name="PageSubtitle" Classes="muted" VerticalAlignment="Center" Margin="16,2,0,0" TextTrimming="CharacterEllipsis"/>
+        <TextBlock Grid.Column="2" x:Name="VersionText" Classes="muted" FontSize="11" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <ContentControl x:Name="PageHost" Margin="16"/>
+  </DockPanel>
+</Window>

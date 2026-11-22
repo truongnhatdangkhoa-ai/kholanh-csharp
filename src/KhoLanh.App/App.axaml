@@ -1,0 +1,23 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KhoLanh.App.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <SolidColorBrush x:Key="BrandDark">#0B2A45</SolidColorBrush>
+    <SolidColorBrush x:Key="BrandMid">#134B73</SolidColorBrush>
+    <SolidColorBrush x:Key="Accent">#1F8FD1</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentSoft">#E3F2FB</SolidColorBrush>
+    <SolidColorBrush x:Key="PageBg">#F3F6F9</SolidColorBrush>
+    <SolidColorBrush x:Key="CardBg">#FFFFFF</SolidColorBrush>
+    <SolidColorBrush x:Key="Border">#D9E2EA</SolidColorBrush>
+    <SolidColorBrush x:Key="Muted">#5D6B78</SolidColorBrush>
+    <SolidColorBrush x:Key="InColor">#1E8E3E</SolidColorBrush>
+    <SolidColorBrush x:Key="OutColor">#C2410C</SolidColorBrush>
+    <SolidColorBrush x:Key="Danger">#B42318</SolidColorBrush>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+    <StyleInclude Source="avares://KhoLanh/Styles.axaml"/>
+  </Application.Styles>
+</Application>

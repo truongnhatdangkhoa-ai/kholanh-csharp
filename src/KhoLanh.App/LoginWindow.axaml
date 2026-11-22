@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="KhoLanh.App.LoginWindow"
+        Title="Kho Lạnh - Đăng nhập" Width="820" Height="500" CanResize="False"
+        WindowStartupLocation="CenterScreen" Icon="/Assets/app.ico">
+  <Grid ColumnDefinitions="340,*">
+    <Border Background="{StaticResource BrandDark}">
+      <StackPanel VerticalAlignment="Center" Margin="36" Spacing="14">
+        <Image Source="/Assets/logo.png" Width="96" Height="96" HorizontalAlignment="Left"/>
+        <TextBlock Text="KHO LẠNH" FontSize="30" FontWeight="Bold" Foreground="White"/>
+        <TextBlock Text="Quản lý nhập, xuất, tồn kho lạnh theo mã hàng, size, lô và vị trí."
+                   Foreground="#B9D3E8" TextWrapping="Wrap" FontSize="14"/>
+        <TextBlock x:Name="VersionText" Foreground="#7FA3C0" FontSize="12" Margin="0,24,0,0"/>
+      </StackPanel>
+    </Border>
+    <Border Grid.Column="1" Background="White" Padding="48,0">
+      <StackPanel VerticalAlignment="Center" Spacing="6">
+        <TextBlock x:Name="Heading" Text="Đăng nhập" Classes="title"/>
+        <TextBlock x:Name="SubHeading" Classes="muted" TextWrapping="Wrap" Margin="0,0,0,16"
+                   Text="Nhập tài khoản được cấp để vào phần mềm."/>
+        <StackPanel x:Name="FullNamePanel" IsVisible="False" Spacing="3">
+          <TextBlock Text="Họ tên" Classes="label"/>
+          <TextBox x:Name="FullNameBox" Watermark="Ví dụ: Nguyễn Văn A"/>
+        </StackPanel>
+        <TextBlock Text="Tên đăng nhập" Classes="label" Margin="0,6,0,3"/>
+        <TextBox x:Name="UserBox" Watermark="admin"/>
+        <TextBlock Text="Mật khẩu" Classes="label" Margin="0,6,0,3"/>
+        <TextBox x:Name="PassBox" PasswordChar="•"/>
+        <StackPanel x:Name="ConfirmPanel" IsVisible="False">
+          <TextBlock Text="Nhập lại mật khẩu" Classes="label" Margin="0,6,0,3"/>
+          <TextBox x:Name="Pass2Box" PasswordChar="•"/>
+        </StackPanel>
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource Danger}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+        <Button x:Name="LoginButton" Content="Đăng nhập" Classes="primary" IsDefault="True"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,10,0,0" Click="OnLogin"/>
+        <TextBlock x:Name="DataPathText" Classes="muted" FontSize="11" TextWrapping="Wrap" Margin="0,14,0,0"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

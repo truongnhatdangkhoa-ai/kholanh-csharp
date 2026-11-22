@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KhoLanh.App.Views.LedgerView">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,14">
+      <WrapPanel ItemSpacing="10" LineSpacing="8">
+        <StackPanel><TextBlock Text="Mã hàng" Classes="label"/><AutoCompleteBox x:Name="ProductBox" Width="280" FilterMode="Custom" MinimumPrefixLength="0" Watermark="Tất cả mã hàng"/></StackPanel>
+        <StackPanel><TextBlock Text="Chủ hàng" Classes="label"/><ComboBox x:Name="OwnerBox" Width="200" DisplayMemberBinding="{Binding Display}"/></StackPanel>
+        <StackPanel><TextBlock Text="Lô" Classes="label"/><TextBox x:Name="LotBox" Width="130"/></StackPanel>
+        <StackPanel><TextBlock Text="Từ ngày" Classes="label"/><CalendarDatePicker x:Name="FromBox" Width="140" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy"/></StackPanel>
+        <StackPanel><TextBlock Text="Đến ngày" Classes="label"/><CalendarDatePicker x:Name="ToBox" Width="140" SelectedDateFormat="Custom" CustomDateFormatString="dd/MM/yyyy"/></StackPanel>
+        <Button Content="Xem sổ" Classes="primary" Click="OnFilter" VerticalAlignment="Bottom"/>
+        <Button Content="Xuất Excel" Click="OnExport" VerticalAlignment="Bottom"/>
+      </WrapPanel>
+    </Border>
+    <TextBlock DockPanel.Dock="Top" x:Name="OpenText" FontWeight="SemiBold" Foreground="{StaticResource BrandMid}" Margin="2,0,0,8"/>
+    <TextBlock DockPanel.Dock="Bottom" x:Name="SummaryText" Classes="muted" Margin="0,8,0,0"/>
+    <DataGrid x:Name="Grid">
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Ngày" Binding="{Binding Date, StringFormat='dd/MM/yyyy'}" Width="110"/>
+        <DataGridTextColumn Header="Số phiếu" Binding="{Binding VoucherNo}" Width="140"/>
+        <DataGridTextColumn Header="Loại" Binding="{Binding TypeLabel}" Width="60"/>
+        <DataGridTextColumn Header="Mã hàng" Binding="{Binding ProductCode}" Width="100"/>
+        <DataGridTextColumn Header="Size" Binding="{Binding Size}" Width="80"/>
+        <DataGridTextColumn Header="Lô" Binding="{Binding Lot}" Width="100"/>
+        <DataGridTextColumn Header="Vị trí" Binding="{Binding Location}" Width="70"/>
+        <DataGridTextColumn Header="Chủ hàng" Binding="{Binding OwnerName}" Width="130"/>
+        <DataGridTextColumn Header="Giao / nhận" Binding="{Binding Partner}" Width="*"/>
+        <DataGridTextColumn Header="Nhập" Binding="{Binding InQuantity, StringFormat='#,0.##;-#,0.##;'}" Width="80"/>
+        <DataGridTextColumn Header="Xuất" Binding="{Binding OutQuantity, StringFormat='#,0.##;-#,0.##;'}" Width="80"/>
+        <DataGridTextColumn Header="Tồn" Binding="{Binding BalanceQuantity, StringFormat='#,0.##'}" Width="85"/>
+        <DataGridTextColumn Header="Tồn kg" Binding="{Binding BalanceWeight, StringFormat='#,0.##'}" Width="95"/>
+      </DataGrid.Columns>
+    </DataGrid>
+  </DockPanel>
+</UserControl>

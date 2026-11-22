@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KhoLanh.App.Views.DashboardView">
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+    <UniformGrid Columns="4" x:Name="Kpis">
+      <Border Classes="card" Margin="0,0,12,0">
+        <StackPanel><TextBlock Text="Tổng tồn (đơn vị)" Classes="muted"/><TextBlock x:Name="TotalQty" Classes="kpi"/><TextBlock x:Name="TotalKg" Classes="muted"/></StackPanel>
+      </Border>
+      <Border Classes="card" Margin="0,0,12,0">
+        <StackPanel><TextBlock Text="Nhập hôm nay" Classes="muted"/><TextBlock x:Name="InToday" Classes="kpi" Foreground="{StaticResource InColor}"/><TextBlock x:Name="InTodayQty" Classes="muted"/></StackPanel>
+      </Border>
+      <Border Classes="card" Margin="0,0,12,0">
+        <StackPanel><TextBlock Text="Xuất hôm nay" Classes="muted"/><TextBlock x:Name="OutToday" Classes="kpi" Foreground="{StaticResource OutColor}"/><TextBlock x:Name="OutTodayQty" Classes="muted"/></StackPanel>
+      </Border>
+      <Border Classes="card">
+        <StackPanel><TextBlock Text="Danh mục" Classes="muted"/><TextBlock x:Name="Products" Classes="kpi"/><TextBlock x:Name="Owners" Classes="muted"/></StackPanel>
+      </Border>
+    </UniformGrid>
+
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10">
+      <Button Content="+ Lập phiếu nhập (F2)" Classes="primary" Click="OnNewIn"/>
+      <Button Content="+ Lập phiếu xuất (F3)" Classes="primary" Click="OnNewOut"/>
+      <Button Content="Xem tồn kho (F4)" Click="OnStock"/>
+      <Button Content="Báo cáo hôm nay" Click="OnReport"/>
+      <Button Content="↻ Làm mới" Click="OnRefresh"/>
+    </StackPanel>
+
+    <Grid Grid.Row="2" ColumnDefinitions="3*,2*" ColumnSpacing="16">
+      <Border Classes="card">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Phiếu gần đây" Classes="section"/>
+          <DataGrid x:Name="RecentGrid" DoubleTapped="OnRecentOpen">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Số phiếu" Binding="{Binding No}" Width="140"/>
+              <DataGridTextColumn Header="Loại" Binding="{Binding TypeLabel}" Width="65"/>
+              <DataGridTextColumn Header="Ngày" Binding="{Binding Date, StringFormat='dd/MM/yyyy'}" Width="110"/>
+              <DataGridTextColumn Header="Chủ hàng" Binding="{Binding OwnerName}" Width="*" MinWidth="140"/>
+              <DataGridTextColumn Header="Số lượng" Binding="{Binding TotalQuantity, StringFormat='#,0.##'}" Width="105"/>
+              <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusLabel}" Width="115"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+      <Border Grid.Column="1" Classes="card">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Cảnh báo tồn thấp" Classes="section"/>
+          <TextBlock DockPanel.Dock="Top" x:Name="LowEmpty" Classes="muted" TextWrapping="Wrap"
+                     Text="Không có mã hàng nào dưới mức tồn tối thiểu. (Đặt mức tối thiểu ở Danh mục › Mã hàng.)"/>
+          <DataGrid x:Name="LowGrid">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Mã hàng" Binding="{Binding ProductCode}" Width="110"/>
+              <DataGridTextColumn Header="Tên hàng" Binding="{Binding ProductName}" Width="*"/>
+              <DataGridTextColumn Header="Tồn" Binding="{Binding Quantity, StringFormat='#,0.##'}" Width="80"/>
+              <DataGridTextColumn Header="Tối thiểu" Binding="{Binding MinStock, StringFormat='#,0.##'}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </DockPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>
