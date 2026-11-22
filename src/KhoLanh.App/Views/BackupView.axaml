@@ -45,6 +45,27 @@
         </StackPanel>
       </Border>
       <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Tài khoản dùng chung cho mọi máy (Google Sheet)" Classes="section"/>
+          <TextBlock x:Name="AcctStatus" TextWrapping="Wrap"/>
+          <StackPanel x:Name="AcctSetupPanel" Spacing="6">
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                       Text="Máy quản trị, lần đầu: (1) bấm Tạo mã Apps Script, mã được chép sẵn; (2) tạo một Google Sheet trống › Tiện ích mở rộng › Apps Script, xóa hết, dán (Ctrl+V), bấm Lưu; (3) Triển khai › Tùy chọn triển khai mới › loại Ứng dụng web, Thực thi với tư cách: Tôi, Ai có quyền truy cập: Bất kỳ ai › Triển khai, cho phép quyền, chép đường dẫn kết thúc bằng /exec; (4) dán vào ô dưới và bấm Kết nối. Máy khác: dán mã kết nối KLTK1-… rồi bấm Kết nối."/>
+            <Button x:Name="AcctScriptButton" Content="Tạo mã Apps Script (tự chép vào bộ nhớ)" Click="OnAcctScript"/>
+            <TextBlock Text="Đường dẫn Web App (…/exec) hoặc mã kết nối KLTK1-…" Classes="label"/>
+            <TextBox x:Name="AcctInput"/>
+            <Button Content="Kết nối" Classes="primary" Click="OnAcctConnect"/>
+          </StackPanel>
+          <WrapPanel x:Name="AcctOnPanel" ItemSpacing="8" LineSpacing="8">
+            <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
+            <Button Content="Chép mã cho máy nhân viên" Classes="primary" Click="OnAcctCodeStaff"/>
+            <Button x:Name="AcctCodeAdminButton" Content="Chép mã cho máy quản trị" Click="OnAcctCodeAdmin"/>
+            <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
+          </WrapPanel>
+          <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+      <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="Chép dữ liệu Tồn kho An An / Tồn kho gửi từ app cũ" Classes="section"/>
           <TextBlock Classes="muted" TextWrapping="Wrap"

@@ -11,6 +11,8 @@ public class AuthService
     private readonly Database _db;
     private readonly Session _session;
     private readonly AuditService _audit;
+    /// <summary>Dùng chung tài khoản qua Google Sheet (null = chỉ trong máy). Mọi thay đổi tài khoản ghi lên Sheet trước.</summary>
+    public AccountSyncService? Sync { get; set; }
 
     public AuthService(Database db, Session session, AuditService audit)
     {
@@ -63,8 +65,8 @@ public class AuthService
     public User CreateUser(string username, string fullName, string password, string role, string? permissions = null)
     {
         _session.RequireAdmin();
-        var u = Insert(username, fullName, password, role);
-        if (!string.IsNullOrEmpty(permissions)) SetPermissions(u.Id, permissions);
+        var clean = string.IsNullOrWhiteSpace(permissions) || role == Roles.Admin ? "" : Perm.Serialize(Perm.Parse(permissions));
+        var u = Insert(username, fullName, password, role, clean);
         _audit.Log(_session.Username, "Tạo tài khoản", $"{u.Username} ({Roles.Label(role)})");
         return u;
     }
@@ -75,9 +77,12 @@ public class AuthService
         _session.RequireAdmin();
         var clean = string.IsNullOrWhiteSpace(permissions) ? "" : Perm.Serialize(Perm.Parse(permissions));
         using var c = _db.Open();
-        var name = c.ExecuteScalar<string?>("SELECT username FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        if (u.Permissions == clean) return;
+        u.Permissions = clean;
+        Sync?.BeforeSave(u);
         c.Execute("UPDATE users SET permissions=@clean WHERE id=@id", new { id, clean });
-        _audit.Log(_session.Username, "Phân quyền", $"{name}: {(clean.Length == 0 ? "theo vai trò" : clean)}");
+        _audit.Log(_session.Username, "Phân quyền", $"{u.Username}: {(clean.Length == 0 ? "theo vai trò" : clean)}");
         if (_session.CurrentUser?.Id == id) _session.CurrentUser.Permissions = clean;
     }
 
@@ -95,8 +100,11 @@ public class AuthService
             var admins = c.ExecuteScalar<long>("SELECT COUNT(*) FROM users WHERE role='admin' AND is_active=1 AND id<>@id", new { id });
             if (admins == 0) throw new BusinessException("Phải còn ít nhất một tài khoản Quản trị đang dùng.");
         }
-        c.Execute("UPDATE users SET full_name=@fullName, role=@role, is_active=@isActive WHERE id=@id",
-            new { id, fullName = fullName.Trim(), role, isActive });
+        u.FullName = fullName.Trim(); u.Role = role; u.IsActive = isActive;
+        if (role == Roles.Admin) u.Permissions = "";
+        Sync?.BeforeSave(u);
+        c.Execute("UPDATE users SET full_name=@fullName, role=@role, is_active=@isActive, permissions=@perms WHERE id=@id",
+            new { id, fullName = fullName.Trim(), role, isActive, perms = u.Permissions });
         _audit.Log(_session.Username, "Sửa tài khoản", $"{u.Username}: {Roles.Label(role)}, {(isActive ? "đang dùng" : "khóa")}");
     }
 
@@ -124,10 +132,13 @@ public class AuthService
         ValidatePassword(password);
         var (hash, salt) = Hash(password);
         using var c = _db.Open();
+        var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        u.PasswordHash = hash; u.Salt = salt;
+        Sync?.BeforeSave(u);
         c.Execute("UPDATE users SET password_hash=@hash, salt=@salt WHERE id=@id", new { id, hash, salt });
     }
 
-    private User Insert(string username, string fullName, string password, string role)
+    private User Insert(string username, string fullName, string password, string role, string permissions = "")
     {
         username = username.Trim();
         if (username.Length < 3 || username.Any(char.IsWhiteSpace))
@@ -138,9 +149,10 @@ public class AuthService
         if (c.ExecuteScalar<long>("SELECT COUNT(*) FROM users WHERE username=@username", new { username }) > 0)
             throw new BusinessException($"Tên đăng nhập \"{username}\" đã tồn tại.");
         var (hash, salt) = Hash(password);
+        Sync?.BeforeSave(new User { Username = username, FullName = fullName.Trim(), PasswordHash = hash, Salt = salt, Role = role, IsActive = true, Permissions = permissions });
         var id = c.ExecuteScalar<long>(
-            "INSERT INTO users(username, full_name, password_hash, salt, role) VALUES(@username, @fullName, @hash, @salt, @role); SELECT last_insert_rowid();",
-            new { username, fullName = fullName.Trim(), hash, salt, role });
+            "INSERT INTO users(username, full_name, password_hash, salt, role, permissions) VALUES(@username, @fullName, @hash, @salt, @role, @permissions); SELECT last_insert_rowid();",
+            new { username, fullName = fullName.Trim(), hash, salt, role, permissions });
         return c.QuerySingle<User>("SELECT * FROM users WHERE id=@id", new { id });
     }
 

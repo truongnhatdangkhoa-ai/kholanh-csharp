@@ -20,6 +20,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Kiểm thử
         run: dotnet test tests/KhoLanh.Core.Tests -c Release
+      - name: Kiểm tra Apps Script tài khoản dùng chung
+        run: node tests/apps-script/kiem-tra.js
       - name: Đóng gói Windows (1 file .exe nén, không cần cài .NET)
         run: |
           dotnet publish src/KhoLanh.App -c Release -r win-x64 --self-contained true \

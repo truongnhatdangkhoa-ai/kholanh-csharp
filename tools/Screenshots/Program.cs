@@ -118,6 +118,13 @@ foreach (var (key, name) in new[] { ("list", "06-danh-sach-phieu"), ("stock", "0
     if (key == "nxt" && main.PageHost.Content is ReportView rv) rv.OnMonth(null, new Avalonia.Interactivity.RoutedEventArgs());
     if (key == "products" && main.PageHost.Content is ProductsView pv) pv.Grid.SelectedIndex = 0;
     Snap(main, name);
+    if (key == "backup" && main.PageHost.Content is BackupView bv)
+    {
+        bv.AcctStatus.BringIntoView();
+        Pump();
+        bv.AcctInput.BringIntoView();
+        Snap(main, "13b-tai-khoan-dung-chung");
+    }
 }
 
 var detail = new VoucherDetailWindow(cancel.Id) { Width = 1000, Height = 560 };

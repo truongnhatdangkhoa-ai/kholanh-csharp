@@ -51,14 +51,14 @@ public class UpdateService
         var r = NormalizeRepo(repo);
         if (repo.Trim().Length > 0 && r.Length == 0) throw new BusinessException("Kho GitHub phải có dạng chủ/tên-kho, VD: truongnhatdangkhoa-ai/kholanh-csharp.");
         _settings.Set(KeyRepo, r);
-        if (token is not null) _settings.Set(KeyToken, Protect(token.Trim()));
+        if (token is not null) _settings.Set(KeyToken, Secret.Protect(token.Trim()));
         _settings.Set(KeyAuto, auto ? "1" : "0");
     }
 
     /// <summary>Mã truy cập: ưu tiên cấu hình trong app, sau đó file github-token.txt cạnh KhoLanh.exe (dòng # là ghi chú).</summary>
     private string Token()
     {
-        var t = Unprotect(_settings.Get(KeyToken));
+        var t = Secret.Unprotect(_settings.Get(KeyToken));
         if (t.Length > 0) return t;
         try
         {
@@ -78,26 +78,6 @@ public class UpdateService
         var m = System.Text.RegularExpressions.Regex.Match(t, @"github\.com[/:]([^/\s]+)/([^/\s]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (m.Success) return m.Groups[1].Value + "/" + m.Groups[2].Value;
         return System.Text.RegularExpressions.Regex.IsMatch(t, @"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") ? t : "";
-    }
-
-    private static string Protect(string s)
-    {
-        if (s.Length == 0) return "";
-        if (OperatingSystem.IsWindows())
-            return "dpapi:" + Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(s), null, DataProtectionScope.CurrentUser));
-        return "plain:" + s;
-    }
-
-    private static string Unprotect(string s)
-    {
-        try
-        {
-            if (s.StartsWith("dpapi:") && OperatingSystem.IsWindows())
-                return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(s[6..]), null, DataProtectionScope.CurrentUser));
-            if (s.StartsWith("plain:")) return s[6..];
-        }
-        catch { /* mã hỏng / máy khác: coi như chưa có */ }
-        return "";
     }
 
     // ---------------- hỏi GitHub ----------------

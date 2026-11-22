@@ -7,7 +7,10 @@ namespace KhoLanh.App.Views;
 public partial class UsersView : UserControl, IPage
 {
     public string Title => "Tài khoản";
-    public string Subtitle => "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
+    public string Subtitle => App.Services.Accounts.Enabled
+        ? "Tài khoản dùng chung cho mọi máy qua Google Sheet: sửa ở đây là lưu lên Sheet, máy khác nhận ở lần đăng nhập sau."
+          + (App.Services.Accounts.CanWrite ? "" : " Máy này chỉ đọc — sửa ở máy quản trị.")
+        : "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
     private User _editing = new();
     private readonly Dictionary<string, ComboBox> _permBoxes = new();
     private bool _loading;
@@ -18,6 +21,14 @@ public partial class UsersView : UserControl, IPage
         BuildPermGrid();
         Load();
         Edit(new User());
+        if (App.Services.Accounts.Enabled) _ = Refresh();
+    }
+
+    /// <summary>Lấy danh sách mới nhất từ Google Sheet (lỗi mạng: giữ danh sách trong máy).</summary>
+    private async Task Refresh()
+    {
+        try { await App.Services.Accounts.PullAsync(); Load(); }
+        catch { /* mất mạng: dùng bản lưu trong máy */ }
     }
 
     private void Load() => Grid.ItemsSource = App.Services.Auth.ListUsers();
@@ -117,19 +128,21 @@ public partial class UsersView : UserControl, IPage
     {
         var role = SelectedRole;
         var perms = PermissionsToSave();
-        var ok = await Ui.Run(this, () =>
+        var editing = _editing; var user = UserBox.Text ?? ""; var name = NameBox.Text ?? ""; var pass = PassBox.Text ?? ""; var active = ActiveBox.IsChecked == true;
+        // Chạy nền: khi dùng chung tài khoản, mỗi thay đổi được ghi lên Google Sheet (vài giây) — không làm đơ cửa sổ.
+        var ok = await Ui.RunAsync(this, () => Task.Run(() =>
         {
-            if (_editing.Id == 0)
+            if (editing.Id == 0)
             {
-                var u = App.Services.Auth.CreateUser(UserBox.Text ?? "", NameBox.Text ?? "", PassBox.Text ?? "", role, perms);
-                if (ActiveBox.IsChecked != true) App.Services.Auth.UpdateUser(u.Id, u.FullName, role, false);
+                var u = App.Services.Auth.CreateUser(user, name, pass, role, perms);
+                if (!active) App.Services.Auth.UpdateUser(u.Id, u.FullName, role, false);
             }
             else
             {
-                App.Services.Auth.UpdateUser(_editing.Id, NameBox.Text ?? "", role, ActiveBox.IsChecked == true);
-                App.Services.Auth.SetPermissions(_editing.Id, perms);
+                App.Services.Auth.UpdateUser(editing.Id, name, role, active);
+                App.Services.Auth.SetPermissions(editing.Id, perms);
             }
-        });
+        }));
         if (ok) { Load(); Edit(new User()); }
     }
 
@@ -137,7 +150,8 @@ public partial class UsersView : UserControl, IPage
     {
         var pw = await Ui.Prompt(this, $"Mật khẩu mới cho {_editing.Username} (ít nhất 6 ký tự):", "Đặt lại mật khẩu", password: true);
         if (pw is null) return;
-        if (await Ui.Run(this, () => App.Services.Auth.ResetPassword(_editing.Id, pw)))
+        var id = _editing.Id;
+        if (await Ui.RunAsync(this, () => Task.Run(() => App.Services.Auth.ResetPassword(id, pw))))
             await Ui.Message(this, $"Đã đặt lại mật khẩu cho {_editing.Username}.");
     }
 }

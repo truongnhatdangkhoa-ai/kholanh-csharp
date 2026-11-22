@@ -32,8 +32,88 @@ public partial class BackupView : UserControl, IPage
         UpdTokenBox.Watermark = u.HasToken ? "Đã có mã — để trống = giữ nguyên" : "Chưa có mã — dán token vào đây";
         UpdConfigPanel.IsVisible = UpdSaveButton.IsVisible = admin;
         UpdRollbackButton.IsVisible = admin && AppUpdater.HasPrevious;
+        ShowAccounts();
         AppUpdater.Progress += OnUpdProgress;
         DetachedFromVisualTree += (_, _) => AppUpdater.Progress -= OnUpdProgress;
+    }
+
+    // ---------------- tài khoản dùng chung (Google Sheet) ----------------
+
+    private void ShowAccounts()
+    {
+        var s = App.Services; var a = s.Accounts;
+        var admin = Roles.IsAdmin(s.Session.Role);
+        AcctStatus.Text = a.Enabled
+            ? $"Đang dùng chung: mọi máy lấy tài khoản và phân quyền từ Google Sheet lúc đăng nhập (mất mạng thì dùng bản lưu trong máy). "
+              + (a.CanWrite ? "Máy này là máy QUẢN TRỊ: được thêm / sửa / phân quyền tài khoản." : "Máy này chỉ đọc: sửa tài khoản ở máy quản trị.")
+              + (a.LastPull.Length > 0 ? $" Lần đồng bộ gần nhất: {a.LastPull}." : "")
+            : "Chưa bật: mỗi máy có danh sách tài khoản riêng. Bật để mọi máy dùng chung tài khoản và phân quyền.";
+        AcctSetupPanel.IsVisible = admin && !a.Enabled;
+        AcctOnPanel.IsVisible = admin && a.Enabled;
+        AcctCodeAdminButton.IsVisible = a.CanWrite;
+        AcctScriptButton.Content = a.HasPendingScript ? "Tạo lại mã Apps Script (mã cũ sẽ hết dùng)" : "Tạo mã Apps Script (tự chép vào bộ nhớ)";
+    }
+
+    private async Task Copy(string text)
+    {
+        var cb = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (cb is not null) await cb.SetTextAsync(text);
+    }
+
+    private async void OnAcctScript(object? sender, RoutedEventArgs e)
+    {
+        string? script = null;
+        if (!await Ui.Run(this, () => script = App.Services.Accounts.BuildScript())) return;
+        var file = Path.Combine(App.DataFolder, "TaiKhoan-AppsScript.gs");
+        try { File.WriteAllText(file, script!); } catch { }
+        await Copy(script!);
+        AcctMsg.Text = $"Đã chép mã Apps Script vào bộ nhớ (cũng lưu ở {file}). Dán vào Apps Script của Google Sheet, triển khai Ứng dụng web, rồi dán đường dẫn /exec vào ô trên.";
+        ShowAccounts();
+    }
+
+    private async void OnAcctConnect(object? sender, RoutedEventArgs e)
+    {
+        var input = AcctInput.Text ?? "";
+        AcctMsg.Text = "Đang kết nối Google Sheet…";
+        AccountSyncService.ConnectResult? r = null;
+        if (!await Ui.RunAsync(this, async () => r = await App.Services.Accounts.ConnectAsync(input))) { AcctMsg.Text = ""; return; }
+        AcctInput.Text = "";
+        AcctMsg.Text = r!.Uploaded
+            ? $"Đã kết nối và đưa {r.Users} tài khoản của máy này lên Google Sheet. Bấm \"Chép mã cho máy nhân viên\" rồi gửi mã cho các máy khác."
+            : $"Đã kết nối, nhận {r.Users} tài khoản từ Google Sheet" + (r.Admin ? " (máy quản trị)." : ".");
+        ShowAccounts();
+    }
+
+    private async void OnAcctPull(object? sender, RoutedEventArgs e)
+    {
+        int n = 0;
+        if (await Ui.RunAsync(this, async () => n = await App.Services.Accounts.PullAsync(TimeSpan.FromSeconds(30))))
+            AcctMsg.Text = $"Đã đồng bộ {n} tài khoản từ Google Sheet.";
+        ShowAccounts();
+    }
+
+    private async void OnAcctCodeStaff(object? sender, RoutedEventArgs e)
+    {
+        string? code = null;
+        if (!await Ui.Run(this, () => code = App.Services.Accounts.ConnectionCode(forAdmin: false))) return;
+        await Copy(code!);
+        AcctMsg.Text = "Đã chép mã cho máy nhân viên (chỉ đọc tài khoản). Gửi mã này sang máy kia: lúc mở phần mềm lần đầu bấm \"Dùng chung tài khoản với máy khác…\" và dán vào.";
+    }
+
+    private async void OnAcctCodeAdmin(object? sender, RoutedEventArgs e)
+    {
+        if (!await Ui.Confirm(this, "Mã cho máy quản trị cho phép máy đó thêm / sửa / phân quyền mọi tài khoản. Chỉ gửi cho máy của người quản trị. Tiếp tục?", "Mã máy quản trị", "Chép mã")) return;
+        string? code = null;
+        if (!await Ui.Run(this, () => code = App.Services.Accounts.ConnectionCode(forAdmin: true))) return;
+        await Copy(code!);
+        AcctMsg.Text = "Đã chép mã cho máy quản trị.";
+    }
+
+    private async void OnAcctDisconnect(object? sender, RoutedEventArgs e)
+    {
+        if (!await Ui.Confirm(this, "Ngắt kết nối: máy này thôi lấy tài khoản từ Google Sheet, giữ nguyên danh sách tài khoản hiện có trong máy. Tiếp tục?", "Ngắt kết nối", "Ngắt")) return;
+        if (await Ui.Run(this, () => App.Services.Accounts.Disconnect())) AcctMsg.Text = "Đã ngắt. Máy này dùng danh sách tài khoản riêng.";
+        ShowAccounts();
     }
 
     private void OnUpdProgress(string msg) => Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdStatus.Text = msg);
