@@ -13,11 +13,14 @@ App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ c
 |---|---|
 | Tồn kho An An | Nhúng nguyên module của app cũ (WebView2): nạp file tồn gốc, phân loại, báo cáo Tổng Tồn / HLSO. Xem `web/NGUON.md`. |
 | Tồn kho gửi | Nhúng nguyên module của app cũ: nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính. |
+| Nhập liệu | Viết bằng C# (không WebView2). Các trang dạng lưới Excel: gõ / dán thẳng từ Excel (Ctrl+C / Ctrl+V), hoàn tác, điền xuống, tự lưu, mẫu cột (Nhập kho, Xuất kho, Kiểm kê, mẫu tự lưu), nhập / xuất Excel, thùng rác. Lưới dùng chung: `src/KhoLanh.App/Controls/SheetGrid.cs` + `src/KhoLanh.Core/Grid/GridModel.cs`. |
 | Tài khoản | Đăng nhập (nhớ mật khẩu, tự đăng nhập), 3 vai trò + phân quyền tới từng module. Dùng chung cho mọi máy qua Google Sheet: `docs/TAI-KHOAN-DUNG-CHUNG.md`. |
 | Cập nhật | Tự kiểm tra GitHub Releases lúc mở app và mỗi 30 phút, tải ngầm, mở lại là dùng bản mới; quay lại bản trước. |
 | An toàn | Tự sao lưu mỗi ngày (giữ 30 bản), sao lưu ra file, khôi phục, nhật ký thao tác. |
 
-**Thêm module mới:** thêm `NavItem` trong `MainWindow.axaml.cs` và mục quyền trong `Perm.Items` (`src/KhoLanh.Core/Models/Permissions.cs`).
+**Thêm module mới:** thêm `NavItem` trong `MainWindow.axaml.cs` và mục quyền trong `Perm.Items` (`src/KhoLanh.Core/Models/Permissions.cs`). Dữ liệu module đọc / ghi qua `ISheetSource` (`App.Services.Lan`) để tự đồng bộ LAN; thêm tên database vào `ModuleBridge.PermKey`.
+
+![Nhập liệu](docs/anh/20b-nhap-lieu-chon-vung.png)
 
 ## Dùng chung qua mạng LAN
 

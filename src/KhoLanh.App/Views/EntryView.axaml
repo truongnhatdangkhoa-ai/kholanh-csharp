@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="KhoLanh.App.Views.EntryView">
+  <Grid ColumnDefinitions="250,*" ColumnSpacing="14">
+    <!-- Danh sách trang -->
+    <Border Classes="card" Padding="10">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="8">
+          <Button x:Name="NewButton" Content="+ Trang mới" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnNew"/>
+          <TextBox x:Name="SearchBox" Watermark="Tìm trang…"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ToggleButton x:Name="TrashToggle" Content="Thùng rác" Padding="8,3" FontSize="12" IsCheckedChanged="OnTrashToggle"/>
+            <TextBlock x:Name="CountText" Classes="muted" FontSize="12" VerticalAlignment="Center"/>
+          </StackPanel>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,8,0,0">
+          <WrapPanel ItemSpacing="6" LineSpacing="6">
+            <Button x:Name="RenameButton" Content="Đổi tên" Padding="8,3" FontSize="12" Click="OnRename"/>
+            <Button x:Name="DeleteButton" Content="Xóa" Padding="8,3" FontSize="12" Click="OnDelete"/>
+            <Button x:Name="RestoreButton" Content="Khôi phục" Padding="8,3" FontSize="12" Click="OnRestore" IsVisible="False"/>
+          </WrapPanel>
+        </StackPanel>
+        <ListBox x:Name="PageList" Margin="0,8,0,0" SelectionChanged="OnPageSelected">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Spacing="1" Margin="0,2">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="{Binding Line}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <!-- Trang đang mở -->
+    <DockPanel Grid.Column="1">
+      <Border DockPanel.Dock="Top" Classes="card" Padding="10,8" Margin="0,0,0,10">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <TextBlock x:Name="PageTitle" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" MaxWidth="360" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="SaveState" Classes="muted" FontSize="12" VerticalAlignment="Center"/>
+          </StackPanel>
+          <WrapPanel Grid.Column="2" ItemSpacing="6" LineSpacing="6" HorizontalAlignment="Right">
+            <Button x:Name="SaveButton" Content="Lưu (Ctrl+S)" Classes="primary" Click="OnSave"/>
+            <Button x:Name="ImportButton" Content="Nhập Excel…" Click="OnImport"/>
+            <Button x:Name="ExportButton" Content="Xuất Excel…" Click="OnExport"/>
+            <Button x:Name="ColumnsButton" Content="Cột…" Click="OnColumns"/>
+            <Button x:Name="TemplateButton" Content="Lưu thành mẫu…" Click="OnSaveTemplate"/>
+            <Button x:Name="ReloadButton" Content="Tải lại" Click="OnReload"/>
+          </WrapPanel>
+        </Grid>
+      </Border>
+      <Border DockPanel.Dock="Bottom" Padding="8,5" Margin="0,6,0,0">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock x:Name="HintText" Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis"
+                     Text="Gõ là sửa · F2 / nhấp đúp sửa tiếp · Enter / Tab di chuyển · Ctrl+C / Ctrl+V chép dán với Excel · Delete xóa · Ctrl+Z hoàn tác · Ctrl+D điền xuống · chuột phải để chèn / xóa dòng"/>
+          <TextBlock Grid.Column="1" x:Name="StatusText" FontSize="12" Margin="12,0,0,0"/>
+        </Grid>
+      </Border>
+      <Panel x:Name="GridHost">
+        <TextBlock x:Name="EmptyText" Classes="muted" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                   Text="Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống)."/>
+      </Panel>
+    </DockPanel>
+  </Grid>
+</UserControl>

@@ -473,7 +473,7 @@ public sealed class LanService : ISheetSource, IDisposable
         var key = ModuleBridge.PermKey(db);
         var ok = write
             ? (key is not null ? Perm.Has(u, key, Perm.Edit) : Roles.IsAdmin(u.Role))
-            : Perm.Has(u, "m1") || Perm.Has(u, "m2");
+            : (key is not null && Perm.Has(u, key)) || Perm.Has(u, "m1") || Perm.Has(u, "m2");
         if (!ok) throw new BusinessException($"Tài khoản \"{username}\" không có quyền {(write ? "sửa" : "xem")} dữ liệu này.");
     }
 

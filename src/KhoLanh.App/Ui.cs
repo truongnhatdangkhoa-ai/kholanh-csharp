@@ -139,6 +139,32 @@ public static class Ui
         return result;
     }
 
+    /// <summary>Chọn một mục trong danh sách (kèm ô nhập chữ nếu có <paramref name="inputLabel"/>). Null = bấm Thôi.</summary>
+    public static async Task<(int Index, string Text)?> Choose(Visual v, string text, string title, IList<string> items, int selected = 0,
+        string? inputLabel = null, string inputInitial = "", string yes = "Đồng ý")
+    {
+        (int, string)? result = null;
+        var list = new ComboBox { ItemsSource = items, SelectedIndex = Math.Clamp(selected, 0, Math.Max(0, items.Count - 1)), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 10, 0, 0) };
+        var box = new TextBox { Text = inputInitial, Margin = new Thickness(0, 4, 0, 0) };
+        var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
+        var n = new Button { Content = "Thôi", IsCancel = true };
+        var body = new StackPanel();
+        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(list);
+        if (inputLabel is not null)
+        {
+            body.Children.Add(new TextBlock { Text = inputLabel, Margin = new Thickness(0, 10, 0, 0), Classes = { "label" } });
+            body.Children.Add(box);
+        }
+        body.Children.Add(Buttons(n, y));
+        var w = Dialog(title, body);
+        y.Click += (_, _) => { result = (list.SelectedIndex, box.Text ?? ""); w.Close(); };
+        n.Click += (_, _) => w.Close();
+        w.Opened += (_, _) => { if (inputLabel is not null) box.Focus(); else list.Focus(); };
+        await Show(v, w);
+        return result;
+    }
+
     public static async Task Show(Visual v, Window w)
     {
         if (Owner(v) is { } owner) await w.ShowDialog(owner);

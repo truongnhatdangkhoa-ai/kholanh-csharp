@@ -16,6 +16,10 @@ public static class Perm
     {
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
+        new("m3", "Tổng hợp", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
+        new("m4", "Báo cáo rã đông", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, lưu số liệu theo ngày"),
+        new("m5", "Báo cáo hàng ngày", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp / liên kết file, lưu số liệu"),
+        new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
     };
@@ -38,6 +42,7 @@ public static class Perm
         {
             d["backup"] = None; d["audit"] = None;
             d["m1"] = Export; d["m2"] = Export;
+            d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
         return d;
     }
