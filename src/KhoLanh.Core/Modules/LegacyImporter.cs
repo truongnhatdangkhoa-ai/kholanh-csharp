@@ -23,7 +23,8 @@ public class LegacyImporter
     /// <summary>Các bảng được chép: toàn bộ 2 module + bảng mã hóa / ánh xạ tên của Tổng hợp (ô tìm chung, nhãn size dùng).</summary>
     public static bool Wanted(string tab) =>
         tab.StartsWith("ton-kho-an-an/") || tab.StartsWith("ton-kho-gui/") ||
-        tab is "tong-hop/MaHoa" or "tong-hop/AnhXaCauHinh" or "tong-hop/AnhXaTen" or "tong-hop/M8_Meta";
+        tab is "tong-hop/MaHoa" or "tong-hop/AnhXaCauHinh" or "tong-hop/AnhXaTen" or "tong-hop/M8_Meta"
+           or "tong-hop/MaDaTao" or "tong-hop/TongHop" or "tong-hop/TongHop_Meta";
 
     public record Result(int Sheets, int Rows, List<string> Names);
 

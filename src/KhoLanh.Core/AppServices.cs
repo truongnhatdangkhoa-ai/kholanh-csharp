@@ -1,5 +1,6 @@
 using KhoLanh.Core.Data;
 using KhoLanh.Core.Entry;
+using KhoLanh.Core.TongHop;
 using KhoLanh.Core.Lan;
 using KhoLanh.Core.Modules;
 using KhoLanh.Core.Services;
@@ -23,6 +24,7 @@ public class AppServices
     public LoginMemory Remember { get; }
     public LanService Lan { get; }
     public EntryService Entry { get; }
+    public TongHopService TongHop { get; }
 
     public AppServices(string dbPath)
     {
@@ -43,6 +45,7 @@ public class AppServices
         Legacy.Target = Lan;
         Backup.Guard = () => Lan.Enabled ? "Máy này đang dùng chung dữ liệu qua mạng LAN. Chuyển về \"Máy đơn\" ở Mạng LAN rồi mở lại phần mềm trước khi khôi phục." : null;
         Entry = new EntryService(() => Lan, Session, Audit);
+        TongHop = new TongHopService(() => Lan, Session, Audit, Settings);
         Bridge = new ModuleBridge(Lan, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
     }
 }

@@ -85,6 +85,22 @@ using (var c = s.Db.Open())
     s.Entry.Create("Kiểm kê kho 2", KhoLanh.Core.Entry.EntryService.BuiltIn[3]);
 }
 
+// Tổng hợp mẫu: Bảng 1 lấy từ danh sách mã hàng mặc định
+{
+    var th = s.TongHop; th.Load();
+    var rnd = new Random(3);
+    var codes = th.Results.Where(r => r.Code.Length == 21).Take(400).Select(r => r.Code).ToList();
+    th.Tab2 = new KhoLanh.Core.TongHop.TongHopService.Table
+    {
+        Headers = new() { "Ngày", "Mã hàng", "Số thùng", "Số kg" }, CodeCol = "Mã hàng", DateCol = "Ngày",
+        Rows = Enumerable.Range(0, 80).Select(i => new Dictionary<string, System.Text.Json.Nodes.JsonNode?>
+        {
+            ["Ngày"] = $"{20 + i / 30}/11/2026", ["Mã hàng"] = codes[rnd.Next(12)], ["Số thùng"] = rnd.Next(5, 200), ["Số kg"] = rnd.Next(50, 4000),
+        }).ToList(),
+    };
+    th.Save();
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -93,7 +109,7 @@ small.Show();
 Snap(small, "03c-man-hinh-1366");
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m6", "20-nhap-lieu") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m6", "20-nhap-lieu") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -103,6 +119,12 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Pump();
         bv.AcctInput.BringIntoView();
         Snap(main, "13b-tai-khoan-dung-chung");
+    }
+    if (key == "m3")
+    {
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        tc.SelectedIndex = 1; Snap(main, "21b-tong-hop-bang");
+        tc.SelectedIndex = 2; Snap(main, "21c-anh-xa-ten");
     }
     if (key == "m6")
     {
