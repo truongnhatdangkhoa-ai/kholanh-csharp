@@ -141,6 +141,7 @@ public sealed class KiemKeView : UserControl, IPage
                 new TabItem { Header = "Đối chiếu An An", Content = BuildAn() },
                 new TabItem { Header = "Số liệu kiểm kê", Content = BuildPages() },
                 new TabItem { Header = "Đối chiếu kế toán", Content = BuildKt() },
+                new TabItem { Header = "Tồn kho gửi", Content = BuildGui() },
                 new TabItem { Header = "Theo vị trí", Content = BuildVt() },
                 new TabItem { Header = "Lệnh đếm", Content = BuildOrders() },
                 new TabItem { Header = "Chốt kỳ", Content = BuildChot() },
@@ -265,9 +266,10 @@ public sealed class KiemKeView : UserControl, IPage
             case 0: RenderAn(); break;
             case 1: RenderPages(); break;
             case 2: RenderKt(); break;
-            case 3: RenderVt(); break;
-            case 4: RenderOrders(); break;
-            case 5: RenderChot(); break;
+            case 3: RenderGui(); break;
+            case 4: RenderVt(); break;
+            case 5: RenderOrders(); break;
+            case 6: RenderChot(); break;
         }
     }
 
@@ -406,7 +408,7 @@ public sealed class KiemKeView : UserControl, IPage
     private List<Row> AnFiltered()
     {
         var q = (_q.Text ?? "").Trim().ToLowerInvariant();
-        return Svc.T.Rows.Where(r => r.Status != ChiKT)
+        return Svc.T.Rows.Where(r => r.Status is not (ChiKT or ChiGui))
             .Where(r => _fltKey == "ALL" || (_fltKey == "LSX" ? r.LsxStatus is "Lệch" or "Thiếu thông tin" : _fltKey == "LECH" ? KiemKeCore.Lech.Contains(r.Status) : r.Status == _fltKey))
             .Where(r => _grpKey.Length == 0 || r.NhomAll.Contains(_grpKey))
             .Where(r => q.Length == 0 || (r.Ma + " " + r.Ten).ToLowerInvariant().Contains(q))
@@ -548,11 +550,70 @@ public sealed class KiemKeView : UserControl, IPage
     {
         _kRows = Svc.T.Rows.Where(r => Svc.T.HasKT && (r.KtStatus.Length > 0 || r.KtKg is not null)).Where(r => _ktOnlyLech.IsChecked != true || r.KtStatus is "Lệch" or "Chưa tính được")
             .OrderByDescending(r => Math.Abs(r.TongKt ?? r.ChotKg ?? 0)).ThenBy(r => r.Ma, StringComparer.Ordinal).ToList();
-        _krm.Load(new[] { new GridColumn("ma", "Mã hàng", 235), new GridColumn("ten", "Tên hàng", 200), new GridColumn("kk", "Kiểm kê (kg)", 95, "number"), new GridColumn("kt", "Kế toán (kg)", 95, "number"), new GridColumn("d", "KK − KT (kg)", 95, "number"), new GridColumn("st", "Kết quả", 95), new GridColumn("gc", "Ghi chú", 200) },
-            _kRows.Select(r => new[] { r.Ma, r.Ten, Kg(r.ChotKg), Kg(r.KtKg), D(r.TongKt, true), r.KtStatus, string.Join("; ", r.Notes.Where(n => n.Contains("Kế toán"))) }));
+        _krm.Load(new[] { new GridColumn("ma", "Mã hàng", 235), new GridColumn("ten", "Tên hàng", 200), new GridColumn("kk", "Kiểm kê (kg)", 95, "number"), new GridColumn("gui", "Kho gửi (kg)", 95, "number"), new GridColumn("tong", "Tổng (kg)", 95, "number"), new GridColumn("kt", "Kế toán (kg)", 95, "number"), new GridColumn("d", "Tổng − KT (kg)", 95, "number"), new GridColumn("st", "Kết quả", 95), new GridColumn("gc", "Ghi chú", 200) },
+            _kRows.Select(r => new[] { r.Ma, r.Ten, Kg(r.ChotKg), Kg(r.GuiKg), Kg(r.TongKg), Kg(r.KtKg), D(r.TongKt, true), r.KtStatus, string.Join("; ", r.Notes.Where(n => n.Contains("Kế toán"))) }));
         _krg.Refresh();
     }
-    private IBrush? KBg(int r, int c) => r >= 0 && r < _kRows.Count && c == 5 ? (_kRows[r].KtStatus == "Khớp" ? OkBg : _kRows[r].KtStatus == "Lệch" ? BadBg : WarnBg) : null;
+    private IBrush? KBg(int r, int c) => r >= 0 && r < _kRows.Count && c == 7 ? (_kRows[r].KtStatus == "Khớp" ? OkBg : _kRows[r].KtStatus == "Lệch" ? BadBg : WarnBg) : null;
+
+    // =====================================================================================
+    // Tab Tồn kho gửi (đổi mã 19 → 21, cộng vào đối chiếu Kế toán)
+    // =====================================================================================
+
+    private readonly CheckBox _guiOn = new() { Content = "Tính tồn kho gửi vào đối chiếu Kế toán (Tổng = kiểm kê + kho gửi)" };
+    private readonly TextBlock _guiInfo = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
+    private readonly GridModel _gm = new() { ReadOnly = true }, _gmap = new();
+    private SheetGrid _gg = null!, _gmg = null!;
+    private List<KhoGui.Line> _gRows = new();
+    private Control BuildGui()
+    {
+        _gg = new SheetGrid(_gm) { SpareRows = 0, CellBackground = (r, c) => r < _gRows.Count && c == 2 ? (_gRows[r].Ma.Length != 21 ? BadBg : _gRows[r].Via == "tay" ? OkBg : null) : null };
+        _gmg = new SheetGrid(_gmap) { SpareRows = 20 };
+        _guiOn.IsCheckedChanged += async (_, _) => { if (_loading) return; var v = _guiOn.IsChecked == true; if (v != Svc.GuiOn && !await Act(() => Svc.SetGuiOn(v), v ? "Đã bật tồn kho gửi" : "Đã tắt tồn kho gửi")) { _loading = true; _guiOn.IsChecked = Svc.GuiOn; _loading = false; } };
+        _guiOn.IsEnabled = _edit;
+        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        bar.Children.Add(_guiOn); bar.Children.Add(Btn("⟳ Đọc lại Tồn kho gửi", async () => await Act(Svc.ReloadGui, "Đã đọc lại tồn kho gửi")));
+        var head = new StackPanel { Spacing = 4 }; head.Children.Add(bar); head.Children.Add(_guiInfo);
+        head.Children.Add(Muted("Tồn kho gửi lấy từ module Tồn kho gửi › Dữ Liệu. Mã kho gửi 18–19 ký tự tự đổi sang mã 21 theo Mã hóa sản phẩm (ký tự 8–13 suy từ Số lô + Size: TGS / AD / Ecuador / TGC / BTP thường); có trong bảng chuyển đổi thì dùng bảng. Dòng không đổi được (tô đỏ) không tính vào tổng."));
+        var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_gg));
+        var mbar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        mbar.Children.Add(Label("Bảng chuyển đổi mã (dùng chung với app cũ)", true));
+        if (_edit)
+        {
+            mbar.Children.Add(Btn("💾 Lưu bảng", async () => await Act(() => Svc.SaveGuiMap(GuiMapFromGrid()), "Đã lưu bảng chuyển đổi mã"), primary: true));
+            mbar.Children.Add(Btn("＋ Thêm dòng không đổi được", () =>
+            {
+                var cur = GuiMapFromGrid().ToList(); var have = cur.Select(x => KhoGui.NormMa(x.Gui)).ToHashSet();
+                foreach (var b in Svc.Gui.Bad.Select(x => x.MaGui).Distinct()) if (have.Add(b)) cur.Add((b, ""));
+                LoadGuiMap(cur);
+            }, tip: "Đưa các mã kho gửi chưa đổi được vào bảng để gõ mã 21 ký tự"));
+        }
+        var right = new DockPanel(); var mh = new StackPanel(); mh.Children.Add(mbar); mh.Children.Add(Muted("Cột 1: mã kho gửi (19 ký tự) · Cột 2: mã 21 ký tự. Bảng ưu tiên hơn tự động."));
+        DockPanel.SetDock(mh, Dock.Top); right.Children.Add(mh); right.Children.Add(Framed(_gmg));
+        return Split(left, right, "*,10,460");
+    }
+    private IEnumerable<(string Gui, string Ma)> GuiMapFromGrid() { for (var r = 0; r < _gmap.RowCount; r++) yield return (_gmap.Get(r, 0).Trim(), _gmap.Get(r, 1).Trim()); }
+    private void LoadGuiMap(IEnumerable<(string Gui, string Ma)> rows)
+    {
+        _gmap.ReadOnly = !_edit || Svc.Locked;
+        _gmap.Load(new[] { new GridColumn("g", "Mã kho gửi", 190), new GridColumn("m", "Mã 21 ký tự", 210) }, rows.Select(x => new[] { x.Gui, x.Ma }));
+        _gmg.Refresh();
+    }
+    private void RenderGui()
+    {
+        _loading = true; _guiOn.IsChecked = Svc.GuiOn; _loading = false;
+        var g = Svc.Gui;
+        _guiInfo.Text = Svc.GuiInfo + (g.N > 0 ? $" · đổi bằng bảng {g.NTay} · tự động {g.NAuto} · không đổi được {g.Bad.Count} dòng ({Kg(g.KgBad)} kg) · tổng tính được {Kg(g.KgAll)} kg / {g.Map.Count} mã" : "")
+            + (Svc.GuiOn ? " · ĐANG tính vào đối chiếu Kế toán" : " · chưa tính vào đối chiếu");
+        _gRows = g.Detail.OrderBy(x => x.Ma.Length == 21 ? 1 : 0).ThenByDescending(x => Math.Abs(x.Kg)).ToList();
+        _gm.Load(new[]
+        {
+            new GridColumn("mg", "Mã kho gửi", 180), new GridColumn("ma", "Mã 21 ký tự", 190), new GridColumn("via", "Cách đổi", 150), new GridColumn("ten", "Tên hàng", 220),
+            new GridColumn("lo", "Số lô", 120), new GridColumn("size", "Size", 80), new GridColumn("k", "Số kiện", 70, "number"), new GridColumn("kg", "Kg", 90, "number"), new GridColumn("why", "Ghi chú", 220),
+        }, _gRows.Select(x => new[] { x.MaGui, x.Ma.Length == 21 ? x.Ma : "", x.Via == "tay" ? "Bảng chuyển đổi" : x.Via == "auto" ? "Tự động · " + x.Rule : "Không đổi được", x.Ten, x.Lo, x.Size, x.Kien is double k ? Kg(k) : "", Kg(x.Kg), x.Why }));
+        _gg.Refresh();
+        LoadGuiMap(Svc.GuiMap);
+    }
 
     // =====================================================================================
     // Tab Theo vị trí

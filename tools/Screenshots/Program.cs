@@ -543,13 +543,23 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         g.Select(0, 1); Pump(); Snap(main, "26-doi-chieu-kiem-ke");
         tc.SelectedIndex = 1; Pump(); Snap(main, "26b-kiem-ke-so-lieu");
         tc.SelectedIndex = 2; Pump(); Snap(main, "26c-kiem-ke-ke-toan");
-        tc.SelectedIndex = 3; Pump(); Snap(main, "26d-kiem-ke-vi-tri");
-        tc.SelectedIndex = 4; Pump(); Snap(main, "26e-kiem-ke-lenh-dem");
-        tc.SelectedIndex = 5; Pump(); Snap(main, "26f-kiem-ke-chua-chot");
+        {
+            var guiRows = new System.Text.Json.Nodes.JsonArray(new[] { ("VRHLBTN0040IME10046", "L1", "BTP40", 120.0, 12.0), ("VRHLBTN0050IME10023", "TGS-9", "TGS 50", 48.0, 4.0), ("ABC", "", "", 7.0, 1.0) }
+                .Select(x => (System.Text.Json.Nodes.JsonNode)KhoLanh.Core.TonKhoGui.GuiStore.RowToDb(new KhoLanh.Core.TonKhoGui.GuiRow { MaHang = x.Item1, TenHang = "TÔM TCT " + x.Item3, SoLo = x.Item2, Size = x.Item3, TrongLuong = x.Item4, SoKien = x.Item5 })).ToArray());
+            s.Lan.Write("ton-kho-gui", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["DuLieuChinh"] = guiRows });
+            s.KiemKe.SetGuiOn(true);
+        }
+        tc.SelectedIndex = 3; for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); } Snap(main, "26h-kiem-ke-ton-kho-gui");
+        Console.WriteLine($"[KK-GUI] {s.KiemKe.GuiInfo} · auto {s.KiemKe.Gui.NAuto} · bad {s.KiemKe.Gui.Bad.Count} · kg {s.KiemKe.Gui.KgAll}");
+        var xp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "kk-bao-cao.xlsx"); s.KiemKe.ExportReport(xp);
+        using (var xb = new ClosedXML.Excel.XLWorkbook(xp)) Console.WriteLine("[KK-GUI] sheet Excel: " + string.Join(", ", xb.Worksheets.Select(w => w.Name)));
+        tc.SelectedIndex = 4; Pump(); Snap(main, "26d-kiem-ke-vi-tri");
+        tc.SelectedIndex = 5; Pump(); Snap(main, "26e-kiem-ke-lenh-dem");
+        tc.SelectedIndex = 6; Pump(); Snap(main, "26f-kiem-ke-chua-chot");
         s.KiemKe.DoChot("Kiểm kê cuối tháng 11 — còn lệch đã báo kế toán");
         main.Navigate("m3"); main.Navigate("m9"); for (var i = 0; i < 30; i++) { Thread.Sleep(50); Pump(); }
         tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
-        tc.SelectedIndex = 5; Pump();
+        tc.SelectedIndex = 6; Pump();
         var hg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         hg.Select(0, 0); Pump(); Snap(main, "26g-kiem-ke-da-chot");
         s.KiemKe.MoChot("demo");

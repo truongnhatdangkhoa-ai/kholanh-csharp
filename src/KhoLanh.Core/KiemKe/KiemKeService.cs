@@ -50,6 +50,13 @@ public sealed class KiemKeService
     public List<string> People { get; private set; } = new();
     public Extracted Ex { get; private set; } = new();
     public string ChotDate { get; private set; } = "";
+    /// <summary>Tính tồn kho gửi (module Tồn kho gửi, đổi mã 19 → 21) vào đối chiếu Kế toán.</summary>
+    public bool GuiOn { get; private set; }
+    public List<KhoGui.Line> GuiRows { get; private set; } = new();
+    public List<(string Gui, string Ma)> GuiMap { get; private set; } = new();
+    public KhoGui.Result Gui { get; private set; } = new();
+    public string GuiInfo { get; private set; } = "";
+    public const string DbCuoiKy = "so-lieu-cuoi-ky", SheetGuiMap = "DC_ChuyenDoi";
     public PhatSinh.Adj Adj { get; private set; } = new();
     public List<Line> Lines { get; private set; } = new();              // dòng kiểm kê dùng để đối chiếu (đã bỏ lần đếm cũ nếu chọn)
     public List<Line> Dropped { get; private set; } = new();
@@ -98,6 +105,8 @@ public sealed class KiemKeService
         Chosen = (sj?["pages"] as JsonArray ?? new JsonArray()).Select(S).Where(x => x.Length > 0).ToHashSet();
         LatestOnly = S(sj?["latest"]) is "true" or "1";
         ChotDate = PhatSinh.IsoOk(S(sj?["chotDate"])) ? S(sj?["chotDate"]) : "";
+        GuiOn = S(sj?["gui"]) is "true" or "1";
+        LoadGui();
         StockSrc = S(sj?["stock"]) == "snap" ? "snap" : "live";
         People = (sj?["people"] as JsonArray ?? new JsonArray()).Select(S).Where(x => x.Length > 0).ToList();
         // Tồn kho An An (module Tồn kho An An)
@@ -171,7 +180,8 @@ public sealed class KiemKeService
         if (LatestOnly) { Lines = KiemKeCore.LatestOnly(Ex.Rows, out var d); Dropped = d; } else { Lines = Ex.Rows; Dropped = new(); }
         Kt = MakeKeToan(KtRows);
         Adj = PhatSinh.Build(Ex.Mv, Lines, ChotDate);
-        T = BuildTotals(Lines, Stock, Kt.Map.Count > 0 ? Kt : null, Adj);
+        Gui = KhoGui.Build(GuiRows, GuiMap);
+        T = BuildTotals(Lines, Stock, Kt.Map.Count > 0 ? Kt : null, Adj, GuiOn && Gui.Map.Count > 0 ? Gui.Map : null);
         AddLsx(T.Rows, Lines, Stock);
         foreach (var r in T.Rows) if (r.Ten.Length == 0 && _tenMap.TryGetValue(r.Key, out var t)) r.Ten = t;
         Analyze(T.Rows, Recounts.SelectMany(a => a.Items.Select(x => x.Key)).ToHashSet());
@@ -185,7 +195,7 @@ public sealed class KiemKeService
     {
         var o = new JsonObject
         {
-            ["pages"] = new JsonArray(Chosen.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()), ["latest"] = LatestOnly, ["stock"] = StockSrc, ["chotDate"] = ChotDate,
+            ["pages"] = new JsonArray(Chosen.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()), ["latest"] = LatestOnly, ["stock"] = StockSrc, ["chotDate"] = ChotDate, ["gui"] = GuiOn,
             ["people"] = new JsonArray(People.Select(x => (JsonNode)x).ToArray()), ["at"] = Iso(), ["by"] = UserName,
         };
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetState] = new JsonArray(new JsonObject { ["id"] = "cfg", ["data"] = "__JSON__" + o.ToJsonString() }) });
@@ -199,6 +209,40 @@ public sealed class KiemKeService
         SaveState(); Recompute();
         Log("chọn trang kiểm kê", $"{Chosen.Count} trang" + (latestOnly ? ", chỉ lấy lần đếm mới nhất" : ""));
     }
+    /// <summary>Đọc tồn kho gửi (module Tồn kho gửi › Dữ Liệu) + bảng chuyển đổi mã (Số liệu cuối kỳ › DC_ChuyenDoi, dùng chung với app cũ).</summary>
+    private void LoadGui()
+    {
+        GuiRows = Read(TonKhoGui.GuiStore.Db, TonKhoGui.GuiStore.SRows).OfType<JsonObject>().Select(TonKhoGui.GuiStore.RowFromDb)
+            .Where(r => r.MaHang.Trim().Length > 0)
+            .Select(r => new KhoGui.Line { Ma = r.MaHang, Ten = r.TenHang, Lo = r.SoLo, Size = r.Size, Phieu = r.PhieuNhap, Ngay = r.NgayNhapKho, Kg = r.TrongLuong, Kien = r.SoKien }).ToList();
+        GuiMap = Read(DbCuoiKy, SheetGuiMap).OfType<JsonObject>().Select(o => (KhoGui.NormMa(S(o["gui"])), KhoGui.NormMa(S(o["ma"])))).Where(x => x.Item1.Length > 0 && x.Item2.Length > 0).ToList();
+        var meta = Read(TonKhoGui.GuiStore.Db, TonKhoGui.GuiStore.SMeta); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonOf(S(mo["data"])) as JsonObject : null;
+        GuiInfo = GuiRows.Count == 0 ? "Module Tồn kho gửi chưa có dữ liệu." : $"Tồn kho gửi: {GuiRows.Count:#,0} dòng" + (S(mj?["dataDate"]).Length > 0 ? $" · số liệu ngày {S(mj?["dataDate"])}" : "");
+    }
+    public void SetGuiOn(bool on)
+    {
+        RequireEdit(); RequireOpen();
+        LoadGui(); GuiOn = on; SaveState(); Recompute(); Log(on ? "bật tồn kho gửi" : "tắt tồn kho gửi", GuiInfo);
+    }
+    public void ReloadGui() { LoadGui(); Recompute(); }
+    /// <summary>Lưu bảng chuyển đổi mã kho gửi → mã 21 (ghi đè sheet DC_ChuyenDoi).</summary>
+    public void SaveGuiMap(IEnumerable<(string Gui, string Ma)> rows)
+    {
+        RequireEdit(); RequireOpen();
+        var list = new List<(string, string)>(); var seen = new HashSet<string>();
+        foreach (var (g0, m0) in rows)
+        {
+            var g = KhoGui.NormMa(g0); var m = KhoGui.NormMa(m0);
+            if (g.Length == 0 && m.Length == 0) continue;
+            if (g.Length == 0 || m.Length == 0) throw new BusinessException($"Dòng chuyển đổi “{g0} → {m0}” thiếu mã.");
+            if (m.Length != 21) throw new BusinessException($"Mã đích “{m}” phải đủ 21 ký tự.");
+            if (!seen.Add(g)) throw new BusinessException($"Mã kho gửi “{g}” bị trùng trong bảng chuyển đổi.");
+            list.Add((g, m));
+        }
+        _src().Write(DbCuoiKy, new Dictionary<string, JsonArray?> { [SheetGuiMap] = new JsonArray(list.Select(x => (JsonNode)new JsonObject { ["gui"] = x.Item1, ["ma"] = x.Item2 }).ToArray()) });
+        GuiMap = list; Recompute(); Log("lưu bảng chuyển đổi mã kho gửi", $"{list.Count} dòng");
+    }
+
     public void SetChotDate(string iso)
     {
         RequireEdit(); RequireOpen();
@@ -385,15 +429,33 @@ public sealed class KiemKeService
     {
         RequireExport();
         using var wb = new XLWorkbook();
-        var rows = (onlyRows ?? T.Rows.Where(r => r.Status != ChiKT)).ToList();
+        var rows = (onlyRows ?? T.Rows.Where(r => r.Status is not (ChiKT or ChiGui))).ToList();
         var src = StockSrc == "snap" ? "bản chụp tồn " + SnapInfo : $"Tồn kho An An {StockFile} (ngày {StockDate})";
-        Table(wb.AddWorksheet("Doi chieu An An"), 3, new[] { "Mã hàng", "Tên hàng", "Kiểm kê (kiện)", "Tồn kho (kiện)", "Chênh (kiện)", "Kiểm kê (kg)", "Tồn kho (kg)", "Chênh (kg)", "Kết quả", "Nguyên nhân (gợi ý)", "Ghi chú" },
-            rows.Select(r => new object?[] { r.Ma, r.Ten, r.KkKien, r.TonKien, r.DKien, r.KkKg, r.TonKg, r.DKg, r.Status, r.Nn?.Label, string.Join("; ", r.Notes) }),
-            $"ĐỐI CHIẾU KIỂM KÊ — TỒN KHO AN AN · {src} · xuất {DateTime.Now:dd/MM/yyyy HH:mm}");
+        var hasMv = Adj.List.Count > 0;
+        var anHead = new List<string> { "Mã hàng", "Tên hàng", "Kiểm kê (kiện)" };
+        if (hasMv) anHead.AddRange(new[] { "Nhập sau ngày đếm (kiện)", "Xuất sau ngày đếm (kiện)", "Nhập (kg)", "Xuất (kg)" });
+        anHead.AddRange(new[] { "Tồn kho (kiện)", "Chênh (kiện)", "Kiểm kê (kg)", "Tồn kho (kg)", "Chênh (kg)", "Kết quả", "Nguyên nhân (gợi ý)", "Ghi chú" });
+        Table(wb.AddWorksheet("Doi chieu An An"), 3, anHead.ToArray(),
+            rows.Select(r =>
+            {
+                var a = new List<object?> { r.Ma, r.Ten, r.KkKien };
+                if (hasMv) a.AddRange(new object?[] { r.NhapKien, r.XuatKien, r.NhapKg, r.XuatKg });
+                a.AddRange(new object?[] { r.TonKien, r.DKien, r.KkKg, r.TonKg, r.DKg, r.Status, r.Nn?.Label, string.Join("; ", r.Notes) });
+                return a.ToArray();
+            }),
+            $"ĐỐI CHIẾU KIỂM KÊ — TỒN KHO AN AN · {src}" + (hasMv ? $" · số kiểm kê đã quy về ngày chốt {ChotDate}" : "") + $" · xuất {DateTime.Now:dd/MM/yyyy HH:mm}");
         if (T.HasKT)
-            Table(wb.AddWorksheet("Doi chieu ke toan"), 3, new[] { "Mã hàng", "Tên hàng", "Kiểm kê (kg)", "Kế toán (Net kg)", "Kiểm kê − Kế toán (kg)", "Kết quả", "Ghi chú" },
-                T.Rows.Where(r => r.KtStatus.Length > 0 || r.KtKg is not null).Select(r => new object?[] { r.Ma, r.Ten, r.ChotKg, r.KtKg, r.TongKt, r.KtStatus, string.Join("; ", r.Notes) }),
-                $"ĐỐI CHIẾU KIỂM KÊ — KẾ TOÁN · {KtInfo}");
+            Table(wb.AddWorksheet("Doi chieu ke toan"), 3, new[] { "Mã hàng", "Tên hàng", "Kiểm kê (kg)", "Kho gửi (kg)", "Tổng (kg)", "Kế toán (Net kg)", "Tổng − Kế toán (kg)", "Kết quả", "Ghi chú" },
+                T.Rows.Where(r => r.KtStatus.Length > 0 || r.KtKg is not null).Select(r => new object?[] { r.Ma, r.Ten, r.ChotKg, r.GuiKg, r.TongKg, r.KtKg, r.TongKt, r.KtStatus, string.Join("; ", r.Notes) }),
+                $"ĐỐI CHIẾU KIỂM KÊ — KẾ TOÁN · {KtInfo}" + (GuiOn ? " · Tổng = kiểm kê + tồn kho gửi" : ""));
+        if (GuiOn && Gui.Detail.Count > 0)
+            Table(wb.AddWorksheet("Kho gui"), 3, new[] { "Mã kho gửi", "Mã 21 ký tự", "Cách đổi", "Tên hàng", "Số lô", "Size", "Số kiện", "Trọng lượng (kg)", "Ghi chú" },
+                Gui.Detail.Select(x => new object?[] { x.MaGui, x.Ma.Length == 21 ? x.Ma : "", x.Via == "tay" ? "Bảng chuyển đổi" : x.Via == "auto" ? "Tự động · " + x.Rule : "Không đổi được", x.Ten, x.Lo, x.Size, x.Kien, x.Kg, x.Why }),
+                $"TỒN KHO GỬI (đổi mã 19 → 21 ký tự) · {GuiInfo} · không đổi được: {Gui.Bad.Count} dòng / {Gui.KgBad:#,0.##} kg (không tính vào tổng)");
+        if (hasMv)
+            Table(wb.AddWorksheet("Phat sinh"), 3, new[] { "Ngày", "Loại", "Mã hàng", "Vị trí", "Số kiện", "Trang", "Dòng", "Xử lý", "Ghi chú" },
+                Adj.List.Select(x => new object?[] { x.M.Ngay.Length > 0 ? x.M.Ngay : x.M.NgayRaw, x.M.Type == "x" ? "Xuất" : "Nhập", x.M.Ma, x.M.Vt, x.M.Kien, x.M.Page, x.M.Dong, x.Label, x.Note.Trim() }),
+                $"PHÁT SINH NHẬP / XUẤT SAU NGÀY ĐẾM · ngày chốt {(PhatSinh.IsoOk(ChotDate) ? ChotDate : "(chưa đặt)")}");
         Table(wb.AddWorksheet("Chi tiet kiem ke"), 3, new[] { "Ngày", "Trang", "Dòng", "Vị trí", "Mã hàng", "Tên hàng", "Hợp đồng", "Lô", "Số kiện", "Kg" },
             Lines.Select(x => new object?[] { x.Ngay, x.Page, x.Row, x.Vt, x.Ma, x.Ten, x.Hd, x.Lo, x.Kien, x.Kg }), $"CHI TIẾT SỐ LIỆU KIỂM KÊ · {Chosen.Count} trang");
         if (Vt is not null)

@@ -17,7 +17,7 @@ public static class KiemKeCore
 {
     public const double KgTol = 0.05, VtTol = 0.0005;
     public const string Khop = "Khớp", Thua = "Thừa", Thieu = "Thiếu", LechKg = "Lệch kg", ChiKK = "Chỉ có ở kiểm kê", ChuaKK = "Chưa kiểm kê",
-        ChiKT = "Chỉ có ở kế toán", ChuaDC = "Chưa đối chiếu tồn kho";
+        ChiKT = "Chỉ có ở kế toán", ChuaDC = "Chưa đối chiếu tồn kho", ChiGui = "Chỉ có ở kho gửi";
     public static readonly HashSet<string> Lech = new() { Thua, Thieu, LechKg, ChiKK, ChuaKK };
 
     public static double R4(double n) => Math.Round(n * 10000, MidpointRounding.AwayFromZero) / 10000;
@@ -228,6 +228,8 @@ public static class KiemKeCore
     {
         public string Key = "", Ma = "", Ten = "", Status = "", KtStatus = "";
         public double? KkKien, KkKg, TonKien, TonKg, DKien, DKg, KtKg, KtKien, ChotKg, TongKt;
+        /// <summary>Tồn kho gửi (đã đổi sang mã 21) + Tổng = tồn chốt + kho gửi (dùng để so Kế toán).</summary>
+        public double? GuiKg, GuiKien, TongKg;
         public string Nhom = ""; public List<string> NhomAll = new();
         /// <summary>Phát sinh nhập / xuất đã quy về ngày chốt (KkKien / KkKg đã gồm phần này).</summary>
         public double? NhapKien, XuatKien, NhapKg, XuatKg;
@@ -270,7 +272,7 @@ public static class KiemKeCore
     }
     public sealed class Totals { public List<Row> Rows = new(); public bool HasStock, HasKT; }
 
-    public static Totals BuildTotals(IEnumerable<Line> ex, IReadOnlyCollection<Stock> stock, KtSet? kt, PhatSinh.Adj? adj = null)
+    public static Totals BuildTotals(IEnumerable<Line> ex, IReadOnlyCollection<Stock> stock, KtSet? kt, PhatSinh.Adj? adj = null, IReadOnlyDictionary<string, KhoGui.Agg>? gui = null)
     {
         var hasStock = stock.Count > 0; var hasKT = kt is { Map.Count: > 0 };
         var M = new Dictionary<string, (Row r, double kkKien, double kkKg, int kkKgN, int kgThieu, HashSet<string> days, double tonKien, double tonKg, int tonKgThieu, bool ktHas)>();
@@ -302,6 +304,9 @@ public static class KiemKeCore
                 e.ktHas = true; if (r.Ten.Length == 0 && v.Ten.Length > 0) r.Ten = v.Ten;
                 M[key] = e;
             }
+        var guiKeys = new HashSet<string>();
+        if (gui is not null)
+            foreach (var (key, g) in gui) { var r = Get(key, g.Ma); r.GuiKg = (r.GuiKg ?? 0) + g.Kg; if (g.Kien is double k) r.GuiKien = (r.GuiKien ?? 0) + k; if (r.Ten.Length == 0 && g.Ten.Length > 0) r.Ten = g.Ten; guiKeys.Add(key); }
         if (adj is not null)
             foreach (var (key, a) in adj.ByKey) if ((a.NKien != 0 || a.XKien != 0) && !M.ContainsKey(key)) Get(key, key);
         var o = new Totals { HasStock = hasStock, HasKT = hasKT };
@@ -324,8 +329,9 @@ public static class KiemKeCore
             double? dKien = counted || inStock ? R4(e.kkKien - e.tonKien) : null;
             double? dKg = (counted || inStock) && kgKnown ? R4(e.kkKg - e.tonKg) : null;
             string? st;
-            if (!counted && !inStock) st = e.ktHas ? ChiKT : null;
-            else if (!counted) st = Math.Abs(e.tonKien) > 1e-9 ? ChuaKK : (e.ktHas && (r.KtKg ?? 0) != 0 ? ChiKT : null);
+            var guiHas = guiKeys.Contains(key);
+            if (!counted && !inStock) st = guiHas ? ChiGui : e.ktHas ? ChiKT : null;
+            else if (!counted) st = Math.Abs(e.tonKien) > 1e-9 ? ChuaKK : guiHas ? ChiGui : (e.ktHas && (r.KtKg ?? 0) != 0 ? ChiKT : null);
             else if (!inStock) st = hasStock ? ChiKK : ChuaDC;
             else if (Math.Abs(dKien!.Value) < 1e-9 && (dKg is null || Math.Abs(dKg.Value) <= KgTol)) st = Khop;
             else if (Math.Abs(dKien.Value) < 1e-9) st = LechKg;
@@ -334,7 +340,7 @@ public static class KiemKeCore
             r.Status = st;
             r.KkKien = counted ? R4(e.kkKien) : null; r.KkKg = counted && kgKnown ? R4(e.kkKg) : null;
             r.TonKien = inStock ? R4(e.tonKien) : null; r.TonKg = inStock ? R4(e.tonKg) : null;
-            r.DKien = st is ChiKT ? null : dKien; r.DKg = st is ChiKT ? null : dKg;
+            r.DKien = st is ChiKT or ChiGui ? null : dKien; r.DKg = st is ChiKT or ChiGui ? null : dKg;
             if (inStock && e.tonKien < -1e-9) r.Notes.Add($"Tồn kho An An đang ÂM ({R4(e.tonKien)} kiện) — kiểm tra lại số liệu tồn");
             if (ad is not null) r.Notes.Add($"Đã quy về ngày chốt: +{ad.NKien:#,0.##} nhập − {ad.XKien:#,0.##} xuất kiện sau ngày đếm");
             if (adj is not null && adj.ByKey.TryGetValue(key, out var fl) && fl.Flags.Overlaps(new[] { "truoc", "thieu_ngay", "loi_ngay", "xuat_lon" })) r.Notes.Add("Có phát sinh nhập / xuất cần rà (ngày hoặc số lượng chưa hợp lý) — xem mục Phát sinh");
@@ -344,13 +350,15 @@ public static class KiemKeCore
             if (r.NhomAll.Count > 1) r.Notes.Add("Mã có tồn ở nhiều nhóm của module Tồn kho An An: " + string.Join(", ", r.NhomAll.Select(PhanLoaiM1.LabelOf)) + " — nhóm chính: " + PhanLoaiM1.LabelOf(r.Nhom));
             // Kế toán: so "tồn chốt" (= số kiểm kê kg; mã không kiểm kê = 0) với Net kế toán
             r.ChotKg = counted ? (kgKnown ? R4(e.kkKg) : null) : 0;
+            if (r.GuiKg is double gk) r.GuiKg = R4(gk); if (r.GuiKien is double gn) r.GuiKien = R4(gn);
+            r.TongKg = r.ChotKg is double ck ? R4(ck + (r.GuiKg ?? 0)) : null;
             if (hasKT)
             {
                 if (r.KtKg is { } k) r.KtKg = R4(k); if (r.KtKien is { } kn) r.KtKien = R4(kn);
-                if (r.KtKg is null) { if (r.ChotKg is { } c && Math.Abs(c) > KgTol) { r.KtStatus = "Lệch"; r.Notes.Add("Kế toán không có mã này"); } }
-                else if (r.ChotKg is null) r.KtStatus = "Chưa tính được";
-                else r.KtStatus = Math.Abs(r.ChotKg.Value - r.KtKg.Value) <= KgTol ? "Khớp" : "Lệch";
-                r.TongKt = r.KtKg is null || r.ChotKg is null ? null : R4(r.ChotKg.Value - r.KtKg.Value);
+                if (r.KtKg is null) { if (r.TongKg is { } c && Math.Abs(c) > KgTol) { r.KtStatus = "Lệch"; r.Notes.Add("Kế toán không có mã này"); } }
+                else if (r.TongKg is null) r.KtStatus = "Chưa tính được";
+                else r.KtStatus = Math.Abs(r.TongKg.Value - r.KtKg.Value) <= KgTol ? "Khớp" : "Lệch";
+                r.TongKt = r.KtKg is null || r.TongKg is null ? null : R4(r.TongKg.Value - r.KtKg.Value);
                 if (e.ktHas && r.KtKg is null) r.Notes.Add("Kế toán chưa có Net (và không tính được từ Số lượng × Trọng lượng)");
             }
             o.Rows.Add(r);
@@ -365,7 +373,7 @@ public static class KiemKeCore
         int t = 0, k = 0, th = 0, ti = 0, lk = 0, ck = 0, ch = 0, op = 0, au = 0, ktl = 0; double kg = 0, ktkg = 0;
         foreach (var r in rows)
         {
-            if (r.Status == ChiKT) { if (r.KtStatus == "Lệch") { ktl++; ktkg += Math.Abs(r.TongKt ?? r.KtKg ?? 0); } continue; }
+            if (r.Status is ChiKT or ChiGui) { if (r.KtStatus == "Lệch") { ktl++; ktkg += Math.Abs(r.TongKt ?? r.KtKg ?? 0); } continue; }
             t++;
             switch (r.Status) { case Khop: k++; break; case Thua: th++; break; case Thieu: ti++; break; case LechKg: lk++; break; case ChiKK: ck++; break; case ChuaKK: ch++; break; }
             if (Lech.Contains(r.Status)) { op++; kg += Math.Abs(r.DKg ?? 0); if (r.Nn is { Code: "sai-ma", Side: "kk", Strong: true, FixTo: not null }) au++; }
