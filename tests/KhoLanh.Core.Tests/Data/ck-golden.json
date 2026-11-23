@@ -1,0 +1,3160 @@
+{
+ "aoa": {
+  "anan": [
+   [
+    "BÁO CÁO NHẬP XUẤT TỒN KHO"
+   ],
+   [
+    "Từ ngày 01/10/2026 đến ngày 31/10/2026"
+   ],
+   [],
+   [
+    "Mã hàng",
+    "Tên hàng",
+    "Tồn đầu",
+    "Nhập",
+    "Xuất",
+    "Tồn cuối",
+    "Trọng lượng",
+    "Tồn cuối (NET)"
+   ],
+   [
+    "TPC-VRHLBTNXXXR00004010IM",
+    "Tôm HLSO 31/40",
+    10,
+    5,
+    3,
+    12,
+    10,
+    120
+   ],
+   [
+    "TPC-VRHLBTNXXXR00004110IM",
+    "Tôm HLSO 31/40",
+    20,
+    0,
+    0,
+    20,
+    10,
+    200
+   ],
+   [
+    "VRHLBTNXXXR00005010IM",
+    "Tôm HLSO 41/50",
+    5,
+    0,
+    0,
+    5,
+    10,
+    50
+   ],
+   [
+    "VRHLBTNXXXR00006010IM",
+    "Tôm HLSO 51/60",
+    8,
+    2,
+    1,
+    9,
+    10,
+    95
+   ],
+   [
+    "VRPDBTNXXXR00007010IM",
+    "Tôm PD 61/70",
+    30,
+    0,
+    0,
+    30,
+    10,
+    300
+   ],
+   [
+    "VRCOBTNXXXR00008010IM",
+    "Tôm CO 71/80",
+    7,
+    0,
+    0,
+    7,
+    10,
+    70
+   ],
+   [
+    "VRNOBTNXXXR00011010IM",
+    "Tôm NO",
+    4,
+    1,
+    0,
+    6,
+    10,
+    60
+   ],
+   [
+    "VRNOBTNXXXR00012010IM",
+    "Tôm NO 2",
+    -1,
+    0,
+    0,
+    -1,
+    10,
+    -10
+   ],
+   [
+    "BOTXBTNXXXR00000110IM",
+    "Bột chiên xù",
+    1,
+    0,
+    0,
+    1,
+    25,
+    25
+   ],
+   [
+    "VRZZBTNXXXR00013010IM",
+    "Tôm ZZ",
+    12,
+    0,
+    0,
+    12,
+    10,
+    120
+   ],
+   [
+    "VRYYBTNXXXR00014010IM",
+    "Tôm YY",
+    10,
+    0,
+    0,
+    10,
+    10,
+    100
+   ],
+   [
+    "Tổng cộng",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    999
+   ]
+  ],
+  "nxt": [
+   [
+    "BÁO CÁO NHẬP XUẤT TỒN THÀNH PHẨM"
+   ],
+   [
+    "Từ ngày 01/10/2026 đến ngày 31/10/2026"
+   ],
+   [
+    "Mã thành phẩm",
+    "Tên thành phẩm",
+    "ĐVT",
+    "Tồn đầu kỳ",
+    "Nhập trong kỳ",
+    "Xuất trong kỳ",
+    "Tồn CK"
+   ],
+   [
+    "VRHLBTNXXXR00004010IM",
+    "Tôm HLSO 31/40",
+    "kg",
+    100,
+    50,
+    30,
+    120
+   ],
+   [
+    "VRHLBTNXXXR00004110IM",
+    "Tôm HLSO 31/40",
+    "kg",
+    150,
+    0,
+    0,
+    150
+   ],
+   [
+    "VRHLBTNXXXR00005010IM",
+    "Tôm HLSO 41/50",
+    "kg",
+    100,
+    0,
+    0,
+    100
+   ],
+   [
+    "VRHLBTNXXXR00006010IM",
+    "Tôm HLSO 51/60",
+    "kg",
+    80,
+    20,
+    10,
+    90
+   ],
+   [
+    "VRPDBTNXXXR00007010IM",
+    "Tôm PD 61/70",
+    "kg",
+    270,
+    0,
+    0,
+    270
+   ],
+   [
+    "VRPDBTNXXXR00007110IM",
+    "Tôm PD 61/70",
+    "kg",
+    10,
+    0,
+    0,
+    10
+   ],
+   [
+    "VRPDBTNXXXR00007210IM",
+    "Tôm PD 61/70",
+    "kg",
+    20,
+    0,
+    0,
+    20
+   ],
+   [
+    "VRCOBTNXXXR00009010IM",
+    "Tôm CO 81/90",
+    "kg",
+    40,
+    0,
+    0,
+    40
+   ],
+   [
+    "VRCOBTNXXXR00010010IM",
+    "Tôm CO",
+    "kg",
+    0,
+    0,
+    0,
+    ""
+   ],
+   [
+    "VRNOBTNXXXR00011010IM",
+    "Tôm NO",
+    "kg",
+    40,
+    10,
+    0,
+    50
+   ],
+   [
+    "VRNOBTNXXXR00012010IM",
+    "Tôm NO 2",
+    "kg",
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    "VRZZBTNXXXR00013010IM",
+    "Tôm ZZ",
+    "kg",
+    12,
+    0,
+    0,
+    12
+   ],
+   [
+    "VRYYBTNXXXR00014010IM",
+    "Tôm YY",
+    "kg",
+    100,
+    0,
+    37.5,
+    62.5
+   ],
+   [
+    "VRPDBTNXXXR00007110IX",
+    "Mã gửi",
+    "kg",
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "ct": [
+   [
+    "Số CT",
+    "Ngày",
+    "Kho",
+    "Mã",
+    "Tên",
+    "LSX",
+    "NX",
+    "X",
+    "Kiện",
+    "SLKG",
+    "Net"
+   ],
+   [
+    "XK01",
+    46300,
+    "K1",
+    "VRYYBTNXXXR00014010IM",
+    "Tôm YY",
+    "LSX1",
+    "XK",
+    "X",
+    3,
+    37.5,
+    12.5
+   ],
+   [
+    "NK01",
+    46297,
+    "K1",
+    "VRHLBTNXXXR00004010IM",
+    "Tôm",
+    "",
+    "NH",
+    "N",
+    5,
+    50,
+    10
+   ],
+   [
+    "XK02",
+    46301,
+    "K1",
+    "VRHLBTNXXXR00004010IM",
+    "Tôm",
+    "",
+    "XK",
+    "X",
+    3,
+    30,
+    10
+   ],
+   [
+    "NK02",
+    46298,
+    "K1",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm",
+    "",
+    "NH",
+    "N",
+    2,
+    20,
+    10
+   ],
+   [
+    "XK03",
+    46302,
+    "K1",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm",
+    "",
+    "XK",
+    "X",
+    1,
+    10,
+    10
+   ],
+   [
+    "NK03",
+    46299,
+    "K1",
+    "VRNOBTNXXXR00011010IM",
+    "Tôm",
+    "",
+    "NH",
+    "N",
+    1,
+    10,
+    10
+   ],
+   [
+    "NK03",
+    46299,
+    "K1",
+    "VRNOBTNXXXR00011010IM",
+    "Tôm",
+    "",
+    "NH",
+    "N",
+    1,
+    10,
+    10
+   ],
+   [
+    "XK09",
+    46340,
+    "K1",
+    "VRZZBTNXXXR00013010IM",
+    "Tôm",
+    "",
+    "XK",
+    "X",
+    1,
+    5,
+    10
+   ],
+   [
+    "XK10",
+    "31/09/2026",
+    "K1",
+    "VRZZBTNXXXR00013010IM",
+    "Tôm",
+    "",
+    "XK",
+    "",
+    1,
+    1,
+    1
+   ]
+  ],
+  "dm": [
+   [
+    "DANH MỤC THÀNH PHẨM"
+   ],
+   [
+    "VRHLBTNXXXR00004010IM",
+    "Tên VRHLBTNXXXR00004010IM"
+   ],
+   [
+    "VRHLBTNXXXR00004110IM",
+    "Tên VRHLBTNXXXR00004110IM"
+   ],
+   [
+    "VRHLBTNXXXR00005010IM",
+    "Tên VRHLBTNXXXR00005010IM"
+   ],
+   [
+    "VRHLBTNXXXR00006010IM",
+    "Tên VRHLBTNXXXR00006010IM"
+   ],
+   [
+    "VRPDBTNXXXR00007010IM",
+    "Tên VRPDBTNXXXR00007010IM"
+   ],
+   [
+    "VRPDBTNXXXR00007110IM",
+    "Tên VRPDBTNXXXR00007110IM"
+   ],
+   [
+    "VRPDBTNXXXR00007210IM",
+    "Tên VRPDBTNXXXR00007210IM"
+   ],
+   [
+    "VRCOBTNXXXR00009010IM",
+    "Tên VRCOBTNXXXR00009010IM"
+   ],
+   [
+    "VRCOBTNXXXR00010010IM",
+    "Tên VRCOBTNXXXR00010010IM"
+   ],
+   [
+    "VRNOBTNXXXR00011010IM",
+    "Tên VRNOBTNXXXR00011010IM"
+   ],
+   [
+    "VRNOBTNXXXR00012010IM",
+    "Tên VRNOBTNXXXR00012010IM"
+   ],
+   [
+    "VRZZBTNXXXR00013010IM",
+    "Tên VRZZBTNXXXR00013010IM"
+   ],
+   [
+    "VRYYBTNXXXR00014010IM",
+    "Tên VRYYBTNXXXR00014010IM"
+   ],
+   [
+    "VRQQBTNXXXR00100010IM",
+    "Tên VRQQBTNXXXR00100010IM"
+   ],
+   [
+    "VRQQBTNXXXR00100110IM",
+    "Tên VRQQBTNXXXR00100110IM"
+   ],
+   [
+    "VRQQBTNXXXR00100210IM",
+    "Tên VRQQBTNXXXR00100210IM"
+   ],
+   [
+    "VRQQBTNXXXR00100310IM",
+    "Tên VRQQBTNXXXR00100310IM"
+   ],
+   [
+    "VRQQBTNXXXR00100410IM",
+    "Tên VRQQBTNXXXR00100410IM"
+   ],
+   [
+    "VRQQBTNXXXR00100510IM",
+    "Tên VRQQBTNXXXR00100510IM"
+   ],
+   [
+    "VRQQBTNXXXR00100610IM",
+    "Tên VRQQBTNXXXR00100610IM"
+   ],
+   [
+    "VRQQBTNXXXR00100710IM",
+    "Tên VRQQBTNXXXR00100710IM"
+   ],
+   [
+    "VRQQBTNXXXR00100810IM",
+    "Tên VRQQBTNXXXR00100810IM"
+   ],
+   [
+    "VRQQBTNXXXR00100910IM",
+    "Tên VRQQBTNXXXR00100910IM"
+   ]
+  ],
+  "gui": [
+   [
+    "BÁO CÁO TỒN KHO GỬI"
+   ],
+   [
+    "Từ ngày 31/10/2026 đến ngày 31/10/2026"
+   ],
+   [
+    "Mã hàng",
+    "Tên hàng",
+    "Số lô",
+    "Size",
+    "Quy cách",
+    "Ngày nhập kho",
+    "Phiếu nhập",
+    "Tồn đầu kỳ",
+    "",
+    "Nhập trong kỳ",
+    "",
+    "Xuất trong kỳ",
+    "",
+    "Tồn cuối kỳ",
+    ""
+   ],
+   [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Số kiện",
+    "Trọng lượng (KG)",
+    "Số kiện",
+    "Trọng lượng (KG)",
+    "Số kiện",
+    "Trọng lượng (KG)",
+    "Số kiện",
+    "Trọng lượng (KG)"
+   ],
+   [
+    "VRHLBTN004110IM0046",
+    "Tôm HLSO gửi",
+    "L01",
+    "31/40",
+    "",
+    46280,
+    "PN1",
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    "VRCOBTN009010IM0046",
+    "Tôm CO gửi",
+    "L02 TGS",
+    "81/90",
+    "",
+    46290,
+    "PN2",
+    3,
+    30,
+    1,
+    10,
+    0,
+    0,
+    4,
+    40
+   ],
+   [
+    "VRHLBTNXXXR00004010IM",
+    "Tôm 21 ký tự",
+    "L03",
+    "31/40",
+    "",
+    46295,
+    "PN3",
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    "ABC123",
+    "Mã lạ",
+    "L04",
+    "",
+    "",
+    "",
+    "",
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    5
+   ]
+  ]
+ },
+ "period": {
+  "from": "2026-10-01",
+  "to": "2026-10-31"
+ },
+ "readers": {
+  "anan": {
+   "rows": [
+    {
+     "row": 5,
+     "ma": "VRHLBTNXXXR00004010IM",
+     "ten": "Tôm HLSO 31/40",
+     "kg": 120,
+     "kgSrc": "file",
+     "sl": 12,
+     "w": 10,
+     "dauKg": 100,
+     "nhapKg": 50,
+     "xuatKg": 30
+    },
+    {
+     "row": 6,
+     "ma": "VRHLBTNXXXR00004110IM",
+     "ten": "Tôm HLSO 31/40",
+     "kg": 200,
+     "kgSrc": "file",
+     "sl": 20,
+     "w": 10,
+     "dauKg": 200,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 7,
+     "ma": "VRHLBTNXXXR00005010IM",
+     "ten": "Tôm HLSO 41/50",
+     "kg": 50,
+     "kgSrc": "file",
+     "sl": 5,
+     "w": 10,
+     "dauKg": 50,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 8,
+     "ma": "VRHLBTNXXXR00006010IM",
+     "ten": "Tôm HLSO 51/60",
+     "kg": 95,
+     "kgSrc": "file",
+     "sl": 9,
+     "w": 10,
+     "dauKg": 80,
+     "nhapKg": 20,
+     "xuatKg": 10,
+     "nhetLech": 5
+    },
+    {
+     "row": 9,
+     "ma": "VRPDBTNXXXR00007010IM",
+     "ten": "Tôm PD 61/70",
+     "kg": 300,
+     "kgSrc": "file",
+     "sl": 30,
+     "w": 10,
+     "dauKg": 300,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 10,
+     "ma": "VRCOBTNXXXR00008010IM",
+     "ten": "Tôm CO 71/80",
+     "kg": 70,
+     "kgSrc": "file",
+     "sl": 7,
+     "w": 10,
+     "dauKg": 70,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 11,
+     "ma": "VRNOBTNXXXR00011010IM",
+     "ten": "Tôm NO",
+     "kg": 60,
+     "kgSrc": "file",
+     "sl": 6,
+     "w": 10,
+     "dauKg": 40,
+     "nhapKg": 10,
+     "xuatKg": 0,
+     "selfLech": -10,
+     "selfUnit": "kg"
+    },
+    {
+     "row": 12,
+     "ma": "VRNOBTNXXXR00012010IM",
+     "ten": "Tôm NO 2",
+     "kg": -10,
+     "kgSrc": "file",
+     "sl": -1,
+     "w": 10,
+     "dauKg": -10,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 13,
+     "ma": "BOTXBTNXXXR00000110IM",
+     "ten": "Bột chiên xù",
+     "kg": 25,
+     "kgSrc": "file",
+     "sl": 1,
+     "w": 25,
+     "dauKg": 25,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 14,
+     "ma": "VRZZBTNXXXR00013010IM",
+     "ten": "Tôm ZZ",
+     "kg": 120,
+     "kgSrc": "file",
+     "sl": 12,
+     "w": 10,
+     "dauKg": 120,
+     "nhapKg": 0,
+     "xuatKg": 0
+    },
+    {
+     "row": 15,
+     "ma": "VRYYBTNXXXR00014010IM",
+     "ten": "Tôm YY",
+     "kg": 100,
+     "kgSrc": "file",
+     "sl": 10,
+     "w": 10,
+     "dauKg": 100,
+     "nhapKg": 0,
+     "xuatKg": 0
+    }
+   ],
+   "period": {
+    "from": "2026-10-01",
+    "to": "2026-10-31",
+    "source": "tiêu đề báo cáo"
+   },
+   "stats": {
+    "nRows": 11,
+    "nCodes": 11,
+    "totalKg": 1130,
+    "skipped": 0,
+    "totals": 1,
+    "issues": 3,
+    "counts": {
+     "trong-luong": 1,
+     "_all": 3,
+     "tu-khong-khop": 1,
+     "ton-am": 1
+    }
+   }
+  },
+  "ketoan": {
+   "rows": [
+    {
+     "row": 4,
+     "ma": "VRHLBTNXXXR00004010IM",
+     "ten": "Tôm HLSO 31/40",
+     "kg": 120,
+     "dauKg": 100,
+     "nhapKg": 50,
+     "xuatKg": 30,
+     "nhapParts": {
+      "Nhập trong kỳ": 50
+     },
+     "xuatParts": {
+      "Xuất trong kỳ": 30
+     },
+     "dvt": "kg"
+    },
+    {
+     "row": 5,
+     "ma": "VRHLBTNXXXR00004110IM",
+     "ten": "Tôm HLSO 31/40",
+     "kg": 150,
+     "dauKg": 150,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 6,
+     "ma": "VRHLBTNXXXR00005010IM",
+     "ten": "Tôm HLSO 41/50",
+     "kg": 100,
+     "dauKg": 100,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 7,
+     "ma": "VRHLBTNXXXR00006010IM",
+     "ten": "Tôm HLSO 51/60",
+     "kg": 90,
+     "dauKg": 80,
+     "nhapKg": 20,
+     "xuatKg": 10,
+     "nhapParts": {
+      "Nhập trong kỳ": 20
+     },
+     "xuatParts": {
+      "Xuất trong kỳ": 10
+     },
+     "dvt": "kg"
+    },
+    {
+     "row": 8,
+     "ma": "VRPDBTNXXXR00007010IM",
+     "ten": "Tôm PD 61/70",
+     "kg": 270,
+     "dauKg": 270,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 9,
+     "ma": "VRPDBTNXXXR00007110IM",
+     "ten": "Tôm PD 61/70",
+     "kg": 10,
+     "dauKg": 10,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 10,
+     "ma": "VRPDBTNXXXR00007210IM",
+     "ten": "Tôm PD 61/70",
+     "kg": 20,
+     "dauKg": 20,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 11,
+     "ma": "VRCOBTNXXXR00009010IM",
+     "ten": "Tôm CO 81/90",
+     "kg": 40,
+     "dauKg": 40,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 13,
+     "ma": "VRNOBTNXXXR00011010IM",
+     "ten": "Tôm NO",
+     "kg": 50,
+     "dauKg": 40,
+     "nhapKg": 10,
+     "xuatKg": 0,
+     "nhapParts": {
+      "Nhập trong kỳ": 10
+     },
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 15,
+     "ma": "VRZZBTNXXXR00013010IM",
+     "ten": "Tôm ZZ",
+     "kg": 12,
+     "dauKg": 12,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "nhapParts": {},
+     "xuatParts": {},
+     "dvt": "kg"
+    },
+    {
+     "row": 16,
+     "ma": "VRYYBTNXXXR00014010IM",
+     "ten": "Tôm YY",
+     "kg": 62.5,
+     "dauKg": 100,
+     "nhapKg": 0,
+     "xuatKg": 37.5,
+     "nhapParts": {},
+     "xuatParts": {
+      "Xuất trong kỳ": 37.5
+     },
+     "dvt": "kg"
+    }
+   ],
+   "known": [
+    "VRHLBTNXXXR00004010IM",
+    "VRHLBTNXXXR00004110IM",
+    "VRHLBTNXXXR00005010IM",
+    "VRHLBTNXXXR00006010IM",
+    "VRPDBTNXXXR00007010IM",
+    "VRPDBTNXXXR00007110IM",
+    "VRPDBTNXXXR00007210IM",
+    "VRCOBTNXXXR00009010IM",
+    "VRCOBTNXXXR00010010IM",
+    "VRNOBTNXXXR00011010IM",
+    "VRNOBTNXXXR00012010IM",
+    "VRZZBTNXXXR00013010IM",
+    "VRYYBTNXXXR00014010IM",
+    "VRPDBTNXXXR00007110IX"
+   ],
+   "stats": {
+    "nRows": 11,
+    "nCodes": 14,
+    "nZero": 3,
+    "totalKg": 924.5,
+    "totalDau": 922,
+    "totalNhap": 80,
+    "totalXuat": 77.5,
+    "skipped": 0,
+    "totals": 0,
+    "issues": 0,
+    "counts": {}
+   }
+  },
+  "ct": {
+   "rows": [
+    {
+     "id": "kt:2",
+     "src": "ketoan",
+     "row": 2,
+     "phieu": "XK01",
+     "ngay": "2026-10-05",
+     "kho": "K1",
+     "ma": "VRYYBTNXXXR00014010IM",
+     "ten": "Tôm YY",
+     "lsx": "LSX1",
+     "loai": "XK",
+     "dir": "X",
+     "kg": 37.5,
+     "kien": 3,
+     "netPer": 12.5
+    },
+    {
+     "id": "kt:3",
+     "src": "ketoan",
+     "row": 3,
+     "phieu": "NK01",
+     "ngay": "2026-10-02",
+     "kho": "K1",
+     "ma": "VRHLBTNXXXR00004010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "NH",
+     "dir": "N",
+     "kg": 50,
+     "kien": 5,
+     "netPer": 10
+    },
+    {
+     "id": "kt:4",
+     "src": "ketoan",
+     "row": 4,
+     "phieu": "XK02",
+     "ngay": "2026-10-06",
+     "kho": "K1",
+     "ma": "VRHLBTNXXXR00004010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "XK",
+     "dir": "X",
+     "kg": 30,
+     "kien": 3,
+     "netPer": 10
+    },
+    {
+     "id": "kt:5",
+     "src": "ketoan",
+     "row": 5,
+     "phieu": "NK02",
+     "ngay": "2026-10-03",
+     "kho": "K1",
+     "ma": "VRHLBTNXXXR00006010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "NH",
+     "dir": "N",
+     "kg": 20,
+     "kien": 2,
+     "netPer": 10
+    },
+    {
+     "id": "kt:6",
+     "src": "ketoan",
+     "row": 6,
+     "phieu": "XK03",
+     "ngay": "2026-10-07",
+     "kho": "K1",
+     "ma": "VRHLBTNXXXR00006010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "XK",
+     "dir": "X",
+     "kg": 10,
+     "kien": 1,
+     "netPer": 10
+    },
+    {
+     "id": "kt:7",
+     "src": "ketoan",
+     "row": 7,
+     "phieu": "NK03",
+     "ngay": "2026-10-04",
+     "kho": "K1",
+     "ma": "VRNOBTNXXXR00011010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "NH",
+     "dir": "N",
+     "kg": 10,
+     "kien": 1,
+     "netPer": 10
+    },
+    {
+     "id": "kt:8",
+     "src": "ketoan",
+     "row": 8,
+     "phieu": "NK03",
+     "ngay": "2026-10-04",
+     "kho": "K1",
+     "ma": "VRNOBTNXXXR00011010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "NH",
+     "dir": "N",
+     "kg": 10,
+     "kien": 1,
+     "netPer": 10
+    },
+    {
+     "id": "kt:9",
+     "src": "ketoan",
+     "row": 9,
+     "phieu": "XK09",
+     "ngay": "2026-11-14",
+     "kho": "K1",
+     "ma": "VRZZBTNXXXR00013010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "XK",
+     "dir": "X",
+     "kg": 5,
+     "kien": 1,
+     "netPer": 10,
+     "netLech": -5
+    },
+    {
+     "id": "kt:10",
+     "src": "ketoan",
+     "row": 10,
+     "phieu": "XK10",
+     "ngay": "",
+     "kho": "K1",
+     "ma": "VRZZBTNXXXR00013010IM",
+     "ten": "Tôm",
+     "lsx": "",
+     "loai": "XK",
+     "dir": "X",
+     "kg": 1,
+     "kien": 1,
+     "netPer": 1
+    }
+   ],
+   "stats": {
+    "nRows": 9,
+    "totalNhap": 90,
+    "totalXuat": 83.5,
+    "skipped": 0,
+    "netLech": 1,
+    "from": "2026-10-02",
+    "to": "2026-11-14",
+    "issues": 2,
+    "counts": {
+     "trong-luong": 1,
+     "_all": 2,
+     "ngay-loi": 1
+    }
+   }
+  },
+  "dm": 23,
+  "gui": {
+   "rows": [
+    {
+     "id": "gui:5",
+     "row": 5,
+     "maGui": "VRHLBTN004110IM0046",
+     "ten": "Tôm HLSO gửi",
+     "lo": "L01",
+     "size": "31/40",
+     "quyCach": "",
+     "ngayNhap": "2026-09-15",
+     "phieu": "PN1",
+     "kg": 0,
+     "dauKg": 0,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "dauKien": 0,
+     "nhapKien": 0,
+     "xuatKien": 0,
+     "cuoiKien": 0,
+     "rule": "BTP thường",
+     "ma": "VRHLBTNXXXR00004110IM",
+     "via": "auto"
+    },
+    {
+     "id": "gui:6",
+     "row": 6,
+     "maGui": "VRCOBTN009010IM0046",
+     "ten": "Tôm CO gửi",
+     "lo": "L02 TGS",
+     "size": "81/90",
+     "quyCach": "",
+     "ngayNhap": "2026-09-25",
+     "phieu": "PN2",
+     "kg": 40,
+     "dauKg": 30,
+     "nhapKg": 10,
+     "xuatKg": 0,
+     "dauKien": 3,
+     "nhapKien": 1,
+     "xuatKien": 0,
+     "cuoiKien": 4,
+     "rule": "Tôm Giám Sát",
+     "ma": "VRCOBTNXXXTGS009010IM",
+     "via": "auto"
+    },
+    {
+     "id": "gui:7",
+     "row": 7,
+     "maGui": "VRHLBTNXXXR00004010IM",
+     "ten": "Tôm 21 ký tự",
+     "lo": "L03",
+     "size": "31/40",
+     "quyCach": "",
+     "ngayNhap": "2026-09-30",
+     "phieu": "PN3",
+     "kg": 0,
+     "dauKg": 0,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "dauKien": 0,
+     "nhapKien": 0,
+     "xuatKien": 0,
+     "cuoiKien": 0,
+     "ma": "VRHLBTNXXXR00004010IM",
+     "via": "goc"
+    },
+    {
+     "id": "gui:8",
+     "row": 8,
+     "maGui": "ABC123",
+     "ten": "Mã lạ",
+     "lo": "L04",
+     "size": "",
+     "quyCach": "",
+     "ngayNhap": "",
+     "phieu": "",
+     "kg": 5,
+     "dauKg": 0,
+     "nhapKg": 0,
+     "xuatKg": 0,
+     "dauKien": 0,
+     "nhapKien": 0,
+     "xuatKien": 0,
+     "cuoiKien": 1,
+     "why": "Mã kho gửi 6 ký tự (cần 18–19)",
+     "ma": "ABC123",
+     "via": "khong",
+     "selfLech": -5
+    }
+   ],
+   "period": {
+    "from": "2026-10-31",
+    "to": "2026-10-31",
+    "source": "tiêu đề báo cáo"
+   },
+   "stats": {
+    "nRows": 4,
+    "nCodes": 4,
+    "totalKg": 45,
+    "totalDau": 30,
+    "totalNhap": 10,
+    "totalXuat": 0,
+    "skipped": 0,
+    "via": {
+     "goc": 1,
+     "cot": 0,
+     "auto": 2,
+     "khong": 1
+    },
+    "issues": 2,
+    "counts": {
+     "ma-khong-chuyen": 1,
+     "_all": 2,
+     "tu-khong-khop": 1
+    }
+   }
+  }
+ },
+ "items": [
+  {
+   "ma": "VRZZBTNXXXR00013010IM",
+   "ten": "Tôm ZZ",
+   "aa": 120,
+   "gui": null,
+   "kt": 12,
+   "kho": 120,
+   "diff": 108,
+   "status": "diff",
+   "group": "",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": 108,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    120,
+    null,
+    12
+   ],
+   "decomp": [
+    108,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 120 kg, kế toán 12 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ +108 kg = tồn đầu lệch +108 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "don-vi",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Kế toán ghi 12 kg đúng bằng SỐ THÙNG của An An (12), trong khi số kg của An An là 120."
+     ],
+     "action": "Kiểm tra kế toán có nhập số thùng vào cột kg không."
+    },
+    {
+     "code": "ct-lech-nxt",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Báo cáo NXT kế toán ghi xuất 0 kg nhưng chứng từ chi tiết cộng 6 kg (NXT thấp hơn 6 kg).",
+      "Số lệch này không giải thích được chênh lệch hiện tại."
+     ],
+     "action": "Kế toán rà lại số liệu NXT so với chứng từ chi tiết."
+    },
+    {
+     "code": "ct-ngoai-ky",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Chứng từ XK09 (14/11/2026): Ngày 14/11/2026 sau cuối kỳ 31/10/2026"
+     ],
+     "action": "Kiểm tra ngày ghi nhận của các chứng từ này."
+    },
+    {
+     "code": "sai-trong-luong",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Chứng từ XK09: Số kg ≠ số kiện × Net/kiện (lệch -5 kg)"
+     ],
+     "action": "Kiểm tra Net / số kiện của chứng từ."
+    }
+   ],
+   "cands": [],
+   "combos": [],
+   "ct": {
+    "n": 2,
+    "nFlag": 1,
+    "flags": [
+     "",
+     "sau-chot,net-lech"
+    ]
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": false,
+    "saima": false,
+    "ct": true,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRCOBTNXXXR00008010IM",
+   "ten": "Tôm CO 71/80",
+   "aa": 70,
+   "gui": null,
+   "kt": null,
+   "kho": 70,
+   "diff": 70,
+   "status": "diff",
+   "group": "",
+   "rootKnown": true,
+   "statusUi": "xong",
+   "diffAfter": 0,
+   "adj": -70,
+   "adjKho": -70,
+   "adjKt": 0,
+   "tinh": [
+    70,
+    null,
+    null
+   ],
+   "decomp": [
+    70,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 70 kg, kế toán 0 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ +70 kg = tồn đầu lệch +70 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "ngoai-danh-muc",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Mã không có trong danh mục thành phẩm của kế toán (23 mã)."
+     ],
+     "action": "Mã này có thể gõ sai — đối chiếu với danh mục / mã gợi ý."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Mã có tồn 70 kg ở kho nhưng KHÔNG có trong báo cáo NXT kế toán."
+     ],
+     "action": "Kiểm tra kế toán đã tạo / ghi nhận mã này chưa, hoặc mã đang bị ghi sang một mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Mã gợi ý VRCOBTNXXXR00009010IM đang lệch ngược -40 kg.",
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"8\" ↔ \"9\") — khác ở 1 đoạn: Size \"0080\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+70 ↔ -40 kg, hụt 30 kg)",
+      "Tên hàng giống 50%",
+      "Mã này KHÔNG có trong danh mục thành phẩm, mã gợi ý có → nhiều khả năng mã này là mã nhập sai."
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 40 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "chia-ma",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Tổng lệch của 2 mã giống nhau (-50, -20 = -70 kg) bằng đúng mức lệch ngược của mã này (+70 kg)",
+      "Độ giống mã trung bình 83%"
+     ],
+     "action": "Nghi 70 kg của mã này bị ghi chia sang 2 mã gần giống — kiểm tra phiếu của các mã: VRHLBTNXXXR00005010IM, VRPDBTNXXXR00007210IM."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRCOBTNXXXR00009010IM",
+     "score": 66.1,
+     "conf": "thap",
+     "kind": "quy-cach",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"8\" ↔ \"9\") — khác ở 1 đoạn: Size \"0080\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+70 ↔ -40 kg, hụt 30 kg)",
+      "Tên hàng giống 50%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00005010IM",
+     "score": 60.5,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRCO\" ↔ \"VRHL\"; Size \"0080\" ↔ \"0050\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+70 ↔ -50 kg, hụt 20 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [
+    {
+     "codes": [
+      "VRHLBTNXXXR00005010IM",
+      "VRPDBTNXXXR00007210IM"
+     ],
+     "sum": -70,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 2 mã giống nhau (-50, -20 = -70 kg) bằng đúng mức lệch ngược của mã này (+70 kg)",
+      "Độ giống mã trung bình 83%"
+     ]
+    },
+    {
+     "codes": [
+      "VRCOBTNXXXR00009010IM",
+      "VRNOBTNXXXR00012010IM",
+      "VRPDBTNXXXR00007210IM"
+     ],
+     "sum": -70,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 3 mã giống nhau (-40, -10, -20 = -70 kg) bằng đúng mức lệch ngược của mã này (+70 kg)",
+      "Độ giống mã trung bình 87%"
+     ]
+    },
+    {
+     "codes": [
+      "VRCOBTNXXXR00009010IM",
+      "VRPDBTNXXXR00007110IM",
+      "VRPDBTNXXXR00007210IM"
+     ],
+     "sum": -70,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 3 mã giống nhau (-40, -10, -20 = -70 kg) bằng đúng mức lệch ngược của mã này (+70 kg)",
+      "Độ giống mã trung bình 86%"
+     ]
+    }
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": true
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00004110IM",
+   "ten": "Tôm HLSO 31/40",
+   "aa": 200,
+   "gui": 0,
+   "kt": 150,
+   "kho": 200,
+   "diff": 50,
+   "status": "diff",
+   "group": "VRHLBTNXXXR00005010IM",
+   "rootKnown": true,
+   "statusUi": "xong",
+   "diffAfter": 0,
+   "adj": -50,
+   "adjKho": -50,
+   "adjKt": 0,
+   "tinh": [
+    200,
+    0,
+    150
+   ],
+   "decomp": [
+    50,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRHLBTNXXXR00005010IM đang lệch ngược -50 kg.",
+      "Hai mã cùng độ dài, sai 2 ký tự (vị trí 16, 17) — khác ở 1 đoạn: Size \"0041\" ↔ \"0050\"",
+      "Chênh lệch đối ứng đúng 50 kg (mã nghi sai +50 kg, mã gợi ý -50 kg)",
+      "Tên hàng giống 50%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 50 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 200 kg, kế toán 150 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ +50 kg = tồn đầu lệch +50 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chia-ma",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Tổng lệch của 2 mã giống nhau (-10, -40 = -50 kg) bằng đúng mức lệch ngược của mã này (+50 kg)",
+      "Độ giống mã trung bình 83%"
+     ],
+     "action": "Nghi 50 kg của mã này bị ghi chia sang 2 mã gần giống — kiểm tra phiếu của các mã: VRPDBTNXXXR00007110IM, VRCOBTNXXXR00009010IM."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRHLBTNXXXR00005010IM",
+     "score": 87.6,
+     "conf": "cao",
+     "kind": "quy-cach",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 2 ký tự (vị trí 16, 17) — khác ở 1 đoạn: Size \"0041\" ↔ \"0050\"",
+      "Chênh lệch đối ứng đúng 50 kg (mã nghi sai +50 kg, mã gợi ý -50 kg)",
+      "Tên hàng giống 50%",
+      "Mã giống 90%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRCOBTNXXXR00009010IM",
+     "score": 60.8,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRCO\"; Size \"0041\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+50 ↔ -40 kg, hụt 10 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [
+    {
+     "codes": [
+      "VRPDBTNXXXR00007110IM",
+      "VRCOBTNXXXR00009010IM"
+     ],
+     "sum": -50,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 2 mã giống nhau (-10, -40 = -50 kg) bằng đúng mức lệch ngược của mã này (+50 kg)",
+      "Độ giống mã trung bình 83%"
+     ]
+    }
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": true
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00005010IM",
+   "ten": "Tôm HLSO 41/50",
+   "aa": 50,
+   "gui": null,
+   "kt": 100,
+   "kho": 50,
+   "diff": -50,
+   "status": "diff",
+   "group": "VRHLBTNXXXR00005010IM",
+   "rootKnown": true,
+   "statusUi": "xong",
+   "diffAfter": 0,
+   "adj": 50,
+   "adjKho": 50,
+   "adjKt": 0,
+   "tinh": [
+    50,
+    null,
+    100
+   ],
+   "decomp": [
+    -50,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRHLBTNXXXR00004110IM đang lệch ngược +50 kg.",
+      "Hai mã cùng độ dài, sai 2 ký tự (vị trí 16, 17) — khác ở 1 đoạn: Size \"0050\" ↔ \"0041\"",
+      "Chênh lệch đối ứng đúng 50 kg (mã nghi sai -50 kg, mã gợi ý +50 kg)",
+      "Tên hàng giống 50%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 50 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 50 kg, kế toán 100 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ -50 kg = tồn đầu lệch -50 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRHLBTNXXXR00004110IM",
+     "score": 87.6,
+     "conf": "cao",
+     "kind": "quy-cach",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 2 ký tự (vị trí 16, 17) — khác ở 1 đoạn: Size \"0050\" ↔ \"0041\"",
+      "Chênh lệch đối ứng đúng 50 kg (mã nghi sai -50 kg, mã gợi ý +50 kg)",
+      "Tên hàng giống 50%",
+      "Mã giống 90%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRYYBTNXXXR00014010IM",
+     "score": 61,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRYY\"; Size \"0050\" ↔ \"0140\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-50 ↔ +37.5 kg, hụt 12.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRCOBTNXXXR00008010IM",
+     "score": 60.5,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRCO\"; Size \"0050\" ↔ \"0080\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-50 ↔ +70 kg, hụt 20 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007010IM",
+     "score": 58.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRPD\"; Size \"0050\" ↔ \"0070\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-50 ↔ +30 kg, hụt 20 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": true,
+    "thua": false,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": true
+   }
+  },
+  {
+   "ma": "VRCOBTNXXXR00009010IM",
+   "ten": "Tôm CO 81/90",
+   "aa": null,
+   "gui": null,
+   "kt": 40,
+   "kho": 0,
+   "diff": -40,
+   "status": "diff",
+   "group": "VRCOBTNXXXTGS009010IM",
+   "rootKnown": true,
+   "statusUi": "nghi-ma",
+   "diffAfter": -40,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    null,
+    null,
+    40
+   ],
+   "decomp": [
+    -40,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "nhan-ma",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRCOBTNXXXTGS009010IM đang lệch ngược +40 kg.",
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 11, 12, 13) — khác ở 1 đoạn: Mạ băng \"R00\" ↔ \"TGS\"",
+      "Chênh lệch đối ứng đúng 40 kg (mã nghi sai -40 kg, mã gợi ý +40 kg)",
+      "Tên hàng giống 57%",
+      "Mã gợi ý KHÔNG có trong danh mục thành phẩm, mã này có → nhiều khả năng mã gợi ý mới là mã nhập sai."
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 40 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 0 kg, kế toán 40 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ -40 kg = tồn đầu lệch -40 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Kế toán còn tồn 40 kg nhưng mã này KHÔNG có ở Tồn kho An An / Tồn kho gửi."
+     ],
+     "action": "Kiểm tra phiếu xuất chưa vào kế toán, hoặc mã bị ghi sang mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "chia-ma",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Tổng lệch của 2 mã giống nhau (+30, +10 = +40 kg) bằng đúng mức lệch ngược của mã này (-40 kg)",
+      "Độ giống mã trung bình 86%"
+     ],
+     "action": "Nghi 40 kg của mã này bị ghi chia sang 2 mã gần giống — kiểm tra phiếu của các mã: VRPDBTNXXXR00007010IM, VRNOBTNXXXR00011010IM."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRCOBTNXXXTGS009010IM",
+     "score": 87.3,
+     "conf": "cao",
+     "kind": "dac-tinh",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 11, 12, 13) — khác ở 1 đoạn: Mạ băng \"R00\" ↔ \"TGS\"",
+      "Chênh lệch đối ứng đúng 40 kg (mã nghi sai -40 kg, mã gợi ý +40 kg)",
+      "Tên hàng giống 57%",
+      "Mã giống 86%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRCOBTNXXXR00008010IM",
+     "score": 66.1,
+     "conf": "thap",
+     "kind": "quy-cach",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"9\" ↔ \"8\") — khác ở 1 đoạn: Size \"0090\" ↔ \"0080\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-40 ↔ +70 kg, hụt 30 kg)",
+      "Tên hàng giống 50%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRYYBTNXXXR00014010IM",
+     "score": 65,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRCO\" ↔ \"VRYY\"; Size \"0090\" ↔ \"0140\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-40 ↔ +37.5 kg, hụt 2.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007010IM",
+     "score": 61.2,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRCO\" ↔ \"VRPD\"; Size \"0090\" ↔ \"0070\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-40 ↔ +30 kg, hụt 10 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00004110IM",
+     "score": 60.8,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRCO\" ↔ \"VRHL\"; Size \"0090\" ↔ \"0041\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-40 ↔ +50 kg, hụt 10 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [
+    {
+     "codes": [
+      "VRPDBTNXXXR00007010IM",
+      "VRNOBTNXXXR00011010IM"
+     ],
+     "sum": 40,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 2 mã giống nhau (+30, +10 = +40 kg) bằng đúng mức lệch ngược của mã này (-40 kg)",
+      "Độ giống mã trung bình 86%"
+     ]
+    }
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": true,
+    "thua": false,
+    "quycach": false,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRCOBTNXXXTGS009010IM",
+   "ten": "Tôm CO gửi",
+   "aa": null,
+   "gui": 40,
+   "kt": null,
+   "kho": 40,
+   "diff": 40,
+   "status": "diff",
+   "group": "VRCOBTNXXXTGS009010IM",
+   "rootKnown": true,
+   "statusUi": "nghi-ma",
+   "diffAfter": 40,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    null,
+    40,
+    null
+   ],
+   "decomp": [
+    30,
+    10,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "nhan-ma",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRCOBTNXXXR00009010IM đang lệch ngược -40 kg.",
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 11, 12, 13) — khác ở 1 đoạn: Mạ băng \"TGS\" ↔ \"R00\"",
+      "Chênh lệch đối ứng đúng 40 kg (mã nghi sai +40 kg, mã gợi ý -40 kg)",
+      "Tên hàng giống 57%",
+      "Mã này KHÔNG có trong danh mục thành phẩm, mã gợi ý có → nhiều khả năng mã này là mã nhập sai."
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 40 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "ngoai-danh-muc",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Mã không có trong danh mục thành phẩm của kế toán (23 mã)."
+     ],
+     "action": "Mã này có thể gõ sai — đối chiếu với danh mục / mã gợi ý."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Mã có tồn 40 kg ở kho nhưng KHÔNG có trong báo cáo NXT kế toán."
+     ],
+     "action": "Kiểm tra kế toán đã tạo / ghi nhận mã này chưa, hoặc mã đang bị ghi sang một mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "lech-dau-ky",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "Tồn đầu kỳ lệch +30 kg (kho 30, kế toán 0) và phát sinh trong kỳ cũng lệch.",
+      "Phân rã: chênh lệch cuối kỳ +40 kg = tồn đầu lệch +30 + nhập lệch +10 − xuất lệch 0.",
+      "Lưu ý: số đầu kỳ / nhập / xuất của kho và kế toán có thể ghi nhận khác nhau (chuyển đổi nội bộ) — chỉ Tồn cuối kỳ là số so sánh chính."
+     ],
+     "action": "Rà tồn đầu kỳ trước, sau đó rà phát sinh trong kỳ."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRCOBTNXXXR00009010IM",
+     "score": 87.3,
+     "conf": "cao",
+     "kind": "dac-tinh",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 11, 12, 13) — khác ở 1 đoạn: Mạ băng \"TGS\" ↔ \"R00\"",
+      "Chênh lệch đối ứng đúng 40 kg (mã nghi sai +40 kg, mã gợi ý -40 kg)",
+      "Tên hàng giống 57%",
+      "Mã giống 86%, 9/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": false,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRYYBTNXXXR00014010IM",
+   "ten": "Tôm YY",
+   "aa": 100,
+   "gui": null,
+   "kt": 62.5,
+   "kho": 100,
+   "diff": 37.5,
+   "status": "diff",
+   "group": "",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": 37.5,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    100,
+    null,
+    62.5
+   ],
+   "decomp": [
+    0,
+    0,
+    -37.5,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-phat-sinh",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ hai bên khớp; chênh lệch phát sinh TRONG kỳ.",
+      "Phân rã: chênh lệch cuối kỳ +37.5 kg = tồn đầu lệch 0 + nhập lệch 0 − xuất lệch -37.5."
+     ],
+     "action": "Rà phiếu nhập / xuất của mã trong kỳ giữa kho và kế toán."
+    },
+    {
+     "code": "ct-bang-chenh",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "Chứng từ XK01 (xuất, 05/10/2026) 37.5 kg = đúng mức chênh lệch 37.5 kg."
+     ],
+     "action": "Kiểm tra chứng từ này có được ghi ở cả kho và kế toán, đúng mã, đúng ngày chưa."
+    },
+    {
+     "code": "nhan-ma",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Mã gợi ý VRCOBTNXXXR00009010IM đang lệch ngược -40 kg.",
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRYY\" ↔ \"VRCO\"; Size \"0140\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+37.5 ↔ -40 kg, hụt 2.5 kg)",
+      "Tên hàng giống 33%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 37.5 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRCOBTNXXXR00009010IM",
+     "score": 65,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRYY\" ↔ \"VRCO\"; Size \"0140\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+37.5 ↔ -40 kg, hụt 2.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00005010IM",
+     "score": 61,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRYY\" ↔ \"VRHL\"; Size \"0140\" ↔ \"0050\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+37.5 ↔ -50 kg, hụt 12.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007210IM",
+     "score": 55.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRYY\" ↔ \"VRPD\"; Size \"0140\" ↔ \"0072\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+37.5 ↔ -20 kg, hụt 17.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 1,
+    "nFlag": 1,
+    "flags": [
+     "bang-chenh"
+    ]
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": false,
+    "saima": true,
+    "ct": true,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007010IM",
+   "ten": "Tôm PD 61/70",
+   "aa": 300,
+   "gui": null,
+   "kt": 270,
+   "kho": 300,
+   "diff": 30,
+   "status": "diff",
+   "group": "VRPDBTNXXXR00007210IM",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": 30,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    300,
+    null,
+    270
+   ],
+   "decomp": [
+    30,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 300 kg, kế toán 270 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ +30 kg = tồn đầu lệch +30 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chia-ma",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "Tổng lệch của 2 mã giống nhau (-10, -20 = -30 kg) bằng đúng mức lệch ngược của mã này (+30 kg)",
+      "Độ giống mã trung bình 95%"
+     ],
+     "action": "Nghi 30 kg của mã này bị ghi chia sang 2 mã gần giống — kiểm tra phiếu của các mã: VRPDBTNXXXR00007110IM, VRPDBTNXXXR00007210IM."
+    },
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Mã gợi ý VRPDBTNXXXR00007210IM đang lệch ngược -20 kg.",
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 17 (\"0\" ↔ \"2\") — khác ở 1 đoạn: Size \"0070\" ↔ \"0072\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+30 ↔ -20 kg, hụt 10 kg)",
+      "Tên hàng giống 100%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 20 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRPDBTNXXXR00007210IM",
+     "score": 75.6,
+     "conf": "thap",
+     "kind": "quy-cach",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 17 (\"0\" ↔ \"2\") — khác ở 1 đoạn: Size \"0070\" ↔ \"0072\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+30 ↔ -20 kg, hụt 10 kg)",
+      "Tên hàng giống 100%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRCOBTNXXXR00009010IM",
+     "score": 61.2,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRCO\"; Size \"0070\" ↔ \"0090\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+30 ↔ -40 kg, hụt 10 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00005010IM",
+     "score": 58.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 3 ký tự (vị trí 3, 4, 16) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRHL\"; Size \"0070\" ↔ \"0050\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+30 ↔ -50 kg, hụt 20 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 86%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [
+    {
+     "codes": [
+      "VRPDBTNXXXR00007110IM",
+      "VRPDBTNXXXR00007210IM"
+     ],
+     "sum": -30,
+     "conf": "trung binh",
+     "reasons": [
+      "Tổng lệch của 2 mã giống nhau (-10, -20 = -30 kg) bằng đúng mức lệch ngược của mã này (+30 kg)",
+      "Độ giống mã trung bình 95%"
+     ]
+    },
+    {
+     "codes": [
+      "VRPDBTNXXXR00007210IM",
+      "VRNOBTNXXXR00012010IM"
+     ],
+     "sum": -30,
+     "conf": "thap",
+     "reasons": [
+      "Tổng lệch của 2 mã giống nhau (-20, -10 = -30 kg) bằng đúng mức lệch ngược của mã này (+30 kg)",
+      "Độ giống mã trung bình 88%"
+     ]
+    }
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007210IM",
+   "ten": "Tôm PD 61/70",
+   "aa": null,
+   "gui": null,
+   "kt": 20,
+   "kho": 0,
+   "diff": -20,
+   "status": "diff",
+   "group": "VRPDBTNXXXR00007210IM",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": -20,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    null,
+    null,
+    20
+   ],
+   "decomp": [
+    -20,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 0 kg, kế toán 20 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ -20 kg = tồn đầu lệch -20 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Kế toán còn tồn 20 kg nhưng mã này KHÔNG có ở Tồn kho An An / Tồn kho gửi."
+     ],
+     "action": "Kiểm tra phiếu xuất chưa vào kế toán, hoặc mã bị ghi sang mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Mã gợi ý VRPDBTNXXXR00007010IM đang lệch ngược +30 kg.",
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 17 (\"2\" ↔ \"0\") — khác ở 1 đoạn: Size \"0072\" ↔ \"0070\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-20 ↔ +30 kg, hụt 10 kg)",
+      "Tên hàng giống 100%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 20 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRPDBTNXXXR00007010IM",
+     "score": 75.6,
+     "conf": "thap",
+     "kind": "quy-cach",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 17 (\"2\" ↔ \"0\") — khác ở 1 đoạn: Size \"0072\" ↔ \"0070\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-20 ↔ +30 kg, hụt 10 kg)",
+      "Tên hàng giống 100%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRYYBTNXXXR00014010IM",
+     "score": 55.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRYY\"; Size \"0072\" ↔ \"0140\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-20 ↔ +37.5 kg, hụt 17.5 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRNOBTNXXXR00011010IM",
+     "score": 54.4,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRNO\"; Size \"0072\" ↔ \"0110\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-20 ↔ +10 kg, hụt 10 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": true,
+    "thua": false,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRNOBTNXXXR00011010IM",
+   "ten": "Tôm NO",
+   "aa": 60,
+   "gui": null,
+   "kt": 50,
+   "kho": 60,
+   "diff": 10,
+   "status": "diff",
+   "group": "VRPDBTNXXXR00007210IM",
+   "rootKnown": true,
+   "statusUi": "nghi-ma",
+   "diffAfter": 10,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    50,
+    null,
+    50
+   ],
+   "decomp": [
+    0,
+    0,
+    0,
+    10
+   ],
+   "causes": [
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRNOBTNXXXR00012010IM đang lệch ngược -10 kg.",
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"1\" ↔ \"2\") — khác ở 1 đoạn: Size \"0110\" ↔ \"0120\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai +10 kg, mã gợi ý -10 kg)",
+      "Tên hàng giống 80%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 10 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "ct-lech-nxt",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Báo cáo NXT kế toán ghi nhập 10 kg nhưng chứng từ chi tiết cộng 20 kg (NXT thấp hơn 10 kg).",
+      "Nếu tồn kế toán tính theo đúng chứng từ chi tiết thì chênh lệch = 0 → số lệch này được giải thích đầy đủ."
+     ],
+     "action": "Kế toán rà lại số liệu NXT so với chứng từ chi tiết của mã này."
+    },
+    {
+     "code": "ct-trung",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Trùng 2 dòng: cùng chứng từ NK03, cùng nhập 10 kg (dòng 7)",
+      "Trùng 2 dòng: cùng chứng từ NK03, cùng nhập 10 kg (dòng 8)"
+     ],
+     "action": "Kiểm tra chứng từ có bị nhập trùng không."
+    },
+    {
+     "code": "tu-khong-khop",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "An An: Tồn đầu + Nhập − Xuất lệch -10 kg so với Tồn cuối (nghi tồn đầu kỳ hoặc phát sinh ghi sai)."
+     ],
+     "action": "Rà lại tồn đầu kỳ và phát sinh của nguồn này."
+    },
+    {
+     "code": "ct-bang-chenh",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Chứng từ NK03 (nhập, 04/10/2026) 10 kg = đúng mức chênh lệch 10 kg.",
+      "Chứng từ NK03 (nhập, 04/10/2026) 10 kg = đúng mức chênh lệch 10 kg."
+     ],
+     "action": "Kiểm tra chứng từ này có được ghi ở cả kho và kế toán, đúng mã, đúng ngày chưa."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRNOBTNXXXR00012010IM",
+     "score": 93.6,
+     "conf": "cao",
+     "kind": "quy-cach",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"1\" ↔ \"2\") — khác ở 1 đoạn: Size \"0110\" ↔ \"0120\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai +10 kg, mã gợi ý -10 kg)",
+      "Tên hàng giống 80%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007110IM",
+     "score": 78.9,
+     "conf": "trung binh",
+     "kind": "san-pham",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRNO\" ↔ \"VRPD\"; Size \"0110\" ↔ \"0071\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai +10 kg, mã gợi ý -10 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007210IM",
+     "score": 54.4,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRNO\" ↔ \"VRPD\"; Size \"0110\" ↔ \"0072\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+10 ↔ -20 kg, hụt 10 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 2,
+    "nFlag": 2,
+    "flags": [
+     "trung,bang-chenh",
+     "trung,bang-chenh"
+    ]
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": true,
+    "saima": true,
+    "ct": true,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRNOBTNXXXR00012010IM",
+   "ten": "Tôm NO 2",
+   "aa": -10,
+   "gui": null,
+   "kt": null,
+   "kho": -10,
+   "diff": -10,
+   "status": "diff",
+   "group": "VRPDBTNXXXR00007210IM",
+   "rootKnown": true,
+   "statusUi": "nghi-ma",
+   "diffAfter": -10,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    -10,
+    null,
+    null
+   ],
+   "decomp": [
+    -10,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "quy-cach",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "Mã gợi ý VRNOBTNXXXR00011010IM đang lệch ngược +10 kg.",
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"2\" ↔ \"1\") — khác ở 1 đoạn: Size \"0120\" ↔ \"0110\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai -10 kg, mã gợi ý +10 kg)",
+      "Tên hàng giống 80%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 10 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    },
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho -10 kg, kế toán 0 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ -10 kg = tồn đầu lệch -10 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Kế toán có mã này nhưng tồn cuối = 0 / không phát sinh; kho còn -10 kg."
+     ],
+     "action": "Kiểm tra phiếu nhập chưa vào kế toán, hoặc mã bị ghi sang mã khác."
+    },
+    {
+     "code": "ton-am",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn kho âm -10 kg. "
+     ],
+     "action": "Tồn âm là dấu hiệu thiếu phiếu nhập hoặc thừa phiếu xuất — rà chứng từ."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRNOBTNXXXR00011010IM",
+     "score": 93.6,
+     "conf": "cao",
+     "kind": "quy-cach",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 1 ký tự ở vị trí 16 (\"2\" ↔ \"1\") — khác ở 1 đoạn: Size \"0120\" ↔ \"0110\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai -10 kg, mã gợi ý +10 kg)",
+      "Tên hàng giống 80%",
+      "Mã giống 95%, 9/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00006010IM",
+     "score": 55.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRNO\" ↔ \"VRHL\"; Size \"0120\" ↔ \"0060\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-10 ↔ +5 kg, hụt 5 kg)",
+      "Tên hàng giống 29%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": true,
+    "thua": false,
+    "quycach": true,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007110IM",
+   "ten": "Tôm PD 61/70",
+   "aa": null,
+   "gui": null,
+   "kt": 10,
+   "kho": 0,
+   "diff": -10,
+   "status": "diff",
+   "group": "VRPDBTNXXXR00007210IM",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": -10,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    null,
+    null,
+    10
+   ],
+   "decomp": [
+    -10,
+    0,
+    0,
+    0
+   ],
+   "causes": [
+    {
+     "code": "lech-dau-ky",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Tồn đầu kỳ đã lệch sẵn: kho 0 kg, kế toán 10 kg; nhập và xuất trong kỳ của hai bên khớp nhau → toàn bộ chênh lệch cuối kỳ có từ TRƯỚC kỳ này.",
+      "Phân rã: chênh lệch cuối kỳ -10 kg = tồn đầu lệch -10 + nhập lệch 0 − xuất lệch 0."
+     ],
+     "action": "Truy lại số cuối kỳ trước của mã này — kho và kế toán đã chốt khác nhau."
+    },
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Kế toán còn tồn 10 kg nhưng mã này KHÔNG có ở Tồn kho An An / Tồn kho gửi."
+     ],
+     "action": "Kiểm tra phiếu xuất chưa vào kế toán, hoặc mã bị ghi sang mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "nhan-ma",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "Mã gợi ý VRNOBTNXXXR00011010IM đang lệch ngược +10 kg.",
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRNO\"; Size \"0071\" ↔ \"0110\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai -10 kg, mã gợi ý +10 kg)",
+      "Tên hàng giống 33%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 10 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRNOBTNXXXR00011010IM",
+     "score": 78.9,
+     "conf": "trung binh",
+     "kind": "san-pham",
+     "exact": true,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 5 ký tự (vị trí 3, 4, 15, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRNO\"; Size \"0071\" ↔ \"0110\"",
+      "Chênh lệch đối ứng đúng 10 kg (mã nghi sai -10 kg, mã gợi ý +10 kg)",
+      "Tên hàng giống 33%",
+      "Mã giống 76%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRHLBTNXXXR00006010IM",
+     "score": 54.5,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRPD\" ↔ \"VRHL\"; Size \"0071\" ↔ \"0060\"",
+      "Lệch ngược chiều nhưng không bằng nhau (-10 ↔ +5 kg, hụt 5 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": true,
+    "thua": false,
+    "quycach": false,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "ABC123",
+   "ten": "Mã lạ",
+   "aa": null,
+   "gui": 5,
+   "kt": null,
+   "kho": 5,
+   "diff": 5,
+   "status": "diff",
+   "group": "",
+   "rootKnown": false,
+   "statusUi": "chua",
+   "diffAfter": 5,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    null,
+    0,
+    null
+   ],
+   "decomp": [
+    0,
+    0,
+    0,
+    5
+   ],
+   "causes": [
+    {
+     "code": "chi-co-1-ben",
+     "basis": "xac-dinh",
+     "conf": "cao",
+     "evidence": [
+      "Mã có tồn 5 kg ở kho nhưng KHÔNG có trong báo cáo NXT kế toán."
+     ],
+     "action": "Kiểm tra kế toán đã tạo / ghi nhận mã này chưa, hoặc mã đang bị ghi sang một mã khác (xem gợi ý mã)."
+    },
+    {
+     "code": "tu-khong-khop",
+     "basis": "nghi-ngo",
+     "conf": "trung binh",
+     "evidence": [
+      "Kho gửi: Tồn đầu + Nhập − Xuất lệch -5 kg so với Tồn cuối (nghi tồn đầu kỳ hoặc phát sinh ghi sai)."
+     ],
+     "action": "Rà lại tồn đầu kỳ và phát sinh của nguồn này."
+    }
+   ],
+   "cands": [],
+   "combos": [],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": false,
+    "saima": false,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00006010IM",
+   "ten": "Tôm HLSO 51/60",
+   "aa": 95,
+   "gui": null,
+   "kt": 90,
+   "kho": 95,
+   "diff": 5,
+   "status": "diff",
+   "group": "",
+   "rootKnown": true,
+   "statusUi": "dang-tim",
+   "diffAfter": 5,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    90,
+    null,
+    90
+   ],
+   "decomp": [
+    0,
+    0,
+    0,
+    5
+   ],
+   "causes": [
+    {
+     "code": "sai-trong-luong",
+     "basis": "nghi-ngo",
+     "conf": "cao",
+     "evidence": [
+      "An An: Tồn cuối (NET) 95 kg ≠ 9 × 10 kg = 90 kg (lệch +5)."
+     ],
+     "action": "Kiểm tra trọng lượng 1 đơn vị / NET của mã này trong kho An An."
+    },
+    {
+     "code": "nhan-ma",
+     "basis": "nghi-ngo",
+     "conf": "thap",
+     "evidence": [
+      "Mã gợi ý VRNOBTNXXXR00012010IM đang lệch ngược -10 kg.",
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRNO\"; Size \"0060\" ↔ \"0120\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+5 ↔ -10 kg, hụt 5 kg)",
+      "Tên hàng giống 29%"
+     ],
+     "action": "Hai mã có thể bị ghi nhầm cho nhau 5 kg — đối chiếu phiếu của cả hai mã; nếu đúng, dùng \"Gắn mã hàng liên quan\" để ghi nhận chuyển nhầm."
+    }
+   ],
+   "cands": [
+    {
+     "ma": "VRNOBTNXXXR00012010IM",
+     "score": 55.1,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 15, 16) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRNO\"; Size \"0060\" ↔ \"0120\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+5 ↔ -10 kg, hụt 5 kg)",
+      "Tên hàng giống 29%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    },
+    {
+     "ma": "VRPDBTNXXXR00007110IM",
+     "score": 54.5,
+     "conf": "thap",
+     "kind": "san-pham",
+     "exact": false,
+     "reasons": [
+      "Hai mã cùng độ dài, sai 4 ký tự (vị trí 3, 4, 16, 17) — khác ở 2 đoạn: Sản phẩm \"VRHL\" ↔ \"VRPD\"; Size \"0060\" ↔ \"0071\"",
+      "Lệch ngược chiều nhưng không bằng nhau (+5 ↔ -10 kg, hụt 5 kg)",
+      "Tên hàng giống 25%",
+      "Mã giống 81%, 8/10 đoạn trùng"
+     ]
+    }
+   ],
+   "combos": [],
+   "ct": {
+    "n": 2,
+    "nFlag": 0,
+    "flags": [
+     "",
+     ""
+    ]
+   },
+   "tags": {
+    "thieu": false,
+    "thua": true,
+    "quycach": false,
+    "saima": true,
+    "ct": false,
+    "xong": false
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00004010IM",
+   "ten": "Tôm HLSO 31/40",
+   "aa": 120,
+   "gui": 0,
+   "kt": 120,
+   "kho": 120,
+   "diff": 0,
+   "status": "match",
+   "group": "",
+   "rootKnown": true,
+   "statusUi": "",
+   "diffAfter": 0,
+   "adj": 0,
+   "adjKho": 0,
+   "adjKt": 0,
+   "tinh": [
+    120,
+    0,
+    120
+   ],
+   "decomp": null,
+   "causes": [],
+   "cands": [],
+   "combos": [],
+   "ct": {
+    "n": 2,
+    "nFlag": 0,
+    "flags": [
+     "",
+     ""
+    ]
+   },
+   "tags": {
+    "thieu": false,
+    "thua": false,
+    "quycach": false,
+    "saima": false,
+    "ct": false,
+    "xong": false
+   }
+  }
+ ],
+ "kpi": {
+  "tong": 15,
+  "khop": 1,
+  "lech": 14,
+  "chuaXacDinh": 1,
+  "daXuLy": 3,
+  "tienDo": 21,
+  "tongAA": 1105,
+  "tongGui": 45,
+  "tongKho": 1150,
+  "tongKt": 924.5,
+  "tongKk": null,
+  "lechRong": 225.5,
+  "lechTuyetDoi": 485.5,
+  "lechRongSau": 155.5,
+  "lechTuyetDoiSau": 315.5,
+  "thieu": 5,
+  "thua": 9,
+  "quyCach": 7,
+  "saiMa": 12,
+  "chungTu": 3,
+  "boQuaBot": 1,
+  "boQuaZero": 0,
+  "bubu": false
+ },
+ "validation": [
+  {
+   "level": "ok",
+   "text": "Đọc dữ liệu thành công"
+  },
+  {
+   "level": "ok",
+   "text": "Nhận diện cột và định dạng hợp lệ"
+  },
+  {
+   "level": "ok",
+   "text": "Mã hàng: 15 mã (ẩn 1 mã Bột)"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng tồn âm"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng đầu + nhập − xuất ≠ cuối"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng sai trọng lượng / Net"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho gửi: 1 dòng đầu + nhập − xuất ≠ cuối"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho gửi: 1 mã chưa chuyển được sang 21 ký tự"
+  },
+  {
+   "level": "ok",
+   "text": "Chứng từ kế toán: 9 dòng (02/10/2026 – 14/11/2026)"
+  },
+  {
+   "level": "warn",
+   "text": "Có 1 chứng từ nằm ngoài kỳ đối chiếu"
+  },
+  {
+   "level": "ok",
+   "text": "Không phát hiện dòng trùng mã"
+  }
+ ],
+ "offsets": [
+  {
+   "seg": 6,
+   "label": "Mạ băng",
+   "codes": [
+    "VRCOBTNXXXR00009010IM",
+    "VRCOBTNXXXTGS009010IM"
+   ],
+   "sum": 0
+  },
+  {
+   "seg": 7,
+   "label": "Size",
+   "codes": [
+    "VRPDBTNXXXR00007010IM",
+    "VRPDBTNXXXR00007110IM",
+    "VRPDBTNXXXR00007210IM"
+   ],
+   "sum": 0
+  },
+  {
+   "seg": 7,
+   "label": "Size",
+   "codes": [
+    "VRNOBTNXXXR00011010IM",
+    "VRNOBTNXXXR00012010IM"
+   ],
+   "sum": 0
+  }
+ ],
+ "state": {
+  "decisions": {
+   "VRHLBTNXXXR00004110IM": {
+    "status": "",
+    "cause": "",
+    "causeNote": "",
+    "linked": [
+     "VRHLBTNXXXR00005010IM"
+    ],
+    "flagged": [],
+    "note": "",
+    "confirmedAt": "",
+    "diffAtDecision": null,
+    "updatedAt": "2026-11-01T00:00:00.000Z",
+    "updatedBy": "admin"
+   },
+   "VRHLBTNXXXR00005010IM": {
+    "status": "",
+    "cause": "",
+    "causeNote": "",
+    "linked": [
+     "VRHLBTNXXXR00004110IM"
+    ],
+    "flagged": [],
+    "note": "",
+    "confirmedAt": "",
+    "diffAtDecision": null,
+    "updatedAt": "2026-11-01T00:00:00.000Z",
+    "updatedBy": "admin"
+   },
+   "VRCOBTNXXXR00008010IM": {
+    "status": "xong",
+    "cause": "chi-co-1-ben",
+    "causeNote": "",
+    "linked": [],
+    "flagged": [],
+    "note": "",
+    "confirmedAt": "2026-11-01T00:00:01.000Z",
+    "diffAtDecision": 70,
+    "updatedAt": "2026-11-01T00:00:01.000Z",
+    "updatedBy": "admin"
+   },
+   "VRPDBTNXXXR00007010IM": {
+    "status": "",
+    "cause": "",
+    "causeNote": "",
+    "linked": [],
+    "flagged": [],
+    "note": "",
+    "confirmedAt": "",
+    "diffAtDecision": null,
+    "updatedAt": "2026-11-01T00:00:03.000Z",
+    "updatedBy": "admin"
+   }
+  },
+  "adjustments": [
+   {
+    "ma": "VRHLBTNXXXR00004110IM",
+    "qty": -50,
+    "side": "kho",
+    "cancelled": false
+   },
+   {
+    "ma": "VRHLBTNXXXR00005010IM",
+    "qty": 50,
+    "side": "kho",
+    "cancelled": false
+   },
+   {
+    "ma": "VRCOBTNXXXR00008010IM",
+    "qty": -70,
+    "side": "kho",
+    "cancelled": false
+   }
+  ],
+  "history": [
+   {
+    "action": "chuyen-ma",
+    "ma": "VRHLBTNXXXR00004110IM",
+    "mas": [
+     "VRHLBTNXXXR00004110IM",
+     "VRHLBTNXXXR00005010IM"
+    ],
+    "summary": "Sửa mã (Kho sửa theo mã kế toán): chuyển 50 kg VRHLBTNXXXR00004110IM → VRHLBTNXXXR00005010IM",
+    "undone": false
+   },
+   {
+    "action": "xac-nhan",
+    "ma": "VRCOBTNXXXR00008010IM",
+    "mas": [
+     "VRCOBTNXXXR00008010IM"
+    ],
+    "summary": "Xác nhận xử lý: Mã chỉ có ở một nguồn · điều chỉnh -70 kg",
+    "undone": false
+   },
+   {
+    "action": "ghi-chu",
+    "ma": "VRPDBTNXXXR00007010IM",
+    "mas": [
+     "VRPDBTNXXXR00007010IM"
+    ],
+    "summary": "Ghi chú",
+    "undone": true
+   },
+   {
+    "action": "hoan-tac",
+    "ma": "VRPDBTNXXXR00007010IM",
+    "mas": [
+     "VRPDBTNXXXR00007010IM"
+    ],
+    "summary": "Hoàn tác: Ghi chú",
+    "undone": false
+   }
+  ]
+ },
+ "undoOk": true
+}
