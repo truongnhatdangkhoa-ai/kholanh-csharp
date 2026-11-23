@@ -13,6 +13,7 @@
     <InternalsVisibleTo Include="KhoLanh.Core.Tests" />
     <EmbeddedResource Include="Accounts/TaiKhoan.gs" LogicalName="KhoLanh.Core.Accounts.TaiKhoan.gs" />
     <EmbeddedResource Include="KhangSinh/quy-dinh-mac-dinh.json" LogicalName="KhoLanh.Core.KhangSinh.quy-dinh-mac-dinh.json" />
+    <EmbeddedResource Include="PhieuKho/mau-xuat-khau.xlsm" LogicalName="KhoLanh.Core.PhieuKho.mau-xuat-khau.xlsm" />
     <EmbeddedResource Include="ChungTu/logo-phieu.png" LogicalName="KhoLanh.Core.ChungTu.logo-phieu.png" />
     <EmbeddedResource Include="TongHop/ma-hoa-chuan.json" LogicalName="KhoLanh.Core.TongHop.ma-hoa-chuan.json" />
     <EmbeddedResource Include="TongHop/ma-hang-mac-dinh.json.gz" LogicalName="KhoLanh.Core.TongHop.ma-hang-mac-dinh.json.gz" />
