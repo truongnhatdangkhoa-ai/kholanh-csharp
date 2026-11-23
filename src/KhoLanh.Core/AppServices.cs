@@ -52,6 +52,7 @@ public class AppServices
     public KhoLanh.Core.TroLy.TroLyService TroLy { get; }
     public KhoLanh.Core.LichXuat.LichXuatService LichXuat { get; }
     public KhoLanh.Core.SoKho.SoKhoService SoKho { get; }
+    public KhoLanh.Core.CuoiKy.CkService CuoiKy { get; }
 
     public AppServices(string dbPath)
     {
@@ -91,6 +92,7 @@ public class AppServices
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
         SoKho = new KhoLanh.Core.SoKho.SoKhoService(() => Lan, Session, Audit);
+        CuoiKy = new KhoLanh.Core.CuoiKy.CkService(() => Lan, Session, Settings);
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }

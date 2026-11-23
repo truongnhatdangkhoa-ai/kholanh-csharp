@@ -449,6 +449,37 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
+// Số liệu cuối kỳ (dữ liệu mẫu = bộ test đối chiếu lõi JS)
+{
+    void WaitCk(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var g = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(FindRepo(), "tests", "KhoLanh.Core.Tests", "Data", "ck-golden.json")))!;
+    string Xl(string name, params (string sheet, string key)[] sheets)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "kl-ck-" + name + ".xlsx");
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        foreach (var (sn, key) in sheets)
+        {
+            var ws = wb.AddWorksheet(sn); var rows = g["aoa"]![key]!.AsArray();
+            for (var r = 0; r < rows.Count; r++) { var row = rows[r]!.AsArray(); for (var c = 0; c < row.Count; c++) { var v = row[c] as System.Text.Json.Nodes.JsonValue; if (v is null) continue; if (v.TryGetValue<double>(out var d)) ws.Cell(r + 1, c + 1).Value = d; else { var t = v.GetValue<string>(); if (t.Length > 0) ws.Cell(r + 1, c + 1).Value = t; } } }
+        }
+        wb.SaveAs(path); return path;
+    }
+    var ck = s.CuoiKy;
+    ck.LoadFile("anan", Xl("an", ("NXT", "anan")));
+    ck.LoadFile("ketoan", Xl("kt", ("NXT", "nxt"), ("Nhap lieu", "ct"), ("DMVT", "dm")));
+    ck.LoadFile("gui", Xl("gui", ("TonGui", "gui")));
+    var it = ck.Run().Items.First(i => i.Cands.Count > 0 && i.Cands[0].Conf == "cao");
+    ck.Transfer(it.Diff > 0 ? it.Ma : it.Cands[0].Ma, it.Diff > 0 ? it.Cands[0].Ma : it.Ma, 50, "Phiếu XK ghi nhầm mã size", "kho");
+    main.Navigate("m7ck"); WaitCk(1500);
+    Snap(main, "36-so-lieu-cuoi-ky");
+    var grid = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var idx = Enumerable.Range(0, grid.Model.RowCount).FirstOrDefault(r => grid.Model.Get(r, 0).Contains("VRCOBTNXXXR00009010IM"));
+    grid.Select(idx, 0); WaitCk(500);
+    Snap(main, "36b-so-lieu-cuoi-ky-chi-tiet");
+    Console.WriteLine($"[CK] {ck.Result!.Kpi.Tong} mã, lệch {ck.Result.Kpi.Lech}, đã xử lý {ck.Result.Kpi.DaXuLy}");
+    if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ck") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Số liệu cuối kỳ): " + outDir); return; }
+}
+
 // Container 3D + Scan tài liệu
 {
     void Wait(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }

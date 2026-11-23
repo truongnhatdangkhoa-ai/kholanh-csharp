@@ -243,6 +243,7 @@ public static class ModuleBridge
         "in-chung-tu-kho" => "m12",
         "phieu-nhap-xuat" => "m13",
         "container-3d" => "m14",
+        "so-lieu-cuoi-ky" => "m7ck",
         _ => null,
     };
 }

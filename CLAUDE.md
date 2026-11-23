@@ -22,7 +22,7 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 | # | Module | Trạng thái |
 |---|---|---|
 | 1 | NXT Bột/Sốt (Sổ kho) | ✅ xong — bản 1.29.0 |
-| 2 | Số liệu cuối kỳ | ⏳ chưa làm |
+| 2 | Số liệu cuối kỳ | ✅ xong — bản 1.30.0 |
 | 3 | Vị Trí Bột | ⏳ chưa làm |
 | 4 | Xử lý PDF & Excel | ⏳ chưa làm |
 | 5 | So sánh & Tra cứu bảng | ⏳ chưa làm |
@@ -67,3 +67,4 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 - 23/11/2026 · lập kế hoạch 7 module ở trên. Bản hiện tại 1.28.0 (đã phát hành: Trợ lý hệ thống, Tổng quan + Lịch xuất, List sản xuất, Drive máy ở nhà, khởi động cùng Windows).
 - 23/11/2026 · NXT Bột/Sốt · (chưa nâng bản) · lõi + service + 6 test đạt + giao diện 8 tab, build đạt.
 - 23/11/2026 · NXT Bột/Sốt · 1.29.0 · chụp màn hình (35–35d, chép 35/35b/35c vào docs/anh), sửa nhãn "Từ" thừa ở tab Tồn kho, thêm test lưu phiếu vượt định mức (chỉ cảnh báo) + kiểm kê + hoàn tác kiểm kê (7 test SoKho đạt), README · còn: mẫu cột `SoKhoMau`; đẩy tồn lên Vị Trí Bột để dành module 3 · `SoKho/*.cs`, `Views/SoKhoView.cs`.
+- 23/11/2026 · Số liệu cuối kỳ · 1.30.0 · lõi `CuoiKy/` (CkBase cấu hình + chuẩn hoá, CkImport đọc An An / Kế toán + CT + DMVT / Kho gửi / file điều chỉnh, CkSuggest gợi ý mã + CkTrace cờ chứng từ, CkEngine đối chiếu + nguyên nhân + KPI + kiểm tra dữ liệu, CkHistory xử lý / hoàn tác / gộp 2 máy, CkService lưu DC2_* + xuất Excel 10 sheet); test `CuoiKyTests` đối chiếu lõi JS (Data/ck-golden.json, sinh lại bằng `node Data/ck-golden.gen.js`) + test service; giao diện `Views/CuoiKyView.cs` (nguồn, KPI, lọc, bảng, chi tiết nguyên nhân / gợi ý / chứng từ, xử lý, lịch sử, kiểm tra dữ liệu, tự đồng bộ 8 giây); quyền `m7ck` · còn: lấy nguồn thẳng từ module Tồn An An / Tồn kho gửi (app cũ có), sửa ô dữ liệu nguồn trên lưới (lõi đã có ApplyEdits), chứng từ nhập / xuất An An.

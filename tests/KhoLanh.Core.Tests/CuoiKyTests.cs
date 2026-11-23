@@ -130,3 +130,76 @@ public class CuoiKyTests
         Assert.Equal(hs.Select(h => string.Join(",", h!["mas"]!.AsArray().Select(S))), st.History.Select(h => string.Join(",", h.Mas)));
     }
 }
+
+public class CuoiKyServiceTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "klcs-ck-" + Guid.NewGuid().ToString("N"));
+    private readonly AppServices _s;
+    public CuoiKyServiceTests()
+    {
+        Directory.CreateDirectory(_dir);
+        _s = new AppServices(Path.Combine(_dir, "kho.db"));
+        _s.Auth.CreateFirstAdmin("admin", "QT", "matkhau1"); _s.Auth.Login("admin", "matkhau1");
+    }
+    public void Dispose() { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); try { Directory.Delete(_dir, true); } catch { } }
+
+    private string Xlsx(string name, params (string sheet, object?[][] rows)[] sheets)
+    {
+        var p = Path.Combine(_dir, name);
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        foreach (var (sn, rows) in sheets)
+        {
+            var ws = wb.AddWorksheet(sn);
+            for (var r = 0; r < rows.Length; r++) for (var c = 0; c < rows[r].Length; c++)
+            {
+                var v = rows[r][c]; var cell = ws.Cell(r + 1, c + 1);
+                if (v is double d) cell.Value = d; else if (v is int i) cell.Value = i; else if (v is DateTime dt) cell.Value = dt; else if (v is string s) cell.Value = s;
+            }
+        }
+        wb.SaveAs(p); return p;
+    }
+
+    [Fact]
+    public void Nap_file_doi_chieu_xu_ly_va_mo_lai()
+    {
+        const string A = "VRHLBTNXXXR000040IM10", B = "VRHLBTNXXXR000041IM10";
+        var an = Xlsx("an.xlsx", ("NXT", new[]
+        {
+            new object?[] { "Từ ngày 01/10/2026 đến ngày 31/10/2026" }, Array.Empty<object?>(),
+            new object?[] { "Mã hàng", "Tên hàng", "Tồn cuối", "Trọng lượng", "Tồn cuối (NET)" },
+            new object?[] { "TPC-" + A, "Tôm 31/40", 12, 10, 170 }, new object?[] { B, "Tôm 31/40", 5, 10, 50 },
+        }));
+        var kt = Xlsx("kt.xlsx", ("NXT", new[]
+        {
+            new object?[] { "Mã thành phẩm", "Tên thành phẩm", "Tồn đầu kỳ", "Nhập trong kỳ", "Xuất trong kỳ", "Tồn CK" },
+            new object?[] { A, "Tôm", 120, 0, 0, 120 }, new object?[] { B, "Tôm", 100, 0, 0, 100 },
+        }), ("Nhap lieu", new[]
+        {
+            new object?[] { "Số CT", "Ngày", "Mã", "NX", "SLKG" }, new object?[] { "XK1", new DateTime(2026, 10, 5), B, "XK", 50.0 },
+        }));
+        var ck = _s.CuoiKy;
+        Assert.True(ck.LoadFile("anan", an).Ok);
+        var k = ck.LoadFile("ketoan", kt);
+        Assert.True(k.Ok); Assert.NotNull(k.Ct); Assert.Equal("2026-10-05", k.Ct!.Vouchers[0].Ngay);
+        Assert.Equal(new CkPeriod("2026-10-01", "2026-10-31"), ck.Period);
+        var r = ck.Run();
+        Assert.Equal(2, r.Kpi.Lech);
+        Assert.Equal(50, r.ByMa[A].Diff); Assert.Equal(-50, r.ByMa[B].Diff);
+        Assert.Equal(B, r.ByMa[A].Cands[0].Ma);
+        ck.Transfer(A, B, 50, "ghi nhầm mã", "kho");
+        Assert.Equal(0, r.ByMa[A].DiffAfter); Assert.Equal("xong", r.ByMa[A].StatusUi);
+        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => ck.Transfer(A, B, 10, "", "kho"));
+        var x = ck.BuildExcel(); Assert.Equal(10, x.Sheets.Count);
+        // máy khác mở lại: cùng dữ liệu + thao tác
+        var ck2 = new CkService(() => _s.Lan, _s.Session, _s.Settings);
+        Assert.True(ck2.Load());
+        Assert.Equal(2, ck2.Files.Count); Assert.Single(ck2.Files["ketoan"].Ct!.Vouchers);
+        var r2 = ck2.Run();
+        Assert.Equal(0, r2.ByMa[B].DiffAfter);
+        Assert.Equal(2, ck2.State.Adjustments.Count);
+        ck2.Undo(ck2.State.History[^1].Id);
+        Assert.Equal(-50, r2.ByMa[B].DiffAfter);
+        ck2.Clear();
+        Assert.False(new CkService(() => _s.Lan, _s.Session, _s.Settings).Load());
+    }
+}
