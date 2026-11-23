@@ -18,7 +18,7 @@ namespace KhoLanh.App.Views;
 /// Liên kết 3 file Excel trên máy (Xuất thay thùng, Xuất rã đông = ghi thẳng; Xưởng = chỉ đọc) → so theo (Ngày, Mã)
 /// → sửa số / chuyển mã giữa 2 file Kho / thêm dòng / nạp file gốc — ghi thẳng vào file Excel Kho, giữ nguyên mẫu, có sao lưu và hoàn tác.
 /// </summary>
-public sealed class DoiChieuView : UserControl, IPage
+public sealed partial class DoiChieuView : UserControl, IPage
 {
     public string Title => "Đối chiếu hàng ngày";
     public string Subtitle => "So file Xuất của Kho với file Xưởng theo Ngày + Mã hàng; sửa / chuyển / thêm dòng ghi thẳng vào file Excel Kho (giữ nguyên mẫu, có sao lưu và hoàn tác).";
@@ -75,6 +75,7 @@ public sealed class DoiChieuView : UserControl, IPage
             Items =
             {
                 new TabItem { Header = "Đối chiếu", Content = BuildCompare() },
+                new TabItem { Header = "Xuất kiểm", Content = BuildXuatKiem() },
                 new TabItem { Header = "Liên kết file", Content = new ScrollViewer { Content = _linkPanel } },
                 new TabItem { Header = "Lịch sử ghi file", Content = new ScrollViewer { Content = _histPanel } },
             },

@@ -590,6 +590,29 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         qg.Select(1, 2); WaitPdf(); Snap(main, "27h-khang-sinh-pdf-lan1");
         tc.SelectedIndex = 0;
     }
+    if (key == "m5")
+    {
+        var dcv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.DoiChieuView>().First();
+        var tcx = dcv.GetVisualDescendants().OfType<TabControl>().First();
+        object?[] R(int day, string ma, string ten, double tlg, double sl, string size, string loai, string hd) => new object?[] { "TPC", new DateTime(2026, 10, day).ToOADate(), "5DO-1", "TPC-" + ma, ten, tlg, sl, Math.Round(tlg * sl, 6), "R00", size, loai, "MVS", hd };
+        var aoa = new List<object?[]>
+        {
+            new object?[] { "Báo cáo - Kho" }, new object?[0],
+            new object?[] { "Đối tác", "Ngày chứng từ", "Số lệnh", "Mã hàng", "Tên hàng", "TLg Net", "Số lượng tồn", "Net", "Size", "Qui cách đông", "Loại chứng từ", "Đặc tính", "Hợp đồng" },
+            R(5, "VTOTICEGIDR00G150CAO1", "Tôm PD luộc đông IQF (0.800 kg - MVSMKS - 26.9.028A-16/09", 3.6, 1, "15gr", "Xuất kiểm hàng", "26.9.028A-16/09"),
+            R(5, "VTOTICEGIDR00G150CAO1", "Tôm PD luộc đông IQF (0.800 kg - MVS-ND - 26.9.028A-15/09", 3.6, 1, "15gr", "Xuất kiểm hàng", "26.9.028A-15/09"),
+            R(3, "VNTOVCPEMGR00G125EAN1", "Mực ống cắt khoanh IQF", 5, 12, "12.5gr", "Xuất kiểm hàng", "26.10.044-21/09"),
+            R(8, "VCPDICEEFXF205160HIH1", "Cá basa fillet", 10, 20, "51/60", "Xuất kiểm hàng", "ISHI-15/09/26"),
+            R(3, "VCPDICEEFXF205160HIH1", "Tên C", 8, 1, "51/60", "Xuất xả", "x-1"),
+        };
+        var xr = KhoLanh.Core.DoiChieu.XuatKiem.Build(aoa);
+        var f = typeof(KhoLanh.App.Views.DoiChieuView).GetField("_xk", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!; f.SetValue(dcv, xr);
+        typeof(KhoLanh.App.Views.DoiChieuView).GetField("_xkFile", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(dcv, "XK.T10.xlsx");
+        typeof(KhoLanh.App.Views.DoiChieuView).GetMethod("XkRender", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(dcv, null);
+        tcx.SelectedIndex = 1; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "23b-xuat-kiem");
+        tcx.SelectedIndex = 0; Pump();
+    }
     if (key == "m13")
     {
         var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
