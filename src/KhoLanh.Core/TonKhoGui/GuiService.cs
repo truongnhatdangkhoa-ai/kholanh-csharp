@@ -86,6 +86,8 @@ public sealed class GuiService
         var name = System.IO.Path.GetFileName(path);
         var pv = new NapPreview { Path = path, FileName = name, Size = bytes.LongLength, Sha = NapExcel.Sha256(bytes), Book = book };
         FillPreview(pv, sheet ?? book.SheetNames[0], path);
+        if (sheet is null && pv.Extracted is null)   // sheet đầu không khớp mẫu → thử các sheet còn lại, lấy sheet đầu tiên khớp
+            foreach (var other in book.SheetNames.Skip(1)) { var t = new NapPreview { Path = path, FileName = name, Size = pv.Size, Sha = pv.Sha, Book = book }; FillPreview(t, other, path); if (t.Extracted is not null) return t; }
         return pv;
     }
 
@@ -196,6 +198,14 @@ public sealed class GuiService
 
     // ------------------------------------------------------------------ Đặc tính
     public void SaveManual(IEnumerable<(string MaHang, string DacTinh)> rows) { RequireEdit(); D.DtManual = rows.Where(r => r.DacTinh.Length > 0).ToList(); Write(new() { [GuiStore.SManual] = GuiStore.ManualSheet(D) }); }
+    /// <summary>addManualRows: thêm dòng nhập tay (bỏ dòng trùng); trả số dòng thêm được.</summary>
+    public int AddManual(IEnumerable<(string MaHang, string DacTinh)> rows)
+    {
+        RequireEdit(); var seen = D.DtManual.Select(r => GuiData.Nz(r.MaHang) + "|" + GuiData.Nz(r.DacTinh)).ToHashSet(); var added = 0;
+        foreach (var r in rows) { if (r.DacTinh.Length == 0) continue; if (!seen.Add(GuiData.Nz(r.MaHang) + "|" + GuiData.Nz(r.DacTinh))) continue; D.DtManual.Add(r); added++; }
+        if (added > 0) Write(new() { [GuiStore.SManual] = GuiStore.ManualSheet(D) });
+        return added;
+    }
     public void MergeGroup(IEnumerable<string> values, string group)
     {
         RequireEdit();

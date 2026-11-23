@@ -449,7 +449,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -722,6 +722,61 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
             Dlg("40-an-an-so-sanh", () => { B("So sánh 2 lần nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
             Console.WriteLine($"[AN-AN] lịch sử nạp: {s.AnAn.History().Count} mục · hoàn tác được: {s.AnAn.CanUndo}");
         }
+    }
+    if (key == "m2")
+    {
+        // Tồn kho gửi (C#): nạp file mẫu qua dịch vụ rồi duyệt 7 tab + thao tác chính bằng giao diện thật.
+        var fp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ton-kho-gui-mau 23.11.xlsx");
+        {
+            using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("Sheet1");
+            ws.Cell(1, 1).Value = "BÁO CÁO TỒN KHO GỬI";
+            var hh = new[] { "Mã hàng", "Tên hàng", "Số lô", "Size", "Quy cách", "Ngày nhập kho", "Phiếu nhập", "Số kiện", "Trọng lượng", "Số kiện", "Trọng lượng" };
+            for (var c = 0; c < hh.Length; c++) ws.Cell(2, c + 1).Value = hh[c];
+            var gdata = new (string, string, string, string, double, double)[]
+            {
+                ("VRHLBTNXECR003140IME1", "TÔM TCT BTP50, BLOCK, 1.8Kg x 6, 0083", "L1", "BTP50", 10, 108), ("VRHLBTNXECR003141IME1", "TÔM TCT BTP35, IQF, 9Kg x 1, CKQ", "04.04.26 L12 NÂU", "BTP35", 5, 45),
+                ("VRHLBTNXECR003142IME1", "TÔM ECU 41/50, BLOCK, 1.8Kg x 7, ASCN", "ECUADOR-01", "ECU41/50", 8, 100.8), ("VRHLBTNXECR003143IME1", "TÔM TGS 45, BLOCK, 1.8Kg x 6, 0083", "TGS-9", "TGS 45", 3, 32.4),
+                ("VRHLBTNXECR003144IME1", "NL 105, BLOCK, 10kg x 1, 0083", "L5", "NL 105", 4, 40), ("VRHLBTNXECR003145IME1", "TÔM GC 45, BLOCK, 1.8Kg x 6, ASCN", "TGC-2", "BTP45", 2, 21.6),
+                ("VRHLBTNXECR003146IME1", "TÔM AD 50, BLOCK, 1.8Kg x 6, ASCN", "AD-7", "AĐ 50", 6, 64.8),
+            };
+            var rr = 3; foreach (var x in gdata) { ws.Cell(rr, 1).Value = x.Item1; ws.Cell(rr, 2).Value = x.Item2; ws.Cell(rr, 3).Value = x.Item3; ws.Cell(rr, 4).Value = x.Item4; ws.Cell(rr, 5).Value = "1.8Kg x 6"; ws.Cell(rr, 6).Value = new DateTime(2026, 11, 5); ws.Cell(rr, 7).Value = "PN" + rr; ws.Cell(rr, 8).Value = 99; ws.Cell(rr, 9).Value = 99; ws.Cell(rr, 10).Value = x.Item5; ws.Cell(rr, 11).Value = x.Item6; rr++; }
+            wbk.SaveAs(fp);
+        }
+        var pvg = s.Gui.Preview(fp); s.Gui.Commit(pvg);
+        s.Gui.SaveManual(new[] { ("Tôm EU Nhật", "83.EU-H-M") }); s.Gui.MergeGroup(new[] { "83.EU-H-M" }, "EU");
+        main.Navigate("audit"); main.Navigate("m2"); for (var i = 0; i < 14; i++) { Thread.Sleep(30); Pump(); }
+        var gtabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        for (var t = 0; t < 7; t++) { gtabs.SelectedIndex = t; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"41-gui-tab{t + 1}"); }
+        // Phiếu xuất: gõ SL xuất vào dòng đầu rồi tạo phiếu
+        gtabs.SelectedIndex = 2; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var pg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        var before = s.Gui.Slips.Count; var kien0 = s.Gui.D.Rows[0].SoKien;
+        Console.WriteLine($"[GUI] phiếu xuất: {pg.Model.RowCount} dòng còn tồn");
+        pg.Select(0, pg.Model.ColCount - 1); pg.Focus(); Pump();
+        main.KeyTextInput("4"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "41-gui-px-go-SL");
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); }
+        var dlgW = main.OwnedWindows.FirstOrDefault();
+        if (dlgW is not null) { Snap(dlgW, "41-gui-px-xac-nhan"); var okb = dlgW.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string) == "Tạo phiếu"); okb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } }
+        Console.WriteLine($"[GUI] tạo phiếu: {before} -> {s.Gui.Slips.Count} phiếu · số kiện dòng 1: {kien0} -> {s.Gui.D.Rows[0].SoKien} · hộp xác nhận mở: {(dlgW is not null)}");
+        Snap(main, "41-gui-px-ds");
+        // Đặc tính: bôi đen dòng chưa gộp rồi gộp
+        gtabs.SelectedIndex = 4; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var dgrid = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[GUI] đặc tính: {dgrid.Model.RowCount} dòng");
+        var gb = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && (b.Content as string) == "Gộp dòng chọn");
+        var nGroupedBefore = s.Gui.D.DtGroupMap.Count;
+        if (gb is not null && dgrid.Model.RowCount > 0)
+        {
+            var rowAscn = Enumerable.Range(0, dgrid.Model.RowCount).First(r => dgrid.Model.Get(r, 0) == "ASCN"); dgrid.Select(rowAscn, 0); Pump();
+            gb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        }
+        Console.WriteLine($"[GUI] gộp đặc tính: {nGroupedBefore} -> {s.Gui.D.DtGroupMap.Count} đặc tính đã gộp");
+        Snap(main, "41-gui-dac-tinh-sau-gop");
+        gtabs.SelectedIndex = 5; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "41-gui-bao-cao-sau-gop");
+        Console.WriteLine($"[GUI] bảng tổng hợp: {s.Gui.D.ComputePivot().Grand.Tong} kg");
     }
     if (key == "m6")
     {

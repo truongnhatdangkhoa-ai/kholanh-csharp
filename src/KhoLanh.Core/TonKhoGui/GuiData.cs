@@ -381,6 +381,31 @@ public sealed class GuiData
         "NHẬT, EU", "ASC, HQ, MỸ", "ASC-A, B, HQ, MỸ", "ASC-B, HQ, MỸ", "ASC, HQ", "ASC-A,B, HQ", "ASC-B, HQ", "ASC", "EU, HQ, MỸ", "EU, HQ", "EU", "HQ", "KHÔNG ĐẠT",
     };
 
+    /// <summary>parsePastedText: dán từ Excel (Tab) hoặc 2+ khoảng trắng → [(Diễn giải, Đặc tính)]; dòng 1 là tiêu đề thì bỏ.</summary>
+    public static List<(string MaHang, string DacTinh)> ParsePasted(string text)
+    {
+        var lines = Regex.Split(text ?? "", @"\r?\n").Select(l => JsText.JsTrim(l)).Where(l => l.Length > 0).ToList();
+        var o = new List<(string, string)>(); if (lines.Count == 0) return o;
+        var start = 0; var f = Nz(lines[0]); if (f.Contains("ma hang", StringComparison.Ordinal) || f.Contains("dac tinh", StringComparison.Ordinal)) start = 1;
+        for (var i = start; i < lines.Count; i++)
+        {
+            string ma = "", dt;
+            var tab = lines[i].Split('\t');
+            if (tab.Length >= 2) { ma = JsText.JsTrim(tab[0]); dt = JsText.JsTrim(string.Join(" ", tab.Skip(1))); }
+            else { var sp = Regex.Split(lines[i], @"\s{2,}"); if (sp.Length >= 2) { ma = JsText.JsTrim(sp[0]); dt = JsText.JsTrim(string.Join(" ", sp.Skip(1))); } else dt = JsText.JsTrim(lines[i]); }
+            if (dt.Length > 0) o.Add((ma, dt));
+        }
+        return o;
+    }
+    /// <summary>resolveTypedDacTinh: khớp không phân biệt hoa thường với đặc tính đã có; chưa có thì viết HOA.</summary>
+    public string ResolveTyped(string? typed, IEnumerable<string> existing)
+    {
+        var t = JsText.JsTrim(typed ?? ""); if (t.Length == 0) return "";
+        foreach (var v in existing) if (JsText.JsTrim(v).ToLowerInvariant() == t.ToLowerInvariant()) return JsText.JsTrim(v);
+        var canon = CanonDacTinh(t); if (canon != t) return canon;
+        return t.ToUpperInvariant();
+    }
+
     // ------------------------------------------------------------------ Báo Cáo (Bảng Tổng Hợp)
     public sealed class Bucket { public Dictionary<string, double> ByGroup = new(); public double Tong; }
     public sealed class PivotCat { public string Label = ""; public Bucket B = new(); public List<(string Size, Bucket B)> Sizes = new(); }
