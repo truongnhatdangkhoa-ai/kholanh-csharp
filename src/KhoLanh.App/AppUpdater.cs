@@ -10,7 +10,7 @@ namespace KhoLanh.App;
 ///  1. Tải ngầm bản mới về cạnh exe: KhoLanh.exe.moi (+ KhoLanh.exe.moi.json ghi số phiên bản), đã kiểm SHA-256.
 ///  2. Áp dụng (bấm "Cập nhật" hoặc tự động lần mở app kế tiếp): đổi tên exe đang chạy → KhoLanh.exe.cu
 ///     (Windows cho đổi tên file đang chạy), đưa bản mới vào đúng tên KhoLanh.exe, mở lại app rồi thoát.
-///  3. KhoLanh.exe.cu giữ lại để "Quay lại bản trước".
+///  3. KhoLanh.exe.cu giữ lại (1 file, ẩn, bị thay ở lần cập nhật sau) để "Quay lại bản trước".
 /// Dữ liệu ở %LOCALAPPDATA%\KhoLanhCS không bị đụng tới.
 /// </summary>
 public static class AppUpdater
@@ -51,15 +51,23 @@ public static class AppUpdater
         catch { return false; }
     }
 
-    /// <summary>Dọn file tạm của lần tải dở / bản chờ đã cũ.</summary>
+    /// <summary>Dọn file tạm của lần tải dở / bản chờ đã cũ. Bản trước (KhoLanh.exe.cu, chỉ 1 file, bị thay ở mỗi lần cập nhật) được ẩn đi.</summary>
     public static void Cleanup()
     {
         if (ExePath is null) return;
+        HidePrevious();
         try { File.Delete(Staged + ".tai"); } catch { }
         if (File.Exists(Staged) && StagedVersion is null)
         {
             try { File.Delete(Staged); File.Delete(StagedMeta); } catch { }
         }
+    }
+
+    /// <summary>Ẩn KhoLanh.exe.cu (vẫn giữ để "Quay lại bản trước") cho thư mục gọn, khỏi nhầm với exe đang dùng.</summary>
+    public static void HidePrevious()
+    {
+        if (ExePath is null || !OperatingSystem.IsWindows() || !File.Exists(Previous)) return;
+        try { var a = File.GetAttributes(Previous); if (!a.HasFlag(FileAttributes.Hidden)) File.SetAttributes(Previous, a | FileAttributes.Hidden); } catch { }
     }
 
     // ---------------- tải ngầm ----------------
