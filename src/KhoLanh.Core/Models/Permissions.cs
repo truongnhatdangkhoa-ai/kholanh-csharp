@@ -17,6 +17,7 @@ public static class Perm
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
         new("m7", "Tồn kho theo vị trí", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, lập / sửa / xóa phiếu xuất"),
+        new("m8", "Sơ đồ kho", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = cấu hình kho, quy cách, khóa kiểm kê"),
         new("m3", "Tổng hợp", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
         new("m4", "Báo cáo rã đông", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, lưu số liệu theo ngày"),
         new("m5", "Đối chiếu hàng ngày (báo cáo hàng ngày)", "Báo cáo", new[] { View, Export, Edit }, "Sửa = ghi vào file Excel Kho đã liên kết"),
@@ -42,7 +43,7 @@ public static class Perm
         if (role == Roles.Staff)
         {
             d["backup"] = None; d["audit"] = None;
-            d["m1"] = Export; d["m2"] = Export; d["m7"] = Export;
+            d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
             d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
         return d;

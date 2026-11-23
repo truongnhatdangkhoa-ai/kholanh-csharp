@@ -477,7 +477,9 @@ public sealed class LanService : ISheetSource, IDisposable
               // Mã hóa sản phẩm / Ánh xạ tên hàng (tong-hop) là danh mục chung: các báo cáo đọc được
               || (db == "tong-hop" && (Perm.Has(u, "m4") || Perm.Has(u, "m5") || Perm.Has(u, "m7")))
               // Tồn theo vị trí đọc nhóm Đặc tính của Tồn kho An An
-              || (db.Contains("ton-kho-an-an") && Perm.Has(u, "m7"));
+              || (db.Contains("ton-kho-an-an") && Perm.Has(u, "m7"))
+              // Sơ đồ kho đọc tồn theo vị trí, danh mục mã hàng và trang Kiểm kê của Nhập liệu
+              || ((db == "ton-vi-tri-an-an" || db == "tong-hop" || db == "nhap-lieu") && Perm.Has(u, "m8"));
         if (!ok) throw new BusinessException($"Tài khoản \"{username}\" không có quyền {(write ? "sửa" : "xem")} dữ liệu này.");
     }
 

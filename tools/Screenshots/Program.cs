@@ -201,7 +201,7 @@ using (var c = s.Db.Open())
 // Tồn kho theo vị trí mẫu: file vị trí 3 khu, phiếu hôm qua (đã vào lưu trữ), phiếu hôm nay, 1 phiếu chưa chọn loại
 {
     var rnd = new Random(11);
-    string Ma(int i) => "TPC-VRHLBTN" + new[] { "XXX", "XEC", "XTC" }[i % 3] + "R00" + new[] { "3140", "4150", "5160", "2630", "1620" }[i % 5] + "IM" + (char)('A' + i % 4) + "1";
+    string Ma(int n) => "TPC-VRHLBTN" + new[] { "XXX", "XEC", "XTC" }[n % 3] + "R00" + new[] { "3140", "4150", "5160", "2630", "1620" }[n % 5] + "IM" + (char)('A' + n % 4) + "1";
     string[] dts = { "IQF", "Semi", "Block" }; string[] hds = { "HD-2611", "HD-2614", "HD-2620" };
     var path = Path.Combine(data, "TON VI TRI 23.11.xlsx");
     using (var wb = new ClosedXML.Excel.XLWorkbook())
@@ -210,17 +210,31 @@ using (var c = s.Db.Open())
         ws.Cell(1, 1).Value = "BÁO CÁO TỒN KHO THEO VỊ TRÍ";
         var heads = KhoLanh.Core.ViTri.ViTriService.TemplateColumns;
         for (var i = 0; i < heads.Length; i++) ws.Cell(3, i + 1).Value = heads[i];
-        var r = 4;
-        for (var i = 0; i < 90; i++)
+        var r = 4; var no = 0;
+        void Put(string vt, int m)
         {
-            var zone = "ABC"[i % 3]; var ma = Ma(i / 2);
-            ws.Cell(r, 1).Value = 1000 + i; ws.Cell(r, 2).Value = ma;
-            ws.Cell(r, 3).Value = $"Tôm PD BTP ({new[] { "1.8", "2", "0.9" }[i % 3]} kg x {new[] { 6, 5, 10 }[i % 3]} gói) - {dts[(i / 2) % 3]} - {hds[i % 3]}";
-            ws.Cell(r, 4).Value = "Thùng"; ws.Cell(r, 5).Value = "L" + (2600 + i / 4);
-            ws.Cell(r, 6).Value = $"{zone}.{1 + (i * 7) % 12:00}.{1 + i % 4:00}";
-            var sl = rnd.Next(40, 160); var tl = new[] { 10.8, 10.0, 9.0 }[i % 3];
-            ws.Cell(r, 7).Value = sl; ws.Cell(r, 8).Value = tl; ws.Cell(r, 9).Value = sl * tl; r++;
+            ws.Cell(r, 1).Value = 1000 + no; ws.Cell(r, 2).Value = Ma(m);
+            ws.Cell(r, 3).Value = $"Tôm PD BTP ({new[] { "1.8", "2", "0.9" }[m % 3]} kg x {new[] { 6, 5, 10 }[m % 3]} gói) - {dts[m % 3]} - {hds[m % 3]}";
+            ws.Cell(r, 4).Value = "Thùng"; ws.Cell(r, 5).Value = "L" + (2600 + m % 7);
+            ws.Cell(r, 6).Value = vt;
+            var sl = rnd.Next(40, 160); var tl = new[] { 10.8, 10.0, 9.0 }[m % 3];
+            ws.Cell(r, 7).Value = sl; ws.Cell(r, 8).Value = tl; ws.Cell(r, 9).Value = sl * tl; r++; no++;
         }
+        // Kho 1 (sơ đồ mặc định A9×4, B12×4, C12×4, D14×4, 7 tầng): ~45% ô có hàng, vài ô lẫn 2 size, 1 tầng vượt mức
+        foreach (var (khu, nd) in new[] { ("A", 9), ("B", 12), ("C", 12), ("D", 14) })
+            for (var d = 1; d <= nd; d++)
+                for (var t = 1; t <= 7; t++)
+                    for (var k = 1; k <= 4; k++)
+                    {
+                        var fill = khu == "A" ? 0.6 : khu == "D" ? 0.25 : 0.45;
+                        if (rnd.NextDouble() > fill * (t <= 2 ? 1.3 : 1)) continue;
+                        var m = (d * 3 + t + "ABCD".IndexOf(khu) * 5) % 14;
+                        Put($"TG1.{khu}.{d:00}.{t}.{k}", m);
+                        if (rnd.NextDouble() < 0.05) Put($"TG1.{khu}.{d:00}.{t}.{k}", (m + 1) % 14);
+                    }
+        Put("TG1.A.01.1.1", 9); Put("TG1.A.01.1.2", 11); Put("TG1.A.01.1.3", 12);   // tầng 1 dãy 1 khu A: 4 khoang nhưng > 4 pallet
+        for (var j = 0; j < 40; j++) Put($"TG2.{"EFGH"[j % 4]}.{1 + j % 12:00}.{1 + j % 5}.{1 + j % 4}", j % 14);
+        for (var j = 0; j < 5; j++) Put($"TG1.Z.01.1.{j + 1}", j + 2);
         wb.SaveAs(path);
     }
     var vt = s.ViTri; vt.Load(); vt.Import(vt.ReadFile(path));
@@ -232,6 +246,12 @@ using (var c = s.Db.Open())
     vt.CreateSlip(P((20, 4)), false, "", y, "");
     vt.CreateSlip(P((2, 30), (5, 12), (8, 9), (11, 16)), true, "xuatxa", DateTime.Today, "Phiếu xả khu C");
     vt.CreateSlip(P((7, 10), (10, 6)), false, "thaythung", DateTime.Today, "");
+
+    // Sơ đồ kho: quy cách cho phần lớn mã, khóa kiểm kê khu D dãy 3
+    var sd = s.SoDo; sd.Load();
+    var mas = sd.B.Pos.SelectMany(p => p.It).Select(x => (x.Ma, x.Ten)).Distinct().ToList();
+    sd.SaveQc(mas.Take(mas.Count - 3).Select(x => (x.Ma, KhoLanh.Core.SoDo.SoDoCore.GoiY(x.Ten) is { } g && x.Ma.EndsWith("A1") ? "gói" : "kiện", KhoLanh.Core.SoDo.SoDoCore.GoiY(x.Ten)?.Gk ?? 0)));
+    sd.AddLocks(new[] { ("TG1", "D", 3) }, "kiểm kê tháng 11");
 }
 
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
@@ -242,7 +262,7 @@ small.Show();
 Snap(small, "03c-man-hinh-1366");
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -294,6 +314,22 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tc.SelectedIndex = 4; Snap(main, "24e-vi-tri-nap-file");
         var arc = s.ViTri.Archive().Groups.First();
         KhoLanh.App.Views.SlipImageRenderer.Render(s.ViTri.ArchiveItems(arc), $"{KhoLanh.Core.ViTri.ViTriService.Loai.First(l => l.Key == arc.Loai).Title} : {DateTime.Today.AddDays(-1):dd/MM/yyyy}").Save(Path.Combine(outDir, "24f-vi-tri-anh-phieu.png"));
+        tc.SelectedIndex = 0;
+    }
+    if (key == "m8" && main.PageHost.Content is SoDoView sdv)
+    {
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        var map = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.WarehouseMap>().First();
+        var over = s.SoDo.B.ByCode["TG1.A.01.1.1"];
+        sdv.PickForDemo(over); Snap(main, "25-so-do-kho");
+        var mq = main.PageHost.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm trên sơ đồ") == true);
+        mq.Text = "31/40"; Snap(main, "25b-so-do-tim"); mq.Text = "";
+        tc.SelectedIndex = 1; Pump(); Snap(main, "25c-so-do-danh-sach");
+        tc.SelectedIndex = 2; Snap(main, "25d-so-do-chua-co-vi-tri");
+        tc.SelectedIndex = 3; Snap(main, "25e-so-do-quy-cach");
+        tc.SelectedIndex = 4; Pump();
+        var kg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 7);
+        kg.Select(1, 2); Snap(main, "25f-so-do-phieu-in");
         tc.SelectedIndex = 0;
     }
     if (key == "m6")
