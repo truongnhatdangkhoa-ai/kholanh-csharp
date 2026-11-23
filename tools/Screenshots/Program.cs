@@ -1009,6 +1009,29 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     var lb2 = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
     lb2.SelectedIndex = 2; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "38b-xu-ly-excel");
 }
+// ---------------- So sánh & Tra cứu bảng ----------------
+{
+    var T = (string[] h, object?[][] r) => new KhoLanh.Core.Bang.CcTable(h, r);
+    var fa = Path.Combine(outDir, "_ton-kho-an-an.xlsx"); var fb = Path.Combine(outDir, "_ton-ke-toan.xlsx");
+    KhoLanh.Core.Bang.ExcelOps.Write(fa, new[] { ("Tồn", T(new[] { "Mã hàng", "Tên hàng", "Size", "Tồn (kg)" }, new[] {
+        new object?[] { "CA-BASA-FL", "Cá basa fillet", "120-170", 18250.0 }, new object?[] { "TOM-SU-HL", "Tôm sú HLSO", "16-20", 4200.0 },
+        new object?[] { "MUC-ONG", "Mực ống làm sạch", "U10", 3100.0 }, new object?[] { "CA-TRA-CAT", "Cá tra cắt khúc", "", 9650.5 },
+        new object?[] { "BACHTUOC", "Bạch tuộc cắt", "40-60", 760.0 }, new object?[] { "TOM-THE-PD", "Tôm thẻ PD", "31-40", 5520.0 } })) });
+    KhoLanh.Core.Bang.ExcelOps.Write(fb, new[] { ("KT", T(new[] { "Mã hàng", "Tên hàng", "Tồn (kg)", "Đơn giá" }, new[] {
+        new object?[] { "CA-BASA-FL", "Cá basa fillet", 18250.0, 52000.0 }, new object?[] { "TOM-SU-HL", "Tôm sú HLSO", 4150.0, 215000.0 },
+        new object?[] { "CA-TRA-CAT", "Cá tra cắt khúc", 9650.5, 38000.0 }, new object?[] { "MUC-ONG", "Mực ống làm sạch", 3100.0, 98000.0 },
+        new object?[] { "GHE-XANH", "Ghẹ xanh nguyên con", 410.0, 260000.0 }, new object?[] { "TOM-THE-PD", "Tôm thẻ PD", 5502.0, 168000.0 } })) });
+    main.Navigate("m22"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+    var sv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.SoSanhBangView>().First();
+    sv.SetSide('A', fa, KhoLanh.Core.Bang.ExcelOps.Read(fa)); sv.SetSide('B', fb, KhoLanh.Core.Bang.ExcelOps.Read(fb));
+    for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    sv.RunCompare(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    sv.ShowCmp("all");
+    for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "39-so-sanh-bang");
+    var tcs = sv.GetVisualDescendants().OfType<TabControl>().First(); tcs.SelectedIndex = 1; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    sv.RunLookup(new[] { 3 }); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "39b-tra-cuu-bang");
+    File.Delete(fa); File.Delete(fb);
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

@@ -25,7 +25,7 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 | 2 | Số liệu cuối kỳ | ✅ xong — bản 1.30.0 |
 | 3 | Vị Trí Bột | ✅ xong — bản 1.31.0 |
 | 4 | Xử lý PDF & Excel | ✅ xong — bản 1.32.0 |
-| 5 | So sánh & Tra cứu bảng | ⏳ chưa làm |
+| 5 | So sánh & Tra cứu bảng | ✅ xong — bản 1.33.0 |
 | 6 | Giao diện Sáng / Tối + cỡ chữ | ⏳ chưa làm |
 | 7 | Tìm nhanh toàn app | ⏳ chưa làm |
 
@@ -71,3 +71,4 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 - 23/11/2026 · Số liệu cuối kỳ · 1.30.0 đã phát hành (lần đầu CI lỗi vì `.Reverse()` của mảng trên SDK mới → dùng `Enumerable.Reverse(...)`; lưu ý khi viết code mới).
 - 23/11/2026 · Vị Trí Bột · 1.31.0 · `SoKho/VtbService.cs` (đọc / ghi ViTriBotMeta + ViTriBot + ViTriBotPhieuDienThoai đúng định dạng app cũ, FromLedger + Push từ NXT Bột/Sốt, tạo phiếu trừ ngay, hủy trừ / trừ lại / xóa, khóa phiếu đợt cũ, định dạng ngày giống vtbFmtDate), nút "📱 Đưa lên Vị Trí Bột…" ở NXT Bột/Sốt › Tồn kho, `Views/VtbView.cs`, quyền `m1vtb` (MissingDefault = Xem), test `VtbTests` · còn: nhận phiếu từ điện thoại (khi làm bản điện thoại), nạp file "Vị trí Bột" kiểu cũ (app cũ đã bỏ từ PC 1.62).
 - 23/11/2026 · Xử lý PDF & Excel · 1.32.0 · lõi `Bang/CcBang.cs` (làm sạch, gộp, tách, so sánh, tra cứu — test `CcBangTests` đối chiếu lõi JS, Data/cc-golden.json sinh bằng `node Data/cc-golden.gen.js`), `Bang/ExcelOps.cs` (đọc / ghi nhiều sheet), `App/Controls/PdfOps.cs` (PDFium: gộp, tách, xoay, xóa, đóng dấu số trang / chữ chìm / hình, tìm trang trắng, vẽ theo dpi), `JpegPdf.Page` thêm cỡ trang (giảm dung lượng), `Views/XuLyTepView.cs` (8 chức năng PDF + 3 Excel), quyền `m21`; chạy thử thật các thao tác trong tools/Screenshots (dòng [PDF] / [XLS]) · còn: làm sạch tùy chọn theo từng cột (lõi đã có `Cols`), xem trước trang PDF.
+- 23/11/2026 · So sánh & Tra cứu bảng · 1.33.0 · `Views/SoSanhBangView.cs` (2 bảng A / B, cột khóa tự chọn theo tên trùng, so sánh song song kiểu buildSbs của app cũ + lọc Giống / Khác / Chỉ A / Chỉ B / Mã trùng, tra cứu kéo cột B → A với 5 cách xử lý mã nhiều dòng, xuất Excel), dùng lõi `CcBang.CompareTables / LookupTables` (đã có test golden); quyền `m22`; `MissingDefault` bật sẵn m21 + m22 (công cụ chỉ tạo file mới) · còn: ngày trong Excel hiện dạng số ngày (OADate) khi xem.

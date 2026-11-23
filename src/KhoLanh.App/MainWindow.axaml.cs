@@ -75,6 +75,7 @@ public partial class MainWindow : Window
                 new NavItem("m14", "Container 3D", () => new C3dView()),
                 new NavItem("m15", "Scan tài liệu", () => new ScanView()),
                 new NavItem("m21", "Xử lý PDF & Excel", () => new XuLyTepView()),
+                new NavItem("m22", "So sánh & Tra cứu bảng", () => new SoSanhBangView()),
             }),
             ("NHẬP LIỆU", new[]
             {
