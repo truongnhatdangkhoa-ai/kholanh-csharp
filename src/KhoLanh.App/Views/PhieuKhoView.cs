@@ -18,7 +18,7 @@ namespace KhoLanh.App.Views;
 public sealed class PhieuKhoView : UserControl, IPage
 {
     public string Title => "Phiếu xuất kho";
-    public string Subtitle => "Phiếu xuất khẩu theo mẫu BM Phiếu xuất kho: nhập mặt hàng / DATE / size / kiện, dán email thông tin xe, copy email gửi kèm, xuất Excel (.xlsm) giữ nguyên mẫu.";
+    public string Subtitle => "Phiếu xuất khẩu theo LSX (List sản xuất, email thông tin xe, xuất .xlsm) và Cargo list cho Thuận Phước · Gia công · Gửi kho (tra kháng sinh, phiếu theo thị trường, xuất Excel).";
 
     private static PhieuKhoService Svc => App.Services.PhieuKho;
     private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
@@ -73,7 +73,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_edit) leftTop.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
         if (_export) leftTop.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
         leftTop.Children.Add(_search);
-        leftTop.Children.Add(new TextBlock { Text = "Chỉ hiện phiếu Xuất khẩu (các loại khác làm ở giai đoạn sau).", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
+        leftTop.Children.Add(new TextBlock { Text = "Phiếu xuất khẩu theo LSX. Thuận Phước · Gia công · Gửi kho làm ở tab “Cargo list”.", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
         var left = new DockPanel { Width = 300 };
         DockPanel.SetDock(leftTop, Dock.Top); left.Children.Add(leftTop); left.Children.Add(Framed(_list));
 
@@ -83,7 +83,15 @@ public sealed class PhieuKhoView : UserControl, IPage
         DockPanel.SetDock(head, Dock.Top); right.Children.Add(head); right.Children.Add(_tabs);
         var root = new DockPanel();
         DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
-        Content = root;
+        // 2 phần của module: phiếu xuất khẩu theo LSX (List sản xuất) và Cargo list (hàng tạm: Thuận Phước · Gia công · Gửi kho)
+        Content = new TabControl
+        {
+            Items =
+            {
+                new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = root },
+                new TabItem { Header = "Cargo list: Thuận Phước · Gia công · Gửi kho", Content = new CargoView() },
+            },
+        };
         ShowEditor();
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }

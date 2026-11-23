@@ -412,6 +412,29 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     s.Modules.WriteSheets("phieu-nhap-xuat", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PNX_Phieu"] = rowsPk });
 }
 
+// Kết quả kháng sinh + Cargo mẫu (Thuận Phước)
+{
+    var ksRows = new System.Text.Json.Nodes.JsonArray();
+    void Ks(string date, string b, string ky, string dat) => ksRows.Add(new System.Text.Json.Nodes.JsonObject { ["key"] = $"s:batch:{date}:{b}:x{b}", ["value"] = new System.Text.Json.Nodes.JsonObject { ["date"] = date, ["batch"] = b, ["kyhieu"] = ky, ["dat"] = dat, ["savedAt"] = "2026-11-20T01:00:00.000Z", ["inputs"] = new System.Text.Json.Nodes.JsonObject() }.ToJsonString() });
+    var nl = DateTime.Today.AddDays(-6).ToString("yyyy-MM-dd");
+    Ks(nl, "16", "03.N-EU-H", "ĐẠT NHẬT, EU, HQ"); Ks(nl, "17", "07.N-AS1-H", "ĐẠT NHẬT, ASC-B, HQ");
+    s.Modules.WriteSheets("ket-qua-khang-sinh", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["KhangSinh"] = ksRows });
+    var cg = new KhoLanh.Core.PhieuKho.CargoRec { Id = "cgdemo1", Ngay = DateTime.Today.ToString("yyyy-MM-dd"), SoPhieu = $"05.{DateTime.Today:MM} XTP 46", Kho = "An An + Long An", NguoiNhan = "Nguyễn Văn Hùng ( 0903456789 )", ContXe = "51C-123.45 / MSKU1234567", Seal = "SL-889900" };
+    var nlTxt = DateTime.Today.AddDays(-6).ToString("dd.MM.yy");
+    cg.Blocks = new()
+    {
+        new KhoLanh.Core.PhieuKho.CargoBlock { Id = "b1", Loai = "ks", Ten = "HLSO", Lines = new()
+        {
+            new() { Loai = "BTP", Sn = "0040-6", Lo = nlTxt + " L16", Dai = new() { ["1"] = "62", ["2"] = "62", ["3"] = "30" } },
+            new() { Loai = "BTP", Sn = "0030-6", Lo = nlTxt + " L17", Dai = new() { ["3"] = "32", ["4"] = "54" } },
+            new() { Loai = "BTP", Sn = "0050-6", Lo = nlTxt + " L9", Dai = new() { ["5"] = "20" } },
+        } },
+        new KhoLanh.Core.PhieuKho.CargoBlock { Id = "b2", Loai = "khac", Ten = "TÔM VỤN", Lines = new() { new() { Size = "VỤN", Pack = "10.0 kg x 1", Dai = new() { ["5"] = "40" } } } },
+    };
+    cg.CapNhat = "2026-11-22T01:00:00.000Z";
+    s.Modules.WriteSheets("phieu-nhap-xuat", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PNX_Cargo"] = new() { new System.Text.Json.Nodes.JsonObject { ["id"] = cg.Id, ["ngay"] = cg.Ngay, ["soPhieu"] = cg.SoPhieu, ["kho"] = cg.Kho, ["kien"] = 300, ["capNhat"] = cg.CapNhat, ["data"] = "__JSON__" + KhoLanh.Core.PhieuKho.CargoCore.ToJson(cg) } } });
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -575,6 +598,17 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var tcPk = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
         tcPk.SelectedIndex = 1; Pump(); Snap(main, "30b-phieu-xuat-kho-email");
         tcPk.SelectedIndex = 0; Pump();
+        // tab Cargo list
+        var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        top.SelectedIndex = 1; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        var clb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
+        clb.SelectedIndex = 0; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "31-cargo-nhap");
+        var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible && x != top).First();
+        inner.SelectedIndex = 1; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "31b-cargo-phieu-xem-truoc");
+        inner.SelectedIndex = 2; Pump(); Snap(main, "31c-cargo-danh-muc");
+        top.SelectedIndex = 0; Pump();
     }
     if (key == "m6")
     {
