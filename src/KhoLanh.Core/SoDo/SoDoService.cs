@@ -73,6 +73,11 @@ public sealed class SoDoService
     public void Load()
     {
         RequireView();
+        LoadForRead();
+    }
+    /// <summary>Đọc dữ liệu không xét quyền Sơ đồ kho — cho Đối chiếu kiểm kê (chỉ đọc).</summary>
+    internal void LoadForRead()
+    {
         Live = Read(ViTriService.Db, ViTriService.SheetRows).OfType<JsonObject>()
             .Select(o => new StockRow { Ma = S(o["Mã hàng"]), Ten = S(o["Tên hàng"]), Lo = S(o["Lô (Batch)"]).Trim(), Vt = S(o["Vị trí"]), Sl = Num(o["SL Tồn"]), Tl = Num(o["T.Lượng"]) })
             .Where(r => r.Ma.Trim().Length > 0).ToList();

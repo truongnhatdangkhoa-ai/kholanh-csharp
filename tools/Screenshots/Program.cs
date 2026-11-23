@@ -198,6 +198,7 @@ using (var c = s.Db.Open())
     dc.ApplyOps(new() { new KhoLanh.Core.DoiChieu.DcxEngine.Op { Type = "setsl", Slot = 2, Ngay = "2026-11-18", Ma = fix.ma, Target = fix.sl + 2 } }, $"Đổi SL {fix.ma} ngày 18/11/2026 ở Xuất rã đông thành {fix.sl + 2}");
 }
 
+var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, double Tl)>();
 // Tồn kho theo vị trí mẫu: file vị trí 3 khu, phiếu hôm qua (đã vào lưu trữ), phiếu hôm nay, 1 phiếu chưa chọn loại
 {
     var rnd = new Random(11);
@@ -218,7 +219,9 @@ using (var c = s.Db.Open())
             ws.Cell(r, 4).Value = "Thùng"; ws.Cell(r, 5).Value = "L" + (2600 + m % 7);
             ws.Cell(r, 6).Value = vt;
             var sl = rnd.Next(40, 160); var tl = new[] { 10.8, 10.0, 9.0 }[m % 3];
+            if (Ma(m).EndsWith("A1")) sl = Math.Max(1, sl / 10) * new[] { 6, 5, 10 }[m % 3];   // mã tính theo gói: số gói chẵn kiện
             ws.Cell(r, 7).Value = sl; ws.Cell(r, 8).Value = tl; ws.Cell(r, 9).Value = sl * tl; r++; no++;
+            vtDemo.Add((vt, Ma(m), ws.Cell(r - 1, 3).GetString(), "L" + (2600 + m % 7), sl, tl));
         }
         // Kho 1 (sơ đồ mặc định A9×4, B12×4, C12×4, D14×4, 7 tầng): ~45% ô có hàng, vài ô lẫn 2 size, 1 tầng vượt mức
         foreach (var (khu, nd) in new[] { ("A", 9), ("B", 12), ("C", 12), ("D", 14) })
@@ -252,6 +255,47 @@ using (var c = s.Db.Open())
     var mas = sd.B.Pos.SelectMany(p => p.It).Select(x => (x.Ma, x.Ten)).Distinct().ToList();
     sd.SaveQc(mas.Take(mas.Count - 3).Select(x => (x.Ma, KhoLanh.Core.SoDo.SoDoCore.GoiY(x.Ten) is { } g && x.Ma.EndsWith("A1") ? "gói" : "kiện", KhoLanh.Core.SoDo.SoDoCore.GoiY(x.Ten)?.Gk ?? 0)));
     sd.AddLocks(new[] { ("TG1", "D", 3) }, "kiểm kê tháng 11");
+
+    // Đối chiếu kiểm kê: tồn An An = tổng theo vị trí (+ vài chỗ lệch), 2 trang kiểm kê (TG1 A–B hôm qua, phần còn lại hôm nay),
+    // vài ô đếm lệch, 1 mã gõ sai, 1 mã lạ, khu D dãy 13–14 chưa đếm; số kế toán dán tay.
+    var ic = System.Globalization.CultureInfo.InvariantCulture;
+    // tồn hiện tại theo vị trí (sau các phiếu xả), tính theo kiện
+    vtDemo = sd.B.Pos.Where(p => !p.Z).SelectMany(p => p.It.Select(x => (p.Code, x.Ma.StartsWith("TPC-") ? x.Ma : "TPC-" + x.Ma, x.Ten, x.Lo, (int)Math.Round(KhoLanh.Core.SoDo.SoDoCore.KienOf(x.Sl, sd.QcOf(x.Ma))), x.Tl))).ToList();
+    var stock = vtDemo.GroupBy(x => x.Ma).Select((g, i) => (Ma: g.Key, Ten: g.First().Ten, Ton: g.Sum(x => x.Sl) + (i == 2 ? 24 : i == 5 ? -10 : 0), Tl: g.First().Tl)).ToList();
+    var headers = new[] { "Item ID", "Mã hàng", "Tên hàng", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng" };
+    var arr = new System.Text.Json.Nodes.JsonArray(stock.Select((r, i) => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject
+    {
+        ["c0"] = (100 + i).ToString(), ["c1"] = r.Ma, ["c2"] = r.Ten, ["c3"] = "IQF", ["c4"] = "HD-2611", ["c5"] = "Thùng", ["c6"] = r.Ton.ToString(ic), ["c7"] = r.Tl.ToString(ic),
+    }).ToArray());
+    var meta = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(headers.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO AN AN 22.11.xlsx", ["dataDate"] = DateTime.Today.AddDays(-1).ToString("dd/MM/yyyy") };
+    s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = arr, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + meta.ToJsonString() }) });
+
+    var kkTpl = KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke");
+    var typoMa = stock[7].Ma; var typoTo = typoMa[..^3] + "B" + typoMa[^2..];
+    if (typoTo == typoMa) typoTo = typoMa[..^3] + "C" + typoMa[^2..];
+    var typoDone = false;
+    string[] Line((string Vt, string Ma, string Ten, string Lo, int Sl, double Tl) x, int idx)
+    {
+        var sl = x.Sl; var ma = x.Ma; var tl = x.Tl;
+        if (idx % 97 == 5) sl -= 3; else if (idx % 131 == 11) sl += 2;
+        if (!typoDone && ma == typoMa) { ma = typoTo; typoDone = true; }
+        if (ma == stock[10].Ma && idx % 2 == 0) tl += 0.5;
+        return new[] { x.Vt, ma, x.Ten, "", sl.ToString(), tl.ToString(ic), "10/2026", "lô " + x.Lo };
+    }
+    var all = vtDemo.Select((x, i) => (x, i)).ToList();
+    bool Part1(string vt) => vt.StartsWith("TG1.A.") || vt.StartsWith("TG1.B.");
+    bool Skip(string vt) => vt.StartsWith("TG1.D.14.6") || vt.StartsWith("TG1.D.14.7");
+    var kp1 = s.Entry.Create($"Kiểm kê TG1 khu A-B {DateTime.Today.AddDays(-1):dd/MM/yyyy}", kkTpl);
+    s.Entry.Save(kp1, kp1.Columns, all.Where(t => Part1(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList());
+    var rest = all.Where(t => !Part1(t.x.Vt) && !Skip(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList();
+    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "Tôm PD BTP 60/70", "60/70", "18", "10", "10/2026", "hàng lạ, chưa có mã" });
+    var kp2 = s.Entry.Create($"Kiểm kê TG1 C-D, TG2 {DateTime.Today:dd/MM/yyyy}", kkTpl);
+    s.Entry.Save(kp2, kp2.Columns, rest);
+
+    var kk = s.KiemKe; kk.Load();
+    kk.SetChosen(new[] { kp1.Id, kp2.Id }, latestOnly: true);
+    kk.SaveKeToan(stock.Select((r, i) => new KhoLanh.Core.KiemKe.KiemKeCore.KtRow(r.Ma, r.Ten, r.Tl.ToString(ic), r.Ton.ToString(ic), ((r.Ton + (i == 3 ? 15 : 0)) * r.Tl).ToString(ic))), "Dán từ file kế toán");
+    kk.SetPeople(new[] { "Anh Tuấn", "Chị Hoa", "Anh Phúc" });
 }
 
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
@@ -260,9 +304,15 @@ Snap(main, "03-man-hinh-chinh");
 var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal };
 small.Show();
 Snap(small, "03c-man-hinh-1366");
+{
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Báo cáo") == true);
+    gb.Flyout!.ShowAt(gb); Pump();
+    Snap(small, "03d-menu-nhom");
+    gb.Flyout.Hide(); Pump();
+}
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -331,6 +381,24 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var kg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 7);
         kg.Select(1, 2); Snap(main, "25f-so-do-phieu-in");
         tc.SelectedIndex = 0;
+    }
+    if (key == "m9")
+    {
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        g.Select(0, 1); Pump(); Snap(main, "26-doi-chieu-kiem-ke");
+        tc.SelectedIndex = 1; Pump(); Snap(main, "26b-kiem-ke-so-lieu");
+        tc.SelectedIndex = 2; Pump(); Snap(main, "26c-kiem-ke-ke-toan");
+        tc.SelectedIndex = 3; Pump(); Snap(main, "26d-kiem-ke-vi-tri");
+        tc.SelectedIndex = 4; Pump(); Snap(main, "26e-kiem-ke-lenh-dem");
+        tc.SelectedIndex = 5; Pump(); Snap(main, "26f-kiem-ke-chua-chot");
+        s.KiemKe.DoChot("Kiểm kê cuối tháng 11 — còn lệch đã báo kế toán");
+        main.Navigate("m3"); main.Navigate("m9"); for (var i = 0; i < 30; i++) { Thread.Sleep(50); Pump(); }
+        tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        tc.SelectedIndex = 5; Pump();
+        var hg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        hg.Select(0, 0); Pump(); Snap(main, "26g-kiem-ke-da-chot");
+        s.KiemKe.MoChot("demo");
     }
     if (key == "m6")
     {

@@ -27,6 +27,8 @@ public partial class MainWindow : Window
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
+    private readonly Dictionary<Button, string> _groupLabels = new();
+    private readonly Dictionary<string, MenuItem> _items = new();
     private string _current = "";
     private readonly Dictionary<string, ModuleView> _modules = new();
 
@@ -46,7 +48,7 @@ public partial class MainWindow : Window
 
         _menu = new()
         {
-            ("TỒN KHO GỐC", new[]
+            ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => Module("m1", "ton-kho-an-an.html", "Tồn kho An An",
                     "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ.")),
@@ -60,6 +62,7 @@ public partial class MainWindow : Window
                 new NavItem("m3", "Tổng hợp", () => new TongHopView()),
                 new NavItem("m4", "Báo cáo rã đông", () => new RaDongView()),
                 new NavItem("m5", "Đối chiếu hàng ngày", () => new DoiChieuView()),
+                new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),
             }),
             ("NHẬP LIỆU", new[]
             {
@@ -73,40 +76,36 @@ public partial class MainWindow : Window
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
             }),
         };
-        // Menu ngang: các module trải phẳng thành nút; nhóm Hệ thống là nút thả xuống.
+        // Menu ngang gọn theo nhóm: mỗi nhóm là 1 nút thả xuống (nhóm chỉ có 1 mục thì là nút thường),
+        // nên thêm module không làm tràn thanh menu kể cả màn hình 1366px. Nút nhóm sáng lên và ghi tên module đang mở.
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới), thêm mục quyền trong Perm.Items.
         foreach (var (group, items) in _menu)
         {
             var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
-            var flat = group != "HỆ THỐNG";
-            if (flat)
+            if (visible.Count == 1)
             {
-                foreach (var item in visible)
-                {
-                    var b = new Button { Content = item.Label, Classes = { "topnav" } };
-                    b.Click += (_, _) => Navigate(item.Key);
-                    _buttons[item.Key] = b;
-                    NavPanel.Children.Add(b);
-                }
-                NavPanel.Children.Add(new Border { Width = 1, Height = 22, Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#2A4D6B")), Margin = new Avalonia.Thickness(3, 0) });
+                var item = visible[0];
+                var b = new Button { Content = item.Label, Classes = { "topnav" } };
+                b.Click += (_, _) => Navigate(item.Key);
+                _buttons[item.Key] = b;
+                NavPanel.Children.Add(b);
+                continue;
             }
-            else
+            var groupButton = new Button { Content = GroupLabel(group) + "  ▾", Classes = { "topnav" } };
+            _groupLabels[groupButton] = GroupLabel(group);
+            var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+            foreach (var item in visible)
             {
-                var groupButton = new Button { Content = GroupLabel(group) + "  ▾", Classes = { "topnav" } };
-                var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
-                foreach (var item in visible)
-                {
-                    var mi = new MenuItem { Header = item.Label };
-                    mi.Click += (_, _) => Navigate(item.Key);
-                    flyout.Items.Add(mi);
-                    _buttons[item.Key] = groupButton;
-                }
-                groupButton.Flyout = flyout;
-                NavPanel.Children.Add(groupButton);
+                var mi = new MenuItem { Header = item.Label };
+                mi.Click += (_, _) => Navigate(item.Key);
+                flyout.Items.Add(mi);
+                _items[item.Key] = mi;
+                _buttons[item.Key] = groupButton;
             }
+            groupButton.Flyout = flyout;
+            NavPanel.Children.Add(groupButton);
         }
-        if (NavPanel.Children.Count > 0 && NavPanel.Children[^1] is Border) NavPanel.Children.RemoveAt(NavPanel.Children.Count - 1);
         UserButton.Content = $"{u.Username}  ▾";
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
         UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
@@ -189,7 +188,13 @@ public partial class MainWindow : Window
         }
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
-        if (_buttons.TryGetValue(key, out var now)) now.Classes.Add("active");
+        foreach (var (gb, label) in _groupLabels) gb.Content = label + "  ▾";
+        foreach (var (k, mi) in _items) mi.FontWeight = k == key ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
+        if (_buttons.TryGetValue(key, out var now))
+        {
+            now.Classes.Add("active");
+            if (_groupLabels.TryGetValue(now, out var gl) && key is not ("users" or "backup" or "lan" or "audit")) now.Content = $"{gl}: {item.Label}  ▾";
+        }
         _current = key;
     }
 

@@ -479,7 +479,9 @@ public sealed class LanService : ISheetSource, IDisposable
               // Tồn theo vị trí đọc nhóm Đặc tính của Tồn kho An An
               || (db.Contains("ton-kho-an-an") && Perm.Has(u, "m7"))
               // Sơ đồ kho đọc tồn theo vị trí, danh mục mã hàng và trang Kiểm kê của Nhập liệu
-              || ((db == "ton-vi-tri-an-an" || db == "tong-hop" || db == "nhap-lieu") && Perm.Has(u, "m8"));
+              || ((db == "ton-vi-tri-an-an" || db == "tong-hop" || db == "nhap-lieu") && Perm.Has(u, "m8"))
+              // Đối chiếu kiểm kê đọc trang Nhập liệu, Tồn kho An An, Tồn theo vị trí, Sơ đồ kho, Tổng hợp
+              || ((db is "nhap-lieu" or "ton-vi-tri-an-an" or "so-do-vi-tri" or "tong-hop" || db.Contains("ton-kho-an-an")) && Perm.Has(u, "m9"));
         if (!ok) throw new BusinessException($"Tài khoản \"{username}\" không có quyền {(write ? "sửa" : "xem")} dữ liệu này.");
     }
 

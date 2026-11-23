@@ -92,6 +92,15 @@ public sealed class EntryService
             .OrderByDescending(p => p.UpdatedAt, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>Đọc danh sách trang / dữ liệu trang không xét quyền Nhập liệu — cho module khác (Đối chiếu kiểm kê) chỉ ĐỌC số liệu.</summary>
+    internal List<PageInfo> PagesForRead() => ReadArr(ListSheet).OfType<JsonObject>().Select(ToInfo).Where(p => p.Id.Length > 0 && !p.Deleted)
+        .OrderByDescending(p => p.UpdatedAt, StringComparer.Ordinal).ToList();
+    internal List<string[]> LoadForRead(PageInfo p)
+    {
+        var keys = p.Columns.Select(c => c.Key).ToList();
+        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+    }
+
     private void SaveList(Func<List<PageInfo>, List<PageInfo>> change)
     {
         // Danh sách trang dùng chung mọi máy: máy khác vừa đổi → đọc lại rồi áp lại thay đổi của mình (tối đa 3 lần).

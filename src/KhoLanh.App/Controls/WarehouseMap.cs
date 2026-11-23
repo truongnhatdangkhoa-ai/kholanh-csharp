@@ -21,6 +21,9 @@ public sealed class WarehouseMap : Control
     public Func<Pos, bool>? Hit { get; set; }                     // null = không tìm
     public Func<string, (int Pct, string Lv, int Used, int Nk)>? TangInfo { get; set; }
     public Func<Pos, bool>? IsOverPos { get; set; }
+    /// <summary>Màu nền ô do nơi dùng quyết định (null = màu theo trạng thái tồn).</summary>
+    public Func<Pos, IBrush?>? Fill { get; set; }
+    public bool ShowTangBar { get; set; } = true;
     public Pos? Selected { get; private set; }
     public event Action<Pos>? Picked;
 
@@ -131,6 +134,7 @@ public sealed class WarehouseMap : Control
                 var key = $"{b.Cells.Values.First().Kho}.{b.Khu}.{Two(b.D)}.{t}";
                 var info = TangInfo?.Invoke(key) ?? (0, "", 0, b.Nk);
                 dc.DrawText(Txt("T" + t, 11, info.Lv == "over" ? LevelBrush("over") : Muted, info.Lv == "over"), new Point(r.X + Pad + 2, ry + 5));
+                if (!ShowTangBar) continue;
                 // cột mức đầy của tầng
                 var bar = new Rect(r.X + Pad + LW + b.Nk * CW + 4, ry + 2, BarW, CH - 4);
                 dc.FillRectangle(LevelBrush(""), bar);
@@ -144,7 +148,7 @@ public sealed class WarehouseMap : Control
         foreach (var (r, p) in _cells)
         {
             var st = Status(p); var over = IsOverPos?.Invoke(p) ?? false;
-            var bg = st == "e" ? EmptyBg : over ? OverBg : st == "mm" ? ManyBg : OneBg;
+            var bg = Fill?.Invoke(p) ?? (st == "e" ? EmptyBg : over ? OverBg : st == "mm" ? ManyBg : OneBg);
             dc.DrawRectangle(bg, CellPen, r);
             var text = CellText?.Invoke(p) ?? "";
             if (text.Length > 0) dc.DrawText(Txt(text, 10.5, Head, false, CW - 6), new Point(r.X + 3, r.Y + 5));
@@ -155,7 +159,7 @@ public sealed class WarehouseMap : Control
             for (var t = 1; t <= b.Nt; t++)
             {
                 var key = $"{b.Cells.Values.First().Kho}.{b.Khu}.{Two(b.D)}.{t}";
-                if ((TangInfo?.Invoke(key).Lv ?? "") != "over") continue;
+                if (!ShowTangBar || (TangInfo?.Invoke(key).Lv ?? "") != "over") continue;
                 var ry = r.Y + Pad + HH + (b.Nt - t) * CH;
                 dc.DrawRectangle(null, OverPen, new Rect(r.X + Pad + LW - 1, ry, b.Nk * CW + 2, CH));
             }

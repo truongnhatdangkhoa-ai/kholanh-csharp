@@ -247,6 +247,7 @@ public class ModuleBridge
         var x when x.Contains("ton-kho-gui") => "m2",
         "ton-vi-tri-an-an" => "m7",
         "so-do-vi-tri" => "m8",
+        "so-lieu-kiem-ke" => "m9",
         "tong-hop" => "m3",
         "bao-cao-ra-dong" => "m4",
         "bao-cao-hang-ngay" => "m5",
