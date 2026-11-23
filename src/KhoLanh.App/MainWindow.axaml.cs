@@ -63,6 +63,11 @@ public partial class MainWindow : Window
                 new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
                 new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
             }),
+            ("CÔNG CỤ", new[]
+            {
+                new NavItem("m14", "Container 3D", () => new C3dView()),
+                new NavItem("m15", "Scan tài liệu", () => new ScanView()),
+            }),
             ("NHẬP LIỆU", new[]
             {
                 new NavItem("m6", "Nhập liệu", () => new EntryView()),

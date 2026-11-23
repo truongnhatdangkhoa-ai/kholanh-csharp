@@ -449,6 +449,57 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
+// Container 3D + Scan tài liệu
+{
+    void Wait(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m14"); Wait(300);
+    s.C3d.St.Skus = KhoLanh.Core.Container3D.C3dService.DemoSkus();
+    main.Navigate("m3"); main.Navigate("m14"); Wait(3000);
+    var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    Snap(main, "50-c3d-hang-hoa");
+    tabs.SelectedIndex = 1; Wait(300); Snap(main, "50-c3d-container");
+    tabs.SelectedIndex = 2; Wait(600); Snap(main, "50-c3d-3d");
+    var cv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.C3dCanvas>().First();
+    Console.WriteLine($"[C3D] thùng: {cv.Plan?.Boxes.Count} / {cv.Plan?.Totals.Requested}, verify {cv.Plan?.Verify.Ok}");
+    var c = cv.TranslatePoint(new Point(cv.Bounds.Width * 0.5, cv.Bounds.Height * 0.55), main)!.Value;
+    main.MouseMove(c); Pump(); main.MouseDown(c, Avalonia.Input.MouseButton.Left); main.MouseUp(c, Avalonia.Input.MouseButton.Left); Wait(400);
+    Snap(main, "50-c3d-chon-thung");
+    cv.SetPreset("door"); Wait(200); Snap(main, "50-c3d-tu-cua");
+    cv.SetPreset("top"); Wait(200); Snap(main, "50-c3d-tu-tren");
+    cv.SetPreset("side"); Wait(200); Snap(main, "50-c3d-nhin-ngang");
+    var sv = main.PageHost.GetVisualDescendants().OfType<ScrollViewer>().First(x => x.IsEffectivelyVisible && x.Content is StackPanel);
+    sv.Offset = new Vector(0, 520); Wait(300); Snap(main, "50-c3d-bao-cao");
+
+    main.Navigate("m15"); Wait(300); Snap(main, "51-scan-trong");
+    var photo = Path.Combine(Path.GetTempPath(), "kl-scan-demo.png");
+    {
+        int W = 1200, H = 1600; using var bmp = new SkiaSharp.SKBitmap(W, H);
+        using (var cnv = new SkiaSharp.SKCanvas(bmp))
+        {
+            cnv.Clear(new SkiaSharp.SKColor(120, 80, 45));
+            using var path = new SkiaSharp.SKPath(); path.MoveTo(220, 180); path.LineTo(1010, 250); path.LineTo(960, 1440); path.LineTo(170, 1380); path.Close();
+            using var paper = new SkiaSharp.SKPaint { Shader = SkiaSharp.SKShader.CreateLinearGradient(new SkiaSharp.SKPoint(200, 0), new SkiaSharp.SKPoint(1000, 0), new[] { new SkiaSharp.SKColor(238, 236, 230), new SkiaSharp.SKColor(150, 148, 142) }, SkiaSharp.SKShaderTileMode.Clamp), IsAntialias = true };
+            cnv.DrawPath(path, paper);
+            using var ink = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(25, 25, 30), IsAntialias = true, TextSize = 34 };
+            using var rule = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(150, 160, 190), StrokeWidth = 2 };
+            cnv.Save(); cnv.RotateDegrees(4, 600, 800);
+            for (var i = 0; i < 18; i++) { var y = 330 + i * 60; cnv.DrawLine(250, y + 8, 930, y + 8, rule); cnv.DrawText("PHIẾU NHẬP KHO số " + (100 + i) + " — Tôm HLSO 31/40: " + (i * 37 % 400) + " kiện", 260, y, ink); }
+            cnv.Restore();
+        }
+        using var img = SkiaSharp.SKImage.FromBitmap(bmp); using var d = img.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90); File.WriteAllBytes(photo, d.ToArray());
+    }
+    var scan = main.PageHost.GetVisualDescendants().OfType<ScanView>().First();
+    var t = scan.AddFiles(new List<string> { photo, photo }); for (var i = 0; i < 300 && !t.IsCompleted; i++) { Thread.Sleep(30); Pump(); }
+    Wait(2500); Snap(main, "51-scan-ket-qua");
+    var cropBtn = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Chỉnh khung cắt");
+    cropBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(800); Snap(main, "51-scan-khung-cat");
+    var modeBtn = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Màu");
+    modeBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(300);
+    var done = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "✔ Xong chỉnh khung");
+    done.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(2500); Snap(main, "51-scan-mau");
+    if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "tools") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ công cụ): " + outDir); return; }
+}
+
 foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
     main.Navigate(key);

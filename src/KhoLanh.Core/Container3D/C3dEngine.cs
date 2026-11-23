@@ -27,8 +27,8 @@ public static class C3dEngine
 
     // ------------------------------------------------------------ tiện ích
     private static double Rnd(double x) => Math.Floor(x + 0.5);            // Math.round của JS
-    internal static string R1(double n) => Js(Rnd(n * 10) / 10);
-    internal static string Js(double n) => n.ToString("0.##########", CultureInfo.InvariantCulture);
+    public static string R1(double n) => Js(Rnd(n * 10) / 10);
+    public static string Js(double n) => n.ToString("0.##########", CultureInfo.InvariantCulture);
 
     private static List<string> NatKey(string? s) =>
         Regex.Matches((s ?? "").ToLowerInvariant(), @"\d+|\D+").Select(m => m.Value).ToList();

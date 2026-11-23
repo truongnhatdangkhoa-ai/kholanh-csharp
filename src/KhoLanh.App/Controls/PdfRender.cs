@@ -79,4 +79,68 @@ public static class PdfRender
             finally { Marshal.FreeHGlobal(mem); }
         }
     }
+
+    /// <summary>Số trang của PDF.</summary>
+    public static int PageCount(byte[] pdf)
+    {
+        lock (Gate)
+        {
+            if (!_init) { FPDF_InitLibrary(); _init = true; }
+            var mem = Marshal.AllocHGlobal(pdf.Length);
+            try
+            {
+                Marshal.Copy(pdf, 0, mem, pdf.Length);
+                var doc = FPDF_LoadMemDocument(mem, pdf.Length, null);
+                if (doc == IntPtr.Zero) throw new InvalidOperationException("Không mở được file PDF (hỏng hoặc có mật khẩu).");
+                try { return FPDF_GetPageCount(doc); } finally { FPDF_CloseDocument(doc); }
+            }
+            finally { Marshal.FreeHGlobal(mem); }
+        }
+    }
+
+    /// <summary>Vẽ trang (từ 0) sao cho cạnh dài ≤ maxSide (tối đa 3 lần cỡ gốc) → điểm ảnh RGBA nền trắng.</summary>
+    public static (int W, int H, byte[] Rgba) RenderRgba(byte[] pdf, int pageIndex, int maxSide)
+    {
+        lock (Gate)
+        {
+            if (!_init) { FPDF_InitLibrary(); _init = true; }
+            var mem = Marshal.AllocHGlobal(pdf.Length);
+            try
+            {
+                Marshal.Copy(pdf, 0, mem, pdf.Length);
+                var doc = FPDF_LoadMemDocument(mem, pdf.Length, null);
+                if (doc == IntPtr.Zero) throw new InvalidOperationException("Không mở được file PDF.");
+                try
+                {
+                    var page = FPDF_LoadPage(doc, pageIndex);
+                    if (page == IntPtr.Zero) throw new InvalidOperationException("Không mở được trang PDF.");
+                    try
+                    {
+                        double pw = FPDF_GetPageWidthF(page), ph = FPDF_GetPageHeightF(page);
+                        var k = Math.Min(3, maxSide / Math.Max(pw, ph));
+                        int w = Math.Max(16, (int)Math.Round(pw * k)), h = Math.Max(16, (int)Math.Round(ph * k));
+                        var bmp = FPDFBitmap_Create(w, h, 1);
+                        if (bmp == IntPtr.Zero) throw new InvalidOperationException("Không đủ bộ nhớ để vẽ trang PDF.");
+                        try
+                        {
+                            FPDFBitmap_FillRect(bmp, 0, 0, w, h, 0xFFFFFFFF);
+                            FPDF_RenderPageBitmap(bmp, page, 0, 0, w, h, 0, 0x01);
+                            var stride = FPDFBitmap_GetStride(bmp); var buf = FPDFBitmap_GetBuffer(bmp);
+                            var outp = new byte[w * h * 4]; var row = new byte[w * 4];
+                            for (int y = 0; y < h; y++)
+                            {
+                                Marshal.Copy(buf + y * stride, row, 0, row.Length);
+                                for (int x = 0, p = y * w * 4; x < w; x++, p += 4) { outp[p] = row[x * 4 + 2]; outp[p + 1] = row[x * 4 + 1]; outp[p + 2] = row[x * 4]; outp[p + 3] = 255; }
+                            }
+                            return (w, h, outp);
+                        }
+                        finally { FPDFBitmap_Destroy(bmp); }
+                    }
+                    finally { FPDF_ClosePage(page); }
+                }
+                finally { FPDF_CloseDocument(doc); }
+            }
+            finally { Marshal.FreeHGlobal(mem); }
+        }
+    }
 }
