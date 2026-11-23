@@ -1040,6 +1040,14 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Light, 1.0);
     main.Navigate("lx"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "40e-giao-dien-sang-diu");
 }
+// ---------------- Tìm nhanh toàn app (Ctrl + K) ----------------
+{
+    var sw = main.OpenSearch(); sw.LoadNow();
+    sw.SetQuery("VRHLBTNXECR003140"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    sw.SelectRow(0); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41-tim-nhanh");
+    sw.SetQuery("bot"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41b-tim-nhanh-module");
+    sw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

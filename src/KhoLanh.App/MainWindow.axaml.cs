@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
+            if (e.Key == Avalonia.Input.Key.K) { e.Handled = true; OpenSearch(); return; }
             if (e.Key is Avalonia.Input.Key.OemPlus or Avalonia.Input.Key.Add) { Zoom(0.1); e.Handled = true; }
             else if (e.Key is Avalonia.Input.Key.OemMinus or Avalonia.Input.Key.Subtract) { Zoom(-0.1); e.Handled = true; }
             else if (e.Key is Avalonia.Input.Key.D0 or Avalonia.Input.Key.NumPad0) { Zoom(0); e.Handled = true; }
@@ -246,6 +247,19 @@ public partial class MainWindow : Window
         if (again != newPw) { await Ui.Message(this, "Hai lần nhập mật khẩu mới không khớp."); return; }
         if (await Ui.Run(this, () => App.Services.Auth.ChangeOwnPassword(oldPw, newPw)))
             await Ui.Message(this, "Đã đổi mật khẩu.");
+    }
+
+    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
+    private Views.TimNhanhWindow? _search;
+    /// <summary>Tìm nhanh toàn app (Ctrl + K).</summary>
+    public Views.TimNhanhWindow OpenSearch(string text = "")
+    {
+        if (_search is { } open) { open.Activate(); return open; }
+        var mods = _menu.SelectMany(m => m.items.Where(Allowed).Select(i => new Views.TimNhanhWindow.ModuleLink(i.Key, i.Label, GroupLabel(m.group)))).ToList();
+        var w = _search = new Views.TimNhanhWindow(mods, Navigate, text);
+        w.Closed += (_, _) => _search = null;
+        w.Show(this);
+        return w;
     }
 
     private readonly LayoutTransformControl _zoom;

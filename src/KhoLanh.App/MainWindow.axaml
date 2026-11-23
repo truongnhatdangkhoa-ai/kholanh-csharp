@@ -19,6 +19,9 @@
           <StackPanel x:Name="NavPanel" Orientation="Horizontal" Spacing="2"/>
         </ScrollViewer>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button x:Name="SearchButton" Classes="topnav" VerticalAlignment="Center" Margin="6,0,0,0" Click="OnSearchClick" ToolTip.Tip="Tìm mã hàng / size / vị trí / hợp đồng trong tồn mọi module, hoặc tên module (Ctrl + K)">
+          <TextBlock Text="🔍 Tìm nhanh   Ctrl+K" FontSize="12.5"/>
+        </Button>
         <Button x:Name="LanPill" Classes="topnav" IsVisible="False" VerticalAlignment="Center" Margin="6,0,0,0" Click="OnLanPill">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <Ellipse x:Name="LanDot" Width="9" Height="9" Fill="#3FB950"/>
