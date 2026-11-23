@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -80,6 +80,7 @@ public partial class MainWindow : Window
                 new NavItem("users", "Tài khoản", () => new UsersView()),
                 new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
                 new NavItem("lan", "Mạng LAN", () => new LanView()),
+                new NavItem("drive", "Đồng bộ Google Drive", () => new DriveSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
             }),
         };

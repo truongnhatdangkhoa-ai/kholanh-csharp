@@ -118,7 +118,8 @@ public partial class App : Application
     public static void StartLan(IClassicDesktopStyleApplicationLifetime desktop)
     {
         try { Services.Lan.Start(); } catch (Exception ex) { Ui.Describe(ex); }
-        desktop.Exit += (_, _) => { try { Services.Lan.Dispose(); } catch { } };
+        try { Services.Drive.Start(); } catch { }
+        desktop.Exit += (_, _) => { try { Services.Drive.Stop(); Services.Lan.Dispose(); } catch { } };
         var t = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
         t.Tick += (_, _) => PublishLan();
         t.Start();

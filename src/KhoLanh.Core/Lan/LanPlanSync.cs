@@ -14,6 +14,7 @@ public static class LanPlanSync
         var plan = s.Accounts.Plan;
         if (plan is null) return null;
         var lan = s.Lan;
+        if (lan.Role == LanService.RoleRemote) return null;   // máy xem từ xa (Google Drive): không tự nhận vai LAN
         var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role);
         if (d is null) return null;
         var oldRole = lan.Role;

@@ -5,6 +5,10 @@ Phần mềm quản lý kho lạnh chạy trên Windows, viết bằng C# (.NET 
 
 ![Màn hình chính](docs/anh/03-man-hinh-chinh.png)
 
+## Đồng bộ qua Google Drive
+
+Máy ở mạng khác (không nối LAN) tải dữ liệu từ máy chính qua thư mục Google Drive, có thể gửi thay đổi ngược lên — xem [docs/DONG-BO-GOOGLE-DRIVE.md](docs/DONG-BO-GOOGLE-DRIVE.md).
+
 ## Máy chủ trên Google Cloud
 
 Máy chủ LAN chạy không giao diện (`src/KhoLanh.Server`, Linux), kênh mã hóa AES-GCM — xem [docs/MAY-CHU-GOOGLE-CLOUD.md](docs/MAY-CHU-GOOGLE-CLOUD.md), file triển khai trong `deploy/`.
