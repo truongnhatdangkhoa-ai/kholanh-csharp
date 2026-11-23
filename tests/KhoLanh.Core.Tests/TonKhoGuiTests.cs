@@ -147,4 +147,24 @@ public class TonKhoGuiTests : IDisposable
         foreach (var p in new[] { p1, p2, p3 }) { using var wb = new XLWorkbook(p); Assert.NotEmpty(wb.Worksheets); }
         using var w3 = new XLWorkbook(p3); Assert.Equal("TỔNG", w3.Worksheet(1).Cell(9, 3).GetString());
     }
+    [Fact]
+    public void Custom_summary_filters_sizes_and_columns()
+    {
+        var g = _s.Gui; g.Commit(g.Preview(Xlsx("cs.xlsx", Sample)));
+        g.SaveManual(new[] { ("x", "83.EU") }); g.MergeGroup(new[] { "83.EU" }, "EU"); g.MergeGroup(new[] { "ASCN" }, "ASC");
+        var d = CustomSummary.FromPivot(g.D.ComputePivot());
+        var all = CustomSummary.Compute(d, d.Rows.Select(r => r.Key).ToHashSet(), d.Cols.ToHashSet(), true);
+        Assert.Equal(g.D.ComputePivot().Grand.Tong, all.Grand, 6);                 // đủ size + đủ cột = tổng bảng gốc
+        Assert.Equal(new[] { "ASC", "EU" }, all.ColIdx.Select(i => d.Cols[i]).OrderBy(x => x).ToArray());   // ẩn cột trống
+        var onlyEu = CustomSummary.Compute(d, d.Rows.Select(r => r.Key).ToHashSet(), new HashSet<string> { "EU" }, true);
+        Assert.Equal(108 + 32.4 + 40, onlyEu.Grand, 6);                           // A1 + A4 + A5 đặc tính 83.EU
+        var hl = d.Rows.Where(r => r.Key.Contains("TÔM HLSO")).Select(r => r.Key).ToHashSet();
+        var r2 = CustomSummary.Compute(d, hl, d.Cols.ToHashSet(), true);
+        Assert.Equal(108, r2.Grand, 6);                                            // dòng tiêu đề nhóm không cộng
+        var st = new CustomSummary.State { Sizes = hl.ToList(), HideEmpty = false }; st.Views["HLSO"] = (hl.ToList(), null);
+        var back = CustomSummary.State.From(st.ToJson().ToJsonString());
+        Assert.False(back.HideEmpty); Assert.Equal(hl.Count, back.Sizes!.Count); Assert.True(back.Views.ContainsKey("HLSO"));
+        var p = Path.Combine(_dir, "cs-out.xlsx"); CustomSummary.Export(d, all).Save(p);
+        using var wb = new XLWorkbook(p); Assert.Equal("TỔNG CHỌN", wb.Worksheet(1).Cell(all.Shown.Count + 2, 1).GetString());
+    }
 }

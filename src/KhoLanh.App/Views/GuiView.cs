@@ -660,7 +660,128 @@ public sealed class GuiView : UserControl, IPage
         var bar = Bar();
         bar.Children.Add(Btn("Ẩn / hiện cột trống", () => { _bcHide = !_bcHide; RenderBc(); }));
         if (_export) bar.Children.Add(Btn("⬇ Xuất Excel Bảng Tổng Hợp", async () => await ExportBc(), primary: true));
-        return Page(new StackPanel { Children = { bar, _bcInfo } }, Framed(_bcg));
+        var main = Page(new StackPanel { Children = { bar, _bcInfo } }, Framed(_bcg));
+        var grid = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        grid.Children.Add(main); var cs = BuildCs(); Grid.SetRow(cs, 1); grid.Children.Add(cs);
+        return grid;
+    }
+
+    // ---------- Bảng Tổng Hợp Tùy Chọn (lọc lại Size × Đặc Tính từ Bảng Tổng Hợp)
+    private const string CsKey = "m2_custom_summary";
+    private CustomSummary.State _cs = new(); private CustomSummary.Data? _csData; private CustomSummary.Result? _csRes;
+    private readonly GridModel _csm = new() { ReadOnly = true }; private SheetGrid _csg = null!;
+    private readonly TextBlock _csNote = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly ComboBox _csViews = new() { MinWidth = 170, PlaceholderText = "— Mẫu đã lưu —" };
+    private Button _csRowsBtn = null!, _csColsBtn = null!, _csHideBtn = null!;
+    private Expander _csExp = null!;
+
+    private Control BuildCs()
+    {
+        _cs = CustomSummary.State.From(App.Services.Settings.Get(CsKey));
+        _csg = new SheetGrid(_csm) { SpareRows = 0, Height = 300, CellBackground = (r, c) => _csRes is { } x && r < x.Shown.Count && x.Shown[r].Title ? TitleBg : _csRes is { } y && r == y.Shown.Count ? LowBg : null };
+        _csRowsBtn = Btn("Chọn Size", async () => await CsPick(true)); _csColsBtn = Btn("Chọn Đặc Tính", async () => await CsPick(false));
+        _csHideBtn = Btn("", () => { _cs.HideEmpty = !_cs.HideEmpty; CsSave(); RenderCs(); });
+        _csViews.SelectionChanged += (_, _) =>
+        {
+            if (_loading || _csViews.SelectedItem is not string name || !_cs.Views.TryGetValue(name, out var v) || _csData is null) return;
+            _cs.Sizes = v.Sizes; _cs.Cols = v.Cols; CsSave(); RenderCs();
+        };
+        var bar = Bar();
+        bar.Children.Add(_csRowsBtn); bar.Children.Add(_csColsBtn); bar.Children.Add(_csHideBtn); bar.Children.Add(_csViews);
+        bar.Children.Add(Btn("Lưu mẫu", async () => await CsSaveView()));
+        bar.Children.Add(Btn("Xóa mẫu", async () =>
+        {
+            if (_csViews.SelectedItem is not string name) { await Ui.Message(this, "Chọn mẫu cần xóa ở ô “Mẫu đã lưu” trước."); return; }
+            if (!await Ui.Confirm(this, $"Xóa mẫu “{name}”?", "Xóa mẫu", "Xóa")) return;
+            _cs.Views.Remove(name); CsSave(); RenderCs();
+        }));
+        if (_export) bar.Children.Add(Btn("⬇ Xuất Excel", async () =>
+        {
+            if (_csData is null || _csRes is null || _csRes.Shown.Count == 0 || _csRes.ColIdx.Count == 0) { await Ui.Message(this, "Chưa có gì để xuất — hãy chọn Size và Đặc Tính trước."); return; }
+            await SaveXlsx(CustomSummary.Export(_csData, _csRes), $"TongHopTuyChon_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+        }));
+        bar.Children.Add(Btn("Chọn lại tất cả", () => { _cs.Sizes = null; _cs.Cols = null; CsSave(); RenderCs(); }));
+        var body = new StackPanel { Spacing = 4, Children = { bar, Framed(_csg), _csNote } };
+        _csExp = new Expander { Header = "Bảng Tổng Hợp Tùy Chọn · lọc Size và Đặc Tính đã gộp từ bảng có sẵn", Content = body, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 8, 0, 0) };
+        _csExp.Expanded += (_, _) => RenderCs();
+        return _csExp;
+    }
+    private void CsSave() { try { App.Services.Settings.Set(CsKey, _cs.ToJson().ToJsonString()); } catch { } }
+    private HashSet<string> CsSel(bool rows)
+    {
+        if (_csData is null) return new();
+        var all = rows ? _csData.Rows.Select(r => r.Key).ToList() : _csData.Cols;
+        var saved = rows ? _cs.Sizes : _cs.Cols;
+        return (saved is null ? all : saved.Where(all.Contains)).ToHashSet();
+    }
+    private void CsStore(bool rows, HashSet<string> sel)
+    {
+        var all = rows ? _csData!.Rows.Select(r => r.Key).ToList() : _csData!.Cols;
+        var v = sel.Count == all.Count ? null : all.Where(sel.Contains).ToList();
+        if (rows) _cs.Sizes = v; else _cs.Cols = v;
+        CsSave();
+    }
+    private void RenderCs()
+    {
+        if (_csExp is null || !_csExp.IsExpanded) return;
+        _csData = _pivot is null ? null : CustomSummary.FromPivot(_pivot);
+        _loading = true; try { _csViews.ItemsSource = _cs.Views.Keys.ToList(); } finally { _loading = false; }
+        _csHideBtn.Content = _cs.HideEmpty ? "Đang ẩn cột trống" : "Hiện cả cột trống";
+        if (_csData is null) { _csRes = null; _csm.Load(new[] { new GridColumn("x", "Chưa có dữ liệu", 300) }, Array.Empty<string[]>()); _csg.Refresh(); _csNote.Text = ""; return; }
+        var sr = CsSel(true); var sc = CsSel(false);
+        _csRowsBtn.Content = $"Chọn Size ({sr.Count}/{_csData.Rows.Count}) ▾"; _csColsBtn.Content = $"Chọn Đặc Tính ({sc.Count}/{_csData.Cols.Count}) ▾";
+        var r = _csRes = CustomSummary.Compute(_csData, sr, sc, _cs.HideEmpty);
+        if (r.Shown.Count == 0 || r.ColIdx.Count == 0)
+        {
+            _csm.Load(new[] { new GridColumn("x", r.Shown.Count == 0 ? "Chưa chọn Size nào — bấm “Chọn Size”." : "Chưa chọn Đặc Tính nào — bấm “Chọn Đặc Tính”.", 420) }, Array.Empty<string[]>()); _csg.Refresh(); _csNote.Text = ""; return;
+        }
+        string C(double? v) => v is double d ? Kg(d) : "-";
+        var cols = new List<GridColumn> { new("s", "Size", 160) }; cols.AddRange(r.ColIdx.Select(i => new GridColumn("c" + i, _csData.Cols[i], 130, "number"))); cols.Add(new GridColumn("t", "Tổng chọn", 120, "number"));
+        var rows = r.Shown.Select((x, j) => new[] { x.Label }.Concat(r.ColIdx.Select(i => C(x.Cells[i]))).Concat(new[] { C(r.RowTotals[j]) }).ToArray()).ToList();
+        rows.Add(new[] { "TỔNG CHỌN" }.Concat(r.ColIdx.Select((i, k) => r.HasSum[k] ? Kg(r.Sums[k]) : "-")).Concat(new[] { r.GrandHas ? Kg(r.Grand) : "-" }).ToArray());
+        _csm.Load(cols, rows); _csg.Refresh();
+        _csNote.Text = "Số liệu lấy thẳng từ Bảng Tổng Hợp; “Tổng chọn” = cộng các cột đang chọn. Dòng tiêu đề nhóm (nền xanh) không cộng vào TỔNG CHỌN."
+            + (Math.Abs(r.Diff) > 0.005 ? $" Lưu ý: cột “Tổng” của bảng gốc lớn hơn tổng các cột đặc tính {Kg(r.Diff)} kg (hàng chưa gán nhóm đặc tính)." : "");
+    }
+    private async Task CsPick(bool rows)
+    {
+        if (_csData is null) { await Ui.Message(this, "Chưa có dữ liệu Bảng Tổng Hợp."); return; }
+        var items = rows ? _csData.Rows.Select(r => (Key: r.Key, Label: r.Title ? r.Label : "      " + r.Label, Title: r.Title)).ToList() : _csData.Cols.Select(c => (Key: c, Label: c, Title: false)).ToList();
+        var sel = CsSel(rows);
+        var boxes = items.Select(it => new CheckBox { Content = it.Label, IsChecked = sel.Contains(it.Key), FontWeight = it.Title ? FontWeight.Bold : FontWeight.Normal }).ToList();
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (!rows || !items[i].Title) continue;
+            var start = i; boxes[i].IsCheckedChanged += (_, _) =>   // tick tiêu đề nhóm = tick cả nhóm bên dưới
+            {
+                for (var j = start + 1; j < items.Count && !items[j].Title; j++) boxes[j].IsChecked = boxes[start].IsChecked;
+            };
+        }
+        var q = new TextBox { Watermark = "Tìm…" };
+        var list = new StackPanel { Spacing = 2 }; foreach (var b in boxes) list.Children.Add(b);
+        q.TextChanged += (_, _) => { var t = JsText.Fuzzy(q.Text); for (var i = 0; i < items.Count; i++) boxes[i].IsVisible = t.Length == 0 || JsText.Fuzzy(items[i].Label).Contains(t, StringComparison.Ordinal); };
+        var all = new Button { Content = "Chọn tất cả" }; var none = new Button { Content = "Bỏ hết" };
+        all.Click += (_, _) => { foreach (var b in boxes.Where(b => b.IsVisible)) b.IsChecked = true; };
+        none.Click += (_, _) => { foreach (var b in boxes.Where(b => b.IsVisible)) b.IsChecked = false; };
+        var ok = new Button { Content = "Áp dụng", Classes = { "primary" } }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var body = new StackPanel { Spacing = 8, Children = { q, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { all, none } }, new ScrollViewer { Content = list, MaxHeight = 420 }, Ui.Buttons(cancel, ok) } };
+        var w = Ui.Dialog(rows ? "Chọn Size" : "Chọn Đặc Tính", body, 420);
+        cancel.Click += (_, _) => w.Close();
+        ok.Click += (_, _) => { CsStore(rows, items.Where((it, i) => boxes[i].IsChecked == true).Select(it => it.Key).ToHashSet()); w.Close(); RenderCs(); };
+        await Ui.Show(this, w);
+    }
+    private async Task CsSaveView()
+    {
+        if (_csData is null) return;
+        var box = new TextBox { Watermark = "VD: TGC xuất Nhật", Width = 280 }; string? name = null;
+        var ok = new Button { Content = "Lưu", Classes = { "primary" } }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var w = Ui.Dialog("Đặt tên mẫu", new StackPanel { Spacing = 8, Children = { box, Ui.Buttons(cancel, ok) } }, 360);
+        cancel.Click += (_, _) => w.Close(); ok.Click += (_, _) => { name = (box.Text ?? "").Trim(); w.Close(); };
+        await Ui.Show(this, w);
+        if (string.IsNullOrEmpty(name)) return;
+        if (_cs.Views.ContainsKey(name) && !await Ui.Confirm(this, $"Mẫu “{name}” đã có — ghi đè?", "Lưu mẫu", "Ghi đè")) return;
+        _cs.Views[name] = (_cs.Sizes?.ToList(), _cs.Cols?.ToList()); CsSave(); RenderCs();
+        _loading = true; try { _csViews.SelectedItem = name; } finally { _loading = false; }
     }
 
     private void RenderBc()
