@@ -31,3 +31,19 @@ public class CargoStockTests
         Assert.Single(s); Assert.Equal(Base, s[0].Ma);
     }
 }
+
+public class CargoSuggestTests
+{
+    [Fact]
+    public void Suggest_pack_and_prefix()
+    {
+        var d = new CargoSuggest.Dict();
+        d.W["IM"] = "1.8 Kg/túi"; d.Q["E3"] = "3 túi/ctn";
+        var cfg = new CargoCfg { Loai = new() { new CargoLoai { Code = "BTP", Ten = "HLSO" } }, Qc = new() { new CargoQc { D = "6", Label = "1.8Kg x 6", Pack = "IME6", Pre = new() { ["BTP"] = "PRHL0000000AB" } } } };
+        var ma = new[] { "PRHL0000000AB" + "0040" + "IME3" + "0" };   // chưa đủ 21 → bỏ qua
+        var sg = CargoSuggest.Suggest("1.8Kg x 3", d, cfg, ma, "3");
+        Assert.Equal("IME3", sg.Pack);
+        Assert.Equal("PRHL0000000AB", sg.Pre["BTP"]);          // chép theo quy cách cùng khối lượng
+        Assert.Null(CargoSuggest.ParseLabel("abc"));
+    }
+}

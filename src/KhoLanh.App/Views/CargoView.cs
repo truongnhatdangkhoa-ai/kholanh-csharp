@@ -440,7 +440,8 @@ public sealed class CargoView : UserControl
         s.Children.Add(new TextBlock { Text = "Mã hàng = tiền tố 13 ký tự (theo Loại + số quy cách) + Size 4 số + Mã gói 4 ký tự + số kết quả kháng sinh 4 số. Mã gói = ký tự 18–21 của mã hàng (trọng lượng + quy cách đóng thùng trong Tổng hợp › Mã hóa sản phẩm).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
         s.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…)", Framed(_lg)));
         s.Children.Add(Section("Size-quy cách (số quy cách = số cuối của 0040-6; cột tiền tố theo từng loại hàng ở trên)", Framed(_qg)));
-        s.Children.Add(_cfgMsg); s.Children.Add(save);
+        var sug = Btn("🪄 Gợi ý Mã gói + Tiền tố", () => SuggestCfg()); sug.IsEnabled = _edit;
+        s.Children.Add(_cfgMsg); s.Children.Add(new WrapPanel { ItemSpacing = 8, Children = { save, sug } });
         return new ScrollViewer { Content = s, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }
 
@@ -452,6 +453,25 @@ public sealed class CargoView : UserControl
         qcols.AddRange(cfg.Loai.Select(l => new GridColumn("pre" + l.Code, "Tiền tố " + l.Code, 160)));
         _qm.Load(qcols, cfg.Qc.Select(q => new[] { q.D, q.Label, q.Pack }.Concat(cfg.Loai.Select(l => q.Pre.GetValueOrDefault(l.Code) ?? "")).ToArray()));
         _lg?.Refresh(); _qg?.Refresh();
+    }
+
+    private void SuggestCfg()
+    {
+        (CargoSuggest.Dict Dict, List<string> Ma) refs;
+        try { refs = Svc.LoadSuggestRefs(); } catch (Exception e) { _cfgMsg.Text = e.Message; return; }
+        var cfg = Svc.Cfg; var lines = new List<string>(); var filled = 0;
+        for (var r = 0; r < _qm.RowCount; r++)
+        {
+            var d = _qm.Get(r, 0).Trim(); var label = _qm.Get(r, 1).Trim(); if (label.Length == 0) continue;
+            var cur = new CargoCfg { Loai = cfg.Loai };
+            for (var rr = 0; rr < _qm.RowCount; rr++) { var q = new CargoQc { D = _qm.Get(rr, 0).Trim(), Label = _qm.Get(rr, 1).Trim() }; for (var i = 0; i < cfg.Loai.Count; i++) { var v = _qm.Get(rr, 3 + i).Trim(); if (v.Length > 0) q.Pre[cfg.Loai[i].Code] = v; } if (q.Label.Length > 0) cur.Qc.Add(q); }
+            var sg = CargoSuggest.Suggest(label, refs.Dict, cur, refs.Ma, d);
+            if (sg.Pack.Length > 0 && _qm.Get(r, 2).Trim().Length == 0) { _qm.Set(r, 2, sg.Pack); filled++; lines.Add($"{label}: mã gói {sg.Pack}"); }
+            for (var i = 0; i < cfg.Loai.Count; i++) if (_qm.Get(r, 3 + i).Trim().Length == 0 && sg.Pre.TryGetValue(cfg.Loai[i].Code, out var pv)) { _qm.Set(r, 3 + i, pv); filled++; lines.Add($"{label}: tiền tố {cfg.Loai[i].Code} {pv}"); }
+            foreach (var n in sg.Notes.Where(n => _qm.Get(r, 2).Trim().Length == 0 || n.Contains("tiền tố"))) lines.Add($"⚠ {label}: {n}");
+        }
+        _qg?.Refresh();
+        _cfgMsg.Text = filled == 0 && lines.Count == 0 ? "Không có ô trống nào cần gợi ý." : $"Đã điền {filled} ô (chưa lưu — kiểm tra rồi bấm Lưu danh mục).\n" + string.Join("\n", lines.Take(12));
     }
 
     private async Task SaveCfgAsync()

@@ -144,6 +144,20 @@ public sealed class CargoService
     }
     public List<CargoStock.Result> StockCheck(CargoRec rec) => Stock.Count == 0 ? new() : CargoStock.CheckRec(Cfg, rec, Ks, Stock);
 
+    /// <summary>Đọc từ điển Mã hóa sản phẩm (menu 9 trọng lượng, 10 quy cách đóng thùng) + Danh sách mã hàng.</summary>
+    public (CargoSuggest.Dict Dict, List<string> Ma) LoadSuggestRefs()
+    {
+        var d = new CargoSuggest.Dict();
+        foreach (var (k, list) in KhoLanh.Core.TongHop.TongHopService.FixedCatalog()) if (k is 9 or 10) foreach (var e in list) (k == 9 ? d.W : d.Q)[e.Code.Trim().ToUpperInvariant()] = e.Name;
+        foreach (var o in Read("tong-hop", "MaHoa").OfType<JsonObject>())
+        {
+            var t = o["Tổ hợp"]?.ToString(); var c = (o["Mã"]?.ToString() ?? "").Trim().ToUpperInvariant(); if (c.Length == 0) continue;
+            if (t == "9") d.W[c] = o["Tên"]?.ToString() ?? ""; else if (t == "10") d.Q[c] = o["Tên"]?.ToString() ?? "";
+        }
+        var ma = Read("tong-hop", "MaDaTao").OfType<JsonObject>().Select(o => o["Mã"]?.ToString() ?? "").Where(x => x.Length > 0).ToList();
+        return (d, ma);
+    }
+
     public sealed record Check(double Kien, List<string> Problems);
 
     /// <summary>Kiểm tra trước khi xuất: các dòng còn lỗi (thiếu kết quả kháng sinh, quy cách…) chặn xuất để không ra phiếu sai.</summary>
