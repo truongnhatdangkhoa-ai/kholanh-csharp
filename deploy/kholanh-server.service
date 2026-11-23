@@ -1,0 +1,23 @@
+[Unit]
+Description=Kho Lanh - may chu LAN (khong giao dien)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kholanh
+Group=kholanh
+WorkingDirectory=/opt/kholanh
+ExecStart=/opt/kholanh/kholanh-server
+Restart=always
+RestartSec=5
+# Cau hinh (xem docs/MAY-CHU-GOOGLE-CLOUD.md). KHOLANH_PUBLIC = IP tinh / ten mien cua VPS.
+EnvironmentFile=/etc/kholanh/server.env
+# Bao mat
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kholanh
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

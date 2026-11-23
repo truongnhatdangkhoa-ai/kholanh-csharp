@@ -5,6 +5,10 @@ Phần mềm quản lý kho lạnh chạy trên Windows, viết bằng C# (.NET 
 
 ![Màn hình chính](docs/anh/03-man-hinh-chinh.png)
 
+## Máy chủ trên Google Cloud
+
+Máy chủ LAN chạy không giao diện (`src/KhoLanh.Server`, Linux), kênh mã hóa AES-GCM — xem [docs/MAY-CHU-GOOGLE-CLOUD.md](docs/MAY-CHU-GOOGLE-CLOUD.md), file triển khai trong `deploy/`.
+
 ## Module hiện có
 
 App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ các module phiếu / tồn / sổ kho / báo cáo / danh mục của bản 1.0).

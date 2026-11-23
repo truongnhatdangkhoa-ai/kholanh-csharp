@@ -118,6 +118,33 @@ public sealed class LanService : ISheetSource, IDisposable
         catch { throw new BusinessException("Mã LAN bị thiếu hoặc sai — chép lại đủ cả dòng."); }
     }
 
+    /// <summary>
+    /// Cấu hình cho máy chủ chạy KHÔNG GIAO DIỆN (KhoLanh.Server, không có người đăng nhập Quản trị). Vai "chu": tạo khóa nếu chưa có;
+    /// "duphong": cần mã LAN của máy chủ chính. publicAddrs = địa chỉ công khai (IP:cổng) máy con dùng để nối (trên cloud, IP trong máy ≠ IP công khai).
+    /// </summary>
+    public static void ConfigureHeadless(SettingsService settings, string role, string? code, int? port, string? publicAddrs, bool requireEnc, string? name)
+    {
+        if (role is not (RoleServer or RoleStandby)) throw new BusinessException("Máy chủ không giao diện chỉ làm “chu” (chính) hoặc “duphong” (dự phòng).");
+        if (role == RoleStandby)
+        {
+            if (string.IsNullOrWhiteSpace(code) && Secret.Unprotect(settings.Get("lan_key")).Length == 0) throw new BusinessException("Máy dự phòng cần mã LAN của máy chủ chính (--code).");
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                var (addrs, key) = ParseCode(code);
+                settings.Set("lan_key", Secret.Protect(key));
+                settings.Set("lan_nodes", new JsonArray(new JsonObject { ["id"] = "", ["name"] = "Máy chủ chính", ["role"] = RoleServer, ["addrs"] = new JsonArray(addrs.Select(a => (JsonNode)a).ToArray()) }).ToJsonString());
+                if (settings.Get("lan_role") != RoleStandby) settings.Set("lan_last_seq", "0");
+            }
+        }
+        else if (Secret.Unprotect(settings.Get("lan_key")).Length == 0)
+            settings.Set("lan_key", Secret.Protect(Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant()));
+        if (port is > 0) settings.Set("lan_port", port.Value.ToString());
+        if (publicAddrs is not null) settings.Set("lan_addrs", publicAddrs);
+        if (!string.IsNullOrWhiteSpace(name)) settings.Set("lan_name", name);
+        settings.Set("lan_enc", requireEnc ? "1" : "");
+        settings.Set("lan_role", role);
+    }
+
     /// <summary>Lưu vai của máy (có hiệu lực sau khi mở lại phần mềm). Máy chủ chính: tạo khóa mới nếu chưa có.</summary>
     public static void Configure(SettingsService settings, Session session, string role, string? code, int? port = null)
     {
