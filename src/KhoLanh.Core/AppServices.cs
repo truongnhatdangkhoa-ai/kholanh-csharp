@@ -70,6 +70,8 @@ public class AppServices
         Lan = new LanService(Db, Modules, Settings, Session, Audit);
         Legacy.Target = Lan;
         Drive = new DriveSyncService(() => Lan, Settings);
+        Backup.IsRemote = () => Lan.Role == LanService.RoleRemote;
+        Drive.MakeBackup = p => Backup.BackupTo(p);
         Backup.Guard = () => Lan.Enabled ? "Máy này đang dùng chung dữ liệu qua mạng LAN. Chuyển về \"Máy đơn\" ở Mạng LAN rồi mở lại phần mềm trước khi khôi phục." : null;
         Entry = new EntryService(() => Lan, Session, Audit);
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);

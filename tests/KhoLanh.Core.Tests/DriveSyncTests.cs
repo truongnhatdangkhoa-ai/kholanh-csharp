@@ -145,4 +145,76 @@ public class DriveSyncTests : IDisposable
         Assert.StartsWith("Lỗi", remote.Drive.SyncNow());
         Assert.Equal("[]", remote.Lan.Read(Db, "S"));
     }
+
+    // ------------------------------------------------------------------ máy ở nhà · sao lưu Drive · khôi phục máy ở nhà · khóa gửi lên
+
+    [Fact]
+    public void Ba_may_nha_doc_lap_may_cong_ty_mo_lai_thi_gop()
+    {
+        var (main, home1) = Pair();
+        var home2 = Machine("nha2"); home2.Drive.Configure("xa", _drive, main.Drive.Code(), home2.Session); home2.ReloadLan(start: false);
+        main.Lan.Write(Db, One("S", Rows("a"))); main.Lan.Write(Db, One("T", Rows("t")));
+        main.Drive.SyncNow(); main.Drive.ReleaseOnExit();                          // chiều: máy công ty tắt app
+        home1.Drive.SetHome(true); home2.Drive.SetHome(true);
+        home1.Drive.SyncNow(); home2.Drive.SyncNow();
+        home1.Lan.Write(Db, One("S", Rows("a", "nha1")));                          // tối: 2 máy nhà làm độc lập
+        home2.Lan.Write(Db, One("T", Rows("t", "nha2")));
+        home1.Drive.ReleaseOnExit(); home2.Drive.ReleaseOnExit();                  // tắt app → gửi nốt
+        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => home1.Drive.BecomeMain(home1, "admin"));   // máy nhà không tự làm máy chính
+        main.Drive.SyncNow();                                                       // sáng: máy công ty mở lại → gộp
+        Assert.Equal("a,nha1", Names(main.Lan.Read(Db, "S")));
+        Assert.Equal("t,nha2", Names(main.Lan.Read(Db, "T")));
+        home1.Drive.SyncNow();
+        Assert.Equal(0, home1.Lan.PendingCount());
+        Assert.Equal("t,nha2", Names(home1.Lan.Read(Db, "T")));
+    }
+
+    [Fact]
+    public void Sao_luu_len_Drive_moi_ngay_tai_ve_va_khoi_phuc_may_nha()
+    {
+        var (main, home) = Pair();
+        var day = new DateTime(2026, 11, 23);
+        main.Drive.Now = () => day;
+        main.Lan.Write(Db, One("S", Rows("a", "b")));
+        Assert.Contains("đã sao lưu lên Drive", main.Drive.SyncNow());
+        Assert.DoesNotContain("đã sao lưu", main.Drive.SyncNow());                 // mỗi ngày 1 bản
+        for (var d = 1; d <= 20; d++) { main.Drive.Now = () => day.AddDays(d); main.Drive.BackupToDrive(); }
+        var list = main.Drive.DriveBackups();
+        Assert.Equal(15, list.Count);                                              // 14 gần nhất + bản đầu tháng 11
+        Assert.Contains(list, b => b.Name == "b-2026-11-23.kldb");
+        var bk = Directory.GetFiles(Path.Combine(_drive, DriveSyncService.Folder, "backup")).First();
+        Assert.DoesNotContain("SQLite format", File.ReadAllText(bk));             // đã mã hóa
+
+        // máy nhà: tải bản về, sửa (chờ gửi), rồi khôi phục — cài đặt máy giữ nguyên, sổ chờ bỏ
+        home.Drive.SyncNow();
+        home.Lan.Write(Db, One("S", Rows("a", "b", "nha")));
+        Assert.Equal(1, home.Lan.PendingCount());
+        var tmp = Path.Combine(_root, "kp.db");
+        home.Drive.DownloadBackup("b-2026-11-23.kldb", tmp);
+        home.Backup.Restore(tmp);
+        Assert.Equal(0, home.Lan.PendingCount());
+        Assert.Equal("xa", home.Settings.Get("drive_mode"));
+        Assert.Equal(_drive, home.Settings.Get("drive_dir"));
+        Assert.Equal("a,b", Names(home.Lan.Read(Db, "S")));
+        Assert.Contains("đã tải bản", home.Drive.SyncNow());                      // đồng bộ lại theo máy chính
+    }
+
+    [Fact]
+    public void Tai_khoan_khong_co_quyen_gui_len_thi_may_nha_chi_xem()
+    {
+        var (main, home) = Pair();
+        main.Lan.Write(Db, One("S", Rows("a"))); main.Drive.SyncNow(); home.Drive.SyncNow();
+        home.Auth.CreateUser("nhanvien", "NV", "matkhau1", KhoLanh.Core.Models.Roles.Staff,
+            KhoLanh.Core.Models.Perm.Serialize(new Dictionary<string, string> { ["m1"] = "sua", ["drivepush"] = "" }));
+        home.Auth.Logout(); home.Auth.Login("nhanvien", "matkhau1");
+        var e = Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => home.Lan.Write(Db, One("S", Rows("a", "x"))));
+        Assert.Contains("chỉ được XEM", e.Message);
+        Assert.Equal("a", Names(home.Lan.Read(Db, "S")));
+        // tài khoản chỉnh quyền từ trước khi có mục này → vẫn được gửi (mặc định bật)
+        home.Auth.Logout(); home.Auth.Login("admin", "matkhau1");
+        home.Auth.CreateUser("nhanvien2", "NV2", "matkhau1", KhoLanh.Core.Models.Roles.Staff, "{\"m1\":\"sua\"}");
+        home.Auth.Logout(); home.Auth.Login("nhanvien2", "matkhau1");
+        home.Lan.Write(Db, One("S", Rows("a", "y")));
+        Assert.Equal(1, home.Lan.PendingCount());
+    }
 }

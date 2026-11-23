@@ -33,7 +33,14 @@ public static class Perm
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
+        new("drivepush", "Gửi dữ liệu từ máy ở nhà (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy ở nhà / máy ngoài công ty chỉ xem, không sửa được"),
     };
+
+    /// <summary>
+    /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
+    /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
+    /// </summary>
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 
@@ -83,7 +90,7 @@ public static class Perm
         if (!string.IsNullOrWhiteSpace(u.Permissions))
         {
             var custom = Parse(u.Permissions);
-            foreach (var i in Items) d[i.Key] = custom.TryGetValue(i.Key, out var v) ? v : None;
+            foreach (var i in Items) d[i.Key] = custom.TryGetValue(i.Key, out var v) ? v : MissingDefault.GetValueOrDefault(i.Key, None);
         }
         return d;
     }

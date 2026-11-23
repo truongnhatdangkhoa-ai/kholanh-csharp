@@ -65,11 +65,14 @@ public class BackupService
     /// </summary>
     /// <summary>Trả về lý do không cho khôi phục (ví dụ đang dùng LAN); null = được.</summary>
     public Func<string?>? Guard { get; set; }
+    /// <summary>Máy ở nhà / máy xem từ xa qua Drive: được khôi phục bằng quyền "Sao lưu và cài đặt"; giữ nguyên cài đặt của máy (vai, thư mục Drive, mã…).</summary>
+    public Func<bool>? IsRemote { get; set; }
 
     public string Restore(string sourcePath)
     {
-        _session.RequireAdmin();
-        if (Guard?.Invoke() is { } why) throw new BusinessException(why);
+        var remote = IsRemote?.Invoke() == true;
+        if (remote) _session.Require("backup"); else _session.RequireAdmin();
+        if (!remote && Guard?.Invoke() is { } why) throw new BusinessException(why);
         if (!File.Exists(sourcePath)) throw new BusinessException("Không tìm thấy file sao lưu.");
         using (var check = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         {
@@ -83,6 +86,8 @@ public class BackupService
         }
         var safety = Path.Combine(AutoBackupFolder, $"truoc-khoi-phuc_{DateTime.Now:yyyy-MM-dd_HHmmss}.db");
         BackupTo(safety);
+        List<(string key, string value)> keepSettings = new();
+        if (remote) using (var c0 = _db.Open()) keepSettings = Dapper.SqlMapper.Query<(string, string)>(c0, "SELECT key, value FROM settings").ToList();
         using (var src = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         using (var dst = _db.Open())
         {
@@ -90,7 +95,19 @@ public class BackupService
             src.BackupDatabase(dst);
         }
         _db.Initialize();
-        _audit.Log(_session.Username, "Khôi phục dữ liệu", $"{sourcePath} (bản cũ lưu ở {safety})");
+        if (remote)
+            using (var c = _db.Open())
+            using (var tx = c.BeginTransaction())
+            {
+                // máy ở nhà: giữ cài đặt của chính máy này; thay đổi chờ gửi cũ bỏ (chỉ những gì sửa SAU khi khôi phục mới gửi lên);
+                // lần đồng bộ tới tải lại bản mới nhất của máy chính.
+                Dapper.SqlMapper.Execute(c, "DELETE FROM settings", transaction: tx);
+                foreach (var (k, v) in keepSettings) Dapper.SqlMapper.Execute(c, "INSERT INTO settings(key, value) VALUES(@k, @v)", new { k, v }, tx);
+                Dapper.SqlMapper.Execute(c, "UPDATE settings SET value='0' WHERE key='drive_seq'", transaction: tx);
+                Dapper.SqlMapper.Execute(c, "DELETE FROM lan_pending", transaction: tx);
+                tx.Commit();
+            }
+        _audit.Log(_session.Username, "Khôi phục dữ liệu", $"{sourcePath} (bản cũ lưu ở {safety})" + (remote ? " — máy ở nhà, giữ cài đặt máy" : ""));
         return safety;
     }
 }

@@ -7,7 +7,7 @@ Phần mềm quản lý kho lạnh chạy trên Windows, viết bằng C# (.NET 
 
 ## Đồng bộ qua Google Drive
 
-Máy ở mạng khác (không nối LAN) tải dữ liệu từ máy chính qua thư mục Google Drive, có thể gửi thay đổi ngược lên — xem [docs/DONG-BO-GOOGLE-DRIVE.md](docs/DONG-BO-GOOGLE-DRIVE.md).
+Máy ở mạng khác (không nối LAN) tải dữ liệu từ máy chính qua thư mục Google Drive, có thể gửi thay đổi ngược lên (ban ngày LAN ở công ty, ban đêm máy ở nhà làm độc lập; sao lưu tự động lên Drive mỗi ngày, khôi phục máy ở nhà, khóa gửi lên theo tài khoản) — xem [docs/DONG-BO-GOOGLE-DRIVE.md](docs/DONG-BO-GOOGLE-DRIVE.md).
 
 ## Máy chủ trên Google Cloud
 

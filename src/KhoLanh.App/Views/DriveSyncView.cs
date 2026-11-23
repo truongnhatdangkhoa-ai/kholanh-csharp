@@ -31,6 +31,12 @@ public sealed class DriveSyncView : UserControl, IPage
     private StackPanel _planBox = null!;
     private readonly Dictionary<string, CheckBox> _mainBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
+    private readonly CheckBox _home = new() { Content = "Máy này ở NHÀ — luôn là máy xem từ xa, không tự nhận làm máy chính (máy công ty mở lại là tự gộp việc làm ở nhà)" };
+    private readonly ComboBox _every = new() { ItemsSource = DriveSyncService.Intervals.Select(x => x.Label).ToList(), MinWidth = 330 };
+    private readonly ListBox _bk = new() { Height = 150 };
+    private readonly TextBlock _bkMsg = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private Button _bkNow = null!, _bkRestore = null!;
+    private List<DriveSyncService.DriveBackup> _bkList = new();
 
     public DriveSyncView()
     {
@@ -62,6 +68,21 @@ public sealed class DriveSyncView : UserControl, IPage
         planBtns.Children.Add(Btn("Lưu phân vai", async () => await SavePlan(), primary: true));
         planBtns.Children.Add(Btn("Chỉ lưu thư mục trên máy này", async () => { if (await Ui.Run(this, () => Svc.SetFolder((_dir.Text ?? "").Trim()))) _msg.Text = "Đã lưu thư mục Drive của máy này."; await Task.CompletedTask; }));
         planBtns.Children.Add(Btn("Chiếm quyền máy chính (khi máy kia treo)", async () => await Force()));
+        // ----- máy ở nhà · chu kỳ · sao lưu trên Drive
+        var homeBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        homeBtns.Children.Add(Btn("Lưu cài đặt máy này", async () => await SaveHome(), primary: true));
+        s.Children.Add(Card("Máy ở nhà & chu kỳ đồng bộ",
+            Note("Ban ngày dùng LAN ở công ty; ban đêm các máy ở nhà đồng bộ qua Drive và làm việc độc lập. Việc làm ở nhà được gửi lên Drive và máy chủ công ty tự gộp khi mở lại (trùng dòng → Quản trị chọn ở Xung đột). Tắt app thì app gửi nốt thay đổi còn chờ."),
+            _home, new TextBlock { Text = "Đồng bộ mỗi", FontSize = 12.5 }, _every, homeBtns));
+        _bkNow = Btn("☁ Sao lưu lên Drive ngay", async () => await BackupNow());
+        var bkDl = Btn("⬇ Tải bản đã chọn về file .db…", async () => await DownloadSel());
+        _bkRestore = Btn("⏪ Khôi phục máy này từ bản đã chọn", async () => await RestoreSel());
+        var bkBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        bkBtns.Children.Add(_bkNow); bkBtns.Children.Add(bkDl); bkBtns.Children.Add(_bkRestore); bkBtns.Children.Add(Btn("Tải lại danh sách", () => { LoadBackups(); return Task.CompletedTask; }));
+        s.Children.Add(Card("Sao lưu trên Google Drive",
+            Note("Máy chính tự sao lưu toàn bộ dữ liệu lên Drive mỗi ngày (mã hóa bằng mã đồng bộ); giữ 14 ngày gần nhất + 1 bản mỗi tháng trong 12 tháng."),
+            Note("Máy công ty (LAN): khôi phục ở Sao lưu và cài đặt — tải bản đã chọn về file .db rồi khôi phục (Quản trị). Máy ở nhà: khôi phục thẳng tại đây; chỉ ảnh hưởng máy này, những gì sửa sau khi khôi phục mới được gửi lên."),
+            _bk, bkBtns, _bkMsg));
         s.Children.Add(Card("Phân vai theo tài khoản (khuyên dùng)",
             Note("Quản trị chọn các tài khoản “máy chính”. Máy nào đăng nhập tài khoản đó trước thì là MÁY CHÍNH; máy đăng nhập sau (kể cả cùng tài khoản) và mọi tài khoản khác là MÁY XEM TỪ XA — nên không có hai máy chính cùng ghi đè nhau."),
             Note("Máy chính thoát phần mềm thì đưa bản cuối lên Drive và nhả quyền; máy kia đăng nhập lại là thành máy chính, giữ nguyên việc đã sửa ở máy xa. Nếu máy chính treo / mất điện, quyền hết hạn sau 15 phút hoặc bấm “Chiếm quyền”. Mỗi máy chỉ cần chọn thư mục Drive một lần."),
@@ -79,6 +100,64 @@ public sealed class DriveSyncView : UserControl, IPage
         _dir.Text = Svc.Dir; _code.Text = "";
         _off.IsChecked = Svc.Mode == DriveSyncService.ModeOff; _main.IsChecked = Svc.Mode == DriveSyncService.ModeMain; _remote.IsChecked = Svc.Mode == DriveSyncService.ModeRemote;
         ShowPanels(); Refresh(); LoadPlan();
+        _home.IsChecked = Svc.IsHome;
+        _every.SelectedIndex = Math.Max(0, Array.FindIndex(DriveSyncService.Intervals, x => x.Sec == Svc.IntervalSeconds));
+        LoadBackups();
+    }
+
+    private void LoadBackups()
+    {
+        try { _bkList = Svc.DriveBackups(); } catch { _bkList = new(); }
+        _bk.ItemsSource = _bkList.Select(b => $"{b.Day:dd/MM/yyyy (ddd)}  ·  {b.Bytes / 1024:#,0} KB  ·  {b.Name}").ToList();
+        if (_bkList.Count > 0) _bk.SelectedIndex = 0;
+        _bkNow.IsVisible = Svc.Mode == DriveSyncService.ModeMain;
+        _bkRestore.IsVisible = Svc.Mode == DriveSyncService.ModeRemote;
+        _bkMsg.Text = !Svc.Enabled ? "Bật đồng bộ Drive để dùng sao lưu trên Drive." : _bkList.Count == 0 ? "Chưa có bản sao lưu nào trên Drive (máy chính tự tạo ở lượt đồng bộ đầu tiên trong ngày)." : $"{_bkList.Count} bản · mới nhất {_bkList[0].Day:dd/MM/yyyy}.";
+    }
+
+    private async Task SaveHome()
+    {
+        var sec = DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Sec; var home = _home.IsChecked == true;
+        if (!await Ui.Run(this, () =>
+        {
+            App.Services.Session.Require("backup");
+            Svc.SetHome(home); Svc.SetInterval(sec);
+            if (home && Svc.Mode == DriveSyncService.ModeMain && Svc.Enabled) { Svc.ReleaseOnExit(); Svc.BecomeRemote(App.Services); }
+            Svc.Stop(); Svc.Start();
+        })) return;
+        _msg.Text = "Đã lưu: " + (home ? "máy ở nhà (luôn là máy xem từ xa)" : "máy bình thường") + " · đồng bộ " + DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Label + ".";
+        Load();
+    }
+
+    private DriveSyncService.DriveBackup? SelBk => _bk.SelectedIndex >= 0 && _bk.SelectedIndex < _bkList.Count ? _bkList[_bk.SelectedIndex] : null;
+
+    private async Task BackupNow()
+    {
+        string r = "";
+        if (await Ui.RunAsync(this, async () => r = await Task.Run(() => Svc.BackupToDrive(force: true)))) { _bkMsg.Text = r; LoadBackups(); _bkMsg.Text = r; }
+    }
+
+    private async Task DownloadSel()
+    {
+        if (SelBk is not { } b) { _bkMsg.Text = "Chọn một bản sao lưu."; return; }
+        var path = await Ui.SaveFile(this, "Lưu bản sao lưu", $"KhoLanh_{b.Day:yyyy-MM-dd}.db", "db", "Bản sao lưu Kho Lạnh");
+        if (path is null) return;
+        if (await Ui.RunAsync(this, async () => await Task.Run(() => Svc.DownloadBackup(b.Name, path))))
+            _bkMsg.Text = $"Đã tải về {path}. Khôi phục ở Hệ thống › Sao lưu và cài đặt › Khôi phục từ file.";
+    }
+
+    private async Task RestoreSel()
+    {
+        if (SelBk is not { } b) { _bkMsg.Text = "Chọn một bản sao lưu."; return; }
+        var pend = App.Services.Lan.PendingCount();
+        if (!await Ui.Confirm(this, $"Khôi phục MÁY NÀY về bản sao lưu ngày {b.Day:dd/MM/yyyy}?\n\n• Chỉ ảnh hưởng máy này, không đổi dữ liệu ở công ty.\n• Cài đặt của máy (thư mục Drive, mã đồng bộ…) giữ nguyên." +
+            (pend > 0 ? $"\n• {pend} thay đổi chưa gửi của máy này sẽ BỎ (bản hiện tại được lưu lại trong thư mục SaoLuu)." : "") + "\n• Lần đồng bộ tới tải bản mới nhất của máy chính về.\n\nSau khi khôi phục cần đăng nhập lại.", "Khôi phục máy ở nhà", "Khôi phục")) return;
+        var tmp = Path.Combine(Path.GetTempPath(), "kl-khoi-phuc-" + Guid.NewGuid().ToString("N")[..6] + ".db");
+        if (!await Ui.RunAsync(this, async () => await Task.Run(() => { Svc.Stop(); Svc.DownloadBackup(b.Name, tmp); App.Services.Backup.Restore(tmp); }))) { Svc.Start(); return; }
+        try { File.Delete(tmp); } catch { }
+        Svc.Start();
+        await Ui.Message(this, "Đã khôi phục máy này. Đăng nhập lại để tiếp tục — app sẽ tải bản mới nhất từ Drive.", "Khôi phục xong");
+        MainWindow.Of(this)?.Logout();
     }
     private void LoadPlan()
     {
