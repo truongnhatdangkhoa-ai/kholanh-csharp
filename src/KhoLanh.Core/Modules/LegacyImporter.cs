@@ -20,12 +20,15 @@ public class LegacyImporter
     /// <summary>Nơi ghi (LAN: ghi lên máy chủ); null = ghi thẳng database của máy.</summary>
     public ISheetSource? Target { get; set; }
 
-    /// <summary>Các bảng được chép: toàn bộ 2 module + bảng mã hóa / ánh xạ tên của Tổng hợp (ô tìm chung, nhãn size dùng).</summary>
+    /// <summary>Các bảng được chép: dữ liệu của mọi module app mới dùng chung với app cũ (Tồn An An, gửi, Tổng hợp, Rã đông, vị trí, sơ đồ, kiểm kê, kháng sinh).</summary>
     public static bool Wanted(string tab) =>
         tab.StartsWith("ton-kho-an-an/") || tab.StartsWith("ton-kho-gui/") ||
         tab is "tong-hop/MaHoa" or "tong-hop/AnhXaCauHinh" or "tong-hop/AnhXaTen" or "tong-hop/M8_Meta"
            or "tong-hop/MaDaTao" or "tong-hop/TongHop" or "tong-hop/TongHop_Meta"
-           || tab.StartsWith("bao-cao-ra-dong/");
+           || tab.StartsWith("bao-cao-ra-dong/")
+           || tab.StartsWith("ton-vi-tri-an-an/") || tab.StartsWith("so-do-vi-tri/")          // Tồn kho theo vị trí, Sơ đồ kho
+           || tab is "so-lieu-kiem-ke/TonChot" or "so-lieu-kiem-ke/TonChotMeta"              // bản chụp tồn của Kiểm kê
+           || tab is "tong-hop/KhangSinh";                                                  // Kết quả kháng sinh (+ quy định đã sửa)
 
     public record Result(int Sheets, int Rows, List<string> Names);
 
@@ -51,13 +54,15 @@ public class LegacyImporter
                     arr.Add(BuildRow(keys, cells));
                 var slash = tab.IndexOf('/');
                 var dbKey = tab[..slash]; var sheet = tab[(slash + 1)..];
+                // Kết quả kháng sinh: app cũ để trong Tổng hợp, app mới tách database riêng (cùng dạng dòng {key, value})
+                if (tab == KhoLanh.Core.KhangSinh.KhangSinhService.LegacyTab) dbKey = KhoLanh.Core.KhangSinh.KhangSinhService.Db;
                 if (!byKey.TryGetValue(dbKey, out var m)) byKey[dbKey] = m = new Dictionary<string, JsonArray?>();
                 m[sheet] = arr;
                 total += arr.Count;
                 names.Add($"{tab} ({arr.Count} dòng)");
             }
         }
-        if (names.Count == 0) throw new BusinessException("Database app cũ chưa có dữ liệu Tồn kho An An / Tồn kho gửi.");
+        if (names.Count == 0) throw new BusinessException("Database app cũ chưa có dữ liệu của các module dùng chung.");
         foreach (var (dbKey, sheets) in byKey) (Target ?? new LocalSheetSource(_store)).Write(dbKey, sheets);
         return new Result(names.Count, total, names);
     }

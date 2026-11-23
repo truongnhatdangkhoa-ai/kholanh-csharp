@@ -233,12 +233,12 @@ public partial class BackupView : UserControl, IPage
         var path = await Ui.OpenFile(this, "Chọn database app cũ (khokhanh.db)", "db", "Database Kho Lạnh cũ");
         if (path is null) return;
         if (!await Ui.Confirm(this,
-                "Chép toàn bộ dữ liệu Tồn kho An An và Tồn kho gửi từ file này vào app mới?\n\n" +
-                "Dữ liệu 2 module đang có trong app mới sẽ được thay. App cũ không bị thay đổi.\n" +
+                "Chép dữ liệu các module dùng chung (Tồn kho An An, Tồn kho gửi, Tổng hợp, Rã đông, Tồn kho theo vị trí, Sơ đồ kho, Kiểm kê, Kết quả kháng sinh) từ file này vào app mới?\n\n" +
+                "Các bảng đó trong app mới sẽ được thay bằng bản chép. App cũ không bị thay đổi.\n" +
                 "Nên đóng app cũ trước khi chép để lấy bản mới nhất.", "Chép dữ liệu từ app cũ", "Chép")) return;
         KhoLanh.Core.Modules.LegacyImporter.Result? r = null;
         if (await Ui.Run(this, () => r = App.Services.Legacy.Import(path)) && r is not null)
-            await Ui.Message(this, $"Đã chép {r.Sheets} bảng, {r.Rows:#,0} dòng.\n\nMở lại Tồn kho An An / Tồn kho gửi để thấy dữ liệu.");
+            await Ui.Message(this, $"Đã chép {r.Sheets} bảng, {r.Rows:#,0} dòng.\n\nMở lại các module để thấy dữ liệu.");
     }
 
     private async void OnBackup(object? sender, RoutedEventArgs e)

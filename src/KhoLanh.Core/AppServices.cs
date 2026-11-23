@@ -6,6 +6,7 @@ using KhoLanh.Core.DoiChieu;
 using KhoLanh.Core.ViTri;
 using KhoLanh.Core.SoDo;
 using KhoLanh.Core.KiemKe;
+using KhoLanh.Core.KhangSinh;
 using KhoLanh.Core.Lan;
 using KhoLanh.Core.Modules;
 using KhoLanh.Core.Services;
@@ -35,6 +36,7 @@ public class AppServices
     public ViTriService ViTri { get; }
     public SoDoService SoDo { get; }
     public KiemKeService KiemKe { get; }
+    public KhangSinhService KhangSinh { get; }
 
     public AppServices(string dbPath)
     {
@@ -60,6 +62,7 @@ public class AppServices
         ViTri = new ViTriService(() => Lan, Session, Audit);
         SoDo = new SoDoService(() => Lan, Session, Audit, Entry);
         KiemKe = new KiemKeService(() => Lan, Session, Audit, Entry, new SoDoService(() => Lan, Session, Audit, Entry));
+        KhangSinh = new KhangSinhService(() => Lan, Session, Audit);
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
         Bridge = new ModuleBridge(Lan, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
     }

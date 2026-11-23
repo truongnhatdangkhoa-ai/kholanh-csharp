@@ -248,6 +248,7 @@ public class ModuleBridge
         "ton-vi-tri-an-an" => "m7",
         "so-do-vi-tri" => "m8",
         "so-lieu-kiem-ke" => "m9",
+        "ket-qua-khang-sinh" => "m10",
         "tong-hop" => "m3",
         "bao-cao-ra-dong" => "m4",
         "bao-cao-hang-ngay" => "m5",

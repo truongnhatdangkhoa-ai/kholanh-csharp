@@ -391,8 +391,9 @@ public sealed class SheetGrid : UserControl
                         if (sel.Contains(r, c) && !sel.Single && !(r == _g.Row && c == _g.Col)) dc.FillRectangle(SelBg, rect);
                         else if (bg is not null) dc.FillRectangle(bg, rect);
                         var raw = m.Get(r, c);
-                        if (raw.Length == 0) continue;
+                        if (raw.Length == 0 && _g.Display is null) continue;
                         var shown = _g.Display?.Invoke(r, c, raw) ?? raw;
+                        if (shown.Length == 0) continue;
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
                         var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, Text);

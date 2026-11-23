@@ -298,6 +298,52 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     kk.SetPeople(new[] { "Anh Tuấn", "Chị Hoa", "Anh Phúc" });
 }
 
+// Kết quả kháng sinh mẫu (giả lập): 3 ngày kiểm lần 1 (có phiếu PDF), vài lô kiểm lại "MKS chờ", vài lô có Oxy / Cipro / AOZ
+{
+    var rnd = new Random(5);
+    var rules = KhoLanh.Core.KhangSinh.KhangSinhCore.DefaultRules();
+    var rows = new System.Text.Json.Nodes.JsonArray();
+    string[] ncc = { "PHI X2L1", "PHI X2L2", "THUẬN PHƯỚC", "MINH HẢI", "CÀ MAU 3" };
+    var n = 0;
+    for (var day = 3; day >= 1; day--)
+    {
+        var d = DateTime.Today.AddDays(-day); var iso = d.ToString("yyyy-MM-dd");
+        for (var lo = 1; lo <= 16; lo++)
+        {
+            var inp = KhoLanh.Core.KhangSinh.KhangSinhCore.FieldKeys.ToDictionary(k => k, _ => "ND");
+            var x = rnd.NextDouble();
+            if (x < 0.18) inp["oxy"] = (rnd.Next(5, 40)).ToString();
+            else if (x < 0.3) inp["cipro"] = (rnd.Next(2, 9) + 0.4).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            else if (x < 0.34) inp["enro"] = "3.1";
+            if (day == 2 && lo == 7) inp["aoz"] = "0.4";
+            if (day == 1 && lo == 11) inp["oxy"] = "95";
+            var rule = KhoLanh.Core.KhangSinh.KhangSinhCore.PickBest(rules, inp);
+            var rec = new System.Text.Json.Nodes.JsonObject
+            {
+                ["date"] = iso, ["batch"] = lo.ToString(), ["stt"] = null, ["savedAt"] = d.AddHours(15).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"),
+                ["source"] = "lan1-import", ["dat"] = rule?.Dat ?? "", ["kyhieu"] = rule?.KyHieu ?? "", ["inputs"] = KhoLanh.Core.KhangSinh.KhangSinhCore.InputsJson(inp),
+                ["note"] = ncc[(lo + day) % ncc.Length], ["mota"] = "",
+                ["lan1Src"] = new System.Text.Json.Nodes.JsonObject { ["file"] = $"KQKS KHO ngày {d:dd.MM.yy}.pdf", ["ngayKiem"] = iso, ["stt"] = lo, ["trang"] = 1 + lo / 9, ["canhBao"] = new System.Text.Json.Nodes.JsonArray(), ["xacNhanTay"] = false, ["suaTay"] = false },
+            };
+            if (!inp.Values.All(v => v == "ND") && day >= 2 && inp["aoz"] == "ND")
+            {
+                var d2 = d.AddDays(1); var ok = KhoLanh.Core.KhangSinh.KhangSinhCore.FieldKeys.ToDictionary(k => k, _ => "ND");
+                var r2 = KhoLanh.Core.KhangSinh.KhangSinhCore.PickBest(rules, ok);
+                var l = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["dat"] = r2?.Dat ?? "", ["kyhieu"] = r2?.KyHieu ?? "", ["kq1"] = rule?.KyHieu ?? "", ["inputs"] = KhoLanh.Core.KhangSinh.KhangSinhCore.InputsJson(ok), ["ghichu"] = "",
+                    ["mau"] = $"MKS chờ {++n} ngày {d2:dd.MM} · LSX: 0{50 + n}/11 · Lô: {lo} ({d:dd.MM.yy})", ["group"] = "", ["date"] = d2.ToString("yyyy-MM-dd"),
+                    ["so"] = $"{d2:dd}/KS {d2:MM}", ["file"] = $"KQKS MKS chờ ngày {d2:dd.MM.yy}.pdf", ["stt"] = n, ["trang"] = 1, ["xacNhanTay"] = false, ["suaTay"] = false,
+                    ["savedAt"] = d2.AddHours(16).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"),
+                };
+                rec["lan2"] = l.DeepClone(); rec["lan2All"] = new System.Text.Json.Nodes.JsonArray(l);
+            }
+            rows.Add(new System.Text.Json.Nodes.JsonObject { ["key"] = $"s:batch:{iso}:{lo}:demo{day}{lo:00}", ["value"] = rec.ToJsonString() });
+        }
+    }
+    s.Lan.Write(KhoLanh.Core.KhangSinh.KhangSinhService.Db, new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { [KhoLanh.Core.KhangSinh.KhangSinhService.Sheet] = rows });
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -312,7 +358,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -399,6 +445,30 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var hg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         hg.Select(0, 0); Pump(); Snap(main, "26g-kiem-ke-da-chot");
         s.KiemKe.MoChot("demo");
+    }
+    if (key == "m10")
+    {
+        for (var i = 0; i < 20; i++) { Thread.Sleep(40); Pump(); }
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        var dayBox = main.PageHost.GetVisualDescendants().OfType<ComboBox>().First(x => x.IsEffectivelyVisible);
+        dayBox.SelectedIndex = 1; Pump();
+        g.Select(4, 3); Pump(); Snap(main, "27-khang-sinh");
+        var q = main.PageHost.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm nhanh") == true);
+        q.Text = "MKS2"; for (var i = 0; i < 10; i++) { Thread.Sleep(40); Pump(); } Snap(main, "27b-khang-sinh-tim-mau-cho"); q.Text = "";
+        tc.SelectedIndex = 1; Pump();
+        var ins = main.PageHost.GetVisualDescendants().OfType<TextBox>().Where(t => t.IsEffectivelyVisible && t.Watermark == "ND").ToList();
+        ins[1].Text = "4.83"; ins[2].Text = "10";
+        main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tra cứu kết quả").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Pump(); Snap(main, "27c-khang-sinh-tra-cuu");
+        tc.SelectedIndex = 2; Pump();
+        var bg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        var dd = DateTime.Today.ToString("dd/MM/yyyy");
+        bg.Model.SetCells(new[] { (0, 0, dd), (0, 1, "17"), (0, 2, "PHI X2L1"), (1, 0, dd), (1, 1, "18"), (1, 2, "MINH HẢI"), (1, 4, "4.83"), (1, 5, "10"),
+            (2, 0, dd), (2, 1, "19"), (2, 5, "30"), (3, 0, dd), (3, 1, "20"), (3, 8, "0.3"), (4, 0, dd), (4, 1, "21"), (4, 7, "12") });
+        Pump(); bg.Select(1, 5); Snap(main, "27d-khang-sinh-nhap-lo");
+        tc.SelectedIndex = 4; Pump(); Snap(main, "27e-khang-sinh-quy-dinh");
+        tc.SelectedIndex = 0;
     }
     if (key == "m6")
     {
