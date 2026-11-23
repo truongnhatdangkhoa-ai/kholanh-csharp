@@ -57,6 +57,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 4 };
         bar.Children.Add(_save); bar.Children.Add(_exp); bar.Children.Add(_copy); bar.Children.Add(_del);
         bar.Children.Add(Btn("📩 Dán email thông tin xe…", async () => await PasteXe()));
+        if (_edit) bar.Children.Add(Btn("📄 Nạp List sản xuất…", async () => await ListDialog()));
 
         _tabs = new TabControl
         {
@@ -379,6 +380,97 @@ public sealed class PhieuKhoView : UserControl, IPage
             if (cur.Id.Length > 0) RenderList(cur.Id);
             Ui.OpenExternal(path);
         }
+    }
+
+    // ------------------------------------------------------------------ List sản xuất (PDF / Excel / kho theo LSX)
+
+    private async Task ListDialog()
+    {
+        if (_cur is null || !_edit) return;
+        var p = _cur;
+        ListData? data = null; var fileName = "";
+        var info = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold, Foreground = Dark };
+        var warn = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Warn, MaxHeight = 130 };
+        var gm = new GridModel();
+        var grid = new SheetGrid(gm) { SpareRows = 0, Height = 230 };
+        var chkAppend = new CheckBox { Content = "THÊM vào phiếu (giữ mặt hàng của LSX khác — cont ghép nhiều LSX); bỏ tích = thay toàn bộ mặt hàng", FontSize = 12.5, IsChecked = p.Mh.Any(UsedBlock) };
+        var chkSave = new CheckBox { Content = "Lưu List vào kho theo số LSX (lần sau gõ LSX là điền lại, khỏi nạp PDF)", FontSize = 12.5, IsChecked = true };
+        var go = new Button { Content = "Đưa vào phiếu", Classes = { "primary" }, IsEnabled = false };
+        var close = new Button { Content = "Đóng", IsCancel = true };
+        var savedBox = new ComboBox { Width = 380, FontSize = 12.5, ItemsSource = Svc.Lists.Select(x => $"LSX {x.Lsx} · {x.Khach} · {x.Data.Rows.Count} ngày × {x.Data.Sizes.Count} size").ToList(), PlaceholderText = Svc.Lists.Count == 0 ? "(kho List đang trống)" : "Dùng List đã lưu…" };
+
+        void Show(ListData d, string src, ListData? prefill)
+        {
+            data = d; fileName = src;
+            if (prefill is not null)   // giữ Tên hàng / Mã hàng / Mã lô đã gán ở bản lưu cũ cho size trùng tên
+                foreach (var z in d.Sizes) if (prefill.Sizes.FirstOrDefault(o => o.Size == z.Size) is { } o) { if (z.Ten.Length == 0) z.Ten = o.Ten; if (z.Ma.Length == 0) z.Ma = o.Ma; if (z.Lo.Length == 0) z.Lo = o.Lo; }
+            info.Text = d.Ok
+                ? $"LSX {(d.Lsx.Length > 0 ? d.Lsx : "(không thấy)")} · khách {(d.Khach.Length > 0 ? d.Khach : "(không thấy)")} · {d.Rows.Count} ngày × {d.Sizes.Count} size · tổng {d.Rows.Sum(r => r.Qty.Values.Sum()):#,0.##} {(d.DonVi.Length > 0 ? d.DonVi : "kiện")}" + (d.Layout == "product" ? " · bố cục sản phẩm theo cột" : " · bố cục bảng ngày × size")
+                : "Chưa đọc được List.";
+            warn.Text = d.Warnings.Count > 0 ? string.Join("\n", d.Warnings.Select(w => "⚠ " + w)) : "";
+            gm.Load(new[]
+            {
+                new GridColumn("size", "Size", 90) { ReadOnly = true }, new GridColumn("ten", "Tên hàng (gom các size cùng tên thành 1 mặt hàng)", 290), new GridColumn("ma", "Mã hàng", 190), new GridColumn("lo", "Mã số lô", 100),
+                new GridColumn("kien", "Tổng kiện", 80, "number") { ReadOnly = true }, new GridColumn("pack", "Packing (từ List)", 130) { ReadOnly = true }, new GridColumn("code", "Code mã hoá của khách", 170) { ReadOnly = true },
+            }, d.Sizes.Select(z => new[] { z.Size, z.Ten, z.Ma, z.Lo, d.Rows.Sum(r => r.Qty.GetValueOrDefault(z.Size)).ToString("0.###", Ui.Vi), d.PackingBy.GetValueOrDefault(z.Size) ?? d.Packing, z.CodeMaHoa }));
+            grid.Refresh();
+            go.IsEnabled = d.Ok;
+        }
+        async Task PickFile()
+        {
+            var top = TopLevel.GetTopLevel(this); if (top is null) return;
+            var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
+            {
+                Title = "Chọn List sản xuất của khách (PDF hoặc Excel)", AllowMultiple = false,
+                FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("List sản xuất (PDF, Excel)") { Patterns = new[] { "*.pdf", "*.xlsx", "*.xlsm" } } },
+            });
+            if (files.Count == 0 || Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(files[0]) is not { } path) return;
+            info.Text = "Đang đọc…";
+            ListData? d = null;
+            try { d = await Task.Run(() => Svc.ReadList(path)); }
+            catch (BusinessException e) { info.Text = ""; warn.Text = e.Message; return; }
+            catch (Exception e) { info.Text = ""; warn.Text = Ui.Describe(e); return; }
+            Show(d, Path.GetFileName(path), Svc.FindList(d.Lsx)?.Data);
+        }
+        savedBox.SelectionChanged += (_, _) =>
+        {
+            if (savedBox.SelectedIndex < 0 || savedBox.SelectedIndex >= Svc.Lists.Count) return;
+            var rec = Svc.Lists[savedBox.SelectedIndex];
+            Show(ListSx.FromJson(ListSx.ToJson(rec.Data))!, rec.File, null);
+            chkSave.IsChecked = false;
+        };
+        var pick = new Button { Content = "📂 Chọn file PDF / Excel…", Classes = { "primary" } }; pick.Click += async (_, _) => await PickFile();
+        var top1 = new WrapPanel { ItemSpacing = 8, LineSpacing = 4 }; top1.Children.Add(pick); top1.Children.Add(new TextBlock { Text = "hoặc", VerticalAlignment = VerticalAlignment.Center }); top1.Children.Add(savedBox);
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock { Text = "Đọc List sản xuất của khách → các dòng DATE × size × số kiện của phiếu. Cột size được nhận theo vị trí trong file; điều gì không chắc thì báo cảnh báo, không đoán. Điền Tên hàng / Mã hàng / Mã lô cho từng size (Packing tự lấy từ List hoặc từ mã hàng 21 ký tự).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+        body.Children.Add(top1); body.Children.Add(info); body.Children.Add(warn); body.Children.Add(Framed(grid));
+        body.Children.Add(chkAppend); body.Children.Add(chkSave); body.Children.Add(Ui.Buttons(close, go));
+        var w = Ui.Dialog("Nạp List sản xuất vào phiếu", body, 980);
+        var doIt = false;
+        go.Click += (_, _) => { doIt = true; w.Close(); };
+        close.Click += (_, _) => w.Close();
+        if (Svc.FindList(p.Lsx) is { } pre) { var ix = Svc.Lists.IndexOf(pre); savedBox.SelectedIndex = ix; }
+        await Ui.Show(this, w);
+        if (!doIt || data is null) return;
+        for (var i = 0; i < data.Sizes.Count; i++) { data.Sizes[i].Ten = gm.Get(i, 1).Trim(); data.Sizes[i].Ma = gm.Get(i, 2).Trim(); data.Sizes[i].Lo = gm.Get(i, 3).Trim(); }
+        var d2 = data; var app = chkAppend.IsChecked == true; var save = chkSave.IsChecked == true; var fn = fileName;
+        ListSxApply.ApplyResult res = new(false, new());
+        try
+        {
+            res = await Task.Run(() => Svc.ApplyList(p, d2, app));
+            if (res.Ok && save)
+            {
+                try { await Task.Run(() => Svc.SaveListData(d2, fn)); }
+                catch (BusinessException e) { res.Notes.Add("⚠ Chưa lưu List vào kho: " + e.Message); }
+            }
+        }
+        catch (BusinessException e) { await Ui.Message(this, e.Message, "Không thực hiện được"); return; }
+        catch (Exception e) { await Ui.Message(this, Ui.Describe(e), "Lỗi"); return; }
+        if (!res.Ok) { await Ui.Message(this, string.Join("\n", res.Notes), "Chưa đưa được List vào phiếu"); return; }
+        RefreshNumbers(Svc.List, p);
+        _dirty = true; ShowEditor();
+        _status.Text = $"Đã đưa List vào phiếu: {res.SoMatHang} mặt hàng, {res.SoDong} dòng DATE, {res.TongKien:#,0.##} {(p.DonVi == "bdl" ? "bdl" : "kiện")}.";
+        if (res.Notes.Count > 0) await Ui.Message(this, string.Join("\n\n", res.Notes), "Lưu ý khi nạp List");
     }
 
     private async Task DoThongKe()

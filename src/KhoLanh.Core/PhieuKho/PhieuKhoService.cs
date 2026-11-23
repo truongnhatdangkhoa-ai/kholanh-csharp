@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using KhoLanh.Core.Models;
 using KhoLanh.Core.Modules;
 using KhoLanh.Core.Services;
+using KhoLanh.Core.TongHop;
 
 namespace KhoLanh.Core.PhieuKho;
 
@@ -12,15 +13,20 @@ namespace KhoLanh.Core.PhieuKho;
 /// </summary>
 public sealed class PhieuKhoService
 {
-    public const string Db = "phieu-nhap-xuat", SheetPhieu = "PNX_Phieu", PermKey = "m13";
+    public const string Db = "phieu-nhap-xuat", SheetPhieu = "PNX_Phieu", SheetLsx = "PNX_ListSX", PermKey = "m13";
+
+    public sealed record ListRec(string Lsx, string Khach, string File, string CapNhat, ListData Data);
 
     public List<Phieu> List { get; private set; } = new();
+    /// <summary>Kho "List sản xuất" đã nạp, mỗi LSX 1 bản — gõ số LSX ở phiếu là điền lại được, khỏi nạp PDF nữa.</summary>
+    public List<ListRec> Lists { get; private set; } = new();
     public bool Loaded { get; private set; }
 
     private readonly Func<ISheetSource> _src;
     private readonly Session _session;
     private readonly AuditService _audit;
-    public PhieuKhoService(Func<ISheetSource> source, Session session, AuditService audit) { _src = source; _session = session; _audit = audit; }
+    private readonly TongHopService? _tongHop;
+    public PhieuKhoService(Func<ISheetSource> source, Session session, AuditService audit, TongHopService? tongHop = null) { _src = source; _session = session; _audit = audit; _tongHop = tongHop; }
 
     public bool CanView => _session.Can(PermKey, Perm.View);
     public bool CanEdit => _session.Can(PermKey, Perm.Edit);
@@ -41,6 +47,15 @@ public sealed class PhieuKhoService
             if (PhieuKhoCore.FromJson(d) is { } p) list.Add(p);
         }
         List = list.OrderByDescending(p => p.CapNhat, StringComparer.Ordinal).ToList();
+        JsonArray lrows;
+        try { lrows = JsonNode.Parse(_src().Read(Db, SheetLsx)) as JsonArray ?? new JsonArray(); } catch { lrows = new JsonArray(); }
+        var lists = new List<ListRec>();
+        foreach (var o in lrows.OfType<JsonObject>())
+        {
+            var d = o["data"]?.ToString() ?? ""; if (d.StartsWith("__JSON__")) d = d[8..];
+            if (ListSx.FromJson(d) is { Ok: true } ld) lists.Add(new ListRec(o["lsx"]?.ToString() ?? ld.Lsx, o["khach"]?.ToString() ?? ld.Khach, o["file"]?.ToString() ?? "", o["capNhat"]?.ToString() ?? "", ld));
+        }
+        Lists = lists.OrderByDescending(x => x.CapNhat, StringComparer.Ordinal).ToList();
         Loaded = true;
     }
 
@@ -52,6 +67,61 @@ public sealed class PhieuKhoService
             ["data"] = "__JSON__" + PhieuKhoCore.ToJson(p),
         }).ToArray());
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetPhieu] = rows });
+    }
+
+    private void SaveLists()
+    {
+        var rows = new JsonArray(Lists.Select(x => (JsonNode?)new JsonObject
+        {
+            ["lsx"] = x.Lsx, ["khach"] = x.Khach, ["hopDong"] = x.Data.HopDong, ["soDong"] = x.Data.Rows.Count, ["file"] = x.File, ["capNhat"] = x.CapNhat, ["data"] = "__JSON__" + ListSx.ToJson(x.Data),
+        }).ToArray());
+        _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetLsx] = rows });
+    }
+
+    public ListRec? FindList(string? lsx) => string.IsNullOrWhiteSpace(lsx) ? null : Lists.FirstOrDefault(x => PhieuKhoCore.LsxNorm(x.Lsx) == PhieuKhoCore.LsxNorm(lsx));
+
+    /// <summary>Đọc 1 file List sản xuất (PDF hoặc Excel). Chưa lưu gì.</summary>
+    public ListData ReadList(string path)
+    {
+        RequireEdit();
+        return ListSx.ReadFile(path);
+    }
+
+    /// <summary>Lưu (thêm / thay) List của 1 LSX vào kho. Giữ nguyên Tên hàng / Mã hàng / Mã lô đã gán ở bản cũ cho size trùng tên.</summary>
+    public ListRec SaveListData(ListData d, string file)
+    {
+        RequireEdit();
+        if (d.Lsx.Trim().Length == 0) throw new BusinessException("List không có số LSX — điền số LSX trước khi lưu vào kho.");
+        var rec = new ListRec(d.Lsx.Trim(), d.Khach, file, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"), d);
+        var i = Lists.FindIndex(x => PhieuKhoCore.LsxNorm(x.Lsx) == PhieuKhoCore.LsxNorm(rec.Lsx));
+        if (i >= 0) Lists[i] = rec; else Lists.Insert(0, rec);
+        SaveLists();
+        Log("Lưu List sản xuất", $"LSX {rec.Lsx}: {d.Rows.Count} ngày × {d.Sizes.Count} size");
+        return rec;
+    }
+
+    public void DeleteList(string lsx)
+    {
+        RequireEdit();
+        var n = Lists.RemoveAll(x => PhieuKhoCore.LsxNorm(x.Lsx) == PhieuKhoCore.LsxNorm(lsx));
+        if (n > 0) { SaveLists(); Log("Xóa List sản xuất", "LSX " + lsx); }
+    }
+
+    /// <summary>Hàm tra Packing từ mã hàng bằng Mã hóa sản phẩm (đoạn 9 trọng lượng, đoạn 10 quy cách); null nếu chưa nối Tổng hợp.</summary>
+    public Func<string, ListSxApply.PackResult>? PackFunc()
+    {
+        if (_tongHop is null) return null;
+        try { _tongHop.Load(); } catch { return null; }
+        var dict = _tongHop.SegmentData.ToDictionary(p => p.Key, p => p.Value.GroupBy(e => e.Code.Trim().ToUpperInvariant()).ToDictionary(g => g.Key, g => g.First().Name));
+        string? NameOf(int seg, string code) => dict.TryGetValue(seg, out var d) && d.TryGetValue(code.ToUpperInvariant(), out var n) ? n : null;
+        return ma => ListSxApply.PackingFromMa(ma, NameOf);
+    }
+
+    /// <summary>Đưa List vào phiếu đang soạn (không lưu phiếu). Packing tự lấy từ mã hàng khi List không ghi quy cách.</summary>
+    public ListSxApply.ApplyResult ApplyList(Phieu p, ListData d, bool append)
+    {
+        RequireEdit();
+        return ListSxApply.Apply(p, d, null, append, PackFunc());
     }
 
     public Phieu NewPhieu()
