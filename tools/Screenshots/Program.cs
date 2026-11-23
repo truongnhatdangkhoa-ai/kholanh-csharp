@@ -369,6 +369,28 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     s.Modules.WriteSheets("ton-kho-gui", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PhieuXuat"] = heads, ["PhieuXuatItems"] = items });
 }
 
+// Dữ liệu mẫu In chứng từ kho (đúng định dạng app cũ lưu trong database "in-chung-tu-kho")
+{
+    var arr = new System.Text.Json.Nodes.JsonArray();
+    string[] ten = { "Tôm sú, IQF, EU, Culinar, 10%, 31/40 (9 kg x 1 gói)", "Tôm thẻ PD, Semi, 21/25 (1.8 kg x 6 gói)", "Mực ống cắt khoanh, 2L30 (0.140 kg x 1 gói)", "Cá basa fillet, 5-7 oz (4.5 kg x 1 gói)" };
+    for (var i = 0; i < 14; i++)
+    {
+        var d = DateTime.Today.AddDays(-(i / 5));
+        arr.Add(new System.Text.Json.Nodes.JsonObject
+        {
+            ["maHang"] = $"TPC-VRHLBTNXECR00314{i % 4}IME1", ["tenHang"] = i % 5 == 3 ? ten[i % 4][..Math.Min(40, ten[i % 4].Length)] : ten[i % 4], ["size"] = "", ["soLuong"] = 5 + i * 2,
+            ["ngayChungTu"] = d.ToString("dd/MM/yyyy"), ["ngayChungTuSort"] = new DateTimeOffset(d).ToUnixTimeMilliseconds(), ["trongLuong"] = new[] { 9, 10.8, 0.84, 4.5 }[i % 4],
+            ["net"] = Math.Round((5 + i * 2) * new[] { 9, 10.8, 0.84, 4.5 }[i % 4], 2), ["tach"] = i == 6 ? 1 : "", ["goiY"] = i is 6 or 7 ? "markfood" : "",
+        });
+    }
+    s.Modules.WriteSheets("in-chung-tu-kho", new Dictionary<string, System.Text.Json.Nodes.JsonArray?>
+    {
+        ["DuLieu_TBB"] = arr,
+        ["TTB"] = new() { new System.Text.Json.Nodes.JsonObject { ["pxNhan"] = "Lê Văn Hùng", ["thuKhoXuat"] = "Trần Thị Bình", ["keToan"] = "Phạm Thu Hà", ["quanLyKho"] = "Nguyễn Văn An", ["giamDoc"] = "Võ Minh Tâm" } },
+        ["CT_Meta"] = new() { new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + new System.Text.Json.Nodes.JsonObject { ["v"] = 1, ["mod"] = "tbb", ["files"] = new System.Text.Json.Nodes.JsonObject { ["tbb"] = "XUAT-KHO-T11.xlsx" }, ["form"] = new System.Text.Json.Nodes.JsonObject { ["fSoPhieu"] = "TBB-1123", ["fNgayLap"] = DateTime.Today.ToString("yyyy-MM-dd"), ["fLoaiChungTu"] = "Xuất Thay Thùng", ["fKho"] = "Kho Lạnh - An An", ["fMaBieuMau"] = "BM02/QT23", ["fSoBanMoiNgay"] = "2" } }.ToJsonString() } },
+    });
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -383,7 +405,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho") })
 {
     main.Navigate(key);
     Snap(main, name);

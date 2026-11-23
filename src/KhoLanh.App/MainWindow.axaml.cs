@@ -67,6 +67,7 @@ public partial class MainWindow : Window
             }),
             ("PHIẾU & CHỨNG TỪ", new[]
             {
+                new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
                 new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
             }),
             ("NHẬP LIỆU", new[]

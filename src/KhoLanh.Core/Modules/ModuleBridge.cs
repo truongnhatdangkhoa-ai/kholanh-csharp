@@ -253,6 +253,7 @@ public class ModuleBridge
         "bao-cao-ra-dong" => "m4",
         "bao-cao-hang-ngay" => "m5",
         "nhap-lieu" => "m6",
+        "in-chung-tu-kho" => "m12",
         _ => null,
     };
 
