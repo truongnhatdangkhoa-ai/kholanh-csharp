@@ -114,6 +114,26 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public async Task Plain_old_clients_work_unless_encryption_is_required()
+    {
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var key = srv.Lan.Key;
+        var ep = $"127.0.0.1:{ms.Port}";
+        var ping = new JsonObject { ["op"] = "ping", ["k"] = key, ["id"] = "x", ["r"] = "con" };
+        using (var old = new LanConnection(ep))           // máy con bản cũ: kênh thường
+            Assert.NotNull(await old.CallAsync(ping, TimeSpan.FromSeconds(5)));
+        using (var neu = new LanConnection(ep, key, true))
+        { Assert.NotNull(await neu.CallAsync(ping, TimeSpan.FromSeconds(5))); Assert.True(neu.Encrypted); }
+        srv.Settings.Set("lan_enc", "1");                 // bắt buộc mã hóa
+        using (var old2 = new LanConnection(ep))
+            await Assert.ThrowsAsync<LanUnreachableException>(() => old2.CallAsync(ping, TimeSpan.FromSeconds(3)));
+        using (var neu2 = new LanConnection(ep, key, true))
+            Assert.NotNull(await neu2.CallAsync(ping, TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void Client_reads_and_writes_the_server_directly()
     {
         var (srv, cli, _, _) = Pair();

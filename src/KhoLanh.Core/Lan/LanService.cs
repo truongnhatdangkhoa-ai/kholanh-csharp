@@ -393,16 +393,26 @@ public sealed class LanService : ISheetSource, IDisposable
             c.NoDelay = true;
             var s = c.GetStream();
             var remote = (c.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "";
+            ILanChannel chan;
+            try
+            {
+                var head = new byte[4]; var got = 0;
+                using (var hc = CancellationTokenSource.CreateLinkedTokenSource(ct)) { hc.CancelAfter(TimeSpan.FromSeconds(10)); while (got < 4) { var r = await s.ReadAsync(head.AsMemory(got), hc.Token); if (r == 0) return; got += r; } }
+                if (head.AsSpan().SequenceEqual(SecureChannel.Magic)) chan = await SecureChannel.ServerAsync(s, _key, ct);
+                else if (RequireEnc) return;                       // bắt buộc mã hóa: bỏ qua kênh thường
+                else chan = new PlainChannel(s, head);
+            }
+            catch { return; }
             while (!ct.IsCancellationRequested)
             {
                 string? text;
-                try { text = await LanWire.ReadAsync(s, ct); } catch { break; }
+                try { text = await chan.ReadAsync(ct); } catch { break; }
                 if (text is null) break;
                 JsonObject res;
                 try { res = Handle(JsonNode.Parse(text) as JsonObject ?? new JsonObject(), remote); }
                 catch (BusinessException e) { res = Err(e.Message); }
                 catch (Exception e) { res = Err("Máy chủ lỗi: " + e.Message); }
-                try { await LanWire.WriteAsync(s, res.ToJsonString(), ct); } catch { break; }
+                try { await chan.WriteAsync(res.ToJsonString(), ct); } catch { break; }
             }
         }
     }
@@ -659,7 +669,9 @@ public sealed class LanService : ISheetSource, IDisposable
         };
     }
 
-    private LanConnection Conn(string ep) => _conns.GetOrAdd(ep, e => new LanConnection(e));
+    /// <summary>Bắt buộc mã hóa (không nhận / không dùng kênh thường). Đặt lan_enc = 1 (máy chủ trên Internet nên bật).</summary>
+    public bool RequireEnc => _settings.Get("lan_enc") == "1";
+    private LanConnection Conn(string ep) => _conns.GetOrAdd(ep, e => new LanConnection(e, _key, RequireEnc));
 
     private async Task<JsonObject> CallNode(Node n, JsonObject req, TimeSpan timeout, CancellationToken ct)
     {
