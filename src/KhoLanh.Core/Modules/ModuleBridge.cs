@@ -242,6 +242,7 @@ public static class ModuleBridge
         "nhap-lieu" => "m6",
         "in-chung-tu-kho" => "m12",
         "phieu-nhap-xuat" => "m13",
+        "container-3d" => "m14",
         _ => null,
     };
 }
