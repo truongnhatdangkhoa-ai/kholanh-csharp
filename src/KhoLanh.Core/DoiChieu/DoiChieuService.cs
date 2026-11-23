@@ -179,7 +179,26 @@ public sealed class DoiChieuService
             var note = S(r["Ghi chú"]).Trim(); m[code] = (note, WeightFromNote(note));
         }
         _m8 = m;
+        // Tồn kho An An (Load Data): tên + trọng lượng theo mã — nguồn bổ sung khi Danh sách mã hàng chưa có
+        _an = new();
+        try
+        {
+            var meta = Read("ton-kho-an-an", "LoadDataMeta"); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonNode.Parse(S(mo["data"]).Replace("__JSON__", "")) as JsonObject : null;
+            var hs = (mj?["headers"] as JsonArray ?? new JsonArray()).Select(S).ToList();
+            if (hs.Count > 0)
+            {
+                var rows = Read("ton-kho-an-an", "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, hs.Count).Select(i => S(o["c" + i])).ToArray()).ToList();
+                foreach (var st in KhoLanh.Core.KiemKe.KiemKeCore.MakeStock(hs, rows))
+                {
+                    var code = NormMa(st.Ma); if (code.Length == 0) continue;
+                    if (!_an.TryGetValue(code, out var e)) e = ("", null);
+                    _an[code] = (e.Ten.Length > 0 ? e.Ten : st.Ten, e.Tl ?? (st.Tl is > 0 ? st.Tl : null));
+                }
+            }
+        }
+        catch { _an = new(); }
     }
+    private Dictionary<string, (string Ten, double? Tl)> _an = new();
     /// <summary>Mã 21 ký tự → size (ký tự 14–17 tra từ điển; chưa khai báo → "NN/NNN" trong tên hàng).</summary>
     public string SizeOf(string ma, string ten)
     {
@@ -194,7 +213,8 @@ public sealed class DoiChieuService
     public double? WeightOfMa(string ma)
     {
         var nm = NormMa(ma); if (!IsCode21(nm)) return null;
-        return _m8.TryGetValue(nm, out var l) && l.Tl is > 0 ? l.Tl : null;
+        if (_m8.TryGetValue(nm, out var l) && l.Tl is > 0) return l.Tl;
+        return _an.TryGetValue(nm, out var a) && a.Tl is > 0 ? a.Tl : null;
     }
 
     // ------------------------------------------------------------------ đọc file đã liên kết
@@ -854,6 +874,11 @@ public sealed class DoiChieuService
             if (ten.Length == 0 && l.Ten.Length > 0) { ten = l.Ten; srcTen = "Tổng hợp › Danh sách mã hàng"; }
             if (tl is null && l.Tl is > 0) { tl = l.Tl; srcTl = "Tổng hợp › Danh sách mã hàng"; }
         }
+        if (_an.TryGetValue(nm, out var a))
+        {
+            if (ten.Length == 0 && a.Ten.Length > 0) { ten = a.Ten; srcTen = "Tồn kho An An"; }
+            if (tl is null && a.Tl is > 0) { tl = a.Tl; srcTl = "Tồn kho An An"; }
+        }
         return new Lookup(ten, srcTen, tl, srcTl, inList);
     }
     /// <summary>Gợi ý mã khi gõ: mã có trong 2 file Kho + Danh sách mã hàng (Tổng hợp).</summary>
@@ -862,6 +887,7 @@ public sealed class DoiChieuService
         var set = new List<string>(); var seen = new HashSet<string>();
         foreach (var p in Pairs) if (p.Kho is not null) foreach (var r in p.Kho.Res.Rows) if (seen.Add(r.Ma)) set.Add(r.Ma);
         foreach (var k in _m8.Keys) if (seen.Add(k)) set.Add(k);
+        foreach (var k in _an.Keys) if (IsCode21(k) && seen.Add(k)) set.Add(k);
         return set;
     }
 
