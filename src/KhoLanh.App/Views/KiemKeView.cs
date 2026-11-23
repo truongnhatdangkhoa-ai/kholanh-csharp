@@ -59,6 +59,7 @@ public sealed class KiemKeView : UserControl, IPage
     private readonly ComboBox _flt = new() { MinWidth = 170 };
     private readonly ComboBox _grp = new() { MinWidth = 160 };
     private string _grpKey = "";
+    private readonly TextBox _chot = new() { Watermark = "yyyy-mm-dd", Width = 110, FontSize = 12 };
     private readonly TextBox _q = new() { Watermark = "Tìm mã, tên…", Width = 240 };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _am = new() { ReadOnly = true };
@@ -357,6 +358,8 @@ public sealed class KiemKeView : UserControl, IPage
         _src.SelectionChanged += async (_, _) => { if (_loading) return; var want = _src.SelectedIndex == 1 ? "snap" : "live"; if (want != Svc.StockSrc && !await Act(() => Svc.SetStockSrc(want))) { _loading = true; _src.SelectedIndex = Svc.StockSrc == "snap" ? 1 : 0; _loading = false; } };
         if (_edit) srcRow.Children.Add(Btn("📸 Chụp tồn kho", async () => { if (await Ui.Confirm(this, $"Chụp Tồn kho An An hiện tại ({Svc.StockFile}, ngày {Svc.StockDate}) làm bản cố định để đối chiếu? Nạp file tồn mới sau đó sẽ không làm đổi kết quả đối chiếu.", "Chụp tồn kho", "Chụp")) await Act(() => Svc.SnapStock(), "Đã chụp tồn kho"); },
             tip: "Giữ cố định số tồn lúc kiểm kê — nạp file tồn mới sau đó không làm đổi đối chiếu"));
+        _chot.LostFocus += async (_, _) => { var v = (_chot.Text ?? "").Trim(); if (_loading || v == Svc.ChotDate || !_edit) return; if (!await Act(() => Svc.SetChotDate(v), "Đã đặt ngày chốt tồn")) { _loading = true; _chot.Text = Svc.ChotDate; _loading = false; } };
+        srcRow.Children.Add(new TextBlock { Text = "Ngày chốt tồn:", FontSize = 12, VerticalAlignment = VerticalAlignment.Center }); srcRow.Children.Add(_chot);
         srcRow.Children.Add(_srcInfo);
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 2, 0, 6) };
         Combo(_flt, Flts.Select(f => f.Text));
@@ -372,6 +375,7 @@ public sealed class KiemKeView : UserControl, IPage
     }
     private void RenderAn()
     {
+        _loading = true; _chot.Text = Svc.ChotDate; _loading = false;
         _srcInfo.Text = Svc.StockSrc == "snap" ? "Bản chụp: " + Svc.SnapInfo : Svc.SnapInfo.Length > 0 ? "Có bản chụp: " + Svc.SnapInfo : "";
         RenderKpi(); RenderTodo(); RenderAnGrid();
     }
@@ -396,6 +400,7 @@ public sealed class KiemKeView : UserControl, IPage
         if (Svc.Stock.Count == 0) _todo.Children.Add(Label("📦 Chưa có Tồn kho An An — nạp file ở module Tồn kho An An.", fg: Warn));
         if (s.Auto > 0 && _edit && !Svc.Locked)
             _todo.Children.Add(Btn($"🪄 Sửa {s.Auto} mã kiểm kê gõ sai theo mã An An", async () => await FixAll(), tip: "Cặp mã chỉ khác 1–2 ký tự và cùng số kg — đổi mã ở trang Nhập liệu nguồn"));
+        if (Svc.Adj.NReview > 0) _todo.Children.Add(Label($"⚠ {Svc.Adj.NReview} phát sinh nhập / xuất cần rà (ngày trống / trước ngày đếm / xuất quá số có) — chọn mã để xem.", fg: Warn));
         if (Svc.Recounts.Count > 0 && !Svc.LatestOnly) _todo.Children.Add(Btn($"⚠ {Svc.Recounts.Count} nhóm đếm ở 2 ngày — xem", () => _tabs.SelectedIndex = 1));
     }
     private List<Row> AnFiltered()
@@ -438,6 +443,8 @@ public sealed class KiemKeView : UserControl, IPage
         _det.Children.Add(new Border { Background = StBrush(r.Status) ?? GrayBg, CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Left, Child = new TextBlock { Text = r.Status, FontSize = 12 } });
         _det.Children.Add(Label($"Kiểm kê: {Q(r.KkKien ?? 0)} kiện · {Kg(r.KkKg ?? 0)} kg ({r.KkRows} dòng, {r.KkDays} ngày)"));
         _det.Children.Add(Label($"Tồn kho: {Q(r.TonKien ?? 0)} kiện · {Kg(r.TonKg ?? 0)} kg"));
+        foreach (var it in Svc.Adj.Of(r.Key))
+            _det.Children.Add(Label($"{(it.M.Type == "x" ? "Xuất" : "Nhập")} {Q(it.M.Kien)} kiện" + (it.M.NgayRaw.Length > 0 ? $" ngày {it.M.NgayRaw}" : "") + (it.M.Vt.Length > 0 ? $" · {it.M.Vt}" : "") + $" ({it.M.Page}, dòng {it.M.Dong}) → {it.Label}" + (it.Note.Length > 0 ? " — " + it.Note.Trim() : ""), fg: it.Review ? Warn : null));
         if (r.Nhom.Length > 0) _det.Children.Add(Muted("Nhóm tồn: " + string.Join(", ", r.NhomAll.Select(PhanLoaiM1.LabelOf)) + (r.NhomAll.Count > 1 ? " (chính: " + PhanLoaiM1.LabelOf(r.Nhom) + ")" : "")));
         if (r.LsxStatus.Length > 0)
         {

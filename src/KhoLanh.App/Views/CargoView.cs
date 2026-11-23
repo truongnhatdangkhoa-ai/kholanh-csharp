@@ -440,7 +440,7 @@ public sealed class CargoView : UserControl
         s.Children.Add(new TextBlock { Text = "Mã hàng = tiền tố 13 ký tự (theo Loại + số quy cách) + Size 4 số + Mã gói 4 ký tự + số kết quả kháng sinh 4 số. Mã gói = ký tự 18–21 của mã hàng (trọng lượng + quy cách đóng thùng trong Tổng hợp › Mã hóa sản phẩm).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
         s.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…)", Framed(_lg)));
         s.Children.Add(Section("Size-quy cách (số quy cách = số cuối của 0040-6; cột tiền tố theo từng loại hàng ở trên)", Framed(_qg)));
-        var sug = Btn("🪄 Gợi ý Mã gói + Tiền tố", () => SuggestCfg()); sug.IsEnabled = _edit;
+        var sug = Btn("🪄 Gợi ý Mã gói + Tiền tố", async () => { SuggestCfg(); await Task.CompletedTask; }); sug.IsEnabled = _edit;
         s.Children.Add(_cfgMsg); s.Children.Add(new WrapPanel { ItemSpacing = 8, Children = { save, sug } });
         return new ScrollViewer { Content = s, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     }

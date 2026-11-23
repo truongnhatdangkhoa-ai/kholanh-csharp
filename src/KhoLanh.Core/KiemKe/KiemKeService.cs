@@ -49,6 +49,8 @@ public sealed class KiemKeService
     public string StockSrc { get; private set; } = "live";             // live = Tồn kho An An hiện tại · snap = bản chụp tồn
     public List<string> People { get; private set; } = new();
     public Extracted Ex { get; private set; } = new();
+    public string ChotDate { get; private set; } = "";
+    public PhatSinh.Adj Adj { get; private set; } = new();
     public List<Line> Lines { get; private set; } = new();              // dòng kiểm kê dùng để đối chiếu (đã bỏ lần đếm cũ nếu chọn)
     public List<Line> Dropped { get; private set; } = new();
     public List<Recount> Recounts { get; private set; } = new();
@@ -95,6 +97,7 @@ public sealed class KiemKeService
         var st = Read(Db, SheetState); var sj = st.Count > 0 && st[0] is JsonObject so ? JsonOf(S(so["data"])) as JsonObject : null;
         Chosen = (sj?["pages"] as JsonArray ?? new JsonArray()).Select(S).Where(x => x.Length > 0).ToHashSet();
         LatestOnly = S(sj?["latest"]) is "true" or "1";
+        ChotDate = PhatSinh.IsoOk(S(sj?["chotDate"])) ? S(sj?["chotDate"]) : "";
         StockSrc = S(sj?["stock"]) == "snap" ? "snap" : "live";
         People = (sj?["people"] as JsonArray ?? new JsonArray()).Select(S).Where(x => x.Length > 0).ToList();
         // Tồn kho An An (module Tồn kho An An)
@@ -163,11 +166,12 @@ public sealed class KiemKeService
     public void Recompute()
     {
         var chosen = Pages.Where(p => Chosen.Contains(p.Id)).ToList();
-        Ex = ExtractRows(chosen);
+        Ex = ExtractRows(chosen, ChotDate);
         Recounts = FindRecount(Ex.Rows);
         if (LatestOnly) { Lines = KiemKeCore.LatestOnly(Ex.Rows, out var d); Dropped = d; } else { Lines = Ex.Rows; Dropped = new(); }
         Kt = MakeKeToan(KtRows);
-        T = BuildTotals(Lines, Stock, Kt.Map.Count > 0 ? Kt : null);
+        Adj = PhatSinh.Build(Ex.Mv, Lines, ChotDate);
+        T = BuildTotals(Lines, Stock, Kt.Map.Count > 0 ? Kt : null, Adj);
         AddLsx(T.Rows, Lines, Stock);
         foreach (var r in T.Rows) if (r.Ten.Length == 0 && _tenMap.TryGetValue(r.Key, out var t)) r.Ten = t;
         Analyze(T.Rows, Recounts.SelectMany(a => a.Items.Select(x => x.Key)).ToHashSet());
@@ -181,7 +185,7 @@ public sealed class KiemKeService
     {
         var o = new JsonObject
         {
-            ["pages"] = new JsonArray(Chosen.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()), ["latest"] = LatestOnly, ["stock"] = StockSrc,
+            ["pages"] = new JsonArray(Chosen.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()), ["latest"] = LatestOnly, ["stock"] = StockSrc, ["chotDate"] = ChotDate,
             ["people"] = new JsonArray(People.Select(x => (JsonNode)x).ToArray()), ["at"] = Iso(), ["by"] = UserName,
         };
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetState] = new JsonArray(new JsonObject { ["id"] = "cfg", ["data"] = "__JSON__" + o.ToJsonString() }) });
@@ -194,6 +198,12 @@ public sealed class KiemKeService
         Chosen = ids.Where(id => Pages.Any(p => p.Id == id)).ToHashSet(); LatestOnly = latestOnly;
         SaveState(); Recompute();
         Log("chọn trang kiểm kê", $"{Chosen.Count} trang" + (latestOnly ? ", chỉ lấy lần đếm mới nhất" : ""));
+    }
+    public void SetChotDate(string iso)
+    {
+        RequireEdit(); RequireOpen();
+        var t = (iso ?? "").Trim(); if (t.Length > 0 && !PhatSinh.IsoOk(t)) throw new BusinessException("Ngày chốt tồn phải có dạng năm-tháng-ngày (VD 2026-12-31).");
+        ChotDate = t; SaveState(); Recompute(); Log("đặt ngày chốt tồn", t.Length > 0 ? t : "(bỏ)");
     }
     public void SetStockSrc(string src)
     {

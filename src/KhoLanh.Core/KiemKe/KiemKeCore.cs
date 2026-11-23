@@ -53,6 +53,7 @@ public static class KiemKeCore
         ["tl"] = new[] { "trongluong", "kgthung", "kgkien", "tlthung", "kg" }, ["sk"] = new[] { "sokien", "sothung", "soluong", "kien", "thung", "sl" },
         ["net"] = new[] { "net", "nettl", "netkg", "tongkg" }, ["hd"] = new[] { "hopdong" }, ["lo"] = new[] { "lo", "lobatch", "solo" },
         ["dt"] = new[] { "dactinh" }, ["gc"] = new[] { "ghichu" },
+        ["xd"] = new[] { "ngayxuat" }, ["xs"] = new[] { "slxuat", "soluongxuat", "sokienxuat" }, ["nd"] = new[] { "ngaynhap" }, ["ns"] = new[] { "slnhap", "soluongnhap", "sokiennhap" },
     };
     public static Dictionary<string, int> PageCols(IEnumerable<string> columns)
     {
@@ -84,12 +85,13 @@ public static class KiemKeCore
     public sealed class Extracted
     {
         public List<Line> Rows = new(); public List<(string Id, string Name, string Why)> Skipped = new();
-        public int KhongMa, ThieuKien, ThieuKg, SoLoi; public List<string> Samples = new();
+        public int KhongMa, ThieuKien, ThieuKg, SoLoi; public List<string> Samples = new(); public List<PhatSinh.Mv> Mv = new();
     }
     private static readonly Regex ReLoGc = new(@"(?:^|·|\s)lô\s+(\S+)", RegexOptions.IgnoreCase);
 
-    public static Extracted ExtractRows(IEnumerable<Page> pages)
+    public static Extracted ExtractRows(IEnumerable<Page> pages, string? chotDate = null)
     {
+        var nearYear = PhatSinh.IsoOk(chotDate) ? int.Parse(chotDate![..4]) : DateTime.Now.Year;
         var o = new Extracted();
         foreach (var p in pages.OrderBy(p => p.Ngay.Length > 0 ? p.Ngay : "9999", StringComparer.Ordinal).ThenBy(p => p.UpdatedAt, StringComparer.Ordinal))
         {
@@ -104,13 +106,26 @@ public static class KiemKeCore
                 var row = p.Rows[r];
                 var ma = Cell(row, "ma"); string skR = Cell(row, "sk"), netR = Cell(row, "net"), tlR = Cell(row, "tl");
                 var hasNum = skR.Length > 0 || netR.Length > 0;
-                if (ma.Length == 0 && !hasNum) continue;
+                string xdR = Cell(row, "xd"), xsR = Cell(row, "xs"), ndR = Cell(row, "nd"), nsR = Cell(row, "ns");
+                var hasMv = xsR.Length > 0 || nsR.Length > 0;
+                if (ma.Length == 0 && !hasNum && !hasMv) continue;
                 var where = $"{p.Name} · dòng {r + 1}";
                 if (ma.Length == 0) { o.KhongMa++; if (o.Samples.Count < 12) o.Samples.Add(where + ": có số nhưng không có mã"); continue; }
-                if (!hasNum) continue;
                 double? kien = Num(skR), net = Num(netR), tl = Num(tlR);
                 if ((kien is { } a && double.IsNaN(a)) || (net is { } b && double.IsNaN(b)) || (tl is { } c && double.IsNaN(c))) { o.SoLoi++; if (o.Samples.Count < 12) o.Samples.Add(where + ": số không đọc được"); }
                 if (kien is { } k1 && double.IsNaN(k1)) kien = null; if (net is { } n1 && double.IsNaN(n1)) net = null; if (tl is { } t1 && double.IsNaN(t1)) tl = null;
+                if (hasMv)
+                {
+                    var uw = tl is > 0 ? tl : (kien is > 0 && net is >= 0 ? net / kien : null);
+                    foreach (var (type, dRaw, sRaw) in new[] { ("x", xdR, xsR), ("n", ndR, nsR) })
+                    {
+                        if (sRaw.Length == 0) continue; var q = Num(sRaw);
+                        if (q is null || double.IsNaN(q.Value) || q <= 0) { o.SoLoi++; if (o.Samples.Count < 12) o.Samples.Add(where + ": số phát sinh không đọc được"); continue; }
+                        var d = PhatSinh.ParseNgay(dRaw, nearYear, chotDate);
+                        o.Mv.Add(new PhatSinh.Mv { Type = type, PageId = p.Id, Page = p.Name, PageNgay = PhatSinh.IsoOk(p.Ngay) ? p.Ngay : "", Dong = r + 1, Ma = Regex.Replace(ma.ToUpperInvariant(), @"\s+", ""), Key = NormKey(ma), Ten = Cell(row, "ten"), Vt = Cell(row, "vt"), Hd = Cell(row, "hd"), Gc = Cell(row, "gc"), NgayRaw = dRaw, Ngay = d.Iso, DateBlank = d.Blank, DateBad = d.Bad, Kien = q.Value, Kg = uw is { } w ? q.Value * w : null });
+                    }
+                }
+                if (!hasNum) continue;
                 double? kg = null; var src = "";
                 if (net is >= 0) { kg = net; src = "net"; } else if (kien is not null && tl is not null) { kg = kien * tl; src = "tinh"; }
                 if (kien is null) { o.ThieuKien++; if (o.Samples.Count < 12) o.Samples.Add(where + ": thiếu số kiện"); }
@@ -214,6 +229,8 @@ public static class KiemKeCore
         public string Key = "", Ma = "", Ten = "", Status = "", KtStatus = "";
         public double? KkKien, KkKg, TonKien, TonKg, DKien, DKg, KtKg, KtKien, ChotKg, TongKt;
         public string Nhom = ""; public List<string> NhomAll = new();
+        /// <summary>Phát sinh nhập / xuất đã quy về ngày chốt (KkKien / KkKg đã gồm phần này).</summary>
+        public double? NhapKien, XuatKien, NhapKg, XuatKg;
         /// <summary>So theo LSX (chỉ mã nhóm Thành Phẩm Chính có ≥2 LSX): "", Khớp, Lệch, Thiếu thông tin.</summary>
         public string LsxStatus = ""; public List<LsxItem> Lsx = new();
         public int KkRows, KkDays, TonRows; public List<string> Notes = new(); public Nn? Nn;
@@ -253,7 +270,7 @@ public static class KiemKeCore
     }
     public sealed class Totals { public List<Row> Rows = new(); public bool HasStock, HasKT; }
 
-    public static Totals BuildTotals(IEnumerable<Line> ex, IReadOnlyCollection<Stock> stock, KtSet? kt)
+    public static Totals BuildTotals(IEnumerable<Line> ex, IReadOnlyCollection<Stock> stock, KtSet? kt, PhatSinh.Adj? adj = null)
     {
         var hasStock = stock.Count > 0; var hasKT = kt is { Map.Count: > 0 };
         var M = new Dictionary<string, (Row r, double kkKien, double kkKg, int kkKgN, int kgThieu, HashSet<string> days, double tonKien, double tonKg, int tonKgThieu, bool ktHas)>();
@@ -285,12 +302,18 @@ public static class KiemKeCore
                 e.ktHas = true; if (r.Ten.Length == 0 && v.Ten.Length > 0) r.Ten = v.Ten;
                 M[key] = e;
             }
+        if (adj is not null)
+            foreach (var (key, a) in adj.ByKey) if ((a.NKien != 0 || a.XKien != 0) && !M.ContainsKey(key)) Get(key, key);
         var o = new Totals { HasStock = hasStock, HasKT = hasKT };
         foreach (var key in order)
         {
             var e = M[key]; var r = e.r;
-            bool counted = r.KkRows > 0, inStock = r.TonRows > 0;
-            var kgKnown = e.kkKgN > 0 || e.kkKien == 0;
+            var ad = adj is not null && adj.ByKey.TryGetValue(key, out var aa) && (aa.NKien != 0 || aa.XKien != 0) ? aa : null;
+            double adK = ad is null ? 0 : ad.NKien - ad.XKien, adG = ad is null ? 0 : ad.NKg - ad.XKg;
+            e.kkKien += adK; e.kkKg += adG;
+            if (ad is not null) { r.NhapKien = ad.NKien; r.XuatKien = ad.XKien; r.NhapKg = ad.NKg; r.XuatKg = ad.XKg; }
+            bool counted = r.KkRows > 0 || ad is not null, inStock = r.TonRows > 0;
+            var kgKnown = e.kkKgN > 0 || e.kkKien - adK == 0 || ad is not null;
             r.KkDays = e.days.Count;
             if (gm.TryGetValue(key, out var gdm))
             {
@@ -313,6 +336,8 @@ public static class KiemKeCore
             r.TonKien = inStock ? R4(e.tonKien) : null; r.TonKg = inStock ? R4(e.tonKg) : null;
             r.DKien = st is ChiKT ? null : dKien; r.DKg = st is ChiKT ? null : dKg;
             if (inStock && e.tonKien < -1e-9) r.Notes.Add($"Tồn kho An An đang ÂM ({R4(e.tonKien)} kiện) — kiểm tra lại số liệu tồn");
+            if (ad is not null) r.Notes.Add($"Đã quy về ngày chốt: +{ad.NKien:#,0.##} nhập − {ad.XKien:#,0.##} xuất kiện sau ngày đếm");
+            if (adj is not null && adj.ByKey.TryGetValue(key, out var fl) && fl.Flags.Overlaps(new[] { "truoc", "thieu_ngay", "loi_ngay", "xuat_lon" })) r.Notes.Add("Có phát sinh nhập / xuất cần rà (ngày hoặc số lượng chưa hợp lý) — xem mục Phát sinh");
             if (e.kgThieu > 0) r.Notes.Add($"{e.kgThieu} dòng kiểm kê thiếu Net / Trọng lượng (chưa tính kg)");
             if (e.tonKgThieu > 0) r.Notes.Add($"{e.tonKgThieu} dòng tồn kho thiếu Trọng lượng");
             if (!inStock && counted && hasStock) r.Notes.Add("Mã không có trong Tồn kho An An");
