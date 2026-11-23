@@ -27,7 +27,6 @@ public class AppServices
     public AuthService Auth { get; }
     public BackupService Backup { get; }
     public ModuleStore Modules { get; }
-    public ModuleBridge Bridge { get; }
     public LegacyImporter Legacy { get; }
     public UpdateService Updates { get; }
     public AccountSyncService Accounts { get; internal set; }
@@ -82,7 +81,6 @@ public class AppServices
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
-        Bridge = new ModuleBridge(Lan, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>
@@ -93,7 +91,6 @@ public class AppServices
         old.Dispose();
         Lan = new LanService(Db, Modules, Settings, Session, Audit) { TickMs = tick, Speed = speed };
         Legacy.Target = Lan;
-        Bridge.Source = Lan;
         if (start) Lan.Start();
     }
 }

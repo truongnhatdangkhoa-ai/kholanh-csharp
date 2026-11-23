@@ -18,13 +18,6 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var ti = Array.IndexOf(Program.Args, "--tu-kiem-module");
-            if (ti >= 0)
-            {
-                SelfTest.Run(desktop, Program.Args.Length > ti + 1 ? Program.Args[ti + 1] : "tu-kiem-module.json");
-                base.OnFrameworkInitializationCompleted();
-                return;
-            }
             // Máy mới cài lần đầu → chọn nơi lưu database trước khi đăng nhập.
             var loc = new DataLocation();
             if (loc.NeedsChoice && Array.IndexOf(Program.Args, "--da-cap-nhat") < 0)
@@ -57,7 +50,7 @@ public partial class App : Application
                 }
                 if (Array.IndexOf(Program.Args, "--tu-kiem-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
                 {
-                    // Chỉ dùng cho kiểm thử tự động: cập nhật khi app ĐANG MỞ (cửa sổ chính + module WebView2), như người dùng bấm Cập nhật.
+                    // Chỉ dùng cho kiểm thử tự động: cập nhật khi app ĐANG MỞ (cửa sổ chính), như người dùng bấm Cập nhật.
                     if (!Services.Auth.HasAnyUser()) Services.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
                     Services.Auth.Login("admin", "matkhau1");
                     var main = new MainWindow();

@@ -25,12 +25,6 @@ public class PermTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { }
     }
 
-    private string Auth(string page) =>
-        JsonNode.Parse(_s.Bridge.Handle(new JsonObject { ["op"] = "authState", ["args"] = new JsonArray(page) }.ToJsonString()))!["user"]!["vaiTro"]!.GetValue<string>();
-
-    private bool Write(string key) =>
-        JsonNode.Parse(_s.Bridge.Handle(new JsonObject { ["op"] = "writeSheet", ["args"] = new JsonArray(key, "S", new JsonArray()) }.ToJsonString()))!["ok"]!.GetValue<bool>();
-
     [Fact]
     public void Role_defaults_apply_when_no_custom_permissions()
     {
@@ -52,10 +46,9 @@ public class PermTests : IDisposable
         Assert.False(_s.Session.Can("backup"));
         Assert.True(_s.Session.Can("audit"));
         Assert.Throws<BusinessException>(() => _s.Backup.ManualBackup(Path.Combine(_dir, "x.db")));
-        Assert.True(Write("ton-kho-an-an"));
-        Assert.False(Write("ton-kho-gui"));
-        Assert.Equal("quanly", Auth("/html/ton-kho-an-an.html"));
-        Assert.Equal("xem", Auth("/html/ton-kho-gui.html"));
+        Assert.True(_s.Session.Can("m1", Perm.Edit));
+        Assert.False(_s.Session.Can("m2", Perm.Edit));
+        Assert.True(_s.Session.Can("m2", Perm.View));
     }
 
     [Fact]
@@ -65,7 +58,6 @@ public class PermTests : IDisposable
         _s.Auth.SetPermissions(u.Id, "");
         _s.Auth.Login("kho2", "matkhau1");
         Assert.Equal(Perm.Export, Perm.Level(_s.Session.CurrentUser, "m1"));
-        Assert.Equal("xuat", Auth("/html/ton-kho-an-an.html"));
     }
 
     [Fact]

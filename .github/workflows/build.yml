@@ -37,7 +37,7 @@ jobs:
 
 
   tu-kiem-windows:
-    # Mở thật 2 module gốc trong WebView2 trên Windows, kiểm tra cầu nối dữ liệu + thư viện Excel.
+    # Chạy thật bản đóng gói trên Windows: kiểm tra cơ chế tự cập nhật (thay exe, giữ bản .cu).
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,12 +46,6 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Đóng gói
         run: dotnet publish src/KhoLanh.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o publish
-      - name: Tự kiểm tra 2 module
-        shell: pwsh
-        run: |
-          $p = Start-Process -FilePath publish\KhoLanh.exe -ArgumentList '--tu-kiem-module', "$PWD\kq.json" -Wait -PassThru
-          if (Test-Path kq.json) { Get-Content kq.json } else { Write-Host 'Không có kq.json' }
-          if ($p.ExitCode -ne 0) { throw "Tự kiểm tra lỗi (mã $($p.ExitCode))" }
       - name: Tự kiểm tra thay exe khi cập nhật
         shell: pwsh
         run: |
@@ -65,7 +59,7 @@ jobs:
           if (-not (Test-Path "$t\data\da-cap-nhat.txt")) { throw 'Bản mới không được mở lại' }
           if (-not (Test-Path "$t\KhoLanh.exe.cu")) { throw 'Không giữ bản cũ (.cu)' }
           if (Test-Path "$t\KhoLanh.exe.moi") { throw 'Bản chờ (.moi) chưa được đưa vào chỗ' }
-      - name: Tự kiểm tra bấm Cập nhật khi app đang mở (cửa sổ chính + WebView2)
+      - name: Tự kiểm tra bấm Cập nhật khi app đang mở (cửa sổ chính)
         shell: pwsh
         run: |
           $t = "$env:RUNNER_TEMP\capnhat2"; New-Item -ItemType Directory -Force $t | Out-Null

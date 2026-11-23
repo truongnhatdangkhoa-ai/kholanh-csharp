@@ -1,7 +1,0 @@
-THU VIEN BEN THU BA DUNG CHO CAC CONG CU VAN PHONG (PC 4.49) — tat ca chay offline trong app, khong goi mang.
-- pdf-lib 1.17.1 (MIT) — lib/pdf-lib.min.js · @pdf-lib/fontkit (MIT) — lib/fontkit.umd.min.js        : gop / tach / dong dau PDF, PDF tim kiem duoc
-- JsBarcode 3.12.3 (MIT) — lib/JsBarcode.all.min.js                                                  : ma vach
-- QRCode for JavaScript, Kazuhiko Arase (MIT) — lib/qrcode-arase.js (tach tu trang Ma QR)             : ma QR trong mau in
-- Tesseract.js 7.0.0 (Apache-2.0) + tesseract.js-core 6.1.2 (Apache-2.0) — lib/ocr/                    : doc chu tu anh
-- Du lieu tieng Viet vie.traineddata.gz = tessdata_best_int cua du an Tesseract (Apache-2.0) — lib/ocr/
-- DejaVu Sans (Bitstream Vera / DejaVu license, xem lib/fonts/LICENSE-DejaVu.txt) — lib/fonts/DejaVuSans.ttf : phong chu co tieng Viet de ghi chu len PDF

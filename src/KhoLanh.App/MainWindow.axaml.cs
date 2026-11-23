@@ -23,20 +23,14 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key == "m1cu" ? "m1" : i.Key == "m2cu" ? "m2" : i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
     private readonly Dictionary<Button, string> _groupLabels = new();
     private readonly Dictionary<string, MenuItem> _items = new();
     private string _current = "";
-    private readonly Dictionary<string, ModuleView> _modules = new();
 
-    private ModuleView Module(string key, string page, string title, string subtitle)
-    {
-        if (!_modules.TryGetValue(key, out var v)) _modules[key] = v = new ModuleView(page, title, subtitle);
-        return v;
-    }
 
     public MainWindow()
     {
@@ -51,11 +45,7 @@ public partial class MainWindow : Window
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
-                new NavItem("m1cu", "Tồn kho An An (bản cũ)", () => Module("m1", "ton-kho-an-an.html", "Tồn kho An An (bản cũ)",
-                    "Bản WebView2 cũ, giữ tạm để đối chiếu — sẽ bỏ khi bản mới chạy ổn.")),
                 new NavItem("m2", "Tồn kho gửi", () => new GuiView()),
-                new NavItem("m2cu", "Tồn kho gửi (bản cũ)", () => Module("m2", "ton-kho-gui.html", "Tồn kho gửi (bản cũ)",
-                    "Bản WebView2 cũ — để đối chiếu với bản C# mới. Dùng chung dữ liệu.")),
                 new NavItem("m7", "Tồn kho theo vị trí", () => new ViTriView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
             }),
@@ -183,19 +173,8 @@ public partial class MainWindow : Window
         if (item is null) return;
         if (!Allowed(item)) return;
         page ??= item.Create();
-        if (page is ModuleView mv)
-        {
-            if (!ModuleLayer.Children.Contains(mv)) ModuleLayer.Children.Add(mv);
-            foreach (var other in _modules.Values) if (other != mv) other.SetActive(false);
-            PageHost.IsVisible = false;
-            mv.SetActive(true);
-        }
-        else
-        {
-            foreach (var other in _modules.Values) other.SetActive(false);
-            PageHost.IsVisible = true;
-            PageHost.Content = page;
-        }
+        PageHost.IsVisible = true;
+        PageHost.Content = page;
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         foreach (var (gb, label) in _groupLabels) gb.Content = label + "  ▾";
