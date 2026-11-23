@@ -9,7 +9,7 @@ public partial class UsersView : UserControl, IPage
     public string Title => "Tài khoản";
     public string Subtitle => App.Services.Accounts.Enabled
         ? "Tài khoản dùng chung cho mọi máy qua Google Sheet: sửa ở đây là lưu lên Sheet, máy khác nhận ở lần đăng nhập sau."
-          + (App.Services.Accounts.CanWrite ? "" : " Máy này chỉ đọc — sửa ở máy quản trị.")
+          + (App.Services.Accounts.CanWrite ? "" : " Chưa mở khóa ghi — đăng nhập bằng tài khoản Quản trị.")
         : "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
     private User _editing = new();
     private readonly Dictionary<string, ComboBox> _permBoxes = new();

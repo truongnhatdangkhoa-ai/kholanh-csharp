@@ -36,6 +36,15 @@ Cách làm giống app kho cũ (Apps Script Web App): **không cần Google Clou
 Cách khác cho máy đã có phần mềm: trên máy quản trị, bấm **Chép mã cho máy nhân viên**. Trên máy kia, dán mã ở màn mở lần đầu (nút **Dùng chung tài khoản với máy khác…**). Nếu máy kia đã có tài khoản, dán mã ở **Sao lưu và cài đặt › Tài khoản dùng chung** rồi bấm **Kết nối**.
 Muốn thêm một máy quản trị, bấm **Chép mã cho máy quản trị** và chỉ gửi cho người quản trị.
 
+## Không cần "máy quản trị": khóa ghi đi theo mật khẩu Quản trị
+
+Từ bản 1.19.0, tài khoản **Quản trị đăng nhập ở máy nào cũng sửa được tài khoản và phân quyền**, không cần dán "mã cho máy quản trị".
+
+- Mã quản trị được **mã hóa bằng mật khẩu của từng tài khoản Quản trị** (AES-GCM, khóa suy ra bằng PBKDF2-SHA256 100.000 vòng) rồi lưu trong dòng `#khoa-quan-tri` của tab *TaiKhoan*. Không phải dán lại Apps Script.
+- Quản trị đăng nhập → máy tự giải mã, giữ **trong bộ nhớ** tới khi đăng xuất. Nhân viên không có mật khẩu Quản trị nên không mở được, dù máy có mã đọc.
+- **Lần đầu sau khi nâng cấp:** đăng nhập MỘT LẦN bằng tài khoản Quản trị ở máy đã thiết lập Google Sheet (máy có sẵn mã quản trị) để gói khóa được đưa lên Sheet. Quản trị thêm sau này tự có gói khóa khi tạo tài khoản.
+- Đổi hoặc đặt lại mật khẩu Quản trị → gói khóa tự mã hóa lại theo mật khẩu mới. Quên mật khẩu mọi Quản trị: dùng lại máy có mã quản trị, hoặc **Tạo lại mã Apps Script**.
+
 ## Lưu ý
 
 - Đừng sửa tay tab *TaiKhoan* trên Google Sheet. Mọi thay đổi làm trong phần mềm, ở **Hệ thống › Tài khoản**.

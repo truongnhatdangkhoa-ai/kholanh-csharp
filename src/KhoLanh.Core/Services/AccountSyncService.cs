@@ -20,7 +20,8 @@ namespace KhoLanh.Core.Services;
 public class AccountSyncService
 {
     private const string KeyUrl = "acct_url", KeyToken = "acct_token", KeyAdmin = "acct_admin_key", KeyLast = "acct_last_pull",
-        KeyPendToken = "acct_pending_token", KeyPendAdmin = "acct_pending_admin", KeyPlan = "lan_plan";
+        KeyPendToken = "acct_pending_token", KeyPendAdmin = "acct_pending_admin", KeyPlan = "lan_plan", KeyBlobs = "acct_keyblobs";
+    public const string KeyRowName = "#khoa-quan-tri", KeyRowRole = "khoa-qt";
     public const string CodePrefix = "KLTK1-";
 
     private readonly Database _db;
@@ -59,7 +60,11 @@ public class AccountSyncService
 
     public string Url => _settings.Get(KeyUrl);
     private string Token => Secret.Unprotect(_settings.Get(KeyToken));
-    private string AdminKey => Secret.Unprotect(_settings.Get(KeyAdmin));
+    /// <summary>Mã quản trị đóng sẵn trong máy (máy đã tạo Apps Script hoặc dán mã quản trị).</summary>
+    private string StoredAdminKey => Secret.Unprotect(_settings.Get(KeyAdmin));
+    /// <summary>Mã quản trị mở khóa bằng mật khẩu Quản trị lúc đăng nhập — chỉ giữ trong bộ nhớ, đăng xuất là mất.</summary>
+    private string _sessionKey = "";
+    private string AdminKey => StoredAdminKey.Length > 0 ? StoredAdminKey : _sessionKey;
     /// <summary>Đã bật dùng chung tài khoản qua Google Sheet.</summary>
     public bool Enabled => Url.Length > 0 && Token.Length > 0;
     /// <summary>Máy này được sửa tài khoản (có mã quản trị).</summary>
@@ -180,7 +185,8 @@ public class AccountSyncService
     public void Disconnect()
     {
         _session.RequireAdmin();
-        foreach (var k in new[] { KeyUrl, KeyToken, KeyAdmin, KeyPendToken, KeyPendAdmin }) _settings.Set(k, "");
+        foreach (var k in new[] { KeyUrl, KeyToken, KeyAdmin, KeyPendToken, KeyPendAdmin, KeyBlobs }) _settings.Set(k, "");
+        _sessionKey = "";
         _audit.Log(_session.Username, "Ngắt tài khoản dùng chung", "mỗi máy dùng tài khoản riêng");
     }
 
@@ -247,7 +253,7 @@ public class AccountSyncService
     /// <summary>Kế hoạch phân vai LAN lấy từ Sheet ở lần tải gần nhất (null = chưa có).</summary>
     public LanPlan? Plan => Enabled ? LanPlan.Parse(_settings.Get(KeyPlan)) : null;
 
-    private void CachePlan(JsonArray users) => _settings.Set(KeyPlan, LanPlan.FromRows(users)?.ToJson() ?? "");
+    private void CachePlan(JsonArray users) { _settings.Set(KeyPlan, LanPlan.FromRows(users)?.ToJson() ?? ""); CacheBlobs(users); }
 
     /// <summary>
     /// Đọc lại kế hoạch mới nhất trên Sheet, cho <paramref name="change"/> sửa; có đổi thì ghi lại dòng "#mang-lan".
@@ -266,6 +272,118 @@ public class AccountSyncService
         return plan;
     }
 
+    // ---------------- khóa ghi đi theo mật khẩu Quản trị (không cần "máy quản trị") ----------------
+    // Mã quản trị được mã hóa AES-GCM bằng khóa suy ra từ MẬT KHẨU của từng tài khoản Quản trị (PBKDF2-SHA256, 100.000 vòng) rồi lưu ở dòng
+    // riêng "#khoa-quan-tri" của tab TaiKhoan (cột quyen = JSON {tên đăng nhập: gói mã hóa}) — không phải dán lại Apps Script.
+    // Quản trị đăng nhập ở BẤT KỲ máy nào đã nối Google Sheet → máy tự giải mã, giữ trong bộ nhớ tới khi đăng xuất. Nhân viên không có
+    // mật khẩu Quản trị nên không mở được khóa dù đọc được gói mã hóa.
+
+    internal static string Seal(string password, string key)
+    {
+        var salt = RandomNumberGenerator.GetBytes(16); var nonce = RandomNumberGenerator.GetBytes(12);
+        var k = Rfc2898DeriveBytes.Pbkdf2(password, salt, 100_000, HashAlgorithmName.SHA256, 32);
+        var plain = Encoding.UTF8.GetBytes(key); var cipher = new byte[plain.Length]; var tag = new byte[16];
+        using (var aes = new AesGcm(k, 16)) aes.Encrypt(nonce, plain, cipher, tag);
+        return "v1:" + Convert.ToBase64String(salt.Concat(nonce).Concat(tag).Concat(cipher).ToArray());
+    }
+
+    /// <summary>Giải mã gói; sai mật khẩu / gói hỏng → chuỗi rỗng.</summary>
+    internal static string Unseal(string password, string blob)
+    {
+        try
+        {
+            if (!blob.StartsWith("v1:")) return "";
+            var b = Convert.FromBase64String(blob[3..]);
+            if (b.Length < 45) return "";
+            var k = Rfc2898DeriveBytes.Pbkdf2(password, b[..16], 100_000, HashAlgorithmName.SHA256, 32);
+            var cipher = b[44..]; var plain = new byte[cipher.Length];
+            using (var aes = new AesGcm(k, 16)) aes.Decrypt(b[16..28], cipher, b[28..44], plain);
+            return Encoding.UTF8.GetString(plain);
+        }
+        catch { return ""; }
+    }
+
+    private static Dictionary<string, string> BlobsFromRows(JsonArray rows)
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var n in rows)
+        {
+            if (n is not JsonObject o) continue;
+            var name = o["username"]?.ToString() ?? "";
+            if (!string.Equals(name.TrimStart('\''), KeyRowName, StringComparison.OrdinalIgnoreCase)) continue;
+            var q = o["quyen"]?.ToString() ?? ""; if (q.StartsWith('\'')) q = q[1..];
+            try { foreach (var p in JsonNode.Parse(q)!.AsObject()) if (p.Value?.ToString() is { Length: > 0 } v) d[p.Key] = v; } catch { }
+        }
+        return d;
+    }
+
+    private void CacheBlobs(JsonArray users) =>
+        _settings.Set(KeyBlobs, JsonSerializer.Serialize(BlobsFromRows(users)));
+
+    private Dictionary<string, string> CachedBlobs()
+    {
+        try { return new Dictionary<string, string>(JsonSerializer.Deserialize<Dictionary<string, string>>(_settings.Get(KeyBlobs)) ?? new(), StringComparer.OrdinalIgnoreCase); }
+        catch { return new(StringComparer.OrdinalIgnoreCase); }
+    }
+
+    private static JsonObject BlobRow(Dictionary<string, string> d) => new()
+    {
+        ["username"] = KeyRowName,
+        ["ho_ten"] = "Khóa ghi Google Sheet, mã hóa bằng mật khẩu Quản trị (phần mềm tự ghi, đừng sửa tay)",
+        ["vai_tro"] = KeyRowRole,
+        ["dang_dung"] = "0",
+        ["quyen"] = JsonSerializer.Serialize(d),
+        ["mat_khau_bam"] = "", ["muoi"] = "",
+        ["cap_nhat_luc"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+        ["cap_nhat_boi"] = "",
+    };
+
+    /// <summary>Gọi sau khi đăng nhập thành công (biết mật khẩu): Quản trị ở máy chưa có mã → tự mở khóa; máy đã có mã → bảo đảm gói của tài khoản này trên Sheet đúng.</summary>
+    public void AfterLogin(User u, string password)
+    {
+        _sessionKey = "";
+        if (!Enabled || u.Role != Roles.Admin) return;
+        try
+        {
+            CachedBlobs().TryGetValue(u.Username, out var mine);
+            var stored = StoredAdminKey;
+            if (stored.Length == 0)
+            {
+                if (!string.IsNullOrEmpty(mine)) _sessionKey = Unseal(password, mine);
+                return;
+            }
+            if (string.IsNullOrEmpty(mine) || Unseal(password, mine) != stored) Publish(u.Username, password);
+        }
+        catch { /* mất mạng / Sheet lỗi: đăng nhập vẫn bình thường, lần sau thử lại */ }
+    }
+
+    public void AfterLogout() => _sessionKey = "";
+
+    /// <summary>Mật khẩu Quản trị vừa đổi / tạo mới: ghi lại gói khóa bằng mật khẩu mới (cần đang giữ mã quản trị). Lỗi chỉ ghi nhật ký.</summary>
+    public void Reseal(string username, string password)
+    {
+        if (!Enabled || AdminKey.Length == 0) return;
+        try { Publish(username, password); }
+        catch (Exception e) { _audit.Log(_session.Username, "Cập nhật khóa ghi Quản trị thất bại", username + ": " + e.Message); }
+    }
+
+    private void Publish(string username, string password)
+    {
+        var url = Url; var token = Token; var admin = AdminKey;
+        if (admin.Length == 0) return;
+        var blob = Seal(password, admin);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var all = Task.Run(async () =>
+        {
+            var res = await CallAsync(url, token, "", "list", null, cts.Token);
+            var d = BlobsFromRows(res["users"]?.AsArray() ?? new JsonArray());
+            d[username] = blob;
+            await CallAsync(url, token, admin, "save", new JsonObject { ["user"] = BlobRow(d) }, cts.Token);
+            return d;
+        }, cts.Token).GetAwaiter().GetResult();
+        _settings.Set(KeyBlobs, JsonSerializer.Serialize(all));
+    }
+
     // ---------------- ghi lên ----------------
 
     /// <summary>
@@ -276,7 +394,7 @@ public class AccountSyncService
     {
         if (!Enabled) return;
         if (!CanWrite)
-            throw new BusinessException("Tài khoản đang dùng chung qua Google Sheet và máy này chỉ được đọc. Hãy sửa tài khoản ở máy quản trị (hoặc dán \"mã cho máy quản trị\" vào máy này).");
+            throw new BusinessException("Tài khoản đang dùng chung qua Google Sheet nhưng máy này chưa mở được khóa ghi. Hãy đăng nhập bằng tài khoản Quản trị (khóa ghi tự mở bằng mật khẩu Quản trị). Nếu vẫn báo, nhờ Quản trị đăng nhập MỘT LẦN ở máy đã thiết lập Google Sheet để cấp khóa cho tài khoản này, hoặc dán \"mã cho máy quản trị\" vào máy này.");
         var url = Url; var token = Token; var admin = AdminKey;
         var row = ToRow(u);
         try { Task.Run(() => CallAsync(url, token, admin, "save", new JsonObject { ["user"] = row })).GetAwaiter().GetResult(); }

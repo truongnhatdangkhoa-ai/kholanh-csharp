@@ -100,7 +100,7 @@ public partial class LanView : UserControl, IPage
         AutoOn.IsEnabled = AutoSaveButton.IsEnabled = canWrite;
         ClaimButton.IsEnabled = canWrite && plan.On && !(plan.Chu?.Id == s.Lan.MachineId && s.Lan.Role == LanService.RoleServer);
         DropStandbyButton.IsEnabled = canWrite && plan.On && plan.DuPhong is not null;
-        if (!canWrite) AutoMsg.Text = "Máy này không có mã quản trị nên chỉ xem được — sửa phân vai ở máy quản trị.";
+        if (!canWrite) AutoMsg.Text = "Chưa mở khóa ghi Google Sheet nên chỉ xem được — đăng nhập bằng tài khoản Quản trị để sửa phân vai.";
         ShowPlanSlots(plan);
         ShowManual(plan.On);
     }

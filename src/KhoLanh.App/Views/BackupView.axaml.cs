@@ -46,7 +46,7 @@ public partial class BackupView : UserControl, IPage
         var admin = Roles.IsAdmin(s.Session.Role);
         AcctStatus.Text = a.Enabled
             ? $"Đang dùng chung: mọi máy lấy tài khoản và phân quyền từ Google Sheet lúc đăng nhập (mất mạng thì dùng bản lưu trong máy). "
-              + (a.CanWrite ? "Máy này là máy QUẢN TRỊ: được thêm / sửa / phân quyền tài khoản." : "Máy này chỉ đọc: sửa tài khoản ở máy quản trị.")
+              + (a.CanWrite ? "Đã mở khóa ghi: tài khoản Quản trị được thêm / sửa / phân quyền tài khoản ở bất kỳ máy nào." : "Chưa mở khóa ghi: đăng nhập bằng tài khoản Quản trị để thêm / sửa tài khoản (khóa tự mở bằng mật khẩu Quản trị).")
               + (a.LastPull.Length > 0 ? $" Lần đồng bộ gần nhất: {a.LastPull}." : "")
             : "Chưa bật: mỗi máy có danh sách tài khoản riêng. Bật để mọi máy dùng chung tài khoản và phân quyền.";
         AcctSetupPanel.IsVisible = admin && !a.Enabled;

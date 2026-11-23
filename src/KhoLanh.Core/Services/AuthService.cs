@@ -46,6 +46,7 @@ public class AuthService
         if (!u.IsActive) throw new BusinessException("Tài khoản đã bị khóa. Liên hệ Quản trị.");
         _session.CurrentUser = u;
         _audit.Log(u.Username, "Đăng nhập", "");
+        Sync?.AfterLogin(u, password);
         return u;
     }
 
@@ -53,6 +54,7 @@ public class AuthService
     {
         if (_session.CurrentUser is not null) _audit.Log(_session.Username, "Đăng xuất", "");
         _session.CurrentUser = null;
+        Sync?.AfterLogout();
     }
 
     public List<User> ListUsers()
@@ -67,6 +69,7 @@ public class AuthService
         _session.RequireAdmin();
         var clean = string.IsNullOrWhiteSpace(permissions) || role == Roles.Admin ? "" : Perm.Serialize(Perm.Parse(permissions));
         var u = Insert(username, fullName, password, role, clean);
+        if (role == Roles.Admin) Sync?.Reseal(u.Username, password);
         _audit.Log(_session.Username, "Tạo tài khoản", $"{u.Username} ({Roles.Label(role)})");
         return u;
     }
@@ -136,6 +139,7 @@ public class AuthService
         u.PasswordHash = hash; u.Salt = salt;
         Sync?.BeforeSave(u);
         c.Execute("UPDATE users SET password_hash=@hash, salt=@salt WHERE id=@id", new { id, hash, salt });
+        if (u.Role == Roles.Admin) Sync?.Reseal(u.Username, password);   // khóa ghi Sheet mã hóa bằng mật khẩu Quản trị → ghi lại theo mật khẩu mới
     }
 
     private User Insert(string username, string fullName, string password, string role, string permissions = "")

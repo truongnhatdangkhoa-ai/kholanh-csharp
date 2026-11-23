@@ -120,6 +120,53 @@ public class AccountSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task Admin_password_unlocks_writing_on_any_machine()
+    {
+        var a = await AdminMachine();
+        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1");          // máy gốc đăng nhập lại → đưa gói khóa (mã hóa bằng mật khẩu) lên Sheet
+        var blobRow = _web.Rows.Single(r => r["username"] == AccountSyncService.KeyRowName);
+        Assert.DoesNotContain(_web.Admin, blobRow["quyen"]);        // mã quản trị không bao giờ ở dạng chữ trên Sheet
+        Assert.StartsWith("{\"admin\":\"v1:", blobRow["quyen"]);
+
+        var b = Machine("B");                                        // máy mới chỉ có mã đọc, không có "mã quản trị"
+        await b.Accounts.ConnectAsync(a.Accounts.ConnectionCode(forAdmin: false));
+        Assert.False(b.Accounts.CanWrite);
+        b.Auth.Login("admin", "matkhau1");
+        Assert.True(b.Accounts.CanWrite);                            // đăng nhập Quản trị → tự mở khóa ghi
+        b.Auth.CreateUser("nv2", "Nhân viên 2", "matkhau2", Roles.Staff);
+        Assert.Contains(_web.Rows, r => r["username"] == "nv2");
+        b.Auth.Logout();
+        Assert.False(b.Accounts.CanWrite);                           // đăng xuất → mất khóa, không lưu vào máy
+
+        // nhân viên đăng nhập ở máy B: không có mật khẩu Quản trị → không ghi được
+        await b.Accounts.PullAsync();
+        b.Auth.Login("nv2", "matkhau2");
+        Assert.False(b.Accounts.CanWrite);
+        b.Auth.Logout();
+
+        // Quản trị đổi mật khẩu ở máy B → khóa được mã hóa lại theo mật khẩu mới; máy khác đăng nhập mật khẩu mới vẫn mở được
+        b.Auth.Login("admin", "matkhau1");
+        b.Auth.ChangeOwnPassword("matkhau1", "matkhaumoi");
+        b.Auth.Logout();
+        var c = Machine("C");
+        await c.Accounts.ConnectAsync(a.Accounts.ConnectionCode(forAdmin: false));
+        c.Auth.Login("admin", "matkhaumoi");
+        Assert.True(c.Accounts.CanWrite);
+        c.Auth.CreateUser("nv3", "Nhân viên 3", "matkhau2", Roles.Staff);
+        Assert.Contains(_web.Rows, r => r["username"] == "nv3");
+    }
+
+    [Fact]
+    public void Seal_roundtrip_and_wrong_password()
+    {
+        var blob = AccountSyncService.Seal("matkhau1", "0123456789abcdef");
+        Assert.Equal("0123456789abcdef", AccountSyncService.Unseal("matkhau1", blob));
+        Assert.Equal("", AccountSyncService.Unseal("sai-mat-khau", blob));
+        Assert.Equal("", AccountSyncService.Unseal("matkhau1", "v1:xyz"));
+        Assert.NotEqual(blob, AccountSyncService.Seal("matkhau1", "0123456789abcdef"));   // mỗi lần muối + nonce khác
+    }
+
+    [Fact]
     public async Task Passwords_never_leave_the_machine_in_plain_text()
     {
         var a = await AdminMachine();
@@ -136,7 +183,7 @@ public class AccountSyncTests : IDisposable
         await b.Accounts.ConnectAsync(a.Accounts.ConnectionCode(false));
         b.Auth.Login("admin", "matkhau1");
         var ex = Assert.Throws<BusinessException>(() => b.Auth.CreateUser("nv9", "X", "matkhau9", Roles.Staff));
-        Assert.Contains("chỉ được đọc", ex.Message);
+        Assert.Contains("chưa mở được khóa ghi", ex.Message);
         Assert.DoesNotContain(b.Auth.ListUsers(), u => u.Username == "nv9");
 
         // Dán mã quản trị → máy B sửa được.
