@@ -386,6 +386,137 @@ public sealed class KhangSinhService
         return new ImportResult(ok, total, dup, skip, skippedSheets, details);
     }
 
+    // ------------------------------------------------------------------ nạp PDF phiếu kết quả (lần 1 / kiểm lại)
+
+    /// <summary>Các khóa bản ghi của 1 lô (batch:&lt;ngày&gt;:&lt;lô&gt;:…) — như storage.list của app cũ.</summary>
+    public List<string> KeysOf(string date, string batch)
+    {
+        var pre = $"{BatchPrefix}{date}:{batch}:";
+        return _rows.Where(r => r.Key.StartsWith(pre, StringComparison.Ordinal)).Select(r => r.Key).ToList();
+    }
+    private JsonObject? RecOf(string key)
+    {
+        var v = _rows.FirstOrDefault(r => r.Key == key).Value;
+        try { return string.IsNullOrEmpty(v) ? null : JsonNode.Parse(v) as JsonObject; } catch { return null; }
+    }
+
+    /// <summary>Ghi kèm kết quả lần 1 đã lưu của lô được ghép vào từng mẫu (để so với cột KQ lần 1 của phiếu kiểm lại).</summary>
+    public void AttachSavedLan1(IEnumerable<KhangSinhPdf.Phieu> list)
+    {
+        foreach (var r in list)
+            foreach (var s in r.Samples)
+            {
+                var rf = KhangSinhPdf.LotRef(s); if (rf is null) continue;
+                foreach (var k in KeysOf(rf.Date, (rf.Batches ?? new List<string> { rf.Batch })[0]))
+                {
+                    var rec = RecOf(k); if (rec is null) continue;
+                    var dat = Str(rec["dat"]); var ky = Str(rec["kyhieu"]);
+                    if (dat.Length > 0 || ky.Length > 0) { s.Lan1Saved = ky.Length > 0 ? ky : dat; break; }
+                }
+            }
+    }
+
+    private static JsonObject Lan2Payload(KhangSinhPdf.Sample s, KhangSinhPdf.Phieu r) => new()
+    {
+        ["dat"] = s.Kq2, ["kyhieu"] = s.DatTinh, ["kq1"] = s.Kq1, ["inputs"] = InputsJson(s.Inputs), ["ghichu"] = s.GhiChu,
+        ["mau"] = string.Join(" · ", s.Lines), ["group"] = s.Group, ["date"] = r.Date, ["so"] = r.So, ["file"] = r.File, ["stt"] = s.Stt, ["trang"] = s.Page,
+        ["canhBao"] = new JsonArray(s.Issues.Where(i => i.Lv != "info").Select(i => (JsonNode)JsonValue.Create(i.Msg)!).ToArray()),
+        ["xacNhanTay"] = KhangSinhPdf.Flag(s) && s.Ok, ["suaTay"] = s.Edited, ["savedAt"] = Iso(),
+    };
+
+    /// <summary>Nhập các phiếu PDF đã đối soát. Phiếu lần 1: khóa Ngày nhập + Số lô (lô đã có → cập nhật kết quả lần 1, giữ kiểm lại).
+    /// Phiếu kiểm lại: mẫu có "Lô: N (ngày)" → thêm vào lô đó; không ghi lô → lưu dòng riêng (nếu keepOthers).</summary>
+    public string ImportPdf(IReadOnlyList<KhangSinhPdf.Phieu> list, bool keepOthers)
+    {
+        RequireEdit();
+        if (list.Count == 0) return "";
+        if (list.SelectMany(r => r.Samples).Any(KhangSinhPdf.Need) || list.Any(r => KhangSinhPdf.FileFlag(r) && !r.FileOk))
+            throw new BusinessException("Còn mục cảnh báo chưa kiểm — hãy so với PDF gốc rồi tick \"Đã so\" trước khi nhập.");
+        string msg;
+        if (list[0].Kind == KhangSinhPdf.KindLan1)
+        {
+            int add = 0, upd = 0, err = 0;
+            foreach (var r in list)
+                foreach (var s in r.Samples)
+                {
+                    var lot = s.Lot; if (lot is null || lot.Date.Length == 0) { err++; continue; }
+                    var src = new JsonObject
+                    {
+                        ["file"] = r.File, ["ngayKiem"] = r.Date, ["stt"] = s.Stt, ["trang"] = s.Page,
+                        ["canhBao"] = new JsonArray(s.Issues.Where(i => i.Lv != "info").Select(i => (JsonNode)JsonValue.Create(i.Msg)!).ToArray()),
+                        ["xacNhanTay"] = KhangSinhPdf.Flag(s) && s.Ok, ["suaTay"] = s.Edited, ["savedAt"] = Iso(),
+                    };
+                    JsonObject Fields() => new() { ["dat"] = s.Kq2, ["kyhieu"] = s.DatTinh, ["inputs"] = InputsJson(s.Inputs), ["note"] = s.Code, ["mota"] = s.GhiChu, ["lan1Src"] = src.DeepClone() };
+                    var keys = KeysOf(lot.Date, lot.Batch);
+                    if (keys.Count > 0)
+                    {
+                        foreach (var k in keys) { var rec = RecOf(k); if (rec is null) continue; foreach (var kv in Fields()) rec[kv.Key] = kv.Value?.DeepClone(); Set(k, rec); }
+                        upd++;
+                    }
+                    else
+                    {
+                        var o = new JsonObject { ["date"] = lot.Date, ["batch"] = lot.Batch, ["stt"] = null, ["savedAt"] = Iso(), ["source"] = "lan1-import" };
+                        foreach (var kv in Fields()) o[kv.Key] = kv.Value?.DeepClone();
+                        Set(KeyFor(o), o); add++;
+                    }
+                }
+            msg = $"Hoàn tất: {add} lô mới" + (upd > 0 ? $", {upd} lô đã có được cập nhật kết quả lần 1" : "") + (err > 0 ? $", lỗi {err}" : "") + ". Xem tại tab \"Dữ liệu\".";
+        }
+        else
+        {
+            int upd = 0, newLot = 0, sep = 0, sepUpd = 0, skip = 0;
+            void AddLan2(string k, JsonObject lan2)
+            {
+                var rec = RecOf(k); if (rec is null) return;
+                var all = Lan2ListOf(rec).Select(x => (JsonObject)x.DeepClone()).ToList(); all.Add((JsonObject)lan2.DeepClone());
+                Lan2Normalize(rec, all); Set(k, rec);
+            }
+            foreach (var r in list)
+                foreach (var s in r.Samples)
+                {
+                    var lan2 = Lan2Payload(s, r);
+                    var rf = KhangSinhPdf.LotRef(s);
+                    if (rf is not null)
+                    {
+                        foreach (var bt in rf.Batches ?? new List<string> { rf.Batch })
+                        {
+                            var keys = KeysOf(rf.Date, bt);
+                            if (keys.Count > 0) { foreach (var k in keys) AddLan2(k, lan2); upd++; }
+                            else
+                            {
+                                var o = new JsonObject
+                                {
+                                    ["date"] = rf.Date, ["batch"] = bt, ["note"] = Str(lan2["mau"]), ["inputs"] = new JsonObject(), ["stt"] = null, ["dat"] = "", ["kyhieu"] = "",
+                                    ["mota"] = "(chưa có kết quả lần 1 — tạo từ phiếu lần 2)", ["lan2"] = lan2.DeepClone(), ["lan2All"] = new JsonArray(lan2.DeepClone()),
+                                    ["savedAt"] = Iso(), ["source"] = "lan2-import",
+                                };
+                                Set(KeyFor(o), o); newLot++;
+                            }
+                        }
+                        continue;
+                    }
+                    if (!keepOthers || r.Date.Length == 0) { skip++; continue; }
+                    var batch = (s.Lines.Count > 0 ? string.Join(" · ", s.Lines) : "Mẫu " + KhangSinhPdf.N(s.Stt)).Replace(":", "：");
+                    var ks = KeysOf(r.Date, batch);
+                    if (ks.Count > 0) { foreach (var k in ks) AddLan2(k, lan2); sepUpd++; }
+                    else
+                    {
+                        var o = new JsonObject
+                        {
+                            ["date"] = r.Date, ["batch"] = batch, ["note"] = s.Group, ["inputs"] = InputsJson(s.Inputs), ["stt"] = null, ["dat"] = s.Kq2, ["kyhieu"] = s.DatTinh,
+                            ["mota"] = "(kết quả lấy từ phiếu lần 2)", ["lan2"] = lan2.DeepClone(), ["savedAt"] = Iso(), ["source"] = "lan2-import",
+                        };
+                        Set(KeyFor(o), o); sep++;
+                    }
+                }
+            msg = $"Hoàn tất: {upd} lô đã cập nhật KQ lần 2" + (newLot > 0 ? $", {newLot} lô chưa có lần 1 (đã tạo mới)" : "")
+                + (sep > 0 || sepUpd > 0 ? $", {sep} mẫu lưu dòng riêng" + (sepUpd > 0 ? $" (+{sepUpd} cập nhật)" : "") : "") + (skip > 0 ? $", bỏ qua {skip}" : "") + ". Xem tại tab \"Dữ liệu\".";
+        }
+        Save();
+        Log("Nạp PDF phiếu " + (list[0].Kind == KhangSinhPdf.KindLan1 ? "lần 1" : "kiểm lại"), string.Join(", ", list.Select(r => r.File)) + " — " + msg);
+        return msg;
+    }
+
     // ------------------------------------------------------------------ xuất Excel
 
     public void Export(string path, IReadOnlyList<Row> rows, string mode)

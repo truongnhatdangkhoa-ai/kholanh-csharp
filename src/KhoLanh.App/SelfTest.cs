@@ -29,6 +29,16 @@ internal static class SelfTest
             App.Services.Auth.Login("admin", "matkhau1");
         }
         catch (Exception e) { ok = false; log.AppendLine("init: " + e.Message); Done(); return; }
+        // Đọc + vẽ PDF (PdfPig + pdfium.dll gói trong exe) — module Kết quả kháng sinh
+        try
+        {
+            var pdf = MiniPdf("Enro Cipro 23.MKS");
+            var txt = string.Join(" ", Core.KhangSinh.PdfText.Read(pdf).SelectMany(p => p.Items).Select(t => t.Text));
+            var bmp = Controls.PdfRender.Render(pdf, 0, 300);
+            log.AppendLine($"pdf: chữ \"{txt}\", ảnh {bmp.PixelSize.Width}x{bmp.PixelSize.Height}");
+            if (!txt.Contains("23.MKS") || bmp.PixelSize.Width != 300) ok = false;
+        }
+        catch (Exception e) { ok = false; log.AppendLine("pdf: " + e.GetType().Name + " " + e.Message); }
 
         var pages = new[] { "ton-kho-an-an.html", "ton-kho-gui.html" };
         var w = new Window { Title = "Tự kiểm tra module", Width = 1280, Height = 800 };
@@ -80,5 +90,23 @@ internal static class SelfTest
             mv.SetActive(true);
         }
         Dispatcher.UIThread.Post(async () => await Check(0));
+    }
+
+    private static byte[] MiniPdf(string text)
+    {
+        var content = $"BT /F1 12 Tf 72 720 Td ({text}) Tj ET";
+        var objs = new[]
+        {
+            "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            $"<< /Length {content.Length} >>\nstream\n{content}\nendstream", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        };
+        var sb = new StringBuilder("%PDF-1.4\n"); var offs = new List<int>();
+        for (int i = 0; i < objs.Length; i++) { offs.Add(sb.Length); sb.Append($"{i + 1} 0 obj\n{objs[i]}\nendobj\n"); }
+        var x = sb.Length;
+        sb.Append($"xref\n0 {objs.Length + 1}\n0000000000 65535 f \n");
+        foreach (var o in offs) sb.Append($"{o:D10} 00000 n \n");
+        sb.Append($"trailer\n<< /Size {objs.Length + 1} /Root 1 0 R >>\nstartxref\n{x}\n%%EOF\n");
+        return Encoding.ASCII.GetBytes(sb.ToString());
     }
 }

@@ -29,6 +29,8 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.12" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
+    <PackageReference Include="bblanchon.PDFium.Linux" Version="159.0.8138" />
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="159.0.8138" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3967.48" />
   </ItemGroup>
   <ItemGroup>

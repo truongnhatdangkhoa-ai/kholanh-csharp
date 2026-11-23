@@ -15,9 +15,10 @@ namespace KhoLanh.App.Views;
 /// <summary>
 /// Module Kết quả kháng sinh (C#, nghiệp vụ theo "Tra cứu kháng sinh" của app cũ — không dùng WebView2).
 /// Dữ liệu (lần 1 / kiểm lại, tìm nhanh, lọc cột, xóa theo ngày / phiếu / tháng), Tra cứu nhanh 7 chỉ tiêu,
-/// Nhập theo lô trên lưới, Nhập từ Excel (mỗi sheet = 1 ngày), Quy định kháng sinh sửa trên lưới.
+/// Nhập theo lô trên lưới, Nhập từ Excel (mỗi sheet = 1 ngày), Nạp PDF phiếu kết quả (lần 1 / kiểm lại, đối soát 2 cách đọc),
+/// Quy định kháng sinh sửa trên lưới.
 /// </summary>
-public sealed class KhangSinhView : UserControl, IPage
+public sealed partial class KhangSinhView : UserControl, IPage
 {
     public string Title => "Kết quả kháng sinh";
     public string Subtitle => "Kết quả kiểm kháng sinh theo lô (lần 1 và kiểm lại), tra cứu Đạt / Không đạt theo thị trường, nhập theo lô hoặc từ Excel, quy định kháng sinh.";
@@ -110,6 +111,7 @@ public sealed class KhangSinhView : UserControl, IPage
                 new TabItem { Header = "Tra cứu nhanh", Content = BuildLookup() },
                 new TabItem { Header = "Nhập theo lô", Content = BuildBatch() },
                 new TabItem { Header = "Nhập từ Excel", Content = BuildImport() },
+                new TabItem { Header = "Nạp PDF phiếu", Content = BuildPdf() },
                 new TabItem { Header = "Quy định kháng sinh", Content = BuildRules() },
             },
         };
@@ -526,7 +528,7 @@ public sealed class KhangSinhView : UserControl, IPage
     private Control BuildImport()
     {
         var p = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
-        p.Children.Add(Muted("Dùng khi đã có sẵn danh sách lô (có thể đã có kết quả) trong file Excel. Mỗi sheet được coi là dữ liệu của 1 ngày (đoán từ tên sheet, sửa được), hoặc lấy Ngày từ cột Ngày nếu file có. App tự bỏ dòng công ty / tiêu đề phía trên để tìm đúng dòng tiêu đề cột. Đọc phiếu kết quả PDF sẽ có ở bản sau."));
+        p.Children.Add(Muted("Dùng khi đã có sẵn danh sách lô (có thể đã có kết quả) trong file Excel. Mỗi sheet được coi là dữ liệu của 1 ngày (đoán từ tên sheet, sửa được), hoặc lấy Ngày từ cột Ngày nếu file có. App tự bỏ dòng công ty / tiêu đề phía trên để tìm đúng dòng tiêu đề cột. File PDF (phiếu kết quả hoặc bảng): dùng tab Nạp PDF phiếu."));
         p.Children.Add(HRow(Btn("Chọn file Excel…", async () => await PickExcel(), primary: true), _xInfo));
         _xBody.Children.Add(Label("Danh sách sheet (mỗi sheet = 1 ngày) — sửa Dòng tiêu đề / Ngày nếu cần; sheet không có Ngày sẽ bị bỏ qua", bold: true));
         _xBody.Children.Add(new Border { Height = 170, BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _sg });
@@ -554,7 +556,12 @@ public sealed class KhangSinhView : UserControl, IPage
         if (path is null) return;
         List<KhangSinhService.SheetIn>? sh = null;
         if (!await Ui.Run(this, () => sh = KhangSinhService.ReadExcel(path)) || sh is null) return;
-        _sheets = sh; _file = Path.GetFileName(path);
+        LoadSheets(sh, Path.GetFileName(path));
+    }
+    /// <summary>Đưa bảng (từ Excel, hoặc từ PDF dạng bảng) vào phần khớp cột của tab Nhập từ Excel.</summary>
+    private void LoadSheets(List<KhangSinhService.SheetIn> sh, string label)
+    {
+        _sheets = sh; _file = label;
         _sLoading = true;
         _sm.Load(new[] { new GridColumn("s", "Sheet", 200) { ReadOnly = true }, new GridColumn("h", "Dòng tiêu đề", 95, "number"), new GridColumn("n", "Số dòng dữ liệu", 110) { ReadOnly = true }, new GridColumn("d", "Ngày", 110) },
             _sheets.Select(s => (IEnumerable<string?>)new[] { s.Name, (s.HeaderIdx + 1).ToString(), s.Rows.Count.ToString(), Dmy(s.Date) }));

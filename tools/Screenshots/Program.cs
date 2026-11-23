@@ -467,7 +467,19 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         bg.Model.SetCells(new[] { (0, 0, dd), (0, 1, "17"), (0, 2, "PHI X2L1"), (1, 0, dd), (1, 1, "18"), (1, 2, "MINH HẢI"), (1, 4, "4.83"), (1, 5, "10"),
             (2, 0, dd), (2, 1, "19"), (2, 5, "30"), (3, 0, dd), (3, 1, "20"), (3, 8, "0.3"), (4, 0, dd), (4, 1, "21"), (4, 7, "12") });
         Pump(); bg.Select(1, 5); Snap(main, "27d-khang-sinh-nhap-lo");
-        tc.SelectedIndex = 4; Pump(); Snap(main, "27e-khang-sinh-quy-dinh");
+        tc.SelectedIndex = 5; Pump(); Snap(main, "27e-khang-sinh-quy-dinh");
+        // Nạp PDF phiếu: phiếu mẫu tự tạo (tests/.../Data/ks-pdf), không phải phiếu thật
+        tc.SelectedIndex = 4; Pump();
+        var ksv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.KhangSinhView>().First();
+        var pdfDir = Path.Combine(FindRepo(), "tests", "KhoLanh.Core.Tests", "Data", "ks-pdf");
+        void WaitPdf() { for (var i = 0; i < 60; i++) { Thread.Sleep(50); Pump(); } }
+        var tsk = ksv.LoadPdfFiles(new[] { Path.Combine(pdfDir, "lan2-a.pdf") }); while (!tsk.IsCompleted) { Thread.Sleep(30); Pump(); } WaitPdf();
+        Snap(main, "27f-khang-sinh-pdf-kiem-lai");
+        var qg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        qg.Select(5, 2); WaitPdf(); Snap(main, "27g-khang-sinh-pdf-mau");
+        tsk = ksv.LoadPdfFiles(new[] { Path.Combine(pdfDir, "lan1-a.pdf") }); while (!tsk.IsCompleted) { Thread.Sleep(30); Pump(); } WaitPdf();
+        qg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        qg.Select(1, 2); WaitPdf(); Snap(main, "27h-khang-sinh-pdf-lan1");
         tc.SelectedIndex = 0;
     }
     if (key == "m6")
@@ -506,3 +518,10 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
 }
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
+
+static string FindRepo()
+{
+    var d = new DirectoryInfo(AppContext.BaseDirectory);
+    while (d is not null && !File.Exists(Path.Combine(d.FullName, "Directory.Build.props"))) d = d.Parent;
+    return d?.FullName ?? Directory.GetCurrentDirectory();
+}
