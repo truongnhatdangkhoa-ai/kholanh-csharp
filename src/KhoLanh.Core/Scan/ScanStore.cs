@@ -149,7 +149,7 @@ public sealed class ScanStore
 /// <summary>Ghi PDF gồm các ảnh JPEG (mỗi ảnh 1 trang) — không cần thư viện ngoài.</summary>
 public static class JpegPdf
 {
-    public sealed record Page(byte[] Jpeg, int W, int H, bool Gray);
+    public sealed record Page(byte[] Jpeg, int W, int H, bool Gray, double PtW = 0, double PtH = 0);
 
     /// <param name="a4">true = khổ A4 (ảnh căn giữa, xoay khổ theo chiều ảnh); false = trang vừa khít ảnh (0,75 pt / điểm ảnh).</param>
     public static byte[] Build(IEnumerable<Page> pages, bool a4, string title = "")
@@ -170,6 +170,7 @@ public static class JpegPdf
             var pg = list[i]; int pid = pageIds[i], iid = pid + 1, cid = pid + 2;
             var land = pg.W > pg.H; double pw, ph, w, h, x0, y0;
             if (a4) { pw = land ? 841.89 : 595.28; ph = land ? 595.28 : 841.89; var k = Math.Min(pw / pg.W, ph / pg.H); w = pg.W * k; h = pg.H * k; x0 = (pw - w) / 2; y0 = (ph - h) / 2; }
+            else if (pg.PtW > 0 && pg.PtH > 0) { pw = pg.PtW; ph = pg.PtH; w = pw; h = ph; x0 = 0; y0 = 0; }
             else { pw = pg.W * 0.75; ph = pg.H * 0.75; w = pw; h = ph; x0 = 0; y0 = 0; }
             Obj(pid, () => W($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(pw)} {F(ph)}] /Resources << /XObject << /Im0 {iid} 0 R >> >> /Contents {cid} 0 R >>"));
             Obj(iid, () =>

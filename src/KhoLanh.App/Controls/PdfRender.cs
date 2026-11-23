@@ -9,7 +9,7 @@ namespace KhoLanh.App.Controls;
 /// Vẽ 1 trang PDF thành ảnh bằng PDFium (thư viện của Chrome, gói sẵn trong exe — không cần cài gì).
 /// PDFium không an toàn đa luồng → mọi lời gọi đi qua 1 khóa.
 /// </summary>
-public static class PdfRender
+public static partial class PdfRender
 {
     private const string Lib = "pdfium";
     [DllImport(Lib)] private static extern void FPDF_InitLibrary();

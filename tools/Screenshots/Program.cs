@@ -977,6 +977,38 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     Snap(main, "37-vi-tri-bot");
     Console.WriteLine($"[VTB] {s.Vtb.Rows.Count} dòng, {s.Vtb.Slips.Count} phiếu");
 }
+// ---------------- Xử lý PDF & Excel ----------------
+{
+    // chạy thử thao tác PDF / Excel thật
+    {
+        var img = new KhoLanh.Core.Scan.RgbaImage(400, 560, Enumerable.Repeat((byte)255, 400 * 560 * 4).ToArray());
+        for (var y = 100; y < 140; y++) for (var xx = 50; xx < 350; xx++) { var p = (y * 400 + xx) * 4; img.Px[p] = img.Px[p + 1] = img.Px[p + 2] = 0; }
+        var pg = new KhoLanh.Core.Scan.JpegPdf.Page(KhoLanh.App.Controls.ScanImaging.EncodeJpeg(img, 80), 400, 560, false);
+        var blank = new KhoLanh.Core.Scan.JpegPdf.Page(KhoLanh.App.Controls.ScanImaging.EncodeJpeg(new KhoLanh.Core.Scan.RgbaImage(400, 560, Enumerable.Repeat((byte)255, 400 * 560 * 4).ToArray()), 80), 400, 560, false);
+        var a = KhoLanh.Core.Scan.JpegPdf.Build(new[] { pg, blank, pg }.ToList(), true, "A");
+        var m = KhoLanh.App.Controls.PdfRender.Merge(new List<(byte[], string)> { (a, "a"), (a, "b") });
+        var ex = KhoLanh.App.Controls.PdfRender.Extract(m, "m", new List<int> { 0, 2 });
+        var rt = KhoLanh.App.Controls.PdfRender.Rotate(m, "m", new List<int> { 0 }, 90);
+        var st = KhoLanh.App.Controls.PdfRender.Stamp(m, "m", new KhoLanh.App.Controls.PdfRender.StampOpts { Number = true, NumFmt = "Trang {n}/{N}", Watermark = true, WmText = "BẢN SAO" });
+        var bl = KhoLanh.App.Controls.PdfRender.BlankPages(m, "m", 0.003);
+        var dl = KhoLanh.App.Controls.PdfRender.Delete(m, "m", bl);
+        var (rw, rh, _) = KhoLanh.App.Controls.PdfRender.RenderRgbaDpi(st, 0, 72);
+        Console.WriteLine($"[PDF] gộp {KhoLanh.App.Controls.PdfRender.Count(m, "m")} trang, tách {KhoLanh.App.Controls.PdfRender.Count(ex, "e")}, xoay {KhoLanh.App.Controls.PdfRender.Count(rt, "r")}, dấu {KhoLanh.App.Controls.PdfRender.Count(st, "s")} ({rw}x{rh}), trang trắng [{string.Join(",", bl)}] → còn {KhoLanh.App.Controls.PdfRender.Count(dl, "d")}");
+        File.WriteAllBytes(Path.Combine(outDir, "smoke-stamp.pdf"), st);
+        var xf = Path.Combine(outDir, "smoke.xlsx");
+        KhoLanh.Core.Bang.ExcelOps.Write(xf, new[] { ("A", new KhoLanh.Core.Bang.CcTable(new[] { "Mã", "SL" }, new[] { new object?[] { " a1 ", "1,234" }, new object?[] { "b2", 5.0 } })) });
+        var rd = KhoLanh.Core.Bang.ExcelOps.Read(xf); var tb = KhoLanh.Core.Bang.ExcelOps.ToTable(rd[0]);
+        var cl = KhoLanh.Core.Bang.CcBang.CleanTable(tb, new KhoLanh.Core.Bang.CcBang.CleanOpts { Trim = true, NumAll = true });
+        Console.WriteLine($"[XLS] {rd.Count} sheet, {tb.Rows.Count} dòng, sửa {cl.Log.Count} ô: {string.Join(" | ", cl.Table.Rows.Select(r => string.Join(";", r)))}");
+    }
+    main.Navigate("m21"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+    var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
+    lb.SelectedIndex = 3; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "38-xu-ly-pdf");
+    var tcx = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    tcx.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    var lb2 = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
+    lb2.SelectedIndex = 2; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "38b-xu-ly-excel");
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

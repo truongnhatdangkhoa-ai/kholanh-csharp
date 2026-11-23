@@ -32,6 +32,7 @@ public static class Perm
         new("m11", "Phiếu xuất hệ thống", "Phiếu & chứng từ", new[] { View, Export }, "Chỉ xem phiếu xuất của mọi module; Xem + xuất file = xuất Excel danh sách"),
         new("m12", "In chứng từ kho", "Phiếu & chứng từ", new[] { View, Export, Edit }, "Xem + xuất file = in / xuất Excel phiếu; Sửa = nạp file, gộp / tách phiếu, người ký, bổ sung tên hàng"),
         new("m14", "Container 3D", "Công cụ", new[] { View, Export, Edit }, "Xem + xuất file = Excel / ảnh 3D; Sửa = lưu container, phương án, danh mục thùng"),
+        new("m21", "Xử lý PDF & Excel", "Công cụ", new[] { Edit }, "Gộp / tách / xoay / đóng dấu PDF, ảnh ↔ PDF; gộp / tách / làm sạch Excel (chỉ tạo file mới)"),
         new("m15", "Scan tài liệu", "Công cụ", new[] { Edit }, "Quét ảnh / PDF thành bản in sạch; tài liệu lưu riêng từng tài khoản"),
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
