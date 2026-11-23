@@ -259,6 +259,7 @@ public sealed class ViTriView : UserControl, IPage
         btns.Children.Add(_save);
         if (_export)
         {
+            btns.Children.Add(Btn("🖨 In…", async () => { if (_draft.Count == 0) { await Ui.Message(this, "Chưa có dòng nào trong phiếu đang soạn."); return; } await PrintItems(DraftView(), DraftTitle, Ngay); }, tip: "Mở trang in A4 trong trình duyệt (In hoặc Lưu PDF)."));
             btns.Children.Add(Btn("Xuất Excel…", async () => await ExportDraft(), tip: "Xuất phiếu đang soạn ra Excel theo mẫu app cũ (không lưu phiếu)."));
             btns.Children.Add(Btn("Ảnh PNG…", async () => await ImageDraft()));
         }
@@ -428,6 +429,13 @@ public sealed class ViTriView : UserControl, IPage
         if (await Ui.Run(this, () => Svc.ExportExcel(path, items, title, day))) Ui.OpenExternal(path);
     }
 
+    /// <summary>In trực tiếp: dùng lại đúng hàm xuất Excel rồi mở trang in A4 trong trình duyệt.</summary>
+    private async Task PrintItems(List<ViewItem> items, string title, DateTime day)
+    {
+        if (items.Count == 0) { await Ui.Message(this, "Phiếu chưa có dòng nào để in."); return; }
+        await Ui.PrintVia(this, CleanTitle(title) + " " + day.ToString("dd/MM/yyyy"), tmp => Svc.ExportExcel(tmp, items, title, day));
+    }
+
     private async Task ShowImage(List<ViewItem> items, string title, DateTime day, string loai)
     {
         var bmp = SlipImageRenderer.Render(items, $"{CleanTitle(title)} : {day:dd/MM/yyyy}");
@@ -472,6 +480,7 @@ public sealed class ViTriView : UserControl, IPage
         }
         if (_export)
         {
+            act.Children.Add(Btn("🖨 In…", async () => { if (CurSlip() is { } s) await PrintItems(Svc.ViewOfSlip(s), s.TieuDe ?? TitleDefault, Local(s.CreatedAt) ?? DateTime.Today); }));
             act.Children.Add(Btn("Xuất Excel…", async () => { if (CurSlip() is { } s) await ExportItems(Svc.ViewOfSlip(s), s.TieuDe ?? TitleDefault, Local(s.CreatedAt) ?? DateTime.Today, s.Loai); }));
             act.Children.Add(Btn("Ảnh PNG…", async () => { if (CurSlip() is { } s) await ShowImage(Svc.ViewOfSlip(s), s.TieuDe ?? TitleDefault, Local(s.CreatedAt) ?? DateTime.Today, s.Loai); }));
         }
@@ -674,6 +683,7 @@ public sealed class ViTriView : UserControl, IPage
         var act = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
         if (_export)
         {
+            act.Children.Add(Btn("🖨 In ngày…", async () => { if (CurArc() is { } g) await PrintItems(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day)); }));
             act.Children.Add(Btn("Xuất Excel ngày…", async () => { if (CurArc() is { } g) await ExportItems(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day), g.Loai); }, primary: true));
             act.Children.Add(Btn("Ảnh PNG…", async () => { if (CurArc() is { } g) await ShowImage(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day), g.Loai); }));
         }

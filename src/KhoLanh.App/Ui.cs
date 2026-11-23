@@ -210,6 +210,17 @@ public static class Ui
         catch { /* không có chương trình mở: bỏ qua */ }
     }
 
+    /// <summary>"In trực tiếp": chạy hàm xuất Excel ra file tạm, chuyển thành trang in A4 rồi mở bằng trình duyệt (In / Lưu PDF). Dùng lại đúng hàm xuất Excel nên in ra đúng như bản Excel.</summary>
+    public static async Task<bool> PrintVia(Visual v, string title, Action<string> exportToXlsx)
+    {
+        var dir = Path.Combine(App.DataFolder, "in"); Directory.CreateDirectory(dir);
+        var tmp = Path.Combine(dir, "tam-" + Guid.NewGuid().ToString("N")[..8] + ".xlsx");
+        string html = "";
+        var ok = await Run(v, () => { try { exportToXlsx(tmp); html = XlsxHtml.WritePage(tmp, title, dir); } finally { try { File.Delete(tmp); } catch { } } });
+        if (ok) OpenExternal(html);
+        return ok;
+    }
+
     public static string SafeFileName(string s) =>
         string.Concat(s.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
 }

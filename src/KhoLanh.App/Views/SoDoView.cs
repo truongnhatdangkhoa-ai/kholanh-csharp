@@ -130,6 +130,7 @@ public sealed class SoDoView : UserControl, IPage
         tools.Children.Add(Btn("⟳ Tải lại", async () => await LoadAsync()));
         if (_edit) tools.Children.Add(Btn("🔒 Khóa kiểm kê…", async () => await LockDialog()));
         if (_edit) tools.Children.Add(Btn("⚙ Cấu hình kho…", async () => await ConfigDialog()));
+        if (_export) tools.Children.Add(Btn("🖨 In", async () => await PrintList(), tip: "Mở trang in A4 danh sách vị trí đang lọc (In hoặc Lưu PDF)"));
         if (_export) tools.Children.Add(Btn("Xuất Excel", async () => await ExportList(), tip: "Xuất danh sách vị trí đang lọc ra Excel"));
 
         var row1 = new DockPanel();
@@ -588,6 +589,13 @@ public sealed class SoDoView : UserControl, IPage
         if (c == 7 && FillLevel(p, Svc.B).Lv is "near" or "full") return NearBg;
         return null;
     }
+    private async Task PrintList()
+    {
+        var list = _tabs.SelectedIndex == 1 ? FilteredList() : ScopeList();
+        if (list.Count == 0) { await Ui.Message(this, "Không có vị trí nào để in."); return; }
+        await Ui.PrintVia(this, $"Danh sách vị trí {KhoLabel(_kho)}{(_khu == "ALL" ? "" : " khu " + _khu)} {DateTime.Today:dd/MM/yyyy}", tmp => Svc.ExportList(tmp, list));
+    }
+
     private async Task ExportList()
     {
         var list = _tabs.SelectedIndex == 1 ? FilteredList() : ScopeList();
@@ -784,6 +792,7 @@ public sealed class SoDoView : UserControl, IPage
         b2.Children.Add(_bMerge); b2.Children.Add(_bMove); b2.Children.Add(_bMoveAll); b2.Children.Add(_bUndo);
         b2.Children.Add(Btn("+ Thêm dòng", KkAddRow, tip: "Thêm 1 dòng cùng vị trí ngay dưới dòng đang chọn"));
         b2.Children.Add(Btn("− Xóa dòng", KkDelRows, danger: true));
+        if (_export) b2.Children.Add(Btn("🖨 In phiếu (A4)", async () => await KkPrint(), primary: true, tip: "Mỗi dãy 1 trang A4 — mở trong trình duyệt rồi bấm In hoặc Lưu PDF"));
         if (_export) b2.Children.Add(Btn("Xuất Excel (A4)", async () => await KkExport(), primary: true, tip: "Mỗi dãy 1 sheet, Times New Roman 15, khổ A4 đứng — mở Excel để in"));
         b2.Children.Add(Btn("Chuyển sang Nhập liệu", async () => await KkToNhapLieu(), tip: "Tạo trang Nhập liệu (mẫu Kiểm kê) cho 1 dãy, số lượng điền sẵn theo sổ để nhập số thực"));
         b2.Children.Add(Btn("Rà soát chênh lệch", async () => await KkReview(), tip: "So trang Nhập liệu kiểm kê mới nhất của dãy với sổ sách"));
@@ -946,6 +955,13 @@ public sealed class SoDoView : UserControl, IPage
         foreach (var (pi, l) in lines) _k.Pages[pi].Rows.Remove(l);
         _k.Dirty = true;
         KkRender(s.R1);
+    }
+    private async Task KkPrint()
+    {
+        if (_k is null) return;
+        var k = _k;
+        if (k.Pages.Count == 0) { await Ui.Message(this, "Phiếu chưa có dãy nào để in."); return; }
+        if (await Ui.PrintVia(this, $"Phiếu in vị trí {KhoLabel(k.Kho)} khu {k.Khu}{(k.D > 0 ? " dãy " + Two(k.D) : "")}", tmp => Svc.ExportKk(tmp, k))) KkInfo();
     }
     private async Task KkExport()
     {
