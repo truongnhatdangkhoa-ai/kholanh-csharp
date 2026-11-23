@@ -449,7 +449,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -632,6 +632,31 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "31b-cargo-phieu-xem-truoc");
         inner.SelectedIndex = 2; Pump(); Snap(main, "31c-cargo-danh-muc");
         top.SelectedIndex = 0; Pump();
+    }
+    if (key == "m1")
+    {
+        // Tồn kho An An (C#): duyệt 6 tab, rồi thử thao tác tạo phiếu xuất + ghi chú Theo Dõi Tồn bằng giao diện thật.
+        for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        for (var t = 0; t < 6; t++) { tabs.SelectedIndex = t; for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"40-an-an-tab{t + 1}"); }
+        tabs.SelectedIndex = 5; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+        var inner2 = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != tabs);
+        inner2.SelectedIndex = 0; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+        var before = s.AnAn.Slips.Count;
+        var grids = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList();
+        var xg = grids.First();
+        var srcCb = main.PageHost.GetVisualDescendants().OfType<ComboBox>().First(x => x.IsEffectivelyVisible);
+        for (var k = 0; k < 8 && xg.Model.RowCount == 0; k++) { srcCb.SelectedIndex = k; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); } }
+        Console.WriteLine($"[AN-AN] module nguồn có dữ liệu: #{srcCb.SelectedIndex} · {xg.Model.RowCount} dòng");
+        var qtyCol = xg.Model.ColCount - 1;
+        xg.Select(0, qtyCol); xg.Focus(); Pump();
+        main.KeyTextInput("2"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
+        for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "40-an-an-xuat-hang-go-SL");
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Console.WriteLine($"[AN-AN] tạo phiếu xuất: {before} -> {s.AnAn.Slips.Count} phiếu");
+        Snap(main, "40-an-an-sau-tao-phieu");
     }
     if (key == "m6")
     {
