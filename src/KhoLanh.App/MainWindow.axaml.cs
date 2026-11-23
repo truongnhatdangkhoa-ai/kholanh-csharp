@@ -52,6 +52,7 @@ public partial class MainWindow : Window
                     "Nạp file tồn gốc, phân loại 8 nhóm, báo cáo Tổng Tồn / HLSO — chạy nguyên mã module của app cũ.")),
                 new NavItem("m2", "Tồn kho gửi", () => Module("m2", "ton-kho-gui.html", "Tồn kho gửi",
                     "Nạp file tồn kho gửi, phân loại, phiếu xuất, Đặc tính — chạy nguyên mã module của app cũ.")),
+                new NavItem("m7", "Tồn kho theo vị trí", () => new ViTriView()),
             }),
             ("BÁO CÁO", new[]
             {
