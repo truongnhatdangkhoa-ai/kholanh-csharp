@@ -49,6 +49,7 @@ public class AppServices
     public ChungTuService ChungTu { get; }
     public PhieuKhoService PhieuKho { get; }
     public CargoService Cargo { get; }
+    public KhoLanh.Core.TroLy.TroLyService TroLy { get; }
 
     public AppServices(string dbPath)
     {
@@ -85,6 +86,7 @@ public class AppServices
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
+        TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>

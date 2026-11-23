@@ -500,6 +500,10 @@ small.Close();
     if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "tools") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ công cụ): " + outDir); return; }
 }
 
+// Trợ lý hệ thống: quét chạy nền khi mở trang → đợi xong rồi chụp
+main.Navigate("troly"); for (var i = 0; i < 130; i++) { Thread.Sleep(30); Pump(); }
+Snap(main, "16-tro-ly-he-thong");
+
 foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
     main.Navigate(key);

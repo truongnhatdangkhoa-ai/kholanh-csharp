@@ -25,6 +25,7 @@
             <TextBlock x:Name="LanText" VerticalAlignment="Center" FontSize="12"/>
           </StackPanel>
         </Button>
+        <Button x:Name="TroLyButton" Classes="topnav" IsVisible="False" VerticalAlignment="Center" Margin="6,0,0,0" Foreground="#FFB4A8" Click="OnTroLyClick"/>
         <Button x:Name="UpdateButton" Classes="primary" IsVisible="False" VerticalAlignment="Center" Margin="6,0,0,0" Padding="10,6" Click="OnUpdateClick"/>
         <Button x:Name="UserButton" Classes="topnav" VerticalAlignment="Center" Margin="6,0,0,0">
           <Button.Flyout>
