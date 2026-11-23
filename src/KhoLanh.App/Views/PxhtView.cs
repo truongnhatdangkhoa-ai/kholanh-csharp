@@ -20,10 +20,10 @@ public sealed class PxhtView : UserControl, IPage
     public string Subtitle => "Tất cả phiếu xuất của các module (Tồn kho An An, Tồn theo vị trí, Tồn kho gửi, NXT Bột/Sốt) — chỉ xem, không sửa dữ liệu.";
 
     private static PxhtService Svc => App.Services.Pxht;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#B23B00"));
-    private static readonly IBrush PhoneBg = new SolidColorBrush(Color.Parse("#E8F1FB"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Warn = AppTheme.Brush("#B23B00");
+    private static readonly IBrush PhoneBg = AppTheme.Brush("#E8F1FB");
 
     private readonly CalendarDatePicker _from = DatePick(), _to = DatePick();
     private readonly ComboBox _src = new() { MinWidth = 200 };
@@ -33,7 +33,7 @@ public sealed class PxhtView : UserControl, IPage
     private readonly TextBox _q = new() { Watermark = "Tìm mã phiếu, ghi chú, mã / tên hàng trong phiếu…", Width = 300 };
     private readonly WrapPanel _kpi = new() { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 6) };
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-    private readonly Border _warn = new() { Background = new SolidColorBrush(Color.Parse("#FFF4CC")), BorderBrush = new SolidColorBrush(Color.Parse("#E8C766")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), IsVisible = false };
+    private readonly Border _warn = new() { Background = AppTheme.Brush("#FFF4CC"), BorderBrush = AppTheme.Brush("#E8C766"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), IsVisible = false };
     private readonly GridModel _lm = new() { ReadOnly = true };
     private readonly SheetGrid _lg;
     private readonly GridModel _dm = new() { ReadOnly = true };
@@ -127,7 +127,7 @@ public sealed class PxhtView : UserControl, IPage
         var s = new StackPanel();
         s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = Dark });
         s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        return new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 96, Child = s };
+        return new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 96, Child = s };
     }
 
     private async void Load()

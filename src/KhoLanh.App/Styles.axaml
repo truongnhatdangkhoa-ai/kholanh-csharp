@@ -6,8 +6,8 @@
 
   <!-- Thẻ nền trắng -->
   <Style Selector="Border.card">
-    <Setter Property="Background" Value="{StaticResource CardBg}"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+    <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="8"/>
     <Setter Property="Padding" Value="16"/>
@@ -16,32 +16,32 @@
   <Style Selector="TextBlock.title">
     <Setter Property="FontSize" Value="22"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{StaticResource BrandDark}"/>
+    <Setter Property="Foreground" Value="{DynamicResource BrandDark}"/>
   </Style>
   <Style Selector="TextBlock.section">
     <Setter Property="FontSize" Value="15"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
-    <Setter Property="Foreground" Value="{StaticResource BrandMid}"/>
+    <Setter Property="Foreground" Value="{DynamicResource BrandMid}"/>
     <Setter Property="Margin" Value="0,0,0,8"/>
   </Style>
   <Style Selector="TextBlock.muted">
-    <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
     <Setter Property="FontSize" Value="13"/>
   </Style>
   <Style Selector="TextBlock.label">
-    <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
     <Setter Property="FontSize" Value="12"/>
     <Setter Property="Margin" Value="0,0,0,3"/>
   </Style>
   <Style Selector="TextBlock.kpi">
     <Setter Property="FontSize" Value="26"/>
     <Setter Property="FontWeight" Value="Bold"/>
-    <Setter Property="Foreground" Value="{StaticResource BrandDark}"/>
+    <Setter Property="Foreground" Value="{DynamicResource BrandDark}"/>
   </Style>
 
   <!-- Nút chính -->
   <Style Selector="Button.primary">
-    <Setter Property="Background" Value="{StaticResource Accent}"/>
+    <Setter Property="Background" Value="{DynamicResource Accent}"/>
     <Setter Property="Foreground" Value="White"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Padding" Value="16,8"/>
@@ -51,7 +51,7 @@
     <Setter Property="Foreground" Value="White"/>
   </Style>
   <Style Selector="Button.danger">
-    <Setter Property="Foreground" Value="{StaticResource Danger}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Danger}"/>
   </Style>
   <Style Selector="Button">
     <Setter Property="Padding" Value="12,7"/>
@@ -76,12 +76,12 @@
     <Setter Property="Foreground" Value="White"/>
   </Style>
   <Style Selector="Button.topnav.active">
-    <Setter Property="Background" Value="{StaticResource Accent}"/>
+    <Setter Property="Background" Value="{DynamicResource Accent}"/>
     <Setter Property="Foreground" Value="White"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
   <Style Selector="Button.topnav.active:pointerover /template/ ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Accent}"/>
+    <Setter Property="Background" Value="{DynamicResource Accent}"/>
   </Style>
 
   <Style Selector="TabItem">
@@ -89,10 +89,10 @@
     <Setter Property="MinHeight" Value="36"/>
   </Style>
   <Style Selector="DataGrid">
-    <Setter Property="Background" Value="White"/>
+    <Setter Property="Background" Value="{DynamicResource CardBg}"/>
     <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-    <Setter Property="HorizontalGridLinesBrush" Value="#E8EEF3"/>
-    <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource GridLine}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CanUserResizeColumns" Value="True"/>
     <Setter Property="CanUserSortColumns" Value="True"/>
@@ -102,7 +102,7 @@
     <Setter Property="FontSize" Value="13"/>
   </Style>
   <Style Selector="DataGridColumnHeader">
-    <Setter Property="Background" Value="#EAF2F8"/>
+    <Setter Property="Background" Value="{DynamicResource GridHead}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="FontSize" Value="13"/>
   </Style>

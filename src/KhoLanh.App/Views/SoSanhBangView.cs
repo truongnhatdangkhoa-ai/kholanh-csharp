@@ -20,7 +20,7 @@ public sealed class SoSanhBangView : UserControl, IPage
     public string Title => "So sánh & Tra cứu bảng";
     public string Subtitle => "Nạp 2 bảng Excel / CSV, chọn cột khóa → so sánh khác biệt hoặc kéo cột từ bảng B sang bảng A (kiểu VLOOKUP).";
 
-    private static IBrush B(string c) => new SolidColorBrush(Color.Parse(c));
+    private static IBrush B(string c) => AppTheme.Brush(c);
     private static readonly IBrush Dark = B("#0B2A45"), Line_ = B("#D0D7E2"), Diff = B("#FFE9A8"), Miss = B("#ECEFF3"), OkBg = B("#E8F5E9"), DiffBg = B("#FFF6D6"), OnlyBg = B("#FDE7E7"), PullBg = B("#E3F0FF");
 
     private sealed class Side

@@ -24,7 +24,7 @@ public sealed partial class DoiChieuView
     private readonly GridModel _xkm = new() { ReadOnly = true };
     private SheetGrid? _xkg;
     private readonly TextBlock _xkInfo = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _xkWarn = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#B23B00")) };
+    private readonly TextBlock _xkWarn = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = AppTheme.Brush("#B23B00") };
     private Button? _xkTen, _xkUndoBtn, _xkSave;
 
     private Control BuildXuatKiem()
@@ -34,8 +34,8 @@ public sealed partial class DoiChieuView
         {
             if (_xk is null || r >= _xk.Groups.Count) return null;
             var g = _xk.Groups[r];
-            if (c == 3 && _xkRenamed.Contains(g.Ngay + "|" + g.Ma)) return new SolidColorBrush(Color.Parse("#E2EFDA"));
-            return g.NetLech ? new SolidColorBrush(Color.Parse("#FFE699")) : null;
+            if (c == 3 && _xkRenamed.Contains(g.Ngay + "|" + g.Ma)) return AppTheme.Brush("#E2EFDA");
+            return g.NetLech ? AppTheme.Brush("#FFE699") : null;
         };
         var pick = Btn("📂 Chọn file gốc…", async () => await XkPick(), primary: true);
         _xkTen = Btn("Cập nhật tên hàng…", async () => await XkTen(), tip: "Tra tên chuẩn theo mã hàng để thay tên bị cắt trong file gốc — xem trước rồi mới áp"); _xkTen.IsEnabled = false;
@@ -50,7 +50,7 @@ public sealed partial class DoiChieuView
         };
         var top = new StackPanel { Spacing = 4 }; top.Children.Add(hint); top.Children.Add(bar); top.Children.Add(_xkInfo); top.Children.Add(_xkWarn);
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
-        root.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.Parse("#D0D7E2")), BorderThickness = new Thickness(1), Child = _xkg });
+        root.Children.Add(new Border { BorderBrush = AppTheme.Brush("#D0D7E2"), BorderThickness = new Thickness(1), Child = _xkg });
         XkRender();
         return root;
     }
@@ -150,7 +150,7 @@ public sealed partial class DoiChieuView
                 + ". Tra tên theo MÃ HÀNG từ Danh sách mã hàng rồi Mã hóa sản phẩm; tên mới KHÔNG có phần đuôi “ - đặc tính - hợp đồng-lô”. Xóa chữ x ở cột “Đổi” của dòng nào không muốn đổi.",
             TextWrapping = TextWrapping.Wrap, FontSize = 12.5,
         });
-        body.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.Parse("#D0D7E2")), BorderThickness = new Thickness(1), Child = grid });
+        body.Children.Add(new Border { BorderBrush = AppTheme.Brush("#D0D7E2"), BorderThickness = new Thickness(1), Child = grid });
         if (plan.List.Count > Max) body.Children.Add(new TextBlock { Text = $"Chỉ hiện {Max} dòng đầu; {plan.List.Count - Max:#,0} dòng còn lại không đổi (bấm lại sau khi áp để làm tiếp).", Classes = { "muted" }, FontSize = 12 });
         body.Children.Add(new TextBlock { Text = "Chỉ đổi tên trong bảng này (chưa ghi file nào). Tên mới có trong file khi bấm “Xuất file rút gọn”.", Classes = { "muted" }, FontSize = 12 });
         body.Children.Add(Ui.Buttons(close, ok));

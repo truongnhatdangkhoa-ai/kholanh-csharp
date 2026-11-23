@@ -1032,6 +1032,14 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     sv.RunLookup(new[] { 3 }); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "39b-tra-cuu-bang");
     File.Delete(fa); File.Delete(fb);
 }
+// ---------------- Giao diện Tối + cỡ chữ ----------------
+{
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Dark, 1.0);
+    foreach (var (key, name) in new[] { ("lx", "40-giao-dien-toi-tong-quan"), ("m3sk", "40b-giao-dien-toi-nxt"), ("m7", "40c-giao-dien-toi-vi-tri"), ("m22", "40d-giao-dien-toi-so-sanh") })
+    { main.Navigate(key); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, name); }
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Light, 1.0);
+    main.Navigate("lx"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "40e-giao-dien-sang-diu");
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

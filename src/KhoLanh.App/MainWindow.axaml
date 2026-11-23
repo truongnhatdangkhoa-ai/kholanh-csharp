@@ -3,10 +3,10 @@
         x:Class="KhoLanh.App.MainWindow"
         Title="Kho Lạnh" Width="1360" Height="820" MinWidth="1024" MinHeight="640"
         WindowStartupLocation="CenterScreen" WindowState="Maximized" Icon="/Assets/app.ico"
-        Background="{StaticResource PageBg}">
+        Background="{DynamicResource PageBg}">
   <DockPanel>
     <!-- Thanh menu ngang -->
-    <Border DockPanel.Dock="Top" Background="{StaticResource BrandDark}" Padding="14,0">
+    <Border DockPanel.Dock="Top" Background="{DynamicResource NavBg}" Padding="14,0">
       <Grid ColumnDefinitions="Auto,*,Auto" Height="54">
         <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center" Margin="0,0,10,0">
           <Image Source="/Assets/logo.png" Width="30" Height="30"/>
@@ -34,6 +34,7 @@
               <Separator/>
               <MenuItem Header="Đổi mật khẩu" Click="OnChangePassword"/>
               <MenuItem Header="Khởi động cùng Windows…" Click="OnBootSettings"/>
+              <MenuItem Header="Giao diện &amp; cỡ chữ…" Click="OnThemeSettings"/>
               <Separator/>
               <MenuItem Header="Đăng xuất" Click="OnLogout"/>
             </MenuFlyout>
@@ -44,7 +45,7 @@
     </Border>
 
     <!-- Tiêu đề trang -->
-    <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="20,8">
+    <Border DockPanel.Dock="Top" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="20,8">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <TextBlock x:Name="PageTitle" Classes="title" FontSize="18" VerticalAlignment="Center"/>
         <TextBlock Grid.Column="1" x:Name="PageSubtitle" Classes="muted" VerticalAlignment="Center" Margin="16,2,0,0" TextTrimming="CharacterEllipsis"/>

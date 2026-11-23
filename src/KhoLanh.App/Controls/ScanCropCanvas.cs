@@ -30,7 +30,7 @@ public sealed class ScanCropCanvas : Control
 
     public override void Render(DrawingContext dc)
     {
-        dc.FillRectangle(new SolidColorBrush(Color.Parse("#2B3340")), new Rect(Bounds.Size));
+        dc.FillRectangle(AppTheme.Brush("#2B3340"), new Rect(Bounds.Size));
         if (Source is null) return;
         var r = ImgRect(); dc.DrawImage(Source, new Rect(Source.Size), r);
         var pts = Quad.Select(q => ToScreen(q, r)).ToArray();
@@ -43,7 +43,7 @@ public sealed class ScanCropCanvas : Control
             ctx.BeginFigure(pts[0], true); for (var i = 1; i < 4; i++) ctx.LineTo(pts[i]); ctx.EndFigure(true);
         }
         dc.DrawGeometry(new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)), null, outer);
-        var pen = new Pen(new SolidColorBrush(Color.Parse("#22C55E")), 2);
+        var pen = new Pen(AppTheme.Brush("#22C55E"), 2);
         for (var i = 0; i < 4; i++) dc.DrawLine(pen, pts[i], pts[(i + 1) % 4]);
         foreach (var p in pts)
         {

@@ -24,15 +24,15 @@ public sealed partial class DoiChieuView : UserControl, IPage
     public string Subtitle => "So file Xuất của Kho với file Xưởng theo Ngày + Mã hàng; sửa / chuyển / thêm dòng ghi thẳng vào file Excel Kho (giữ nguyên mẫu, có sao lưu và hoàn tác).";
 
     private static DoiChieuService Svc => App.Services.DoiChieu;
-    private static readonly IBrush DayBg = new SolidColorBrush(Color.Parse("#DCEBDD"));
-    private static readonly IBrush WarnDayBg = new SolidColorBrush(Color.Parse("#FBE3D6"));
-    private static readonly IBrush EditedBg = new SolidColorBrush(Color.Parse("#FFF1C9"));
-    private static readonly IBrush LechBg = new SolidColorBrush(Color.Parse("#FFE699"));
-    private static readonly IBrush ChiKhoBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush ChiXuongBg = new SolidColorBrush(Color.Parse("#BDD7EE"));
-    private static readonly IBrush KhopBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush ZeroBg = new SolidColorBrush(Color.Parse("#EDEDED"));
-    private static readonly IBrush MoveBg = new SolidColorBrush(Color.Parse("#D9E7FF"));
+    private static readonly IBrush DayBg = AppTheme.Brush("#DCEBDD");
+    private static readonly IBrush WarnDayBg = AppTheme.Brush("#FBE3D6");
+    private static readonly IBrush EditedBg = AppTheme.Brush("#FFF1C9");
+    private static readonly IBrush LechBg = AppTheme.Brush("#FFE699");
+    private static readonly IBrush ChiKhoBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush ChiXuongBg = AppTheme.Brush("#BDD7EE");
+    private static readonly IBrush KhopBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush ZeroBg = AppTheme.Brush("#EDEDED");
+    private static readonly IBrush MoveBg = AppTheme.Brush("#D9E7FF");
 
     private readonly bool _edit;
     private bool _loading, _busy;
@@ -207,7 +207,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         var dock = new DockPanel();
         DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(_note, Dock.Bottom);
         dock.Children.Add(head); dock.Children.Add(_note);
-        dock.Children.Add(new Border { BorderBrush = new SolidColorBrush(Color.Parse("#D0D7E2")), BorderThickness = new Thickness(1), Child = _grid });
+        dock.Children.Add(new Border { BorderBrush = AppTheme.Brush("#D0D7E2"), BorderThickness = new Thickness(1), Child = _grid });
         return dock;
     }
 
@@ -537,7 +537,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
 
     private static Border Card(Control child, string bg = "#FFFFFF") => new()
     {
-        Background = new SolidColorBrush(Color.Parse(bg)), BorderBrush = new SolidColorBrush(Color.Parse("#D0D7E2")), BorderThickness = new Thickness(1),
+        Background = AppTheme.Brush(bg), BorderBrush = AppTheme.Brush("#D0D7E2"), BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(6), Padding = new Thickness(14, 10), Child = child,
     };
 
@@ -551,7 +551,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         {
             st.Children.Add(Label($"{lk.Name}  —  {lk.Path}  (liên kết {lk.At})"));
             string? err = slot == "xuong" ? Svc.XErr : Svc.PairOf(slot == "kho2" ? 2 : 1).LinkErr;
-            if (!string.IsNullOrEmpty(err)) st.Children.Add(new TextBlock { Text = "⚠ " + err, Foreground = Brushes.DarkRed, FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
+            if (!string.IsNullOrEmpty(err)) st.Children.Add(new TextBlock { Text = "⚠ " + err, Foreground = AppTheme.Danger, FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
             else if (slot != "xuong" && Svc.PairOf(slot == "kho2" ? 2 : 1) is { Kho: { } k } kp)
             {
                 var res = k.Res;
@@ -606,7 +606,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         foreach (var c in res.Conflicts.Take(5)) lines.Add($"Dòng {c.Row}: cột Mã ghi {c.Ma} nhưng cột Size ghi {c.MaSize}");
         if (res.NoCode.Count > 0) lines.Add($"{res.NoCode.Count} dòng có số nhưng chưa có mã (SL {N(res.NoCode.Sum(x => x.Sl))})");
         if (lines.Count == 0) return;
-        st.Children.Add(new TextBlock { Text = $"Cần xem ở {who}:\n• " + string.Join("\n• ", lines), FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#8A4B00")), TextWrapping = TextWrapping.Wrap });
+        st.Children.Add(new TextBlock { Text = $"Cần xem ở {who}:\n• " + string.Join("\n• ", lines), FontSize = 12, Foreground = AppTheme.Brush("#8A4B00"), TextWrapping = TextWrapping.Wrap });
     }
 
     private async Task PickLink(string slot)
@@ -697,7 +697,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         public MapDialog(DoiChieuService.Need need)
         {
             Title = "Chọn cột — " + need.Label; Width = 560; SizeToContent = SizeToContent.Height; CanResize = false;
-            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Brushes.White;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Card;
             var body = new StackPanel { Spacing = 8 };
             body.Children.Add(new TextBlock { Text = need.Map.Reason, TextWrapping = TextWrapping.Wrap });
             var ok = new Button { Content = "Đồng ý", IsDefault = true, Classes = { "primary" } };
@@ -723,7 +723,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
                     boxes[f] = cb;
                     body.Children.Add(new WrapPanel { ItemSpacing = 8, Children = { new TextBlock { Text = DcxEngine.Label.GetValueOrDefault(f, f) + ":", Width = 110, VerticalAlignment = VerticalAlignment.Center }, cb } });
                 }
-                var err = new TextBlock { Foreground = Brushes.DarkRed, TextWrapping = TextWrapping.Wrap };
+                var err = new TextBlock { Foreground = AppTheme.Danger, TextWrapping = TextWrapping.Wrap };
                 body.Children.Add(err);
                 ok.Click += (_, _) =>
                 {
@@ -744,14 +744,14 @@ public sealed partial class DoiChieuView : UserControl, IPage
         public AddRowDialog(int pid, Item? src)
         {
             Title = "Thêm dòng vào " + DoiChieuService.KN(pid); Width = 520; SizeToContent = SizeToContent.Height; CanResize = false;
-            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Brushes.White;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Card;
             var ngay = new TextBox { Text = src is not null ? Dmy(src.Ngay) : DateTime.Today.ToString("dd/MM/yyyy"), Width = 120 };
             var ma = new AutoCompleteBox { Text = src is { TheoSize: false } ? src.Ma : "", Width = 300, FilterMode = AutoCompleteFilterMode.ContainsOrdinal, ItemsSource = Svc.CodeCandidates(), MinimumPrefixLength = 2 };
             var ten = new TextBox { Width = 300 };
             var sl = new TextBox { Text = src?.XSl is > 0 && src.Status == "chi_xuong" ? Inv(src.XSl) : "", Width = 120 };
             var tl = new TextBox { Width = 120, Watermark = "kg / đơn vị" };
             var info = new TextBlock { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
-            var err = new TextBlock { Foreground = Brushes.DarkRed, TextWrapping = TextWrapping.Wrap };
+            var err = new TextBlock { Foreground = AppTheme.Danger, TextWrapping = TextWrapping.Wrap };
             void Lookup()
             {
                 var m = (ma.Text ?? "").Trim(); if (m.Length == 0) { info.Text = ""; return; }
@@ -795,19 +795,19 @@ public sealed partial class DoiChieuView : UserControl, IPage
         public GocDialog(DoiChieuService.Goc g)
         {
             Title = "Nạp file gốc — " + g.FileName; Width = 720; Height = 560; CanResize = true;
-            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Brushes.White;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Card;
             var p = g.Plan;
             var head = new StackPanel { Spacing = 4 };
             head.Children.Add(new TextBlock { Text = $"{g.NRows:#,0} dòng · Xuất thay bao bì {g.Split.Thay.Count:#,0} dòng · Xuất xả {g.Split.RaDong.Count:#,0} dòng" + (g.Split.KhongLoai > 0 ? $" · {g.Split.KhongLoai} dòng không rõ loại (bỏ qua)" : ""), TextWrapping = TextWrapping.Wrap });
             head.Children.Add(new TextBlock { Text = $"{p.NMoi} ngày mới · {p.NGiong} ngày giống hệt · {p.NKhac} ngày khác số" + (p.NSai > 0 ? $" · {p.NSai} ngày sai tháng" : ""), FontWeight = FontWeight.SemiBold });
-            if (g.Wrong.Count > 0) head.Children.Add(new TextBlock { Text = $"⚠ Bỏ qua {g.Wrong.Count} ngày không thuộc {MonthLabel(g.LinkedMonth)}: " + string.Join(", ", g.Wrong.Select(Dmy)), Foreground = Brushes.DarkRed, TextWrapping = TextWrapping.Wrap });
+            if (g.Wrong.Count > 0) head.Children.Add(new TextBlock { Text = $"⚠ Bỏ qua {g.Wrong.Count} ngày không thuộc {MonthLabel(g.LinkedMonth)}: " + string.Join(", ", g.Wrong.Select(Dmy)), Foreground = AppTheme.Danger, TextWrapping = TextWrapping.Wrap });
             var list = new StackPanel { Spacing = 2 };
             foreach (var d in p.Days)
             {
                 var st = d.State switch { "moi" => "MỚI", "giong" => "giống", "khac" => "KHÁC", _ => "sai tháng" };
                 var t = $"{Dmy(d.Ngay)}  [{st}]  Thay thùng {d.Thay.N} mã · {N(d.Thay.Sl)} · {Kg(d.Thay.Net)} kg  |  Rã đông {d.RaDong.N} mã · {N(d.RaDong.Sl)} · {Kg(d.RaDong.Net)} kg";
                 if (d.State == "khac" && d.Diffs.Count > 0) t += "\n      " + string.Join("; ", d.Diffs.Take(6).Select(x => $"{x.Ma}: {N(x.CurSl)} → {N(x.NewSl)}")) + (d.Diffs.Count > 6 ? $"; … +{d.Diffs.Count - 6}" : "");
-                list.Children.Add(new TextBlock { Text = t, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = d.State switch { "moi" => Brushes.DarkGreen, "khac" => new SolidColorBrush(Color.Parse("#9C5700")), "giong" => Brushes.Gray, _ => Brushes.DarkRed } });
+                list.Children.Add(new TextBlock { Text = t, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = d.State switch { "moi" => Brushes.DarkGreen, "khac" => AppTheme.Brush("#9C5700"), "giong" => AppTheme.Muted, _ => AppTheme.Danger } });
             }
             var add = new Button { Content = $"Thêm {p.NMoi} ngày mới", Classes = { "primary" }, IsEnabled = p.NMoi > 0 };
             var rep = new Button { Content = $"Thay {p.NKhac} ngày khác số", IsEnabled = p.NKhac > 0 };

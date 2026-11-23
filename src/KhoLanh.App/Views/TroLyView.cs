@@ -19,8 +19,8 @@ public sealed class TroLyView : UserControl, IPage
     public string Subtitle => "Tự kiểm tra dữ liệu và phần mềm (chỉ đọc, không sửa gì) — chọn cảnh báo rồi sao chép báo cáo cho Claude.";
 
     private static TroLyService Svc => App.Services.TroLy;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
     private static readonly Dictionary<string, (string Bg, string Fg, string Text)> SevStyle = new()
     {
         ["do"] = ("#FDE7E7", "#B42318", "NẶNG"), ["vang"] = ("#FFF4CC", "#8A5A00", "CẦN XEM"), ["xanh"] = ("#E6F4EA", "#1E7B34", "ỔN"), ["xam"] = ("#EEF1F5", "#4B5565", "NHẮC"),
@@ -115,7 +115,7 @@ public sealed class TroLyView : UserControl, IPage
         if (right is not null) { DockPanel.SetDock(right, Dock.Right); head.Children.Add(right); }
         head.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.Bold, FontSize = 14, Foreground = Dark, VerticalAlignment = VerticalAlignment.Center });
         var s = new StackPanel(); s.Children.Add(head); s.Children.Add(content);
-        return new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Child = s };
+        return new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Child = s };
     }
 
     private static Border Badge(string sev)
@@ -123,8 +123,8 @@ public sealed class TroLyView : UserControl, IPage
         var (bg, fg, text) = SevStyle.GetValueOrDefault(sev, SevStyle["xam"]);
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse(bg)), CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1), VerticalAlignment = VerticalAlignment.Top,
-            Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse(fg)) },
+            Background = AppTheme.Brush(bg), CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1), VerticalAlignment = VerticalAlignment.Top,
+            Child = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, Foreground = AppTheme.Brush(fg) },
         };
     }
 
@@ -132,9 +132,9 @@ public sealed class TroLyView : UserControl, IPage
     {
         var (bg, fg, _) = SevStyle[sev];
         var s = new StackPanel();
-        s.Children.Add(new TextBlock { Text = value.ToString("#,0", Ui.Vi), FontSize = 18, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse(fg)) });
+        s.Children.Add(new TextBlock { Text = value.ToString("#,0", Ui.Vi), FontSize = 18, FontWeight = FontWeight.Bold, Foreground = AppTheme.Brush(fg) });
         s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        return new Border { Background = new SolidColorBrush(Color.Parse(bg)), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 4), MinWidth = 100, Child = s };
+        return new Border { Background = AppTheme.Brush(bg), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 4), MinWidth = 100, Child = s };
     }
 
     private void LoadChuY()
@@ -143,7 +143,7 @@ public sealed class TroLyView : UserControl, IPage
         List<TroLyChuY.Viec> list;
         try { list = Svc.ChuY(); }
         catch (Exception e) { _chuY.Children.Add(new TextBlock { Text = "Không đọc được: " + e.Message, Classes = { "muted" } }); return; }
-        if (list.Count == 0) { _chuY.Children.Add(new TextBlock { Text = "✓ Không có việc dang dở nào.", Foreground = new SolidColorBrush(Color.Parse("#1E7B34")), FontSize = 12.5 }); return; }
+        if (list.Count == 0) { _chuY.Children.Add(new TextBlock { Text = "✓ Không có việc dang dở nào.", Foreground = AppTheme.Brush("#1E7B34"), FontSize = 12.5 }); return; }
         foreach (var v in list)
         {
             var row = new DockPanel();
@@ -195,7 +195,7 @@ public sealed class TroLyView : UserControl, IPage
         if (f.Q.Length > 0 && f.Sev != "xanh")
             head.Children.Add(new Border
             {
-                Background = new SolidColorBrush(Color.Parse(f.Q == "taiPhat" ? "#FDE7E7" : "#EEF1F5")), CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1),
+                Background = AppTheme.Brush(f.Q == "taiPhat" ? "#FDE7E7" : "#EEF1F5"), CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 1),
                 Child = new TextBlock { Text = TroLyQueue.Label.GetValueOrDefault(f.Q, f.Q) + (f.Recur > 0 ? $" ×{f.Recur}" : ""), FontSize = 11 },
             });
         head.Children.Add(new TextBlock { Text = f.Mod, FontSize = 12, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center });
@@ -203,7 +203,7 @@ public sealed class TroLyView : UserControl, IPage
         body.Children.Add(head);
         body.Children.Add(new TextBlock { Text = f.Title, FontWeight = FontWeight.SemiBold, FontSize = 13.5, Foreground = Dark, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new TextBlock { Text = f.Detail, FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
-        if (f.QNote.Length > 0) body.Children.Add(new TextBlock { Text = "↳ " + f.QNote, FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#B42318")), TextWrapping = TextWrapping.Wrap });
+        if (f.QNote.Length > 0) body.Children.Add(new TextBlock { Text = "↳ " + f.QNote, FontSize = 12, Foreground = AppTheme.Brush("#B42318"), TextWrapping = TextWrapping.Wrap });
         foreach (var e in f.Evidence) body.Children.Add(new SelectableTextBlock { Text = "• " + e, FontSize = 12, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap });
         if (f.Fixes is { Count: > 0 } fx)
         {
@@ -214,7 +214,7 @@ public sealed class TroLyView : UserControl, IPage
         }
         var g = new DockPanel();
         cb.Margin = new Thickness(0, 0, 6, 0); DockPanel.SetDock(cb, Dock.Left); g.Children.Add(cb); g.Children.Add(body);
-        return new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8), Child = g };
+        return new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8), Child = g };
     }
 
     // ------------------------------------------------------------------ thao tác

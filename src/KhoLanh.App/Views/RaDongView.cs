@@ -23,11 +23,11 @@ public sealed class RaDongView : UserControl, IPage
     public string Subtitle => "Nạp file Nhập xuất trong ngày, gộp theo Ngày + Tên sản phẩm + Size, lưu số liệu theo ngày, xuất Excel năm và ảnh từng ngày.";
 
     private static RaDongService Svc => App.Services.RaDong;
-    private static readonly IBrush EditedBg = new SolidColorBrush(Color.Parse("#FFF1C9"));
-    private static readonly IBrush AutoBg = new SolidColorBrush(Color.Parse("#E3F0FF"));
-    private static readonly IBrush TotalBg = new SolidColorBrush(Color.Parse("#EEF2F7"));
-    private static readonly IBrush DayBg = new SolidColorBrush(Color.Parse("#DCEBDD"));
-    private static readonly IBrush HandBg = new SolidColorBrush(Color.Parse("#FCE8E6"));
+    private static readonly IBrush EditedBg = AppTheme.Brush("#FFF1C9");
+    private static readonly IBrush AutoBg = AppTheme.Brush("#E3F0FF");
+    private static readonly IBrush TotalBg = AppTheme.Brush("#EEF2F7");
+    private static readonly IBrush DayBg = AppTheme.Brush("#DCEBDD");
+    private static readonly IBrush HandBg = AppTheme.Brush("#FCE8E6");
 
     private readonly bool _edit;
     private bool _loading, _ready;
@@ -711,7 +711,7 @@ public sealed class RaDongView : UserControl, IPage
         body.Children.Add(new ScrollViewer
         {
             MaxHeight = 560, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = new Border { BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
+            Content = new Border { BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
         });
         body.Children.Add(Ui.Buttons(close, save));
         var w = Ui.Dialog(title, body, Math.Min(900, bmp.Size.Width / 2 + 80));
@@ -746,7 +746,7 @@ public sealed class RaDongView : UserControl, IPage
             _svc = svc; _plan = plan; FileName = fileName; _defaultMode = defaultMode;
             _dup = hash.Length > 0 ? svc.SeenBefore(hash) : null;
             Title = update ? "Cập nhật số liệu từ file" : "Lưu số liệu đã nạp vào Bảng 3";
-            Width = 860; Height = 640; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Brushes.White;
+            Width = 860; Height = 640; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Card;
             var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
             head.Children.Add(new TextBlock
             {
@@ -758,7 +758,7 @@ public sealed class RaDongView : UserControl, IPage
             if (_dup is not null)
                 head.Children.Add(new Border
                 {
-                    Background = new SolidColorBrush(Color.Parse("#FFF1C9")), Padding = new Thickness(8, 6), CornerRadius = new CornerRadius(4),
+                    Background = AppTheme.Brush("#FFF1C9"), Padding = new Thickness(8, 6), CornerRadius = new CornerRadius(4),
                     Child = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Text = $"⚠ File này (cùng nội dung) đã nạp lúc {At(_dup.At)} ({_dup.Name}{(_dup.Days > 0 ? " · " + _dup.Days + " ngày" : "")}). Kiểu Cập nhật / Thay thế vẫn an toàn; đừng chọn \"Cộng dồn\"." },
                 });
             head.Children.Add(_showSame);
@@ -815,16 +815,16 @@ public sealed class RaDongView : UserControl, IPage
                 int N(params RaDongService.Kind[] k) => c.Items.Count(x => k.Contains(x.Kind));
                 h.Children.Add(T(c.Has
                     ? $"+{N(RaDongService.Kind.New)} mới · ~{N(RaDongService.Kind.Chg, RaDongService.Kind.Manual)} khác số" + (N(RaDongService.Kind.Sl) > 0 ? $" · {N(RaDongService.Kind.Sl)} bổ sung SL" : "") + $" · ={N(RaDongService.Kind.Same)} giống · {N(RaDongService.Kind.Old)} cũ không có trong file"
-                    : $"{p.Rows.Count} dòng mới", fg: Brushes.DimGray));
+                    : $"{p.Rows.Count} dòng mới", fg: AppTheme.Muted));
                 var diff = RaDongService.Round(c.After - (c.Has ? c.Before : 0));
                 h.Children.Add(T((c.Has ? $"Tổng: {F(c.Before)} → " : "Tổng: ") + F(c.After) + $"  ({(diff >= 0 ? "+" : "")}{F(diff)})", bold: true,
-                    fg: diff >= 0 ? new SolidColorBrush(Color.Parse("#1B7F3B")) : new SolidColorBrush(Color.Parse("#B42318"))));
+                    fg: diff >= 0 ? AppTheme.Brush("#1B7F3B") : AppTheme.Brush("#B42318")));
                 box.Children.Add(h);
                 var hand = c.Existing.Count(r => r.Edited);
                 if (c.Has && c.Mode == "update")
                 {
                     var list = c.Items.Where(x => _showSame.IsChecked == true || x.Kind != RaDongService.Kind.Same).ToList();
-                    if (list.Count == 0) box.Children.Add(T("Không có dòng nào khác nhau.", fg: Brushes.DimGray));
+                    if (list.Count == 0) box.Children.Add(T("Không có dòng nào khác nhau.", fg: AppTheme.Muted));
                     else
                     {
                         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*,*,2*,1.6*"), Margin = new Thickness(12, 0, 0, 0) };
@@ -841,7 +841,7 @@ public sealed class RaDongView : UserControl, IPage
                             Cell(row, 3, T(x.X is null ? "—" : F(x.X.Net)));
                             var extra = x.Kind is RaDongService.Kind.Chg or RaDongService.Kind.Manual ? $" ({(x.X!.Net - x.Cur >= 0 ? "+" : "")}{F(x.X.Net - x.Cur)})"
                                 : x.Kind == RaDongService.Kind.Sl ? $" (SL: {(RaDongService.FmtSlVn(x.CurSl) is { Length: > 0 } a ? a : "trống")} → {RaDongService.FmtSlVn(x.X!.Sl)})" : "";
-                            Cell(row, 4, T(KindText[x.Kind] + extra, fg: x.Kind == RaDongService.Kind.Manual ? new SolidColorBrush(Color.Parse("#B42318")) : null));
+                            Cell(row, 4, T(KindText[x.Kind] + extra, fg: x.Kind == RaDongService.Kind.Manual ? AppTheme.Brush("#B42318") : null));
                             string[]? opt = x.Kind switch
                             {
                                 RaDongService.Kind.New => new[] { "Thêm", "Bỏ qua" },
@@ -850,7 +850,7 @@ public sealed class RaDongView : UserControl, IPage
                                 RaDongService.Kind.Manual => new[] { "Lấy số file", "Giữ số đã sửa" },
                                 _ => null,
                             };
-                            if (opt is null) Cell(row, 5, T(x.Kind == RaDongService.Kind.Old ? "giữ nguyên" : "—", fg: Brushes.DimGray));
+                            if (opt is null) Cell(row, 5, T(x.Kind == RaDongService.Kind.Old ? "giữ nguyên" : "—", fg: AppTheme.Muted));
                             else
                             {
                                 var take = p.Take.TryGetValue(x.Key, out var t) ? t : x.DefaultTake;
@@ -864,9 +864,9 @@ public sealed class RaDongView : UserControl, IPage
                         box.Children.Add(g);
                     }
                 }
-                else if (c.Has && c.Mode == "replace") box.Children.Add(T($"Thay thế cả ngày: xóa {c.Existing.Count} dòng đang lưu" + (hand > 0 ? $" ({hand} dòng đã sửa tay sẽ mất)" : "") + $" và ghi {p.Rows.Count} dòng của file.", fg: hand > 0 ? new SolidColorBrush(Color.Parse("#B42318")) : Brushes.DimGray));
-                else if (c.Has && c.Mode == "add") box.Children.Add(T($"Cộng dồn: cộng Net của {p.Rows.Count} dòng trong file vào các dòng trùng Mã hàng + Size, dòng chưa có thì thêm." + (_dup is not null ? " File này đã nạp trước đó — cộng dồn sẽ bị tính ĐÚP." : ""), fg: Brushes.DimGray));
-                else if (c.Mode == "skip") box.Children.Add(T("Bỏ qua ngày này — không đổi gì.", fg: Brushes.DimGray));
+                else if (c.Has && c.Mode == "replace") box.Children.Add(T($"Thay thế cả ngày: xóa {c.Existing.Count} dòng đang lưu" + (hand > 0 ? $" ({hand} dòng đã sửa tay sẽ mất)" : "") + $" và ghi {p.Rows.Count} dòng của file.", fg: hand > 0 ? AppTheme.Brush("#B42318") : AppTheme.Muted));
+                else if (c.Has && c.Mode == "add") box.Children.Add(T($"Cộng dồn: cộng Net của {p.Rows.Count} dòng trong file vào các dòng trùng Mã hàng + Size, dòng chưa có thì thêm." + (_dup is not null ? " File này đã nạp trước đó — cộng dồn sẽ bị tính ĐÚP." : ""), fg: AppTheme.Muted));
+                else if (c.Mode == "skip") box.Children.Add(T("Bỏ qua ngày này — không đổi gì.", fg: AppTheme.Muted));
                 _blocks.Children.Add(new Border { Classes = { "card" }, Padding = new Thickness(10, 8), Child = box });
             }
             _total.Text = $"Tổng các ngày: {F(tb)} → {F(ta)}";

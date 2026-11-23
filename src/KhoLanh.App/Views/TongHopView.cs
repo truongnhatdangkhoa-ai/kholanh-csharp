@@ -21,9 +21,9 @@ public sealed class TongHopView : UserControl, IPage
     public string Subtitle => "Mã hóa sản phẩm 21 ký tự, danh sách mã hàng, gộp dữ liệu theo Tên sản phẩm + Size, ánh xạ tên hàng.";
 
     private static TongHopService Svc => App.Services.TongHop;
-    private static readonly IBrush Bad = new SolidColorBrush(Color.Parse("#FDE2E1"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#FFF1C9"));
-    private static readonly IBrush Total = new SolidColorBrush(Color.Parse("#FFF4CC"));
+    private static readonly IBrush Bad = AppTheme.Brush("#FDE2E1");
+    private static readonly IBrush Warn = AppTheme.Brush("#FFF1C9");
+    private static readonly IBrush Total = AppTheme.Brush("#FFF4CC");
 
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromSeconds(3) };
     private bool _dirty, _loading;

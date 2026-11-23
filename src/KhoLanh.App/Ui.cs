@@ -83,7 +83,7 @@ public static class Ui
     {
         Title = title, Width = width, SizeToContent = SizeToContent.Height, CanResize = false,
         WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
-        Background = Brushes.White,
+        Background = AppTheme.Card,
         Content = new Border { Padding = new Thickness(22, 18), Child = body },
     };
 

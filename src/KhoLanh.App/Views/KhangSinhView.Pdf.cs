@@ -21,9 +21,9 @@ namespace KhoLanh.App.Views;
 /// </summary>
 public sealed partial class KhangSinhView
 {
-    private static readonly IBrush Amber = new SolidColorBrush(Color.Parse("#9C6500"));
-    private static readonly IBrush Green = new SolidColorBrush(Color.Parse("#2E7D32"));
-    private static readonly IBrush SelBox = new SolidColorBrush(Color.Parse("#1E6FD9"));
+    private static readonly IBrush Amber = AppTheme.Brush("#9C6500");
+    private static readonly IBrush Green = AppTheme.Brush("#2E7D32");
+    private static readonly IBrush SelBox = AppTheme.Brush("#1E6FD9");
 
     private List<P.Phieu> _pf = new();
     private List<P.Sample> _pRows = new();
@@ -42,7 +42,7 @@ public sealed partial class KhangSinhView
     // ảnh trang PDF
     private readonly Image _pImg = new() { Stretch = Stretch.Fill };
     private readonly Rectangle _pBox = new() { StrokeThickness = 2.5, Stroke = SelBox, Fill = new SolidColorBrush(Color.FromArgb(28, 30, 111, 217)), IsVisible = false, IsHitTestVisible = false };
-    private readonly Canvas _pCanvas = new() { Background = Brushes.White };
+    private readonly Canvas _pCanvas = new() { Background = AppTheme.Card };
     private readonly ScrollViewer _pScroll = new() { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
     private readonly TextBlock _pPageLbl = new() { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, MinWidth = 120 };
     private readonly TextBlock _pZoomLbl = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, MinWidth = 40, TextAlignment = TextAlignment.Center };
@@ -253,7 +253,7 @@ public sealed partial class KhangSinhView
     private static TextBlock IssueLine(P.Issue i) => new()
     {
         Text = (i.Lv switch { "err" => "✗ ", "warn" => "⚠ ", "note" => "• ", _ => "ⓘ " }) + i.Msg, FontSize = 12, TextWrapping = TextWrapping.Wrap,
-        Foreground = i.Lv switch { "err" => Red, "warn" => Amber, "note" => Amber, _ => Brushes.DimGray },
+        Foreground = i.Lv switch { "err" => Red, "warn" => Amber, "note" => Amber, _ => AppTheme.Muted },
     };
 
     private IBrush? QBg(int r, int c)
@@ -262,7 +262,7 @@ public sealed partial class KhangSinhView
         var s = _pRows[r];
         if (c == 0) return !P.Flag(s) ? GreenBg : s.Ok ? AmberBg : RedBg;
         if (c >= QEdit0 && c < QEdit0 + 7) { var v = s.Raw.GetValueOrDefault(P.AB[c - QEdit0].Key) ?? ""; if (P.NumVal.IsMatch(v)) return AmberBg; }
-        if (P.Need(s) && c >= 1) return new SolidColorBrush(Color.Parse("#FDF0EC"));
+        if (P.Need(s) && c >= 1) return AppTheme.Brush("#FDF0EC");
         return null;
     }
 

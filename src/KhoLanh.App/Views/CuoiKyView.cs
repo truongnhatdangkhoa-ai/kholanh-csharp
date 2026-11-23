@@ -22,7 +22,7 @@ public sealed class CuoiKyView : UserControl, IPage
     public string Subtitle => "Đối chiếu tồn cuối kỳ kho (An An + Kho gửi) với kế toán theo mã, kg — tìm nguyên nhân lệch, gợi ý mã nhầm, chứng từ nghi ngờ.";
 
     private static CkService Svc => App.Services.CuoiKy;
-    private static IBrush B(string c) => new SolidColorBrush(Color.Parse(c));
+    private static IBrush B(string c) => AppTheme.Brush(c);
     private static readonly IBrush Line_ = B("#D0D7E2"), Dark = B("#0B2A45"), Red = B("#B71C1C"), Green = B("#1B5E20"), Amber = B("#8A5A00");
     private static readonly IBrush BgDiff = B("#FDECEA"), BgDone = B("#E8F5E9"), BgGroup = B("#FFF8E1");
 
@@ -100,7 +100,7 @@ public sealed class CuoiKyView : UserControl, IPage
     private static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private static TextBlock H(string t) => new() { Text = t, FontSize = 13.5, FontWeight = FontWeight.Bold, Foreground = Dark, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap };
     private static Border Framed(Control c, Thickness? m = null) => new() { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = c, Margin = m ?? default };
-    private static Border Card(Control c, IBrush? bg = null) => new() { Background = bg ?? Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = c };
+    private static Border Card(Control c, IBrush? bg = null) => new() { Background = bg ?? AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = c };
     private static Button Btn(string text, Action click, string? tip = null, bool primary = false)
     {
         var b = new Button { Content = text, Padding = new Thickness(10, 4), FontSize = 12.5 };
@@ -170,13 +170,13 @@ public sealed class CuoiKyView : UserControl, IPage
                 s.Children.Add(new TextBlock { Text = "📄 " + f.FileName, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
                 s.Children.Add(Muted($"Sheet {f.Sheet} · {f.Rows.Count:#,0} dòng · {Vn(f.Rows.Sum(x => x.Kg))} kg" + (f.LoadedAt.Length > 0 ? " · nạp " + When(f.LoadedAt) : "")));
                 var pc = CkImport.CheckPeriod(f.Period ?? f.PeriodGuess, Svc.Period, k);
-                s.Children.Add(new TextBlock { Text = (pc.State == "ok" ? "✔ " : pc.State == "khac" ? "⚠ " : "• ") + pc.Text, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = pc.State == "ok" ? Green : pc.State == "khac" ? Amber : Brushes.Gray });
+                s.Children.Add(new TextBlock { Text = (pc.State == "ok" ? "✔ " : pc.State == "khac" ? "⚠ " : "• ") + pc.Text, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = pc.State == "ok" ? Green : pc.State == "khac" ? Amber : AppTheme.Muted });
                 if (k == "ketoan") s.Children.Add(Muted(f.Ct is { } ct ? $"Chứng từ: {ct.Vouchers.Count:#,0} dòng (sheet {ct.Sheet})" : "Không có sheet chứng từ" + (f.CtError.Length > 0 ? ": " + f.CtError : "")));
                 if (k == "ketoan" && f.DanhMuc is { } dm) s.Children.Add(Muted($"Danh mục thành phẩm: {dm.Count:#,0} mã"));
                 if (f.Issues.Count > 0)
                 {
                     var exp = new Expander { Header = $"{f.Stats.Issues} vấn đề khi đọc", FontSize = 12, Padding = new Thickness(4) };
-                    var iss = new StackPanel(); foreach (var i in f.Issues.Take(60)) iss.Children.Add(new TextBlock { Text = (i.Row > 0 ? $"Dòng {i.Row}: " : "") + i.Msg, FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Foreground = i.Sev == "loi" ? Red : Brushes.Black });
+                    var iss = new StackPanel(); foreach (var i in f.Issues.Take(60)) iss.Children.Add(new TextBlock { Text = (i.Row > 0 ? $"Dòng {i.Row}: " : "") + i.Msg, FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Foreground = i.Sev == "loi" ? Red : AppTheme.Text });
                     exp.Content = iss; s.Children.Add(exp);
                 }
             }
@@ -216,7 +216,7 @@ public sealed class CuoiKyView : UserControl, IPage
         for (var i = 0; i < spec.Fields.Length; i++)
         {
             var f = spec.Fields[i];
-            var lab = new TextBlock { Text = f.Label + (spec.Must.Contains(f.Key) ? " *" : "") + (res.Missing.Contains(f.Key) ? " (thiếu)" : res.Ambiguous.ContainsKey(f.Key) ? " (nhiều cột khớp)" : ""), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 2), Foreground = res.Missing.Contains(f.Key) || res.Ambiguous.ContainsKey(f.Key) ? Red : Brushes.Black };
+            var lab = new TextBlock { Text = f.Label + (spec.Must.Contains(f.Key) ? " *" : "") + (res.Missing.Contains(f.Key) ? " (thiếu)" : res.Ambiguous.ContainsKey(f.Key) ? " (nhiều cột khớp)" : ""), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 2), Foreground = res.Missing.Contains(f.Key) || res.Ambiguous.ContainsKey(f.Key) ? Red : AppTheme.Text };
             var cb = new ComboBox { ItemsSource = opts, SelectedIndex = res.Mapping.TryGetValue(f.Key, out var c) ? c + 1 : res.Ambiguous.TryGetValue(f.Key, out var a) ? a[0] + 1 : 0, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 2) };
             Grid.SetRow(lab, i); Grid.SetRow(cb, i); Grid.SetColumn(cb, 1); grid.Children.Add(lab); grid.Children.Add(cb); boxes[f.Key] = cb;
         }
@@ -250,7 +250,7 @@ public sealed class CuoiKyView : UserControl, IPage
             s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
             s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
             if (sub is not null) s.Children.Add(new TextBlock { Text = sub, FontSize = 11, Classes = { "muted" } });
-            return new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 100, Child = s };
+            return new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 100, Child = s };
         }
         _kpi.Children.Add(Kp("Mã đối chiếu", $"{K.Tong:#,0}", null, $"khớp {K.Khop:#,0}"));
         _kpi.Children.Add(Kp("Đang lệch", $"{K.Lech:#,0}", K.Lech > 0 ? Red : Green, $"thiếu {K.Thieu} · thừa {K.Thua}"));
@@ -406,7 +406,7 @@ public sealed class CuoiKyView : UserControl, IPage
             {
                 var d = new DockPanel();
                 if (Svc.CanEdit && !a.Cancelled) { var aa = a; var cb = Btn("Hủy", async () => { await Ui.Run(this, () => Svc.CancelAdjustment(aa.Id)); RenderAll(); }); DockPanel.SetDock(cb, Dock.Right); d.Children.Add(cb); }
-                d.Children.Add(new TextBlock { Text = $"{Sg(a.Qty)} kg ở {(a.Side == "kt" ? "kế toán" : "kho")} · {a.Reason} · {a.By} {When(a.At)}" + (a.Cancelled ? " (đã hủy)" : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = a.Cancelled ? Brushes.Gray : Brushes.Black });
+                d.Children.Add(new TextBlock { Text = $"{Sg(a.Qty)} kg ở {(a.Side == "kt" ? "kế toán" : "kho")} · {a.Reason} · {a.By} {When(a.At)}" + (a.Cancelled ? " (đã hủy)" : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = a.Cancelled ? AppTheme.Muted : AppTheme.Text });
                 _detail.Children.Add(d);
             }
         }
@@ -422,7 +422,7 @@ public sealed class CuoiKyView : UserControl, IPage
     {
         var d = new DockPanel();
         if (Svc.CanEdit && !e.Undone && e.Action != "hoan-tac") { var ee = e; var ub = Btn("↶ Hoàn tác", async () => { await Ui.Run(this, () => Svc.Undo(ee.Id)); RenderAll(); }); DockPanel.SetDock(ub, Dock.Right); d.Children.Add(ub); }
-        d.Children.Add(new TextBlock { Text = $"{When(e.At)} · {e.By} · {e.Summary}" + (e.Reason.Length > 0 ? " — " + e.Reason : "") + (e.Undone ? " (đã hoàn tác)" : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = e.Undone ? Brushes.Gray : Brushes.Black });
+        d.Children.Add(new TextBlock { Text = $"{When(e.At)} · {e.By} · {e.Summary}" + (e.Reason.Length > 0 ? " — " + e.Reason : "") + (e.Undone ? " (đã hoàn tác)" : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = e.Undone ? AppTheme.Muted : AppTheme.Text });
         return new Border { BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 3), Child = d };
     }
 
@@ -437,7 +437,7 @@ public sealed class CuoiKyView : UserControl, IPage
     {
         _checks.Children.Clear(); var R = Svc.Result;
         if (R is null) { _checks.Children.Add(Muted("Chưa đối chiếu.")); return; }
-        foreach (var c in R.Validation) _checks.Children.Add(new TextBlock { Text = (c.Level switch { "ok" => "✔ ", "warn" => "⚠ ", "err" => "⛔ ", _ => "ℹ " }) + c.Text, Foreground = c.Level switch { "ok" => Green, "warn" => Amber, "err" => Red, _ => Brushes.Black }, TextWrapping = TextWrapping.Wrap });
+        foreach (var c in R.Validation) _checks.Children.Add(new TextBlock { Text = (c.Level switch { "ok" => "✔ ", "warn" => "⚠ ", "err" => "⛔ ", _ => "ℹ " }) + c.Text, Foreground = c.Level switch { "ok" => Green, "warn" => Amber, "err" => Red, _ => AppTheme.Text }, TextWrapping = TextWrapping.Wrap });
         if (R.Offsets.Count > 0)
         {
             _checks.Children.Add(H("Nhóm mã lệch bù trừ (chỉ khác 1 đoạn mã, tổng ≈ 0)"));

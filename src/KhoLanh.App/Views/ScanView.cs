@@ -24,8 +24,8 @@ public sealed class ScanView : UserControl, IPage
     public string Subtitle => "Ảnh chụp / PDF → tự cắt trang, khử bóng, nền trắng chữ đen → xuất PDF để in / gửi. Xử lý hoàn toàn trên máy.";
 
     private static ScanStore Store => App.Services.Scan;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
     private const int PreviewSide = 1700, ThumbSide = 240;
 
     private ScanDoc _doc = new() { Id = ScanStore.NewId(), Name = DefaultName() };
@@ -46,7 +46,7 @@ public sealed class ScanView : UserControl, IPage
     private readonly ComboBox _fmt = new() { ItemsSource = new[] { "PDF khổ A4", "PDF vừa khít ảnh" }, SelectedIndex = 0, Width = 150 };
     private readonly StackPanel _panel = new() { Spacing = 8 };
     private readonly Slider _zoom = new() { Minimum = 0.25, Maximum = 3, Value = 1, Width = 140 };
-    private readonly TextBlock _busy = new() { Foreground = new SolidColorBrush(Color.Parse("#1D4ED8")), FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _busy = new() { Foreground = AppTheme.Brush("#1D4ED8"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly DispatcherTimer _draftT = new() { Interval = TimeSpan.FromSeconds(2) };
     private readonly DispatcherTimer _prevT = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private Bitmap? _curBmp;
@@ -83,7 +83,7 @@ public sealed class ScanView : UserControl, IPage
         es.Children.Add(new TextBlock { Text = "hoặc bấm “＋ Thêm ảnh / PDF”. Phần mềm tự tìm tờ giấy trong ảnh, nắn thẳng, khử bóng, làm trắng nền để in / photo rõ như máy scan. Ảnh không gửi đi đâu.", TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Classes = { "muted" } });
         var addBig = Btn("＋ Thêm ảnh / PDF", AddFilesDialog, null, true); addBig.HorizontalAlignment = HorizontalAlignment.Center; es.Children.Add(addBig);
         _empty.Child = es;
-        var stage = new Grid { Background = new SolidColorBrush(Color.Parse("#E5E9F0")) };
+        var stage = new Grid { Background = AppTheme.Brush("#E5E9F0") };
         stage.Children.Add(_imgScroll); stage.Children.Add(_crop); stage.Children.Add(_empty);
         var zoomBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 4, 0, 0) };
         zoomBar.Children.Add(new TextBlock { Text = "Thu phóng", FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
@@ -255,7 +255,7 @@ public sealed class ScanView : UserControl, IPage
             var sp = new StackPanel { Spacing = 2 };
             sp.Children.Add(new Image { Source = _thumbs.TryGetValue(p, out var t) ? t : null, Height = 150, Stretch = Stretch.Uniform });
             sp.Children.Add(new TextBlock { Text = $"Trang {i + 1}" + (p.CropOn ? " · đã cắt" : ""), FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Center });
-            var b = new Button { Content = sp, Padding = new Thickness(4), HorizontalAlignment = HorizontalAlignment.Stretch, Background = i == _cur ? new SolidColorBrush(Color.Parse("#DBEAFE")) : Brushes.White, BorderBrush = i == _cur ? new SolidColorBrush(Color.Parse("#2563EB")) : Line_, BorderThickness = new Thickness(i == _cur ? 2 : 1) };
+            var b = new Button { Content = sp, Padding = new Thickness(4), HorizontalAlignment = HorizontalAlignment.Stretch, Background = i == _cur ? AppTheme.Brush("#DBEAFE") : Brushes.White, BorderBrush = i == _cur ? AppTheme.Brush("#2563EB") : Line_, BorderThickness = new Thickness(i == _cur ? 2 : 1) };
             b.Click += (_, _) => { _cur = idx; _cropMode = false; RenderAll(); };
             _strip.Children.Add(b);
         }

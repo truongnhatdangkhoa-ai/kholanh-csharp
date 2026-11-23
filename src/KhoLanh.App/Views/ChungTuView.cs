@@ -23,12 +23,12 @@ public sealed class ChungTuView : UserControl, IPage
     public string Subtitle => "Nạp file Excel xuất kho (Xuất TBB / Xuất Xả / Xuất Kiểm) → Phiếu xuất theo ngày, gộp / tách phiếu, in hoặc xuất Excel theo mẫu BM02/QT23.";
 
     private static ChungTuService Svc => App.Services.ChungTu;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#B23B00"));
-    private static readonly IBrush TachBg = new SolidColorBrush(Color.Parse("#FFF1CC"));
-    private static readonly IBrush MergedBg = new SolidColorBrush(Color.Parse("#E3F2FB"));
-    private static readonly IBrush GreenFg = new SolidColorBrush(Color.Parse("#0A8A3A"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Warn = AppTheme.Brush("#B23B00");
+    private static readonly IBrush TachBg = AppTheme.Brush("#FFF1CC");
+    private static readonly IBrush MergedBg = AppTheme.Brush("#E3F2FB");
+    private static readonly IBrush GreenFg = AppTheme.Brush("#0A8A3A");
 
     private readonly bool _edit, _export;
     private bool _loading;

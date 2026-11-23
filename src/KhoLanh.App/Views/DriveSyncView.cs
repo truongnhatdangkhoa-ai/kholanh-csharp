@@ -225,7 +225,7 @@ public sealed class DriveSyncView : UserControl, IPage
     }
 
     // ----- dựng giao diện
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
     private static TextBlock Note(string t) => new() { Text = t, FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
     private static Border Card(string title, params Control[] kids)
     {

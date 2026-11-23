@@ -22,7 +22,7 @@ public sealed class XuLyTepView : UserControl, IPage
     public string Title => "Xử lý PDF & Excel";
     public string Subtitle => "Gộp, tách, xoay, đóng dấu, nén PDF; ảnh ↔ PDF; gộp / tách / làm sạch Excel — chỉ tạo file mới, file gốc giữ nguyên.";
 
-    private static IBrush B(string c) => new SolidColorBrush(Color.Parse(c));
+    private static IBrush B(string c) => AppTheme.Brush(c);
     private static readonly IBrush Dark = B("#0B2A45"), Line_ = B("#D0D7E2");
     private readonly TextBlock _status = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly ContentControl _pdfBody = new(), _xlsBody = new();

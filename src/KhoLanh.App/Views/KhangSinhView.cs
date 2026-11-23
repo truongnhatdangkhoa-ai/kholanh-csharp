@@ -24,14 +24,14 @@ public sealed partial class KhangSinhView : UserControl, IPage
     public string Subtitle => "Kết quả kiểm kháng sinh theo lô (lần 1 và kiểm lại), tra cứu Đạt / Không đạt theo thị trường, nhập theo lô hoặc từ Excel, quy định kháng sinh.";
 
     private static KhangSinhService Svc => App.Services.KhangSinh;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Red = new SolidColorBrush(Color.Parse("#C0392B"));
-    private static readonly IBrush GreenBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush RedBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush AmberBg = new SolidColorBrush(Color.Parse("#FFE699"));
-    private static readonly IBrush BlueBg = new SolidColorBrush(Color.Parse("#DDEBF7"));
-    private static readonly IBrush CalcBg = new SolidColorBrush(Color.Parse("#F3F6FA"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Red = AppTheme.Brush("#C0392B");
+    private static readonly IBrush GreenBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush RedBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush AmberBg = AppTheme.Brush("#FFE699");
+    private static readonly IBrush BlueBg = AppTheme.Brush("#DDEBF7");
+    private static readonly IBrush CalcBg = AppTheme.Brush("#F3F6FA");
     private static IBrush? ToneBg(string tone) => tone switch { "red" => RedBg, "green" => GreenBg, "amber" => AmberBg, _ => null };
 
     private readonly bool _edit, _export;
@@ -431,7 +431,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
         var s = new StackPanel { Spacing = 6 };
         if (row is null)
         {
-            _res.Background = new SolidColorBrush(Color.Parse("#F3F3F3"));
+            _res.Background = AppTheme.Brush("#F3F3F3");
             s.Children.Add(Label("Không tìm thấy trường hợp phù hợp", bold: true, size: 16));
             s.Children.Add(Label($"Tổ hợp giá trị vừa nhập không khớp với bất kỳ dòng nào trong {Svc.Rules.Count} quy định. Kiểm tra lại giá trị đã nhập, hoặc xem tab Quy định kháng sinh."));
         }

@@ -23,14 +23,14 @@ public sealed class SoDoView : UserControl, IPage
     public string Subtitle => "Sơ đồ từng dãy (tầng × khoang) theo tồn vị trí; pallet theo tầng, quy cách, phiếu in vị trí, kiểm kê và khóa kiểm kê — dùng chung dữ liệu với app cũ.";
 
     private static SoDoService Svc => App.Services.SoDo;
-    private static readonly IBrush Line = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#B23B00"));
-    private static readonly IBrush GrayBg = new SolidColorBrush(Color.Parse("#F1F3F5"));
-    private static readonly IBrush MoveBg = new SolidColorBrush(Color.Parse("#FFF1C9"));
-    private static readonly IBrush MovedBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush NearBg = new SolidColorBrush(Color.Parse("#FFF4CC"));
-    private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#1F8FD1"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
+    private static readonly IBrush Line = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Warn = AppTheme.Brush("#B23B00");
+    private static readonly IBrush GrayBg = AppTheme.Brush("#F1F3F5");
+    private static readonly IBrush MoveBg = AppTheme.Brush("#FFF1C9");
+    private static readonly IBrush MovedBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush NearBg = AppTheme.Brush("#FFF4CC");
+    private static readonly IBrush Accent = AppTheme.Brush("#1F8FD1");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
 
     private readonly bool _edit, _export;
     private bool _loading;
@@ -42,7 +42,7 @@ public sealed class SoDoView : UserControl, IPage
     private readonly WrapPanel _khoBar = new() { ItemSpacing = 6, LineSpacing = 6 };
     private readonly WrapPanel _khuBar = new() { ItemSpacing = 6, LineSpacing = 6 };
     private readonly CheckBox _rut = new() { Content = "Mã rút gọn", IsChecked = true, FontSize = 12.5 };
-    private readonly Border _lockBar = new() { Background = new SolidColorBrush(Color.Parse("#FFF4CC")), BorderBrush = new SolidColorBrush(Color.Parse("#E8C766")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0) };
+    private readonly Border _lockBar = new() { Background = AppTheme.Brush("#FFF4CC"), BorderBrush = AppTheme.Brush("#E8C766"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0) };
     private readonly WrapPanel _kpi = new() { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 4) };
     private readonly TabControl _tabs;
 
@@ -295,7 +295,7 @@ public sealed class SoDoView : UserControl, IPage
         var p = new WrapPanel { ItemSpacing = 8, LineSpacing = 4 };
         var diff = Svc.LockDiff.Count;
         p.Children.Add(Label("🔒 Đang khóa kiểm kê: " + string.Join("; ", Svc.Locks.Select(SoDoService.LockName))
-            + $" — sơ đồ giữ số liệu lúc khóa. {(diff > 0 ? diff + " thay đổi tồn từ lúc khóa." : "Chưa có thay đổi tồn.")}", fg: new SolidColorBrush(Color.Parse("#7A5200"))));
+            + $" — sơ đồ giữ số liệu lúc khóa. {(diff > 0 ? diff + " thay đổi tồn từ lúc khóa." : "Chưa có thay đổi tồn.")}", fg: AppTheme.Brush("#7A5200")));
         p.Children.Add(Btn("Xem thay đổi", async () => await DiffDialog()));
         if (_edit) p.Children.Add(Btn("Mở khóa…", async () => await LockDialog()));
         _lockBar.Child = p;
@@ -307,7 +307,7 @@ public sealed class SoDoView : UserControl, IPage
         var s = new StackPanel { Spacing = 0 };
         s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
         s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        var b = new Border { Background = Brushes.White, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 100, Child = s };
+        var b = new Border { Background = AppTheme.Card, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 100, Child = s };
         if (tip is not null) ToolTip.SetTip(b, tip);
         return b;
     }
@@ -319,10 +319,10 @@ public sealed class SoDoView : UserControl, IPage
         int used = pal.Sum(t => t.Used), cap = pal.Sum(t => t.Nk);
         var miss = MissingQc(list, Svc.QcOf).Count;
         _kpi.Children.Add(Kpi("Tổng vị trí", c.All.ToString("#,0", Ui.Vi)));
-        _kpi.Children.Add(Kpi("Ô trống", c.E.ToString("#,0", Ui.Vi), new SolidColorBrush(Color.Parse("#5D6B78"))));
-        _kpi.Children.Add(Kpi("Có hàng (1 mã)", c.U.ToString("#,0", Ui.Vi), new SolidColorBrush(Color.Parse("#2E7D32"))));
-        _kpi.Children.Add(Kpi("Nhiều mã", c.Mm.ToString("#,0", Ui.Vi), new SolidColorBrush(Color.Parse("#B26A00"))));
-        _kpi.Children.Add(Kpi("Tầng vượt mức", c.Ov.ToString("#,0", Ui.Vi), c.Ov > 0 ? new SolidColorBrush(Color.Parse("#C0392B")) : null, "Tầng có số pallet lớn hơn số khoang"));
+        _kpi.Children.Add(Kpi("Ô trống", c.E.ToString("#,0", Ui.Vi), AppTheme.Brush("#5D6B78")));
+        _kpi.Children.Add(Kpi("Có hàng (1 mã)", c.U.ToString("#,0", Ui.Vi), AppTheme.Brush("#2E7D32")));
+        _kpi.Children.Add(Kpi("Nhiều mã", c.Mm.ToString("#,0", Ui.Vi), AppTheme.Brush("#B26A00")));
+        _kpi.Children.Add(Kpi("Tầng vượt mức", c.Ov.ToString("#,0", Ui.Vi), c.Ov > 0 ? AppTheme.Brush("#C0392B") : null, "Tầng có số pallet lớn hơn số khoang"));
         _kpi.Children.Add(Kpi("Lấp đầy ô", c.Fill + "%", Accent, "Số ô có hàng / tổng số ô"));
         _kpi.Children.Add(Kpi("Pallet / sức chứa", $"{used:#,0} / {cap:#,0}", null, "Pallet = mỗi nhóm cùng loại + cùng size trong 1 ô; sức chứa = số khoang × số tầng"));
         _kpi.Children.Add(Kpi("Mã thiếu quy cách", miss.ToString("#,0", Ui.Vi), miss > 0 ? Warn : null, "Mã có hàng nhưng chưa khai kiện / gói — xem tab Quy cách"));
@@ -382,7 +382,7 @@ public sealed class SoDoView : UserControl, IPage
         {
             var s = new StackPanel { Spacing = 1 };
             s.Children.Add(new SelectableTextBlock { Text = Ma(x.Ma, x.Ten), FontWeight = FontWeight.SemiBold, FontSize = 13, TextWrapping = TextWrapping.Wrap });
-            if (Rut && Ma(x.Ma, x.Ten) != x.Ma) s.Children.Add(new SelectableTextBlock { Text = x.Ma, FontSize = 11.5, Foreground = Brushes.Gray });
+            if (Rut && Ma(x.Ma, x.Ten) != x.Ma) s.Children.Add(new SelectableTextBlock { Text = x.Ma, FontSize = 11.5, Foreground = AppTheme.Muted });
             s.Children.Add(Muted(x.Ten));
             s.Children.Add(Label($"Lô {(x.Lo.Length > 0 ? x.Lo : "—")} · {Q(x.Sl)} {x.Dv} · T.Lượng {Q(x.Tl)} · Net {Kg(x.Net)} kg"));
             host.Children.Add(new Border { BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = s });
@@ -448,7 +448,7 @@ public sealed class SoDoView : UserControl, IPage
             await Act(() => Svc.SaveQc(new[] { (x.Ma, dv.SelectedIndex == 1 ? "gói" : "kiện", n) }), "Đã lưu quy cách " + KeyMa(x.Ma));
         }));
         if (!HasQc(q)) row.Children.Add(Label("chưa lưu", fg: Warn, size: 11.5));
-        if (g is { } gg) row.Children.Add(Label("theo tên: " + gg.Text, size: 11.5, fg: Brushes.Gray));
+        if (g is { } gg) row.Children.Add(Label("theo tên: " + gg.Text, size: 11.5, fg: AppTheme.Muted));
         return row;
     }
 
@@ -466,7 +466,7 @@ public sealed class SoDoView : UserControl, IPage
         Legend("Cột mức đầy tầng: xanh còn chỗ · vàng gần đầy · cam đầy · đỏ vượt", new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
-            GradientStops = { new GradientStop(Color.Parse("#4CAF50"), 0), new GradientStop(Color.Parse("#F1C40F"), 0.4), new GradientStop(Color.Parse("#E67E22"), 0.7), new GradientStop(Color.Parse("#C0392B"), 1) },
+            GradientStops = { new GradientStop(AppTheme.Color("#4CAF50"), 0), new GradientStop(AppTheme.Color("#F1C40F"), 0.4), new GradientStop(AppTheme.Color("#E67E22"), 0.7), new GradientStop(AppTheme.Color("#C0392B"), 1) },
         });
         bar.Children.Add(_mapInfo);
         var sv = new ScrollViewer { Content = _map, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };

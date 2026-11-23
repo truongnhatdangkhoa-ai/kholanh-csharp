@@ -11,7 +11,7 @@ public sealed partial class TongQuanView
 {
     private static Window Win(string title, Control body, double w, double h) => new()
     {
-        Title = title, Width = w, Height = h, MinWidth = 480, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = Brushes.White,
+        Title = title, Width = w, Height = h, MinWidth = 480, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = AppTheme.Card,
         Content = new Border { Padding = new Thickness(18, 14), Child = body },
     };
     private static TextBlock Lb(string t) => new() { Text = t, FontSize = 12, Foreground = Muted, Margin = new Thickness(0, 6, 0, 2) };
@@ -149,7 +149,7 @@ public sealed partial class TongQuanView
                 if (lines.Count > 0)
                 {
                     var tg = new Grid { ColumnDefinitions = new ColumnDefinitions("*,100,90,90") };
-                    void Add(int row, string[] c, bool h) { for (var i = 0; i < 4; i++) { var t = new TextBlock { Text = c[i], FontSize = h ? 11 : 12.5, FontWeight = h ? FontWeight.SemiBold : FontWeight.Normal, Foreground = h ? Muted : Brushes.Black, Margin = new Thickness(4, 2) }; Grid.SetRow(t, row); Grid.SetColumn(t, i); tg.Children.Add(t); } }
+                    void Add(int row, string[] c, bool h) { for (var i = 0; i < 4; i++) { var t = new TextBlock { Text = c[i], FontSize = h ? 11 : 12.5, FontWeight = h ? FontWeight.SemiBold : FontWeight.Normal, Foreground = h ? Muted : AppTheme.Text, Margin = new Thickness(4, 2) }; Grid.SetRow(t, row); Grid.SetColumn(t, i); tg.Children.Add(t); } }
                     tg.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); Add(0, new[] { "Hàng", "Size", "Tồn (kiện)", "Tấn" }, true);
                     for (var i = 0; i < lines.Count; i++) { tg.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); Add(i + 1, new[] { lines[i].Item1, lines[i].Size, lines[i].Ton.ToString("#,0.##"), Tan(lines[i].Kg) }, false); }
                     card.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Child = tg });
@@ -223,7 +223,7 @@ public sealed partial class TongQuanView
                     prev.Children.Add(new TextBlock
                     {
                         Text = $"   {r.Lsx}{(r.Grp.Length > 0 ? "  (chung cont " + r.Grp + ")" : "")} · {StLabel[r.TrangThai]}" + (dup ? "  — đã có, bỏ qua" : other.Count > 0 ? "  — ⚠ đã có lịch ngày " + string.Join(", ", other) : ""),
-                        FontSize = 12.5, Foreground = dup ? Muted : Brushes.Black,
+                        FontSize = 12.5, Foreground = dup ? Muted : AppTheme.Text,
                     });
                 }
             }
@@ -271,7 +271,7 @@ public sealed partial class TongQuanView
         text.TextChanged += (_, _) =>
         {
             var r = LichXuatService.ReadXeMail(text.Text ?? ""); ok.IsEnabled = r.Ok; cont = r.Cont;
-            view.Foreground = r.Ok ? Brushes.Black : B("#B42318");
+            view.Foreground = r.Ok ? AppTheme.Text : B("#B42318");
             view.Text = (text.Text ?? "").Trim().Length == 0 ? "" : r.Ok ? $"Số cont: {r.Cont}{(now.Length > 0 && now != r.Cont ? " (thay cho " + now + ")" : "")}\n" + string.Join(" · ", new[] { r.Xe.SoXe.Length > 0 ? "Xe " + r.Xe.SoXe : "", r.Xe.Seal.Length > 0 ? "Seal " + r.Xe.Seal : "", r.Xe.TaiXe.Length > 0 ? "Tài xế " + r.Xe.TaiXe : "" }.Where(s => s.Length > 0)) : r.Error;
         };
         var body = new StackPanel { Spacing = 6 };

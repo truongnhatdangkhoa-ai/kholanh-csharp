@@ -21,7 +21,7 @@ public sealed class VtbView : UserControl, IPage
     public string Subtitle => "Tồn bột / sốt theo vị trí (đưa lên từ NXT Bột/Sốt) — lập phiếu xuất trừ tồn, hủy trừ / trừ lại / xóa phiếu PC và điện thoại.";
 
     private static VtbService Svc => App.Services.Vtb;
-    private static IBrush B(string c) => new SolidColorBrush(Color.Parse(c));
+    private static IBrush B(string c) => AppTheme.Brush(c);
     private static readonly IBrush Line_ = B("#D0D7E2"), Dark = B("#0B2A45"), Pick = B("#FFF4CC");
     private readonly GridModel _m = new();
     private readonly SheetGrid _g;
@@ -130,7 +130,7 @@ public sealed class VtbView : UserControl, IPage
             var st = new StackPanel { Spacing = 2 };
             st.Children.Add(new TextBlock { Text = $"{(s.IsPhone ? "📱" : "🖥")} {s.Id} · {(s.MaPhieu.Length > 0 ? s.MaPhieu : "")}", FontWeight = FontWeight.SemiBold });
             st.Children.Add(new TextBlock { Text = $"{When(s.CreatedAt)} · {s.NguoiTao} · {s.Lines.Count} dòng · SL {F(s.Lines.Sum(l => l.Qty))}" + (s.GhiChu.Length > 0 ? " · " + s.GhiChu : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
-            st.Children.Add(new TextBlock { Text = locked ? "🔒 Đợt dữ liệu cũ (đã đưa tồn mới) — khóa" : s.Deducted ? "✔ Đang trừ tồn" : "○ Đã hủy trừ", FontSize = 12, Foreground = locked ? Brushes.Gray : s.Deducted ? B("#1B5E20") : B("#8A5A00") });
+            st.Children.Add(new TextBlock { Text = locked ? "🔒 Đợt dữ liệu cũ (đã đưa tồn mới) — khóa" : s.Deducted ? "✔ Đang trừ tồn" : "○ Đã hủy trừ", FontSize = 12, Foreground = locked ? AppTheme.Muted : s.Deducted ? B("#1B5E20") : B("#8A5A00") });
             var exp = new Expander { Header = "Chi tiết", FontSize = 12, Padding = new Thickness(4) };
             var ls = new StackPanel(); foreach (var l in s.Lines) ls.Children.Add(new TextBlock { Text = $"{l.Vt} · {l.Ma} · SL {F(l.Qty)}" + (l.Hsd.Length > 0 ? " · HSD " + l.Hsd : ""), FontSize = 12, TextWrapping = TextWrapping.Wrap });
             exp.Content = ls; st.Children.Add(exp);
@@ -141,7 +141,7 @@ public sealed class VtbView : UserControl, IPage
                 bs.Children.Add(Btn("Xóa", async () => { if (!await Ui.Confirm(this, $"Xóa phiếu {id}?" + (s.Deducted && !locked ? " Số lượng sẽ được hoàn lại." : ""), "Xóa phiếu", "Xóa")) return; if (await Ui.Run(this, () => Svc.DeleteSlip(id))) { Paint(); PaintSlips(); } }));
                 st.Children.Add(bs);
             }
-            _slips.Children.Add(new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = st });
+            _slips.Children.Add(new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = st });
         }
     }
 }

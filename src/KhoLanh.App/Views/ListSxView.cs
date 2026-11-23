@@ -19,8 +19,8 @@ public sealed class ListSxView : UserControl
 {
     private static PhieuKhoService Pnx => App.Services.PhieuKho;
     private static LichXuatService Lx => App.Services.LichXuat;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
     private static readonly Dictionary<string, (string Bg, string Fg)> Mau = new()
     {
         ["ok"] = ("#E6F4EA", "#1E7B34"), ["wait"] = ("#E3F2FB", "#155E8C"), ["info"] = ("#EEF1F5", "#4B5565"), ["warn"] = ("#FFF4CC", "#8A5A00"), ["bad"] = ("#FDE7E7", "#B42318"),
@@ -68,7 +68,7 @@ public sealed class ListSxView : UserControl
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }
 
-    private static IBrush Brush(string c) => new SolidColorBrush(Color.Parse(c));
+    private static IBrush Brush(string c) => AppTheme.Brush(c);
     private static Button Btn(string text, Func<Task> click, string? tip = null, bool primary = false)
     {
         var b = new Button { Content = text, Padding = new Thickness(10, 4), FontSize = 12.5 };

@@ -27,7 +27,7 @@ public sealed partial class TongQuanView : UserControl, IPage
 
     internal static LichXuatService Svc => App.Services.LichXuat;
     internal static readonly IBrush Line_ = B("#D9E2EA"), Dark = B("#0B2A45"), Muted = B("#5D6B78");
-    internal static IBrush B(string c) => new SolidColorBrush(Color.Parse(c));
+    internal static IBrush B(string c) => AppTheme.Brush(c);
     internal static readonly Dictionary<string, (string Bg, string Fg, string Bar)> StStyle = new()
     {
         ["ok"] = ("#E6F4EA", "#1E7B34", "#3FB950"), ["run"] = ("#FFF1E0", "#B45309", "#F59E0B"), ["plan"] = ("#E3F2FB", "#155E8C", "#1F8FD1"), ["wait"] = ("#EEF1F5", "#4B5565", "#94A3B8"),
@@ -96,7 +96,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         return b;
     }
     private static ScrollViewer Scroll(Control c) => new() { Content = new Border { Padding = new Thickness(0, 8, 8, 16), Child = c }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    internal static Border Card(Control body, double pad = 14) => new() { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(pad), Child = body };
+    internal static Border Card(Control body, double pad = 14) => new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(pad), Child = body };
     internal static TextBlock H2(string t) => new() { Text = t, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Dark, VerticalAlignment = VerticalAlignment.Center };
     internal static Border Pill(string text, string bg, string fg, double fs = 11.5) => new()
     {
@@ -192,7 +192,7 @@ public sealed partial class TongQuanView : UserControl, IPage
             v.Children.Add(new TextBlock { Text = unit, FontSize = 12.5, Foreground = Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5) });
             s.Children.Add(v);
             if (sub is not null) s.Children.Add(sub);
-            var card = new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(4, 1, 1, 1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10), Margin = new Thickness(0, 0, 10, 0), Child = s };
+            var card = new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(4, 1, 1, 1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10), Margin = new Thickness(0, 0, 10, 0), Child = s };
             card.BorderBrush = B(accent);
             if (click is not null) { card.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); card.PointerPressed += async (_, _) => await click(); }
             return card;
@@ -341,7 +341,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         for (var c = 0; c < cells.Length; c++)
         {
             if (cells[c].Length == 0 && !head) continue;
-            var t = new TextBlock { Text = cells[c], FontSize = head ? 11 : 12.5, FontWeight = head ? FontWeight.SemiBold : c == 2 ? FontWeight.SemiBold : FontWeight.Normal, Foreground = head ? Muted : c == 2 ? Dark : Brushes.Black, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(4, 0) };
+            var t = new TextBlock { Text = cells[c], FontSize = head ? 11 : 12.5, FontWeight = head ? FontWeight.SemiBold : c == 2 ? FontWeight.SemiBold : FontWeight.Normal, Foreground = head ? Muted : c == 2 ? Dark : AppTheme.Text, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(4, 0) };
             Grid.SetColumn(t, c); g.Children.Add(t);
         }
         return new Border { Child = g, Padding = new Thickness(2, head ? 4 : 6), Background = bg is null ? Brushes.Transparent : B(bg), BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1) };
@@ -565,7 +565,7 @@ public sealed partial class TongQuanView : UserControl, IPage
     private static Control StatRow(string[] c, bool head, double kg, double max)
     {
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("90,110,110,110,120,120,*") };
-        for (var i = 0; i < 6; i++) { var t = new TextBlock { Text = c[i], FontSize = head ? 11.5 : 12.5, FontWeight = head ? FontWeight.SemiBold : FontWeight.Normal, Foreground = head ? Muted : Brushes.Black, Margin = new Thickness(4, 0) }; Grid.SetColumn(t, i); g.Children.Add(t); }
+        for (var i = 0; i < 6; i++) { var t = new TextBlock { Text = c[i], FontSize = head ? 11.5 : 12.5, FontWeight = head ? FontWeight.SemiBold : FontWeight.Normal, Foreground = head ? Muted : AppTheme.Text, Margin = new Thickness(4, 0) }; Grid.SetColumn(t, i); g.Children.Add(t); }
         if (!head && max > 0) { var b = new Border { Background = B("#3FB950"), Height = 10, CornerRadius = new CornerRadius(3), HorizontalAlignment = HorizontalAlignment.Left, Width = Math.Max(0, 260 * kg / max), VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(b, 6); g.Children.Add(b); }
         return new Border { Child = g, Padding = new Thickness(0, 5), BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1) };
     }

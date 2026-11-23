@@ -23,14 +23,14 @@ public sealed class AnAnView : UserControl, IPage
 
     private static AnAnService Svc => App.Services.AnAn;
     private static AnAnData D => Svc.D;
-    private static readonly IBrush Line = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush TitleBg = new SolidColorBrush(Color.Parse("#DDEBF7"));
-    private static readonly IBrush TotalBg = new SolidColorBrush(Color.Parse("#FFF2CC"));
-    private static readonly IBrush ManualBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush WarnBg = new SolidColorBrush(Color.Parse("#FCE4D6"));
-    private static readonly IBrush LowBg = new SolidColorBrush(Color.Parse("#FFE699"));
-    private static readonly IBrush OutBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush PickBg = new SolidColorBrush(Color.Parse("#FFF1C9"));
+    private static readonly IBrush Line = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush TitleBg = AppTheme.Brush("#DDEBF7");
+    private static readonly IBrush TotalBg = AppTheme.Brush("#FFF2CC");
+    private static readonly IBrush ManualBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush WarnBg = AppTheme.Brush("#FCE4D6");
+    private static readonly IBrush LowBg = AppTheme.Brush("#FFE699");
+    private static readonly IBrush OutBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush PickBg = AppTheme.Brush("#FFF1C9");
 
     private readonly bool _edit, _export;
     private bool _loading;

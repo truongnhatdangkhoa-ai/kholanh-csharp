@@ -33,28 +33,28 @@ public sealed class WarehouseMap : Control
     private readonly List<(Point At, string Text)> _titles = new();
     private double _lastWidth = -1;
 
-    public static readonly IBrush EmptyBg = Brushes.White;
-    public static readonly IBrush OneBg = new SolidColorBrush(Color.Parse("#CDEBD3"));
-    public static readonly IBrush ManyBg = new SolidColorBrush(Color.Parse("#FFE2A0"));
-    public static readonly IBrush OverBg = new SolidColorBrush(Color.Parse("#F6B5A8"));
-    private static readonly IBrush Grid = new SolidColorBrush(Color.Parse("#C9D3DE"));
-    private static readonly IBrush Head = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#5D6B78"));
+    public static readonly IBrush EmptyBg = AppTheme.Card;
+    public static readonly IBrush OneBg = AppTheme.Brush("#CDEBD3");
+    public static readonly IBrush ManyBg = AppTheme.Brush("#FFE2A0");
+    public static readonly IBrush OverBg = AppTheme.Brush("#F6B5A8");
+    private static readonly IBrush Grid = AppTheme.Brush("#C9D3DE");
+    private static readonly IBrush Head = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Muted = AppTheme.Brush("#5D6B78");
     private static readonly IBrush Dim = new SolidColorBrush(Color.FromArgb(170, 255, 255, 255));
-    private static readonly IBrush BlockBg = new SolidColorBrush(Color.Parse("#F5F8FB"));
-    private static readonly IBrush LockBg = new SolidColorBrush(Color.Parse("#EEF0F3"));
-    private static readonly IPen SelPen = new Pen(new SolidColorBrush(Color.Parse("#0B5394")), 3);
-    private static readonly IPen HitPen = new Pen(new SolidColorBrush(Color.Parse("#1F8FD1")), 2.2);
-    private static readonly IPen OverPen = new Pen(new SolidColorBrush(Color.Parse("#C0392B")), 1.6);
+    private static readonly IBrush BlockBg = AppTheme.Brush("#F5F8FB");
+    private static readonly IBrush LockBg = AppTheme.Brush("#EEF0F3");
+    private static readonly IPen SelPen = new Pen(AppTheme.Brush("#0B5394"), 3);
+    private static readonly IPen HitPen = new Pen(AppTheme.Brush("#1F8FD1"), 2.2);
+    private static readonly IPen OverPen = new Pen(AppTheme.Brush("#C0392B"), 1.6);
     private static readonly IPen CellPen = new Pen(Grid, 1);
-    private static readonly IPen BlockPen = new Pen(new SolidColorBrush(Color.Parse("#AAB8C6")), 1);
+    private static readonly IPen BlockPen = new Pen(AppTheme.Brush("#AAB8C6"), 1);
     public static IBrush LevelBrush(string lv) => lv switch
     {
-        "over" => new SolidColorBrush(Color.Parse("#C0392B")),
-        "full" => new SolidColorBrush(Color.Parse("#E67E22")),
-        "near" => new SolidColorBrush(Color.Parse("#F1C40F")),
-        "ok" => new SolidColorBrush(Color.Parse("#4CAF50")),
-        _ => new SolidColorBrush(Color.Parse("#DDE3EA")),
+        "over" => AppTheme.Brush("#C0392B"),
+        "full" => AppTheme.Brush("#E67E22"),
+        "near" => AppTheme.Brush("#F1C40F"),
+        "ok" => AppTheme.Brush("#4CAF50"),
+        _ => AppTheme.Brush("#DDE3EA"),
     };
 
     public WarehouseMap() { Cursor = new Cursor(StandardCursorType.Hand); ClipToBounds = true; }
@@ -117,7 +117,7 @@ public sealed class WarehouseMap : Control
 
     public override void Render(DrawingContext dc)
     {
-        dc.FillRectangle(Brushes.White, new Rect(Bounds.Size));
+        dc.FillRectangle(AppTheme.Card, new Rect(Bounds.Size));
         if (Sections.Count == 0)
         {
             dc.DrawText(Txt("Không có vị trí nào để vẽ.", 13, Muted), new Point(8, 8));

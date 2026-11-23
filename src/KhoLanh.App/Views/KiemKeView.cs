@@ -23,22 +23,22 @@ public sealed class KiemKeView : UserControl, IPage
     public string Subtitle => "Số liệu kiểm kê (trang Nhập liệu) ↔ Tồn kho An An, Kế toán và Tồn theo vị trí; gợi ý nguyên nhân lệch, lệnh đếm theo dãy, chốt kỳ kiểm kê.";
 
     private static KiemKeService Svc => App.Services.KiemKe;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#B23B00"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Accent = new SolidColorBrush(Color.Parse("#1F8FD1"));
-    private static readonly IBrush OkBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush BadBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush WarnBg = new SolidColorBrush(Color.Parse("#FFE699"));
-    private static readonly IBrush PurpleBg = new SolidColorBrush(Color.Parse("#D9C6F0"));
-    private static readonly IBrush GrayBg = new SolidColorBrush(Color.Parse("#EDEDED"));
-    private static readonly IBrush TodoBg = new SolidColorBrush(Color.Parse("#DCE6F0"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Warn = AppTheme.Brush("#B23B00");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Accent = AppTheme.Brush("#1F8FD1");
+    private static readonly IBrush OkBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush BadBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush WarnBg = AppTheme.Brush("#FFE699");
+    private static readonly IBrush PurpleBg = AppTheme.Brush("#D9C6F0");
+    private static readonly IBrush GrayBg = AppTheme.Brush("#EDEDED");
+    private static readonly IBrush TodoBg = AppTheme.Brush("#DCE6F0");
 
     private readonly bool _edit, _export;
     private bool _loading;
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _info = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
-    private readonly Border _lockBar = new() { Background = new SolidColorBrush(Color.Parse("#FFF4CC")), BorderBrush = new SolidColorBrush(Color.Parse("#E8C766")), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0), IsVisible = false };
+    private readonly Border _lockBar = new() { Background = AppTheme.Brush("#FFF4CC"), BorderBrush = AppTheme.Brush("#E8C766"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0), IsVisible = false };
     private readonly TabControl _tabs;
 
     // ---------- tab Số liệu kiểm kê
@@ -196,7 +196,7 @@ public sealed class KiemKeView : UserControl, IPage
         var s = new StackPanel();
         s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
         s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        var b = new Border { Background = active ? new SolidColorBrush(Color.Parse("#E3F2FB")) : Brushes.White, BorderBrush = active ? Accent : Line_, BorderThickness = new Thickness(active ? 2 : 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 96, Child = s };
+        var b = new Border { Background = active ? AppTheme.Brush("#E3F2FB") : AppTheme.Card, BorderBrush = active ? Accent : Line_, BorderThickness = new Thickness(active ? 2 : 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 96, Child = s };
         if (click is not null) { b.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); b.PointerPressed += (_, _) => click(); }
         return b;
     }
@@ -253,7 +253,7 @@ public sealed class KiemKeView : UserControl, IPage
         if (cur is not null)
         {
             var p = new WrapPanel { ItemSpacing = 8 };
-            p.Children.Add(Label($"🔒 Kỳ kiểm kê đã chốt — bản v{cur.Ver} lúc {KiemKeService.AtText(cur.At)} ({cur.By}). Lý do: {cur.LyDo}. Không đổi được trang chọn, số kế toán, nguồn tồn cho tới khi hủy chốt.", fg: new SolidColorBrush(Color.Parse("#7A5200"))));
+            p.Children.Add(Label($"🔒 Kỳ kiểm kê đã chốt — bản v{cur.Ver} lúc {KiemKeService.AtText(cur.At)} ({cur.By}). Lý do: {cur.LyDo}. Không đổi được trang chọn, số kế toán, nguồn tồn cho tới khi hủy chốt.", fg: AppTheme.Brush("#7A5200")));
             if (_edit) p.Children.Add(Btn("Hủy chốt…", async () => await MoChot()));
             _lockBar.Child = p;
         }
@@ -386,7 +386,7 @@ public sealed class KiemKeView : UserControl, IPage
     {
         var s = Svc.Summary; _kpi.Children.Clear();
         _kpi.Children.Add(Kpi("Mã đối chiếu", s.Total.ToString("#,0", Ui.Vi), null, () => SetFlt("ALL"), _fltKey == "ALL"));
-        _kpi.Children.Add(Kpi("Khớp", s.Khop.ToString("#,0", Ui.Vi), new SolidColorBrush(Color.Parse("#2E7D32")), () => SetFlt(Khop), _fltKey == Khop));
+        _kpi.Children.Add(Kpi("Khớp", s.Khop.ToString("#,0", Ui.Vi), AppTheme.Brush("#2E7D32"), () => SetFlt(Khop), _fltKey == Khop));
         _kpi.Children.Add(Kpi("Đang lệch", s.Open.ToString("#,0", Ui.Vi), s.Open > 0 ? Warn : null, () => SetFlt("LECH"), _fltKey == "LECH"));
         _kpi.Children.Add(Kpi("Thừa", s.Thua.ToString(Ui.Vi), null, () => SetFlt(Thua), _fltKey == Thua));
         _kpi.Children.Add(Kpi("Thiếu", s.Thieu.ToString(Ui.Vi), null, () => SetFlt(Thieu), _fltKey == Thieu));
@@ -619,14 +619,14 @@ public sealed class KiemKeView : UserControl, IPage
     // Tab Theo vị trí
     // =====================================================================================
 
-    private static IBrush VtBrush(string st) => st switch { VtKhop => OkBg, VtLech => BadBg, VtThua => PurpleBg, VtChua => TodoBg, _ => Brushes.White };
+    private static IBrush VtBrush(string st) => st switch { VtKhop => OkBg, VtLech => BadBg, VtThua => PurpleBg, VtChua => TodoBg, _ => AppTheme.Card };
     private Control BuildVt()
     {
         var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_khoBar); bar.Children.Add(Label("Khu")); bar.Children.Add(_khu);
         _khu.SelectionChanged += (_, _) => { if (!_loading) RenderMap(); };
         void Legend(string text, IBrush bg) { var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 }; s.Children.Add(new Border { Width = 16, Height = 12, Background = bg, BorderBrush = Line_, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center }); s.Children.Add(Label(text, size: 12)); bar.Children.Add(s); }
-        Legend("Chưa đếm (số = sổ sách)", TodoBg); Legend("Khớp", OkBg); Legend("Lệch (số = chênh kiện)", BadBg); Legend("Thừa hàng (sổ trống)", PurpleBg); Legend("Trống đúng", Brushes.White);
+        Legend("Chưa đếm (số = sổ sách)", TodoBg); Legend("Khớp", OkBg); Legend("Lệch (số = chênh kiện)", BadBg); Legend("Thừa hàng (sổ trống)", PurpleBg); Legend("Trống đúng", AppTheme.Card);
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_vtInfo);
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head);
         left.Children.Add(Framed(new ScrollViewer { Content = _map, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled }));
@@ -787,7 +787,7 @@ public sealed class KiemKeView : UserControl, IPage
     {
         _ready.Children.Clear();
         foreach (var c in Svc.Readiness())
-            _ready.Children.Add(Label((c.Ok == "ok" ? "✔ " : c.Ok == "warn" ? "⚠ " : "✖ ") + c.Text, fg: c.Ok == "ok" ? new SolidColorBrush(Color.Parse("#2E7D32")) : c.Ok == "warn" ? new SolidColorBrush(Color.Parse("#9A6700")) : Warn));
+            _ready.Children.Add(Label((c.Ok == "ok" ? "✔ " : c.Ok == "warn" ? "⚠ " : "✖ ") + c.Text, fg: c.Ok == "ok" ? AppTheme.Brush("#2E7D32") : c.Ok == "warn" ? AppTheme.Brush("#9A6700") : Warn));
         _bChot.IsEnabled = !Svc.Locked && Svc.Lines.Count > 0; _bMo.IsEnabled = Svc.Locked;
         _hRows = Svc.Chots.OrderByDescending(c => c.At, StringComparer.Ordinal).ToList();
         _hm.Load(new[] { new GridColumn("v", "Bản", 50), new GridColumn("k", "Thao tác", 80), new GridColumn("at", "Lúc", 125), new GridColumn("by", "Người", 120), new GridColumn("n", "Số mã", 65, "number"), new GridColumn("l", "Còn lệch", 70, "number"), new GridColumn("ly", "Lý do", 320) },

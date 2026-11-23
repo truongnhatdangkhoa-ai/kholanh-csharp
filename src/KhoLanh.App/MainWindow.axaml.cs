@@ -37,6 +37,17 @@ public partial class MainWindow : Window
         InitializeComponent();
         var s = App.Services;
         var u = s.Session.CurrentUser!;
+        AppTheme.LoadFor(u.Username);
+        var root = (Control)Content!; Content = null;
+        Content = _zoom = new LayoutTransformControl { Child = root };
+        ApplyZoom();
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (!e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
+            if (e.Key is Avalonia.Input.Key.OemPlus or Avalonia.Input.Key.Add) { Zoom(0.1); e.Handled = true; }
+            else if (e.Key is Avalonia.Input.Key.OemMinus or Avalonia.Input.Key.Subtract) { Zoom(-0.1); e.Handled = true; }
+            else if (e.Key is Avalonia.Input.Key.D0 or Avalonia.Input.Key.NumPad0) { Zoom(0); e.Handled = true; }
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         VersionText.Text = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
         WarehouseText.Text = s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho");
 
@@ -160,7 +171,7 @@ public partial class MainWindow : Window
         if (!lan.Enabled) return;
         LanText.Text = lan.Short;
         LanText.Foreground = Avalonia.Media.Brushes.White;
-        LanDot.Fill = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse(lan.Health == 2 ? "#F0A030" : "#3FB950"));
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#F0A030" : "#3FB950");
         ToolTip.SetTip(LanPill, lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
             : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : ""));
@@ -235,6 +246,42 @@ public partial class MainWindow : Window
         if (again != newPw) { await Ui.Message(this, "Hai lần nhập mật khẩu mới không khớp."); return; }
         if (await Ui.Run(this, () => App.Services.Auth.ChangeOwnPassword(oldPw, newPw)))
             await Ui.Message(this, "Đã đổi mật khẩu.");
+    }
+
+    private readonly LayoutTransformControl _zoom;
+    private void ApplyZoom() => _zoom.LayoutTransform = Math.Abs(AppTheme.Scale - 1) < 0.001 ? null : new Avalonia.Media.ScaleTransform(AppTheme.Scale, AppTheme.Scale);
+
+    /// <summary>Giao diện Sáng dịu / Tối + cỡ chữ 90–130 % — lưu theo tài khoản trên máy này, áp dụng ngay.</summary>
+    private async void OnThemeSettings(object? sender, RoutedEventArgs e)
+    {
+        var mode0 = AppTheme.Current; var scale0 = AppTheme.Scale;
+        var light = new RadioButton { Content = "Sáng dịu — nền trắng ngà, đỡ chói", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Light };
+        var dark = new RadioButton { Content = "Tối — nền xám đen", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Dark };
+        var scales = new[] { 0.9, 1.0, 1.1, 1.2, 1.3 };
+        var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
+        void Preview() { AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
+        light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview();
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
+        body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);
+        body.Children.Add(new TextBlock { Text = "Lưu riêng cho tài khoản này trên máy này. Phím tắt: Ctrl + / Ctrl − / Ctrl 0.", Classes = { "muted" }, FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        body.Children.Add(Ui.Buttons(cancel, ok));
+        var w = Ui.Dialog("Giao diện & cỡ chữ", body, 400); var saved = false;
+        ok.Click += (_, _) => { saved = true; w.Close(); }; cancel.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        if (!saved) { AppTheme.Apply(mode0, scale0); ApplyZoom(); }
+        else AppTheme.SaveFor(App.Services.Session.Username);
+        ReloadPage();
+    }
+
+    /// <summary>Dựng lại màn hình đang mở (để các ô vẽ tay lấy màu mới).</summary>
+    private void ReloadPage() { if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
+
+    private void Zoom(double delta)
+    {
+        var sc = delta == 0 ? 1.0 : AppTheme.Scale + delta;
+        AppTheme.Apply(AppTheme.Current, sc); ApplyZoom(); AppTheme.SaveFor(App.Services.Session.Username);
     }
 
     private async void OnBootSettings(object? sender, RoutedEventArgs e) => await BootSettings.ShowDialog(this);

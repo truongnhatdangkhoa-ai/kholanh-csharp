@@ -23,7 +23,7 @@ public sealed class SoKhoView : UserControl, IPage
     public string Subtitle => "Sổ kho bột / sốt theo lô (vị trí · mã · size · hạn dùng · ngày nhập) — xuất không chỉ định lô thì trừ FIFO. Dùng chung dữ liệu với app cũ.";
 
     internal static SoKhoService Svc => App.Services.SoKho;
-    internal static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2")), Red = new SolidColorBrush(Color.Parse("#FDE7E7")), Yellow = new SolidColorBrush(Color.Parse("#FFF4CC")), Green = new SolidColorBrush(Color.Parse("#E6F4EA"));
+    internal static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2"), Red = AppTheme.Brush("#FDE7E7"), Yellow = AppTheme.Brush("#FFF4CC"), Green = AppTheme.Brush("#E6F4EA");
     internal static readonly CultureInfo Ic = CultureInfo.InvariantCulture;
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly List<Action> _refresh = new();
@@ -212,7 +212,7 @@ public sealed class SoKhoView : UserControl, IPage
         private bool Check()
         {
             var d = Draft();
-            if (d.Count == 0) { _msg.Text = "Phiếu chưa có dòng nào."; _msg.Foreground = Brushes.DarkRed; return false; }
+            if (d.Count == 0) { _msg.Text = "Phiếu chưa có dòng nào."; _msg.Foreground = AppTheme.Danger; return false; }
             var chk = Svc.CheckDraft(d, _cur?.Lines.Select(l => l.Id));
             var lines = chk.Rows.Where(r => r.Check.Level != "ok").Select(r => $"{(r.Check.Level == "err" ? "✖" : "⚠")} Dòng {r.Row + 1} ({d[r.Row].MaHang}): {string.Join("; ", r.Check.Msgs)}").ToList();
             lines.AddRange(chk.DinhMuc.Where(x => x.St != "ok").Select(x => x.St == "thieu" ? $"ⓘ {x.HopDong} · {x.MaHang}: {x.Why} — chưa kiểm được định mức." :
@@ -220,7 +220,7 @@ public sealed class SoKhoView : UserControl, IPage
             lines.AddRange(chk.Spills.Select(s => $"⚠ {s.Line.MaHang} ({s.Line.ViTri}): lô hạn {Dmy(s.Spill.HanDung)} {(s.Spill.LoFound ? $"chỉ có {F(s.Spill.ExSl)} bao" : "không tìm thấy")} — {F(s.Spill.Sl)} bao lấy sang lô khác (FIFO)."));
             var tot = $"Phiếu {d.Count} dòng · {F(d.Sum(l => l.SoLuong ?? 0))} bao · {F(d.Sum(l => l.Net ?? 0))} kg.";
             _msg.Text = lines.Count == 0 ? "✓ " + tot + " Không có lỗi." : tot + "\n" + string.Join("\n", lines);
-            _msg.Foreground = chk.HasError ? Brushes.DarkRed : lines.Count > 0 ? new SolidColorBrush(Color.Parse("#8A5A00")) : new SolidColorBrush(Color.Parse("#1E7B34"));
+            _msg.Foreground = chk.HasError ? AppTheme.Danger : lines.Count > 0 ? AppTheme.Brush("#8A5A00") : AppTheme.Brush("#1E7B34");
             return !chk.HasError;
         }
         private async Task Save()
@@ -234,7 +234,7 @@ public sealed class SoKhoView : UserControl, IPage
                 var key = ct.Length > 0 ? ct : "#" + IsoOf(_ngay);
                 _cur = Groups(Svc.Lines, _loai).FirstOrDefault(g => g.Key == key);
                 RaiseChanged();
-                _msg.Text = "✓ Đã lưu phiếu " + ct + "."; _msg.Foreground = new SolidColorBrush(Color.Parse("#1E7B34"));
+                _msg.Text = "✓ Đã lưu phiếu " + ct + "."; _msg.Foreground = AppTheme.Brush("#1E7B34");
             }
         }
         private async Task Delete()

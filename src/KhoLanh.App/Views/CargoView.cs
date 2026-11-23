@@ -19,12 +19,12 @@ namespace KhoLanh.App.Views;
 public sealed class CargoView : UserControl
 {
     private static CargoService Svc => App.Services.Cargo;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Warn = new SolidColorBrush(Color.Parse("#B23B00"));
-    private static readonly IBrush CardBg = new SolidColorBrush(Color.Parse("#F6F9FC"));
-    private static readonly IBrush BadBg = new SolidColorBrush(Color.Parse("#FBD5C8"));
-    private static readonly IBrush OkBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Warn = AppTheme.Brush("#B23B00");
+    private static readonly IBrush CardBg = AppTheme.Brush("#F6F9FC");
+    private static readonly IBrush BadBg = AppTheme.Brush("#FBD5C8");
+    private static readonly IBrush OkBg = AppTheme.Brush("#E2EFDA");
 
     private readonly bool _edit, _export;
     private bool _loading, _dirty;

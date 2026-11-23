@@ -23,16 +23,16 @@ public sealed class ViTriView : UserControl, IPage
     public string Subtitle => "Tồn theo từng ô vị trí; gõ SL xuất ngay trên bảng để lập phiếu (trừ tồn ngay), gộp theo Size, lưu trữ theo ngày — dùng chung dữ liệu với app cũ.";
 
     private static ViTriService Svc => App.Services.ViTri;
-    private static readonly IBrush PickBg = new SolidColorBrush(Color.Parse("#FFF1C9"));
-    private static readonly IBrush OverBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush ZeroBg = new SolidColorBrush(Color.Parse("#EDEDED"));
-    private static readonly IBrush DoneBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush LockBg = new SolidColorBrush(Color.Parse("#EDEDED"));
-    private static readonly IBrush OffBg = new SolidColorBrush(Color.Parse("#FBE3D6"));
-    private static readonly IBrush KhacBg = new SolidColorBrush(Color.Parse("#F8CBAD"));
-    private static readonly IBrush ChuaBg = new SolidColorBrush(Color.Parse("#FFE699"));
-    private static readonly IBrush KhopBg = new SolidColorBrush(Color.Parse("#E2EFDA"));
-    private static readonly IBrush Line = new SolidColorBrush(Color.Parse("#D0D7E2"));
+    private static readonly IBrush PickBg = AppTheme.Brush("#FFF1C9");
+    private static readonly IBrush OverBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush ZeroBg = AppTheme.Brush("#EDEDED");
+    private static readonly IBrush DoneBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush LockBg = AppTheme.Brush("#EDEDED");
+    private static readonly IBrush OffBg = AppTheme.Brush("#FBE3D6");
+    private static readonly IBrush KhacBg = AppTheme.Brush("#F8CBAD");
+    private static readonly IBrush ChuaBg = AppTheme.Brush("#FFE699");
+    private static readonly IBrush KhopBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush Line = AppTheme.Brush("#D0D7E2");
 
     private readonly bool _edit, _export;
     private bool _loading;
@@ -71,7 +71,7 @@ public sealed class ViTriView : UserControl, IPage
     private readonly GridModel _pvm = new() { ReadOnly = true };
     private readonly SheetGrid _pv;
     private readonly TextBlock _draftSum = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _draftWarn = new() { FontSize = 12, Foreground = new SolidColorBrush(Color.Parse("#B23B00")), TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _draftWarn = new() { FontSize = 12, Foreground = AppTheme.Brush("#B23B00"), TextWrapping = TextWrapping.Wrap };
     private readonly Button _save, _cancelEdit;
 
     // ---------- tab Phiếu xuất
@@ -276,7 +276,7 @@ public sealed class ViTriView : UserControl, IPage
         dock.Children.Add(new Border { BorderBrush = Line, BorderThickness = new Thickness(1), Margin = new Thickness(0, 6), Child = _pv });
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#F6F9FC")), BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
+            Background = AppTheme.Brush("#F6F9FC"), BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
             Padding = new Thickness(12), Margin = new Thickness(0, 8, 0, 0), Child = dock,
         };
     }
@@ -445,7 +445,7 @@ public sealed class ViTriView : UserControl, IPage
         body.Children.Add(new ScrollViewer
         {
             MaxHeight = 560, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = new Border { BorderBrush = Brushes.LightGray, BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
+            Content = new Border { BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
         });
         body.Children.Add(Ui.Buttons(close, save));
         var w = Ui.Dialog("Ảnh phiếu xuất", body, Math.Min(960, bmp.Size.Width / 2 + 80));

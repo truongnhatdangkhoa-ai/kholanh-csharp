@@ -47,7 +47,7 @@ public sealed class C3dCanvas : Control
     public C3dCanvas()
     {
         ClipToBounds = true; Focusable = true;
-        Background = new SolidColorBrush(Color.Parse("#EEF2F7"));
+        Background = AppTheme.Brush("#EEF2F7");
     }
 
     public IBrush Background { get; set; }
@@ -175,20 +175,20 @@ public sealed class C3dCanvas : Control
         var p = Plan;
         if (p is null || !(p.Container.L > 0 && p.Container.W > 0 && p.Container.H > 0))
         {
-            dc.DrawText(new FormattedText("Chưa có container / hàng để mô phỏng.", Ui.Vi, FlowDirection.LeftToRight, Typeface.Default, 14, Brushes.Gray), new Point(16, 16));
+            dc.DrawText(new FormattedText("Chưa có container / hàng để mô phỏng.", Ui.Vi, FlowDirection.LeftToRight, Typeface.Default, 14, AppTheme.Muted), new Point(16, 16));
             return;
         }
         if (_facesDirty) BuildFaces();
         var cam = Cam(); var focal = Math.Min(sz.Width, sz.Height) / (2 * Math.Tan(18 * Math.PI / 180));
         Point? P(double x, double y, double z) => Project(new Point3(x, y, z), cam, focal, sz);
         var c = p.Container; var sp = p.Space;
-        var lineCol = new SolidColorBrush(Color.Parse("#5B6B82"));
+        var lineCol = AppTheme.Brush("#5B6B82");
         var thin = new Pen(lineCol, 1);
         // sàn
-        DrawPoly(dc, new[] { P(0, 0, 0), P(c.L, 0, 0), P(c.L, c.W, 0), P(0, c.W, 0) }, new SolidColorBrush(Color.Parse("#C9D2DE")), thin);
+        DrawPoly(dc, new[] { P(0, 0, 0), P(c.L, 0, 0), P(c.L, c.W, 0), P(0, c.W, 0) }, AppTheme.Brush("#C9D2DE"), thin);
         if (Usable)
         {
-            var dash = new Pen(new SolidColorBrush(Color.Parse("#2E7D32")), 1) { DashStyle = new DashStyle(new double[] { 4, 3 }, 0) };
+            var dash = new Pen(AppTheme.Brush("#2E7D32"), 1) { DashStyle = new DashStyle(new double[] { 4, 3 }, 0) };
             DrawPoly(dc, new[] { P(sp.X0, sp.Y0, 0.5), P(sp.X1, sp.Y0, 0.5), P(sp.X1, sp.Y1, 0.5), P(sp.X0, sp.Y1, 0.5) }, null, dash);
         }
         // vách (mờ) — vẽ trước thùng
@@ -209,7 +209,7 @@ public sealed class C3dCanvas : Control
         }
         order.Sort((a, b) => b.d.CompareTo(a.d));
         var edge = new Pen(new SolidColorBrush(Color.FromArgb(150, 20, 30, 45)), 0.6);
-        var selPen = new Pen(new SolidColorBrush(Color.Parse("#FF1744")), 2.2);
+        var selPen = new Pen(AppTheme.Brush("#FF1744"), 2.2);
         var brushCache = new Dictionary<(int g, int f, bool s, bool h), IBrush>();
         foreach (var (_, bi, f) in order)
         {
@@ -220,8 +220,8 @@ public sealed class C3dCanvas : Control
             var key = (b.Group, f, b.Sample, rowSel || _hover == bi);
             if (!brushCache.TryGetValue(key, out var br))
             {
-                var col = b.Group < GroupColors.Count ? GroupColors[b.Group] : Color.Parse("#4A90D9");
-                if (b.Sample) col = Color.Parse("#F5C400");
+                var col = b.Group < GroupColors.Count ? GroupColors[b.Group] : AppTheme.Color("#4A90D9");
+                if (b.Sample) col = AppTheme.Color("#F5C400");
                 var k = f == 5 ? 1.18 : f is 0 or 1 ? 0.86 : f == 4 ? 0.6 : 0.72;
                 if (key.Item4) k = Math.Min(1.45, k + 0.3);
                 brushCache[key] = br = new SolidColorBrush(Mix(col, k));
@@ -237,7 +237,7 @@ public sealed class C3dCanvas : Control
         // red line
         if (RedLine && sp.Red > 0 && sp.Red <= c.H + 1)
         {
-            var red = new Pen(new SolidColorBrush(Color.Parse("#E53935")), 1.6) { DashStyle = new DashStyle(new double[] { 6, 3 }, 0) };
+            var red = new Pen(AppTheme.Brush("#E53935"), 1.6) { DashStyle = new DashStyle(new double[] { 6, 3 }, 0) };
             var r = sp.Red;
             Ln(new(0, 0, r), new(c.L, 0, r), red); Ln(new(0, c.W, r), new(c.L, c.W, r), red); Ln(new(0, 0, r), new(0, c.W, r), red); Ln(new(c.L, 0, r), new(c.L, c.W, r), red);
             if (P(0, 0, r) is { } rp) Text(dc, "red line " + Ui.Num(r) + " mm", rp + new Point(4, -16), "#C62828", 11);
@@ -269,7 +269,7 @@ public sealed class C3dCanvas : Control
 
     private static void Text(DrawingContext dc, string t, Point at, string color, double size, bool bold = false)
     {
-        var ft = new FormattedText(t, Ui.Vi, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, bold ? FontWeight.Bold : FontWeight.Normal), size, new SolidColorBrush(Color.Parse(color)));
+        var ft = new FormattedText(t, Ui.Vi, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, bold ? FontWeight.Bold : FontWeight.Normal), size, AppTheme.Brush(color));
         dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(190, 255, 255, 255)), null, new Rect(at.X - 2, at.Y - 1, ft.Width + 4, ft.Height + 2), 3, 3);
         dc.DrawText(ft, at);
     }

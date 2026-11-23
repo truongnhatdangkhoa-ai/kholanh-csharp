@@ -17,7 +17,7 @@ public sealed class DataFolderWindow : Window
     private readonly DataLocation _loc;
     private readonly TextBox _path = new() { IsReadOnly = true };
     private readonly TextBlock _note = new() { TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
-    private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#C62828")) };
+    private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Foreground = AppTheme.Brush("#C62828") };
 
     /// <summary>Thư mục đã chọn (null = đóng cửa sổ, không chọn).</summary>
     public string? Chosen { get; private set; }
@@ -32,7 +32,7 @@ public sealed class DataFolderWindow : Window
 
         var brand = new Border
         {
-            Background = Application.Current?.FindResource("BrandDark") as IBrush ?? new SolidColorBrush(Color.Parse("#0B2A45")),
+            Background = Application.Current?.FindResource("BrandDark") as IBrush ?? AppTheme.Brush("#0B2A45"),
             Child = new StackPanel
             {
                 VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(36), Spacing = 14,
@@ -40,7 +40,7 @@ public sealed class DataFolderWindow : Window
                 {
                     Logo(),
                     new TextBlock { Text = "KHO LẠNH", FontSize = 30, FontWeight = FontWeight.Bold, Foreground = Brushes.White },
-                    new TextBlock { Text = "Cài đặt lần đầu trên máy này.", Foreground = new SolidColorBrush(Color.Parse("#B9D3E8")), FontSize = 14, TextWrapping = TextWrapping.Wrap },
+                    new TextBlock { Text = "Cài đặt lần đầu trên máy này.", Foreground = AppTheme.Brush("#B9D3E8"), FontSize = 14, TextWrapping = TextWrapping.Wrap },
                 },
             },
         };
@@ -82,7 +82,7 @@ public sealed class DataFolderWindow : Window
         Content = new Grid
         {
             ColumnDefinitions = new ColumnDefinitions("300,*"),
-            Children = { brand, new Border { [Grid.ColumnProperty] = 1, Background = Brushes.White, Padding = new Thickness(44, 0), Child = form } },
+            Children = { brand, new Border { [Grid.ColumnProperty] = 1, Background = AppTheme.Card, Padding = new Thickness(44, 0), Child = form } },
         };
         Refresh();
     }

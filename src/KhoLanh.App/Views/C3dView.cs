@@ -23,11 +23,11 @@ public sealed class C3dView : UserControl, IPage
 
     private static C3dService Svc => App.Services.C3d;
     private static C3dService.State St => Svc.St;
-    private static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2"));
-    private static readonly IBrush Dark = new SolidColorBrush(Color.Parse("#0B2A45"));
-    private static readonly IBrush Bad = new SolidColorBrush(Color.Parse("#B71C1C"));
-    private static readonly IBrush Good = new SolidColorBrush(Color.Parse("#1B5E20"));
-    private static readonly IBrush WarnFg = new SolidColorBrush(Color.Parse("#8A5A00"));
+    private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
+    private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
+    private static readonly IBrush Bad = AppTheme.Brush("#B71C1C");
+    private static readonly IBrush Good = AppTheme.Brush("#1B5E20");
+    private static readonly IBrush WarnFg = AppTheme.Brush("#8A5A00");
 
     private readonly TabControl _tabs = new();
     private readonly StackPanel _skuList = new() { Spacing = 8 };
@@ -38,7 +38,7 @@ public sealed class C3dView : UserControl, IPage
     private readonly Slider _seq = new() { Minimum = 0, Maximum = 1, Width = 260, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _seqLab = new() { FontSize = 12, VerticalAlignment = VerticalAlignment.Center, MinWidth = 80 };
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 560 };
-    private readonly Border _sel = new() { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), IsVisible = false, MaxWidth = 340, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
+    private readonly Border _sel = new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), IsVisible = false, MaxWidth = 340, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(8) };
     private readonly Border _tip = new() { Background = new SolidColorBrush(Color.FromArgb(235, 11, 42, 69)), CornerRadius = new CornerRadius(5), Padding = new Thickness(8, 4), IsVisible = false, IsHitTestVisible = false, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
     private readonly TextBlock _ctx = new() { FontSize = 12, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
     private C3dPlan? _plan;
@@ -101,7 +101,7 @@ public sealed class C3dView : UserControl, IPage
     private static Button Btn(string text, Func<Task> click, string? tip = null) => Btn(text, () => { _ = click(); }, tip);
     private static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private static TextBlock H(string t) => new() { Text = t, FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Dark, Margin = new Thickness(0, 4, 0, 2) };
-    private static Border Card(Control c) => new() { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Child = c };
+    private static Border Card(Control c) => new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Child = c };
 
     private void Boot()
     {
@@ -176,7 +176,7 @@ public sealed class C3dView : UserControl, IPage
 
     private Control SkuCard(C3dSku k, int i)
     {
-        var col = Color.Parse(Svc.ColorFor(k.Code));
+        var col = AppTheme.Color(Svc.ColorFor(k.Code));
         var swatch = new Border { Width = 18, Height = 18, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(col), VerticalAlignment = VerticalAlignment.Center };
         ToolTip.SetTip(swatch, "Bấm để đổi màu của mã hàng này");
         swatch.PointerPressed += async (_, _) =>
@@ -196,7 +196,7 @@ public sealed class C3dView : UserControl, IPage
         var info = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
         var vol = Muted(VolText(k));
         void Upd(bool titleToo = false) { vol.Text = VolText(k); if (titleToo) title.Text = $"#{St.Skus.IndexOf(k) + 1}  " + (k.Code.Length > 0 ? k.Code : "Chưa nhập mã") + (k.Size.Length > 0 ? " · " + k.Size : "") + (k.Date.Length > 0 ? " · " + k.Date : ""); Changed(); }
-        Field(info, "Mã hàng", k.Code, v => { k.Code = v.Trim(); swatch.Background = new SolidColorBrush(Color.Parse(Svc.ColorFor(k.Code))); Upd(true); }, 120);
+        Field(info, "Mã hàng", k.Code, v => { k.Code = v.Trim(); swatch.Background = AppTheme.Brush(Svc.ColorFor(k.Code)); Upd(true); }, 120);
         Field(info, "Size", k.Size, v => { k.Size = v.Trim(); Upd(true); }, 70);
         Field(info, "Date (ngày SX)", k.Date, v => { k.Date = v.Trim(); Upd(true); }, 95, "dd/mm/yyyy");
         Field(info, "SL thùng", k.Qty.ToString(CultureInfo.InvariantCulture), v => { k.Qty = (int)Math.Max(0, Math.Floor(C3dJson.Num(v))); Upd(); }, 70);
@@ -303,7 +303,7 @@ public sealed class C3dView : UserControl, IPage
         var specs = C3dEngine.ParseColPlan(k.RowPlan).Select(s => (tok: s.Tok, n: s.N, t: s.T)).ToList();
         if (specs.Count == 0) specs = new() { ("nam", 6, 0), ("dung", 2, 0) };
         var rows = new StackPanel { Spacing = 4 };
-        var prev = new Canvas { Width = 470, Height = 280, Background = new SolidColorBrush(Color.Parse("#F7F9FC")) };
+        var prev = new Canvas { Width = 470, Height = 280, Background = AppTheme.Brush("#F7F9FC") };
         var stats = Muted("");
         string Str() => string.Join(" ", specs.Where(q => q.n > 0).Select(q => q.n + " " + C3dEngine.TokName(q.tok) + (q.t > 0 ? " x" + q.t : "")));
         var dims = new[] { k.L, k.W, k.H }.OrderBy(x => x).ToArray();
@@ -359,7 +359,7 @@ public sealed class C3dView : UserControl, IPage
 
     private static Avalonia.Controls.Shapes.Rectangle Rect(double x, double y, double w, double h, string fill, string stroke)
     {
-        var r = new Avalonia.Controls.Shapes.Rectangle { Width = Math.Max(0.5, w), Height = Math.Max(0.5, h), Fill = new SolidColorBrush(Color.Parse(fill)), Stroke = new SolidColorBrush(Color.Parse(stroke)), StrokeThickness = 0.6 };
+        var r = new Avalonia.Controls.Shapes.Rectangle { Width = Math.Max(0.5, w), Height = Math.Max(0.5, h), Fill = AppTheme.Brush(fill), Stroke = AppTheme.Brush(stroke), StrokeThickness = 0.6 };
         Canvas.SetLeft(r, x); Canvas.SetTop(r, y); return r;
     }
 
@@ -564,7 +564,7 @@ public sealed class C3dView : UserControl, IPage
             var cb = new CheckBox { IsChecked = !_hidG.Contains(g.Index), FontSize = 12 };
             var gi = g.Index; cb.IsCheckedChanged += (_, _) => { if (cb.IsChecked == true) _hidG.Remove(gi); else _hidG.Add(gi); ApplyFilter(); };
             row.Children.Add(cb);
-            row.Children.Add(new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(3), Background = new SolidColorBrush(Color.Parse(gi < _gcolors.Count ? _gcolors[gi] : "#888")), VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(3), Background = AppTheme.Brush(gi < _gcolors.Count ? _gcolors[gi] : "#888"), VerticalAlignment = VerticalAlignment.Center });
             row.Children.Add(new TextBlock { Text = (g.Sku.Code.Length > 0 ? g.Sku.Code : "#" + (gi + 1)) + " " + g.Sku.Size + (g.Sku.Date.Length > 0 ? " · " + g.Sku.Date : "") + $" ({Fmt(g.Loaded)})", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 190 });
             gh.Children.Add(row);
         }
@@ -603,7 +603,7 @@ public sealed class C3dView : UserControl, IPage
         var box = new StackPanel { Spacing = 4, Margin = new Thickness(0, 2, 0, 6) };
         box.Children.Add(new TextBlock { Text = $"Dãy {r.Row}", FontWeight = FontWeight.Bold });
         box.Children.Add(Muted($"Còn trống: trần {Fmt(r.Gaps.Ceiling)} · red line {Fmt(r.Gaps.Red)} · vách phải {Fmt(r.Gaps.Right)} · vách trái {Fmt(r.Gaps.Left)} mm"));
-        if (r.Wall < 0 || r.Group < 0) { box.Children.Add(Muted("Dãy này gồm nhiều mặt hàng ghép / hàng mẫu — không chỉnh hướng riêng được.")); return new Border { Background = new SolidColorBrush(Color.Parse("#F4F7FB")), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = box }; }
+        if (r.Wall < 0 || r.Group < 0) { box.Children.Add(Muted("Dãy này gồm nhiều mặt hàng ghép / hàng mẫu — không chỉnh hướng riêng được.")); return new Border { Background = AppTheme.Brush("#F4F7FB"), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = box }; }
         var sk = St.Skus.FirstOrDefault(x => x.Id == p.Groups[r.Group].Sku.Id) ?? p.Groups[r.Group].Sku;
         var cur = sk.RowSet.TryGetValue(r.Wall.ToString(CultureInfo.InvariantCulture), out var v) ? v : "";
         var opts = new List<(string v, string t)> { ("", "Theo dãy mẫu / tự động"), ("nam", "Cả dãy NẰM"), ("dung", "Cả dãy ĐỨNG"), ("cao", "Cả dãy DỰNG CAO") };
@@ -622,7 +622,7 @@ public sealed class C3dView : UserControl, IPage
         }));
         bs.Children.Add(Btn("Về tự động", () => { sk.RowSet.Remove(r.Wall.ToString(CultureInfo.InvariantCulture)); RenderGoods(); Changed(delay: 1); }));
         box.Children.Add(bs);
-        return new Border { Background = new SolidColorBrush(Color.Parse("#F4F7FB")), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = box };
+        return new Border { Background = AppTheme.Brush("#F4F7FB"), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 6), Child = box };
     }
 
     // ------------------------------------------------------------ rê chuột / chọn thùng
@@ -677,8 +677,8 @@ public sealed class C3dView : UserControl, IPage
             sp.Children.Add(new TextBlock { Text = k, FontSize = 11.5, Classes = { "muted" } });
             sp.Children.Add(new TextBlock { Text = v, FontSize = 18, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
             if (s.Length > 0) sp.Children.Add(new TextBlock { Text = s, FontSize = 11.5, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap });
-            if (pct is { } pc) sp.Children.Add(new ProgressBar { Value = Math.Min(100, pc), Maximum = 100, Height = 6, MinHeight = 6, Margin = new Thickness(0, 3, 0, 0), Foreground = pc > 100 ? Bad : new SolidColorBrush(Color.Parse("#2563EB")) });
-            return new Border { Background = Brushes.White, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6), Width = 230, Child = sp };
+            if (pct is { } pc) sp.Children.Add(new ProgressBar { Value = Math.Min(100, pc), Maximum = 100, Height = 6, MinHeight = 6, Margin = new Thickness(0, 3, 0, 0), Foreground = pc > 100 ? Bad : AppTheme.Brush("#2563EB") });
+            return new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6), Width = 230, Child = sp };
         }
         var pay = t.Payload > 0 ? t.Kg / t.Payload * 100 : 0;
         var kp = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
@@ -689,7 +689,7 @@ public sealed class C3dView : UserControl, IPage
         kp.Children.Add(Kpi("Số dãy · tầng cao nhất", $"{t.Rows} dãy · {p.MaxTier} tầng", t.Sample > 0 ? $"{Fmt(t.Sample)} thùng mẫu hải quan" : "không đánh dấu mẫu"));
         var head = new TextBlock { Text = $"Báo cáo · {p.Container.Name} · tính trong {_ms} ms", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Dark };
         _report.Children.Add(head); _report.Children.Add(kp);
-        void Msg(string text, string bg, IBrush fg) => _report.Children.Add(new Border { Background = new SolidColorBrush(Color.Parse(bg)), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = new TextBlock { Text = text, Foreground = fg, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 } });
+        void Msg(string text, string bg, IBrush fg) => _report.Children.Add(new Border { Background = AppTheme.Brush(bg), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = new TextBlock { Text = text, Foreground = fg, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 } });
         foreach (var m in p.Errors) Msg("⛔ " + m, "#FDECEA", Bad);
         if (t.Left > 0) Msg($"📦 Rớt lại kho {Fmt(t.Left)} thùng — " + string.Join(" · ", p.Groups.Where(g => g.Left > 0).Select(g => (g.Sku.Code.Length > 0 ? g.Sku.Code : "Mặt hàng") + (g.Sku.Size.Length > 0 ? " " + g.Sku.Size : "") + (g.Sku.Date.Length > 0 ? $" ({g.Sku.Date})" : "") + $": {Fmt(g.Left)} thùng")) + ".", "#FDECEA", Bad);
         if (!p.Verify.Ok) Msg("Chi tiết lỗi kiểm tra:\n" + string.Join("\n", p.Verify.Violations.Take(5).Select(v => v.Msg)), "#FDECEA", Bad);
@@ -700,7 +700,7 @@ public sealed class C3dView : UserControl, IPage
             var row = new DockPanel();
             var ap = Btn("Áp dụng", () => ApplyHint(h)); DockPanel.SetDock(ap, Dock.Right); row.Children.Add(ap);
             row.Children.Add(new TextBlock { Text = "💡 " + h.Text + "\n→ " + (h.Gain > 0 ? $"đóng thêm được +{Fmt(h.Gain)} thùng ({Fmt(h.Loaded)} / {Fmt(t.Requested)}, còn rớt {Fmt(h.Left)})" : h.Note), TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
-            _report.Children.Add(new Border { Background = new SolidColorBrush(Color.Parse("#E8F1FB")), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = row });
+            _report.Children.Add(new Border { Background = AppTheme.Brush("#E8F1FB"), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Child = row });
         }
         if (p.Verify.Ok && t.Loaded > 0) Msg($"✔ Kiểm tra độc lập ĐẠT: không chồng lấn · nằm trong cont, dưới red line · mỗi thùng được đỡ ≥ {Math.Round(p.Options.MinSupport * 100)}% diện tích bên dưới · thùng đỡ đóng trước · không thùng nào bị chắn đường từ cửa.", "#E8F5E9", Good);
         if (p.SpreadNote.Length > 0) Msg("🧱 " + p.SpreadNote, "#F3F4F6", Dark);
@@ -720,7 +720,7 @@ public sealed class C3dView : UserControl, IPage
         {
             var tb = new TextBlock { Text = text, FontSize = 12, TextWrapping = TextWrapping.Wrap, FontWeight = bold ? FontWeight.Bold : FontWeight.Normal, Margin = new Thickness(4, 3), TextAlignment = right ? TextAlignment.Right : TextAlignment.Left };
             if (fg is not null) tb.Foreground = fg;
-            var bd = new Border { BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1), Child = tb, Background = row == 0 ? new SolidColorBrush(Color.Parse("#EEF2F7")) : null };
+            var bd = new Border { BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1), Child = tb, Background = row == 0 ? AppTheme.Brush("#EEF2F7") : null };
             Grid.SetRow(bd, row); Grid.SetColumn(bd, col); grid.Children.Add(bd);
         }
         grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -731,7 +731,7 @@ public sealed class C3dView : UserControl, IPage
             r++; grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); var sk = g.Sku;
             var tiers = g.Loaded > 0 ? p.Boxes.Where(b => b.Group == g.Index).Max(b => b.Tier) : 0;
             Cell(r, 0, (g.Index + 1).ToString(CultureInfo.InvariantCulture));
-            Cell(r, 1, (sk.Code.Length > 0 ? sk.Code : "(chưa có mã)") + (sk.Name.Length > 0 ? " — " + sk.Name : "") + "\n" + string.Join(" · ", new[] { sk.Size, sk.Date }.Where(x => x.Length > 0)) + (g.XStart is { } xs ? $"\n{Fmt((xs - p.Space.X0) / 1000, 2)} → {Fmt((g.XEnd!.Value - p.Space.X0) / 1000, 2)} m" : ""), true, new SolidColorBrush(Color.Parse(g.Index < _gcolors.Count ? _gcolors[g.Index] : "#333")));
+            Cell(r, 1, (sk.Code.Length > 0 ? sk.Code : "(chưa có mã)") + (sk.Name.Length > 0 ? " — " + sk.Name : "") + "\n" + string.Join(" · ", new[] { sk.Size, sk.Date }.Where(x => x.Length > 0)) + (g.XStart is { } xs ? $"\n{Fmt((xs - p.Space.X0) / 1000, 2)} → {Fmt((g.XEnd!.Value - p.Space.X0) / 1000, 2)} m" : ""), true, AppTheme.Brush(g.Index < _gcolors.Count ? _gcolors[g.Index] : "#333"));
             Cell(r, 2, Fmt(g.Requested), false, null, true);
             Cell(r, 3, Fmt(g.Loaded) + (g.Sample > 0 ? $"\ngồm {Fmt(g.Sample)} mẫu HQ" : ""), false, null, true);
             Cell(r, 4, Fmt(g.Left), g.Left > 0, g.Left > 0 ? Bad : null, true);
