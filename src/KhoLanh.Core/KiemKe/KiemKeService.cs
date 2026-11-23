@@ -101,11 +101,18 @@ public sealed class KiemKeService
         var meta = Read(DbAn, "LoadDataMeta"); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonOf(S(mo["data"])) as JsonObject : null;
         var headers = (mj?["headers"] as JsonArray ?? new JsonArray()).Select(S).ToList();
         StockFile = S(mj?["fileName"]); StockDate = S(mj?["dataDate"]);
-        StockLive = headers.Count == 0 ? new() : MakeStock(headers, Read(DbAn, "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, headers.Count).Select(i => S(o["c" + i])).ToArray()));
+        if (headers.Count == 0) StockLive = new();
+        else
+        {
+            var data = Read(DbAn, "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, headers.Count).Select(i => S(o["c" + i])).ToArray()).ToList();
+            string[] grp;
+            try { grp = PhanLoaiM1.Classify(headers, data, ManualAssign(mj), CustomFilters()).Primary; } catch { grp = Array.Empty<string>(); }
+            StockLive = MakeStock(headers, data, grp);
+        }
         // bản chụp tồn
         StockSnap = Read(Db, SheetSnap).OfType<JsonObject>().Select(o => new Stock
         {
-            Ma = S(o["ma"]), Key = NormKey(S(o["ma"])), Ten = S(o["ten"]), Hd = S(o["hd"]), Dt = S(o["dt"]), Ton = Num0(o["ton"]),
+            Ma = S(o["ma"]), Key = NormKey(S(o["ma"])), Ten = S(o["ten"]), Hd = S(o["hd"]), Dt = S(o["dt"]), Nhom = S(o["nhom"]), Ton = Num0(o["ton"]),
             Tl = o["tl"] is null || S(o["tl"]).Length == 0 ? null : Num0(o["tl"]),
         }).Where(s => s.Ma.Length > 0).ToList();
         var sm = Read(Db, SheetSnapMeta); var smj = sm.Count > 0 && sm[0] is JsonObject smo ? JsonOf(S(smo["data"])) as JsonObject : null;
@@ -131,6 +138,24 @@ public sealed class KiemKeService
         Recompute();
         Loaded = true;
     }
+    private static Dictionary<int, string> ManualAssign(JsonObject? meta)
+    {
+        var d = new Dictionary<int, string>();
+        if (meta?["manualAssign"] is JsonObject mo) foreach (var kv in mo) if (int.TryParse(kv.Key, out var i) && S(kv.Value).Length > 0) d[i] = S(kv.Value);
+        return d;
+    }
+    private Dictionary<string, List<PhanLoaiM1.CustomFilter>> CustomFilters()
+    {
+        var d = new Dictionary<string, List<PhanLoaiM1.CustomFilter>>();
+        var rs = Read(DbAn, "DieuKienTuThem"); if (rs.Count == 0 || rs[0] is not JsonObject ro) return d;
+        if (JsonOf(S(ro["data"])) is not JsonObject cj) return d;
+        foreach (var kv in cj)
+        {
+            if (kv.Value is not JsonArray arr) continue;
+            d[kv.Key] = arr.OfType<JsonObject>().Select(o => new PhanLoaiM1.CustomFilter { ColLabel = S(o["colLabel"]), Op = S(o["op"]), Value = S(o["value"]), From = (int)Num0(o["from"]), To = (int)Num0(o["to"]) }).ToList();
+        }
+        return d;
+    }
     public static string AtText(string iso) => DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d)
         ? d.ToLocalTime().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture) : iso;
 
@@ -143,6 +168,7 @@ public sealed class KiemKeService
         if (LatestOnly) { Lines = KiemKeCore.LatestOnly(Ex.Rows, out var d); Dropped = d; } else { Lines = Ex.Rows; Dropped = new(); }
         Kt = MakeKeToan(KtRows);
         T = BuildTotals(Lines, Stock, Kt.Map.Count > 0 ? Kt : null);
+        AddLsx(T.Rows, Lines, Stock);
         foreach (var r in T.Rows) if (r.Ten.Length == 0 && _tenMap.TryGetValue(r.Key, out var t)) r.Ten = t;
         Analyze(T.Rows, Recounts.SelectMany(a => a.Items.Select(x => x.Key)).ToHashSet());
         Summary = Summarize(T.Rows);
@@ -185,10 +211,10 @@ public sealed class KiemKeService
     {
         RequireEdit(); RequireOpen();
         if (StockLive.Count == 0) throw new BusinessException("Tồn kho An An chưa có dữ liệu — nạp file ở module Tồn kho An An trước.");
-        var rows = new JsonArray(StockLive.Select(s => (JsonNode)new JsonObject { ["ma"] = s.Ma, ["ten"] = s.Ten, ["hd"] = s.Hd, ["dt"] = s.Dt, ["ton"] = s.Ton, ["tl"] = s.Tl is { } t ? t : "" }).ToArray());
+        var rows = new JsonArray(StockLive.Select(s => (JsonNode)new JsonObject { ["ma"] = s.Ma, ["ten"] = s.Ten, ["hd"] = s.Hd, ["dt"] = s.Dt, ["nhom"] = s.Nhom, ["ton"] = s.Ton, ["tl"] = s.Tl is { } t ? t : "" }).ToArray());
         var meta = new JsonObject { ["at"] = Iso(), ["file"] = StockFile, ["date"] = StockDate, ["n"] = StockLive.Count, ["origin"] = new JsonObject { ["type"] = "module", ["label"] = "module Tồn kho An An" }, ["by"] = UserName };
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetSnap] = rows, [SheetSnapMeta] = new JsonArray(new JsonObject { ["data"] = "__JSON__" + meta.ToJsonString() }) });
-        StockSnap = StockLive.Select(s => new Stock { Ma = s.Ma, Key = s.Key, Ten = s.Ten, Hd = s.Hd, Dt = s.Dt, Ton = s.Ton, Tl = s.Tl }).ToList();
+        StockSnap = StockLive.Select(s => new Stock { Ma = s.Ma, Key = s.Key, Ten = s.Ten, Hd = s.Hd, Dt = s.Dt, Nhom = s.Nhom, Ton = s.Ton, Tl = s.Tl }).ToList();
         SnapInfo = $"{StockFile} (dữ liệu ngày {StockDate}) · chụp {AtText(S(meta["at"]))} · {UserName}";
         StockSrc = "snap"; SaveState(); Recompute();
         Log("chụp tồn kho An An", $"{StockLive.Count} dòng, file {StockFile}");

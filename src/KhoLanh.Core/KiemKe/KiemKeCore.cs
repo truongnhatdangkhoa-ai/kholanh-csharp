@@ -154,20 +154,22 @@ public static class KiemKeCore
 
     // ================================================================== Tồn kho An An
 
-    public sealed class Stock { public string Ma = "", Key = "", Ten = "", Dt = "", Hd = ""; public double Ton; public double? Tl; }
+    public sealed class Stock { public string Ma = "", Key = "", Ten = "", Dt = "", Hd = "", Nhom = ""; public double Ton; public double? Tl; }
     /// <summary>Dòng Load Data của Tồn kho An An → bản ghi (Mã hàng, Tên, Đặc tính, Hợp đồng, Tồn cuối, Trọng lượng).</summary>
-    public static List<Stock> MakeStock(IReadOnlyList<string> headers, IEnumerable<string[]> rows)
+    public static List<Stock> MakeStock(IReadOnlyList<string> headers, IEnumerable<string[]> rows, IReadOnlyList<string>? groups = null)
     {
         var H = headers.Select(Hk).ToList();
         int At(params string[] ks) { foreach (var k in ks) { var i = H.IndexOf(k); if (i >= 0) return i; } return -1; }
         int ma = At("mahang"), ten = At("tenhang"), dt = At("dactinh"), hd = At("hopdong"), ton = At("toncuoi"), tl = At("trongluong");
         var o = new List<Stock>(); if (ma < 0) return o;
         string G(string[] r, int i) => i >= 0 && i < r.Length ? (r[i] ?? "").Trim() : "";
+        var idx = -1;
         foreach (var r in rows)
         {
+            idx++;
             var m = G(r, ma); if (m.Length == 0) continue;
             var t = Num(G(r, ton)); var w = Num(G(r, tl));
-            o.Add(new Stock { Ma = m, Key = NormKey(m), Ten = G(r, ten), Dt = G(r, dt), Hd = G(r, hd), Ton = t is { } x && !double.IsNaN(x) ? x : 0, Tl = w is { } y && !double.IsNaN(y) ? y : null });
+            o.Add(new Stock { Ma = m, Key = NormKey(m), Ten = G(r, ten), Dt = G(r, dt), Hd = G(r, hd), Nhom = groups is not null && idx < groups.Count ? groups[idx] : "", Ton = t is { } x && !double.IsNaN(x) ? x : 0, Tl = w is { } y && !double.IsNaN(y) ? y : null });
         }
         return o;
     }
@@ -211,7 +213,43 @@ public static class KiemKeCore
     {
         public string Key = "", Ma = "", Ten = "", Status = "", KtStatus = "";
         public double? KkKien, KkKg, TonKien, TonKg, DKien, DKg, KtKg, KtKien, ChotKg, TongKt;
+        public string Nhom = ""; public List<string> NhomAll = new();
+        /// <summary>So theo LSX (chỉ mã nhóm Thành Phẩm Chính có ≥2 LSX): "", Khớp, Lệch, Thiếu thông tin.</summary>
+        public string LsxStatus = ""; public List<LsxItem> Lsx = new();
         public int KkRows, KkDays, TonRows; public List<string> Notes = new(); public Nn? Nn;
+    }
+    public sealed record LsxItem(string Lsx, double KkKien, double TonKien, double KkKg, double TonKg, bool Lech);
+    /// <summary>LSX = phần Hợp đồng trước hậu tố ngày "-dd/mm[/yy]", viết hoa, bỏ khoảng trắng.</summary>
+    public static string LsxOf(string? hd)
+    {
+        var t = Regex.Replace((hd ?? "").Trim(), @"\s*-\s*\d{1,2}/\d{1,2}(/\d{2,4})?\s*$", "");
+        return Regex.Replace(t, @"\s+", "").ToUpperInvariant();
+    }
+    /// <summary>Đối chiếu theo LSX cho các mã Thành Phẩm Chính vừa kiểm kê vừa có tồn mà có từ 2 LSX trở lên.</summary>
+    public static void AddLsx(IEnumerable<Row> rows, IEnumerable<Line> lines, IEnumerable<Stock> stock)
+    {
+        var kk = lines.GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.ToList());
+        var st = stock.GroupBy(x => x.Key).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var r in rows)
+        {
+            r.LsxStatus = ""; r.Lsx = new();
+            if (r.Nhom != "tpc" || r.KkRows == 0 || r.TonRows == 0 || !kk.TryGetValue(r.Key, out var kl) || !st.TryGetValue(r.Key, out var sl)) continue;
+            var kLsx = kl.Select(x => LsxOf(x.Hd)).Where(x => x.Length > 0).Distinct().ToList();
+            var sLsx = sl.Where(x => x.Nhom == "tpc").Select(x => LsxOf(x.Hd)).Where(x => x.Length > 0).Distinct().ToList();
+            if (kLsx.Union(sLsx).Count() < 2 && sLsx.Count < 2) continue;
+            if (kl.Any(x => LsxOf(x.Hd).Length == 0)) { r.LsxStatus = "Thiếu thông tin"; continue; }
+            var keys = kLsx.Union(sLsx).OrderBy(x => x, StringComparer.Ordinal).ToList();
+            var items = new List<LsxItem>(); var any = false;
+            foreach (var k in keys)
+            {
+                var kk1 = kl.Where(x => LsxOf(x.Hd) == k).ToList(); var ss1 = sl.Where(x => x.Nhom == "tpc" && LsxOf(x.Hd) == k).ToList();
+                double kKien = kk1.Sum(x => x.Kien), tKien = ss1.Sum(x => x.Ton);
+                double kKg = kk1.Sum(x => x.Kg ?? 0), tKg = ss1.Sum(x => x.Tl is { } w ? x.Ton * w : 0);
+                var lech = Math.Abs(kKien - tKien) > 1e-9 || Math.Abs(kKg - tKg) > KgTol;
+                any |= lech; items.Add(new LsxItem(k, R4(kKien), R4(tKien), R4(kKg), R4(tKg), lech));
+            }
+            r.Lsx = items; r.LsxStatus = any ? "Lệch" : "Khớp";
+        }
     }
     public sealed class Totals { public List<Row> Rows = new(); public bool HasStock, HasKT; }
 
@@ -219,7 +257,7 @@ public static class KiemKeCore
     {
         var hasStock = stock.Count > 0; var hasKT = kt is { Map.Count: > 0 };
         var M = new Dictionary<string, (Row r, double kkKien, double kkKg, int kkKgN, int kgThieu, HashSet<string> days, double tonKien, double tonKg, int tonKgThieu, bool ktHas)>();
-        var order = new List<string>();
+        var order = new List<string>(); var gm = new Dictionary<string, Dictionary<string, (double Ton, int N)>>();
         Row Get(string key, string ma) { if (!M.ContainsKey(key)) { M[key] = (new Row { Key = key, Ma = ma }, 0, 0, 0, 0, new HashSet<string>(), 0, 0, 0, false); order.Add(key); } return M[key].r; }
         foreach (var x in ex)
         {
@@ -233,6 +271,7 @@ public static class KiemKeCore
         {
             var r = Get(s.Key, s.Ma); var e = M[s.Key];
             r.TonRows++; e.tonKien += s.Ton;
+            if (s.Nhom.Length > 0) { if (!gm.TryGetValue(s.Key, out var gd)) gm[s.Key] = gd = new(); gd.TryGetValue(s.Nhom, out var gv); gd[s.Nhom] = (gv.Ton + s.Ton, gv.N + 1); }
             if (s.Tl is { } tl) e.tonKg += s.Ton * tl; else if (s.Ton != 0) e.tonKgThieu++;
             if (s.Ten.Length > 0) r.Ten = s.Ten;
             M[s.Key] = e;
@@ -253,6 +292,12 @@ public static class KiemKeCore
             bool counted = r.KkRows > 0, inStock = r.TonRows > 0;
             var kgKnown = e.kkKgN > 0 || e.kkKien == 0;
             r.KkDays = e.days.Count;
+            if (gm.TryGetValue(key, out var gdm))
+            {
+                var ord = PhanLoaiM1.Order.ToList();
+                r.NhomAll = gdm.Keys.OrderBy(g => ord.IndexOf(g)).ToList();
+                r.Nhom = gdm.OrderByDescending(kv => Math.Abs(kv.Value.Ton)).ThenByDescending(kv => kv.Value.N).ThenBy(kv => ord.IndexOf(kv.Key)).First().Key;
+            }
             double? dKien = counted || inStock ? R4(e.kkKien - e.tonKien) : null;
             double? dKg = (counted || inStock) && kgKnown ? R4(e.kkKg - e.tonKg) : null;
             string? st;
@@ -271,6 +316,7 @@ public static class KiemKeCore
             if (e.kgThieu > 0) r.Notes.Add($"{e.kgThieu} dòng kiểm kê thiếu Net / Trọng lượng (chưa tính kg)");
             if (e.tonKgThieu > 0) r.Notes.Add($"{e.tonKgThieu} dòng tồn kho thiếu Trọng lượng");
             if (!inStock && counted && hasStock) r.Notes.Add("Mã không có trong Tồn kho An An");
+            if (r.NhomAll.Count > 1) r.Notes.Add("Mã có tồn ở nhiều nhóm của module Tồn kho An An: " + string.Join(", ", r.NhomAll.Select(PhanLoaiM1.LabelOf)) + " — nhóm chính: " + PhanLoaiM1.LabelOf(r.Nhom));
             // Kế toán: so "tồn chốt" (= số kiểm kê kg; mã không kiểm kê = 0) với Net kế toán
             r.ChotKg = counted ? (kgKnown ? R4(e.kkKg) : null) : 0;
             if (hasKT)

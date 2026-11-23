@@ -57,6 +57,8 @@ public sealed class KiemKeView : UserControl, IPage
     private readonly WrapPanel _kpi = new() { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 4) };
     private readonly WrapPanel _todo = new() { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 4) };
     private readonly ComboBox _flt = new() { MinWidth = 170 };
+    private readonly ComboBox _grp = new() { MinWidth = 160 };
+    private string _grpKey = "";
     private readonly TextBox _q = new() { Watermark = "Tìm mã, tên…", Width = 240 };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _am = new() { ReadOnly = true };
@@ -65,7 +67,7 @@ public sealed class KiemKeView : UserControl, IPage
     private readonly StackPanel _det = new() { Spacing = 6 };
     private string _fltKey = "LECH";
     private static readonly (string Key, string Text)[] Flts =
-        { ("LECH", "Đang lệch (cần xử lý)"), ("ALL", "Tất cả mã"), (Khop, Khop), (Thua, Thua), (Thieu, Thieu), (LechKg, LechKg), (ChiKK, ChiKK), (ChuaKK, ChuaKK) };
+        { ("LECH", "Đang lệch (cần xử lý)"), ("ALL", "Tất cả mã"), ("LSX", "Lệch theo LSX"), (Khop, Khop), (Thua, Thua), (Thieu, Thieu), (LechKg, LechKg), (ChiKK, ChiKK), (ChuaKK, ChuaKK) };
 
     // ---------- tab Kế toán
     private readonly GridModel _km = new();
@@ -360,7 +362,9 @@ public sealed class KiemKeView : UserControl, IPage
         Combo(_flt, Flts.Select(f => f.Text));
         _flt.SelectionChanged += (_, _) => { if (_loading) return; _fltKey = Flts[Math.Max(0, _flt.SelectedIndex)].Key; RenderAnGrid(); RenderKpi(); };
         _q.TextChanged += (_, _) => { if (!_loading) RenderAnGrid(); };
-        bar.Children.Add(_flt); bar.Children.Add(_q); bar.Children.Add(_gridInfo);
+        Combo(_grp, new[] { "Mọi nhóm tồn" }.Concat(PhanLoaiM1.Order.Select(PhanLoaiM1.LabelOf)));
+        _grp.SelectionChanged += (_, _) => { if (_loading) return; _grpKey = _grp.SelectedIndex <= 0 ? "" : PhanLoaiM1.Order[_grp.SelectedIndex - 1]; RenderAnGrid(); };
+        bar.Children.Add(_flt); bar.Children.Add(_grp); bar.Children.Add(_q); bar.Children.Add(_gridInfo);
         var head = new StackPanel(); head.Children.Add(srcRow); head.Children.Add(_kpi); head.Children.Add(_todo); head.Children.Add(bar);
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_ag));
         var det = new Border { Child = new ScrollViewer { Content = _det, Padding = new Thickness(0, 0, 8, 0) }, Margin = new Thickness(0, 8, 0, 0) };
@@ -398,7 +402,8 @@ public sealed class KiemKeView : UserControl, IPage
     {
         var q = (_q.Text ?? "").Trim().ToLowerInvariant();
         return Svc.T.Rows.Where(r => r.Status != ChiKT)
-            .Where(r => _fltKey == "ALL" || (_fltKey == "LECH" ? KiemKeCore.Lech.Contains(r.Status) : r.Status == _fltKey))
+            .Where(r => _fltKey == "ALL" || (_fltKey == "LSX" ? r.LsxStatus is "Lệch" or "Thiếu thông tin" : _fltKey == "LECH" ? KiemKeCore.Lech.Contains(r.Status) : r.Status == _fltKey))
+            .Where(r => _grpKey.Length == 0 || r.NhomAll.Contains(_grpKey))
             .Where(r => q.Length == 0 || (r.Ma + " " + r.Ten).ToLowerInvariant().Contains(q))
             .OrderByDescending(r => _fltKey is "ALL" or Khop ? 0 : Math.Abs(r.DKg ?? 0)).ThenBy(r => r.Ma, StringComparer.Ordinal).ToList();
     }
@@ -407,10 +412,10 @@ public sealed class KiemKeView : UserControl, IPage
         _aRows = AnFiltered();
         _am.Load(new[]
         {
-            new GridColumn("ma", "Mã hàng", 235), new GridColumn("ten", "Tên hàng", 190), new GridColumn("kk", "Kiểm kê (kiện)", 90, "number"), new GridColumn("ton", "Tồn kho (kiện)", 90, "number"),
+            new GridColumn("ma", "Mã hàng", 235), new GridColumn("ten", "Tên hàng", 190), new GridColumn("nhom", "Nhóm tồn", 120), new GridColumn("kk", "Kiểm kê (kiện)", 90, "number"), new GridColumn("ton", "Tồn kho (kiện)", 90, "number"),
             new GridColumn("dk", "Chênh (kiện)", 85, "number"), new GridColumn("kkg", "Kiểm kê (kg)", 95, "number"), new GridColumn("tkg", "Tồn kho (kg)", 95, "number"), new GridColumn("dkg", "Chênh (kg)", 90, "number"),
             new GridColumn("st", "Kết quả", 110), new GridColumn("nn", "Nguyên nhân (gợi ý)", 200),
-        }, _aRows.Select(r => new[] { r.Ma, r.Ten, Q(r.KkKien), Q(r.TonKien), D(r.DKien), Kg(r.KkKg), Kg(r.TonKg), D(r.DKg, true), r.Status, r.Nn?.Label ?? "" }));
+        }, _aRows.Select(r => new[] { r.Ma, r.Ten, r.Nhom.Length > 0 ? PhanLoaiM1.LabelOf(r.Nhom) : "", Q(r.KkKien), Q(r.TonKien), D(r.DKien), Kg(r.KkKg), Kg(r.TonKg), D(r.DKg, true), r.Status, r.Nn?.Label ?? "" }));
         _ag.Refresh();
         _gridInfo.Text = $"{_aRows.Count:#,0} mã";
         if (_aRows.Count > 0) { _ag.Select(0, 0); ShowDetail(_aRows[0]); } else ShowDetail(null);
@@ -419,9 +424,9 @@ public sealed class KiemKeView : UserControl, IPage
     {
         if (r < 0 || r >= _aRows.Count) return null;
         var x = _aRows[r];
-        if (c == 8) return StBrush(x.Status);
-        if ((c == 4 && (x.DKien ?? 0) != 0) || (c == 7 && Math.Abs(x.DKg ?? 0) > KgTol)) return BadBg;
-        if (c == 9 && x.Nn is { Level: "xd" }) return OkBg;
+        if (c == 9) return StBrush(x.Status);
+        if ((c == 5 && (x.DKien ?? 0) != 0) || (c == 8 && Math.Abs(x.DKg ?? 0) > KgTol)) return BadBg;
+        if (c == 10 && x.Nn is { Level: "xd" }) return OkBg;
         return null;
     }
     private void ShowDetail(Row? r)
@@ -433,6 +438,13 @@ public sealed class KiemKeView : UserControl, IPage
         _det.Children.Add(new Border { Background = StBrush(r.Status) ?? GrayBg, CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Left, Child = new TextBlock { Text = r.Status, FontSize = 12 } });
         _det.Children.Add(Label($"Kiểm kê: {Q(r.KkKien ?? 0)} kiện · {Kg(r.KkKg ?? 0)} kg ({r.KkRows} dòng, {r.KkDays} ngày)"));
         _det.Children.Add(Label($"Tồn kho: {Q(r.TonKien ?? 0)} kiện · {Kg(r.TonKg ?? 0)} kg"));
+        if (r.Nhom.Length > 0) _det.Children.Add(Muted("Nhóm tồn: " + string.Join(", ", r.NhomAll.Select(PhanLoaiM1.LabelOf)) + (r.NhomAll.Count > 1 ? " (chính: " + PhanLoaiM1.LabelOf(r.Nhom) + ")" : "")));
+        if (r.LsxStatus.Length > 0)
+        {
+            _det.Children.Add(Label("So theo LSX: " + r.LsxStatus, true, fg: r.LsxStatus == "Khớp" ? null : Warn));
+            if (r.LsxStatus == "Thiếu thông tin") _det.Children.Add(Muted("Có dòng kiểm kê chưa ghi Hợp đồng/LSX nên chưa so được theo LSX."));
+            foreach (var l in r.Lsx) _det.Children.Add(Muted($"{(l.Lech ? "✗" : "✓")} {l.Lsx}: kiểm kê {Q(l.KkKien)} kiện / {Kg(l.KkKg)} kg · tồn {Q(l.TonKien)} kiện / {Kg(l.TonKg)} kg"));
+        }
         if (r.DKien is not null || r.DKg is not null) _det.Children.Add(Label($"Chênh: {D(r.DKien)} kiện · {D(r.DKg, true)} kg", true, fg: KiemKeCore.Lech.Contains(r.Status) ? Warn : null));
         if (r.Nn is { } n)
         {
