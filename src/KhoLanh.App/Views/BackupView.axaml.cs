@@ -34,6 +34,7 @@ public partial class BackupView : UserControl, IPage
         UpdConfigPanel.IsVisible = UpdSaveButton.IsVisible = admin;
         UpdRollbackButton.IsVisible = admin && AppUpdater.HasPrevious;
         ShowAccounts();
+        BuildBoot();
         AppUpdater.Progress += OnUpdProgress;
         DetachedFromVisualTree += (_, _) => AppUpdater.Progress -= OnUpdProgress;
     }
@@ -272,4 +273,7 @@ public partial class BackupView : UserControl, IPage
         await Ui.Message(this, $"Đã khôi phục xong. Bản dữ liệu trước khi khôi phục được giữ ở:\n{safety}\n\nVui lòng đăng nhập lại.");
         main?.Logout();
     }
+
+    // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------
+    private void BuildBoot() => BootPanel.Children.Add(BootSettings.Build(this));
 }

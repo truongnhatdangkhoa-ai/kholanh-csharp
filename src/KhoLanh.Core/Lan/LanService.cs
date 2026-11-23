@@ -1071,6 +1071,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
     {
         ModuleStore.CheckName("database", dbKey);
         foreach (var n in sheets.Keys) ModuleStore.CheckName("sheet", n);
+        if (Role == RoleRemote && _session.CurrentUser is not null && !_session.Can("drivepush", Models.Perm.Edit))
+            throw new BusinessException("Tài khoản này chỉ được XEM ở máy ngoài công ty (chưa được cấp quyền «Gửi dữ liệu từ máy ở nhà») — liên hệ Quản trị.");
         var raw = sheets.ToDictionary(p => p.Key, p => p.Value is null ? null : ModuleStore.CleanRows(p.Value));
         Dictionary<string, long> Exp() => raw.Keys.Where(s => _readVersions.ContainsKey(K(dbKey, s))).ToDictionary(s => s, s => _readVersions[K(dbKey, s)]);
         if (!Enabled)

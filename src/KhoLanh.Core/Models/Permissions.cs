@@ -14,6 +14,8 @@ public static class Perm
 
     public static readonly Item[] Items =
     {
+        new("lx", "Tổng quan · Lịch xuất", "Tổng quan", new[] { View, Edit }, "Sửa = thêm / sửa / xóa / chuyển lịch xuất, việc cần làm, số cont"),
+        new("lxmail", "Duyệt email Lịch xuất", "Tổng quan", new[] { Edit }, "Kết nối Gmail, duyệt / bỏ qua / hoàn tác thư cập nhật lịch, người gửi tin cậy"),
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
         new("m7", "Tồn kho theo vị trí", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, lập / sửa / xóa phiếu xuất"),
@@ -31,7 +33,14 @@ public static class Perm
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
+        new("drivepush", "Gửi dữ liệu từ máy ở nhà (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy ở nhà / máy ngoài công ty chỉ xem, không sửa được"),
     };
+
+    /// <summary>
+    /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
+    /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
+    /// </summary>
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 
@@ -49,7 +58,7 @@ public static class Perm
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         if (role == Roles.Staff)
         {
-            d["backup"] = None; d["audit"] = None;
+            d["backup"] = None; d["audit"] = None; d["lxmail"] = None;
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
             d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
@@ -81,7 +90,7 @@ public static class Perm
         if (!string.IsNullOrWhiteSpace(u.Permissions))
         {
             var custom = Parse(u.Permissions);
-            foreach (var i in Items) d[i.Key] = custom.TryGetValue(i.Key, out var v) ? v : None;
+            foreach (var i in Items) d[i.Key] = custom.TryGetValue(i.Key, out var v) ? v : MissingDefault.GetValueOrDefault(i.Key, None);
         }
         return d;
     }

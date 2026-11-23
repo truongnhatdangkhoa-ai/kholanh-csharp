@@ -35,7 +35,23 @@ public sealed class DriveSyncService
     /// <summary>Tài khoản đang đăng nhập (ghi vào khóa máy chính để các máy khác biết ai đang giữ).</summary>
     public string CurrentUser { get; set; } = "";
     public DateTime LastOk { get; private set; }
-    public int IntervalSeconds { get; set; } = 45;
+    /// <summary>Chu kỳ đồng bộ (giây): cài theo máy (drive_every, mặc định 5 phút); 0 = chỉ đồng bộ khi mở app / bấm "Đồng bộ ngay" / thoát app.</summary>
+    public int IntervalSeconds
+    {
+        get => _intervalOverride ?? (int.TryParse(_settings.Get("drive_every"), out var s) && s >= 0 ? s : 300);
+        set => _intervalOverride = value;
+    }
+    private int? _intervalOverride;
+    public void SetInterval(int seconds) { _settings.Set("drive_every", Math.Max(0, seconds).ToString()); _intervalOverride = null; }
+    public static readonly (int Sec, string Label)[] Intervals = { (45, "45 giây"), (300, "5 phút"), (900, "15 phút"), (1800, "30 phút"), (3600, "60 phút"), (0, "Chỉ khi mở app / bấm Đồng bộ ngay / thoát app") };
+
+    /// <summary>MÁY Ở NHÀ: luôn là máy xem từ xa, không bao giờ tự nhận làm máy chính (trừ khi Quản trị bấm "Chiếm quyền" lúc máy công ty hỏng).</summary>
+    public bool IsHome => _settings.Get("drive_home") == "1";
+    public void SetHome(bool on) => _settings.Set("drive_home", on ? "1" : "");
+
+    /// <summary>Tạo file sao lưu .db (BackupService.BackupTo) — máy chính dùng để sao lưu hằng ngày lên Drive.</summary>
+    public Func<string, string>? MakeBackup { get; set; }
+    public Func<DateTime> Now { get; set; } = () => DateTime.Now;
     private string Root => Path.Combine(Dir, Folder);
     private string Key() => Secret.Unprotect(_settings.Get("drive_key"));
 
@@ -132,8 +148,11 @@ public sealed class DriveSyncService
             while (!ct.IsCancellationRequested)
             {
                 try { SyncNow(); } catch { }
-                try { await Task.Delay(TimeSpan.FromSeconds(IntervalSeconds), ct); } catch { break; }
+                var sec = IntervalSeconds;
+                if (sec <= 0) break; // chỉ đồng bộ khi bấm: lượt đầu lúc mở app rồi dừng
+                try { await Task.Delay(TimeSpan.FromSeconds(sec), ct); } catch { break; }
             }
+            _cts = null;
         });
     }
     public void Stop() { _cts?.Cancel(); _cts = null; }
@@ -200,6 +219,7 @@ public sealed class DriveSyncService
             var lan = _lan();
             if (Dir.Length == 0 || Key().Length == 0 || !Directory.Exists(Dir)) throw new BusinessException("Chưa chọn thư mục Drive hoặc chưa có mã đồng bộ.");
             Directory.CreateDirectory(Root);
+            if (!force && IsHome) throw new BusinessException("Máy này được đánh dấu MÁY Ở NHÀ — luôn là máy xem từ xa. Chỉ dùng “Chiếm quyền máy chính” khi máy công ty hỏng.");
             if (!force && HeldByOther(lan) is { } o) throw new BusinessException($"Máy “{o.Name}” (tài khoản {o.User}) đang là máy chính.");
             Stop();
             var pending = lan.PendingItems();
@@ -252,11 +272,67 @@ public sealed class DriveSyncService
     /// <summary>Thoát phần mềm / đăng xuất: máy chính đưa bản cuối lên Drive rồi nhả khóa để máy khác nhận làm máy chính.</summary>
     public void ReleaseOnExit()
     {
-        if (!Enabled || Mode != ModeMain) return;
+        if (!Enabled) return;
         lock (_run)
         {
-            try { var lan = _lan(); if (lan.HoldsMainData && Directory.Exists(Root)) { RunMain(lan); WriteLease(lan, "", true); } } catch { }
+            try
+            {
+                var lan = _lan();
+                if (!Directory.Exists(Root)) return;
+                if (Mode == ModeMain && lan.HoldsMainData) { RunMain(lan); WriteLease(lan, "", true); }
+                else if (Mode == ModeRemote) RunRemote(lan);   // máy xa: gửi nốt thay đổi chờ trước khi tắt
+            }
+            catch { }
         }
+    }
+
+    // ------------------------------------------------------------------ sao lưu trên Drive (máy chính, mỗi ngày 1 bản)
+
+    private string BackupDir => Path.Combine(Root, "backup");
+    public sealed record DriveBackup(string Name, DateTime Day, long Bytes);
+
+    /// <summary>Các bản sao lưu trên Drive (mới nhất trước).</summary>
+    public List<DriveBackup> DriveBackups()
+    {
+        if (Dir.Length == 0 || !Directory.Exists(BackupDir)) return new();
+        return Directory.GetFiles(BackupDir, "b-*.kldb").Select(f => new FileInfo(f))
+            .Select(f => (f, ok: DateTime.TryParseExact(f.Name[2..12], "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d), d))
+            .Where(x => x.ok).OrderByDescending(x => x.d).Select(x => new DriveBackup(x.f.Name, x.d, x.f.Length)).ToList();
+    }
+
+    /// <summary>Sao lưu toàn bộ dữ liệu lên Drive (nén + mã hóa bằng mã đồng bộ). Chỉ máy giữ dữ liệu chính. force = sao lưu lại dù hôm nay đã có.</summary>
+    public string BackupToDrive(bool force = false)
+    {
+        var lan = _lan();
+        if (!Enabled || Mode != ModeMain || !lan.HoldsMainData) throw new BusinessException("Chỉ máy chính (đang giữ dữ liệu) mới sao lưu lên Drive.");
+        if (MakeBackup is null) throw new BusinessException("Chưa nối chức năng sao lưu.");
+        var day = Now().Date; var name = $"b-{day:yyyy-MM-dd}.kldb"; var path = Path.Combine(BackupDir, name);
+        if (!force && File.Exists(path)) return "Hôm nay đã có bản sao lưu trên Drive.";
+        var tmp = Path.Combine(Path.GetTempPath(), "kl-sl-" + Guid.NewGuid().ToString("N")[..8] + ".db");
+        try
+        {
+            MakeBackup(tmp);
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            WriteAtomic(path, Seal(Gz(File.ReadAllBytes(tmp))));
+        }
+        finally { TryDelete(tmp); }
+        // giữ 14 bản gần nhất + bản đầu tiên của mỗi tháng trong 12 tháng
+        var all = DriveBackups(); var keep = all.Take(14).Select(b => b.Name).ToHashSet();
+        foreach (var m in all.GroupBy(b => b.Day.ToString("yyyy-MM")).OrderByDescending(g => g.Key).Take(12)) keep.Add(m.OrderBy(b => b.Day).First().Name);
+        foreach (var b in all.Where(b => !keep.Contains(b.Name))) TryDelete(Path.Combine(BackupDir, b.Name));
+        return $"đã sao lưu lên Drive: {name} ({new FileInfo(path).Length / 1024:#,0} KB)";
+    }
+
+    /// <summary>Giải mã 1 bản sao lưu trên Drive ra file .db (để khôi phục ở Sao lưu và cài đặt, hoặc khôi phục máy ở nhà).</summary>
+    public string DownloadBackup(string name, string toPath)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^b-\d{4}-\d{2}-\d{2}\.kldb$")) throw new BusinessException("Tên bản sao lưu không hợp lệ.");
+        var b = TryRead(Path.Combine(BackupDir, name)) ?? throw new BusinessException("Không đọc được " + name + " (Google Drive chưa tải xong?).");
+        byte[] db;
+        try { db = Ungz(Open(b)); } catch (InvalidDataException e) { throw new BusinessException(e.Message); }
+        var dir = Path.GetDirectoryName(Path.GetFullPath(toPath)); if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        File.WriteAllBytes(toPath, db);
+        return toPath;
     }
 
     // ------------------------------------------------------------------ máy chính
@@ -286,6 +362,8 @@ public sealed class DriveSyncService
         var changed = applied + merged + conflict > 0 || seq != _lastPubSeq || !File.Exists(Path.Combine(Root, "latest.json"));
         string pub = "";
         if (changed) { pub = Publish(lan); _lastPubSeq = seq; }
+        try { if (MakeBackup is not null && !File.Exists(Path.Combine(BackupDir, $"b-{Now():yyyy-MM-dd}.kldb"))) pub += (pub.Length > 0 ? " · " : "") + BackupToDrive(); }
+        catch (Exception e) { pub += " · chưa sao lưu được lên Drive: " + e.Message; }
         var from = applied + merged + conflict > 0 ? $" · nhận {applied + merged + conflict} bảng từ máy xa ({merged} tự gộp, {conflict} trùng sửa → Quản trị chọn ở Xung đột)" : "";
         return (pub.Length > 0 ? pub : "dữ liệu không đổi, giữ bản trên Drive") + from + (bad > 0 ? $" · bỏ {bad} tệp sai mã" : "");
     }

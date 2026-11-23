@@ -500,6 +500,10 @@ small.Close();
     if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "tools") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ công cụ): " + outDir); return; }
 }
 
+// Trợ lý hệ thống: quét chạy nền khi mở trang → đợi xong rồi chụp
+main.Navigate("troly"); for (var i = 0; i < 130; i++) { Thread.Sleep(30); Pump(); }
+Snap(main, "16-tro-ly-he-thong");
+
 foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
     main.Navigate(key);
@@ -684,7 +688,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tcPk.SelectedIndex = 0; Pump();
         // tab Cargo list
         var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        top.SelectedIndex = 1; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        top.SelectedIndex = 2; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
         var clb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
         clb.SelectedIndex = 0; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "31-cargo-nhap");
@@ -872,6 +876,45 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     Console.WriteLine($"  Lưới: gõ/Enter/Tab={ok1} F2={ok2} Ctrl+D={ok3} Ctrl+Z={ok4} Delete={ok5} Shift+mũi tên={ok6}");
     if (!(ok1 && ok2 && ok3 && ok4 && ok5 && ok6)) { Console.WriteLine("  LỖI lưới: " + string.Join(" | ", Enumerable.Range(0, 3).Select(r => string.Join(",", m.Row(r))))); Environment.ExitCode = 1; }
     w.Close();
+}
+// ---------------- Tổng quan + Lịch xuất + List sản xuất ----------------
+{
+    var J = System.Text.Json.Nodes.JsonNode.Parse("[]")!.AsArray();
+    var hs = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Size", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng", "Khách hàng", "Thị trường" };
+    var t0 = DateTime.Today; string Dd(int d) => t0.AddDays(d).ToString("dd/MM");
+    var lines = new List<string[]>
+    {
+        new[] { "Thành phẩm", "VRHLBTNXEC0016201ME1", "Tôm sú PTO (1kg x 10)", "16/20", "MKS", $"LSX 26.11.020-{Dd(-12)}", "Kiện", "120", "10", "CGC", "Nhật" },
+        new[] { "Thành phẩm", "VRHLBTNXEC0021301ME1", "Tôm sú PTO (1kg x 10)", "21/30", "", $"LSX 26.11.020-{Dd(-11)}", "Kiện", "80", "10", "CGC", "Nhật" },
+        new[] { "Thành phẩm", "VRHLBTNXEC0031401ME1", "Tôm thẻ HLSO (1.8kg x 6)", "31/40", "", $"LSX 26.11.031-{Dd(-9)}", "Kiện", "650", "10.8", "MATSUOKA", "Nhật" },
+        new[] { "Thành phẩm", "PRHLBTNXEC0041501ME1", "Tôm thẻ PD (1kg x 10)", "41/50", "", $"LSX 26.11.044-{Dd(-8)}", "Kiện", "1100", "10", "THUẬN PHƯỚC - ISHI", "Nhật" },
+        new[] { "Thành phẩm", "VRHLBTNXEC0026301ME1", "Tôm thẻ PTO (1kg x 10)", "26/30", "", $"LSX 26.11.052-{Dd(-6)}", "Kiện", "900", "10", "YOKOREI", "Nhật" },
+        new[] { "Thành phẩm", "VRHLBTNXEC0013151ME1", "Tôm sú HOSO (1kg x 6)", "13/15", "", $"LSX 26.11.060-{Dd(-5)}", "Kiện", "700", "6", "CGC", "Hàn Quốc" },
+        new[] { "Thành phẩm", "VRHLBTNXEC0051601ME1", "Tôm thẻ PD (1kg x 10)", "51/60", "", $"LSX 26.11.071-{Dd(-4)}", "Kiện", "1000", "10", "MARUHA", "Nhật" },
+    };
+    var rowsA = new System.Text.Json.Nodes.JsonArray(lines.Select(r => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject(r.Select((v, i) => KeyValuePair.Create("c" + i, (System.Text.Json.Nodes.JsonNode?)System.Text.Json.Nodes.JsonValue.Create(v))))).ToArray());
+    var mt = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(hs.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO AN AN.xlsx", ["dataDate"] = t0.ToString("dd/MM/yyyy") };
+    s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = rowsA, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + mt.ToJsonString() }) });
+    var lx = s.LichXuat; string D(int d) => KhoLanh.Core.LichXuat.LichXuatCore.Iso(t0.AddDays(d));
+    lx.Add(new() { Ngay = D(0), Lsx = "26.11.020", Gio = "08:00", TrangThai = "run", ContSo = "TGHU8812345" });
+    var b = lx.Add(new() { Ngay = D(0), Lsx = "26.11.031", Gio = "13:30" });
+    lx.Add(new() { Ngay = D(0), Lsx = "26.11.044", Gio = "15:00" });
+    lx.Add(new() { Ngay = D(1), Lsx = "26.11.052" });
+    lx.Add(new() { Ngay = D(1), Lsx = "26.11.060", ChungVoi = lx.Rows.First(r => r.Lsx.Contains("052")).Id });
+    lx.Add(new() { Ngay = D(3), Lsx = "26.11.071" });
+    foreach (var (d, l) in new[] { (-1, "26.11.003"), (-1, "26.11.008"), (-2, "26.10.099"), (-4, "26.10.090"), (-6, "26.10.081") }) lx.Add(new() { Ngay = D(d), Lsx = l, TrangThai = "ok" });
+    lx.ViecAdd(b.Id, "Chờ chứng thư kiểm dịch");
+    lx.ViecAdd(lx.Rows.First(r => r.Lsx.Contains("052")).Id, "Dán nhãn phụ tiếng Nhật");
+    lx.PendAdd("26.12.004", "Khách đổi quy cách thùng — xác nhận trước khi làm List");
+    lx.CreatePhieu(lx.Rows.Where(r => r.Lsx.Contains("020")).Select(r => r.Id));
+    lx.CreateLists(lx.Rows.Where(r => r.Lsx.Contains("031")).Select(r => r.Id));
+    main.Navigate("audit"); main.Navigate("lx"); for (var i = 0; i < 100; i++) { Thread.Sleep(30); Pump(); }
+    Snap(main, "05-tong-quan");
+    var tq = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    tq.SelectedIndex = 1; for (var i = 0; i < 15; i++) { Thread.Sleep(30); Pump(); } Snap(main, "05b-lich-xuat-thang");
+    tq.SelectedIndex = 2; for (var i = 0; i < 15; i++) { Thread.Sleep(30); Pump(); } Snap(main, "05c-thong-ke-xuat");
+    main.Show("m13", new PhieuKhoView(1, null, "26.11.031")); for (var i = 0; i < 80; i++) { Thread.Sleep(30); Pump(); }
+    Snap(main, "30c-list-san-xuat");
 }
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);

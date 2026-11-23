@@ -26,6 +26,9 @@
         </StackPanel>
       </Border>
       <Border Classes="card">
+        <StackPanel x:Name="BootPanel" Spacing="6"/>
+      </Border>
+      <Border Classes="card">
         <StackPanel Spacing="6">
           <TextBlock Text="Cập nhật phần mềm (online)" Classes="section"/>
           <TextBlock x:Name="UpdVersionText" TextWrapping="Wrap"/>

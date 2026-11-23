@@ -23,7 +23,7 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" or "troly" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -42,6 +42,10 @@ public partial class MainWindow : Window
 
         _menu = new()
         {
+            ("TỔNG QUAN", new[]
+            {
+                new NavItem("lx", "Tổng quan", () => new TongQuanView()),
+            }),
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
@@ -79,6 +83,7 @@ public partial class MainWindow : Window
                 new NavItem("lan", "Mạng LAN", () => new LanView()),
                 new NavItem("drive", "Đồng bộ Google Drive", () => new DriveSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
+                new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
             }),
         };
         // Menu ngang gọn theo nhóm: mỗi nhóm là 1 nút thả xuống (nhóm chỉ có 1 mục thì là nút thường),
@@ -125,6 +130,17 @@ public partial class MainWindow : Window
         _lanTimer.Start();
         Closed += (_, _) => _lanTimer.Stop();
         ShowLan();
+        // Lịch xuất: tự quét Gmail cập nhật lịch (tài khoản có quyền «Duyệt email Lịch xuất», đã khai báo Gmail, bật tự quét).
+        s.LichXuat.StartAutoEmail();
+        Closed += (_, _) => s.LichXuat.StopAutoEmail();
+        // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
+        if (Roles.IsAdmin(s.Session.Role))
+        {
+            s.TroLy.Scanned += OnTroLyScanned;
+            Closed += (_, _) => { s.TroLy.Scanned -= OnTroLyScanned; s.TroLy.StopAuto(); };
+            s.TroLy.StartAuto(TimeSpan.FromSeconds(90), TimeSpan.FromHours(6));
+            if (s.TroLy.Last is { } last) OnTroLyScanned(last);
+        }
         Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
 
@@ -148,6 +164,15 @@ public partial class MainWindow : Window
     private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
 
     private static bool _autoStarted;
+
+    private void OnTroLyScanned(KhoLanh.Core.TroLy.TroLyService.ScanResult r) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        TroLyButton.IsVisible = r.Do > 0;
+        TroLyButton.Content = $"⚠ Trợ lý: {r.Do}";
+        ToolTip.SetTip(TroLyButton, $"Lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
+    });
+
+    private void OnTroLyClick(object? sender, RoutedEventArgs e) => Navigate("troly");
 
     private void OnUpdateReady(Version v) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
@@ -187,7 +212,7 @@ public partial class MainWindow : Window
         if (_buttons.TryGetValue(key, out var now))
         {
             now.Classes.Add("active");
-            if (_groupLabels.TryGetValue(now, out var gl) && key is not ("users" or "backup" or "lan" or "audit")) now.Content = $"{gl}: {item.Label}  ▾";
+            if (_groupLabels.TryGetValue(now, out var gl) && key is not ("users" or "backup" or "lan" or "audit" or "troly")) now.Content = $"{gl}: {item.Label}  ▾";
         }
         _current = key;
     }
@@ -206,6 +231,8 @@ public partial class MainWindow : Window
         if (await Ui.Run(this, () => App.Services.Auth.ChangeOwnPassword(oldPw, newPw)))
             await Ui.Message(this, "Đã đổi mật khẩu.");
     }
+
+    private async void OnBootSettings(object? sender, RoutedEventArgs e) => await BootSettings.ShowDialog(this);
 
     private void OnLogout(object? sender, RoutedEventArgs e) => Logout();
 

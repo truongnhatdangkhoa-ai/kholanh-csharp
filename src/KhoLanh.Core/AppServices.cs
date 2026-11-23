@@ -49,6 +49,8 @@ public class AppServices
     public ChungTuService ChungTu { get; }
     public PhieuKhoService PhieuKho { get; }
     public CargoService Cargo { get; }
+    public KhoLanh.Core.TroLy.TroLyService TroLy { get; }
+    public KhoLanh.Core.LichXuat.LichXuatService LichXuat { get; }
 
     public AppServices(string dbPath)
     {
@@ -68,6 +70,8 @@ public class AppServices
         Lan = new LanService(Db, Modules, Settings, Session, Audit);
         Legacy.Target = Lan;
         Drive = new DriveSyncService(() => Lan, Settings);
+        Backup.IsRemote = () => Lan.Role == LanService.RoleRemote;
+        Drive.MakeBackup = p => Backup.BackupTo(p);
         Backup.Guard = () => Lan.Enabled ? "Máy này đang dùng chung dữ liệu qua mạng LAN. Chuyển về \"Máy đơn\" ở Mạng LAN rồi mở lại phần mềm trước khi khôi phục." : null;
         Entry = new EntryService(() => Lan, Session, Audit);
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);
@@ -85,6 +89,8 @@ public class AppServices
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
+        LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
+        TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>

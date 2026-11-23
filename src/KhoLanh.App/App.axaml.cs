@@ -70,6 +70,7 @@ public partial class App : Application
                     catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
                 }
                 try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
+                WindowsStartup.Refresh();
                 StartLan(desktop);
                 ShowLogin(desktop);
             }
