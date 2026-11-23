@@ -190,7 +190,7 @@ public static class Ui
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title, AllowMultiple = false,
-            FileTypeFilter = new[] { new FilePickerFileType(typeName) { Patterns = new[] { "*." + ext } } },
+            FileTypeFilter = new[] { new FilePickerFileType(typeName) { Patterns = ext.Split(';').Select(e => "*." + e).ToArray() } },
         });
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
