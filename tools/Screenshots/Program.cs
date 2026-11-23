@@ -636,6 +636,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     if (key == "m1")
     {
         // Tồn kho An An (C#): duyệt 6 tab, rồi thử thao tác tạo phiếu xuất + ghi chú Theo Dõi Tồn bằng giao diện thật.
+        {   // dữ liệu mẫu có cột "Tình trạng" để có dòng Thành Phẩm Chính (Theo Dõi Tồn / Xuất Hàng)
+            var J = System.Text.Json.Nodes.JsonNode.Parse("[]")!.AsArray();
+            var hs = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng" };
+            var rowsA = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, 12).Select(i => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject
+            { ["c0"] = "Thành phẩm", ["c1"] = $"VRHLBTNXECR00{3140 + i}IME1", ["c2"] = $"Tôm thẻ HLSO 31/40 mẫu {i}", ["c3"] = "IQF", ["c4"] = "HD-2611", ["c5"] = "Thùng", ["c6"] = (i < 3 ? 2 + i : 40 + i).ToString(), ["c7"] = "10" }).ToArray());
+            var mt = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(hs.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO AN AN 23.11.xlsx", ["dataDate"] = DateTime.Today.ToString("yyyy-MM-dd") };
+            s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = rowsA, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + mt.ToJsonString() }) });
+            main.Navigate("audit"); main.Navigate("m1"); for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
+        }
         for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
         var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
         for (var t = 0; t < 6; t++) { tabs.SelectedIndex = t; for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"40-an-an-tab{t + 1}"); }
