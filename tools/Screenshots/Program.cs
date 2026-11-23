@@ -680,6 +680,48 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
             Console.WriteLine($"[AN-AN] ghi chú Theo Dõi Tồn: {notesBefore} -> {s.AnAn.Tdt.Notes.Count}");
             Snap(main, "40-an-an-theo-doi-ton-ghi-chu");
         }
+        // Hộp thoại: xem trước khi nạp → nạp 2 lần → lịch sử nạp → so sánh 2 lần nạp
+        {
+            var anv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.AnAnView>().First();
+            string MkXlsx(string name, int shift, bool bad)
+            {
+                var fp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name);
+                using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("Sheet1");
+                var hh = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng" };
+                for (var c = 0; c < hh.Length; c++) ws.Cell(1, c + 1).Value = hh[c];
+                for (var i = 0; i < 14; i++)
+                {
+                    ws.Cell(i + 2, 1).Value = "Thành phẩm"; ws.Cell(i + 2, 2).Value = $"VRHLBTNXECR00{3140 + i + shift}IME1"; ws.Cell(i + 2, 3).Value = $"Tôm thẻ mẫu {i + shift}";
+                    ws.Cell(i + 2, 4).Value = "IQF"; ws.Cell(i + 2, 5).Value = "HD-2611"; ws.Cell(i + 2, 6).Value = "Thùng";
+                    ws.Cell(i + 2, 7).Value = bad && i == 4 ? "abc" : 20 + i * 3 + shift; ws.Cell(i + 2, 8).Value = 10;
+                }
+                wbk.SaveAs(fp); return fp;
+            }
+            async System.Threading.Tasks.Task<bool> Dlg(string name, Func<System.Threading.Tasks.Task> start)
+            {
+                var t = start(); for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); }
+                var w = main.OwnedWindows.FirstOrDefault();
+                if (w is null) { Console.WriteLine($"[AN-AN] hộp thoại {name}: KHÔNG mở"); return false; }
+                Snap(w, name); Console.WriteLine($"[AN-AN] hộp thoại {name}: mở được ({w.Title})");
+                w.Close(); for (var i = 0; i < 25 && !t.IsCompleted; i++) { Thread.Sleep(30); Pump(); }
+                await System.Threading.Tasks.Task.CompletedTask; return true;
+            }
+            var f1 = MkXlsx("an-an-nap1.xlsx", 0, false); var f2 = MkXlsx("an-an-nap2.xlsx", 2, true);
+            var pv1 = s.AnAn.Preview(f1);
+            var mi = typeof(KhoLanh.App.Views.AnAnView).GetMethod("ReviewDialog", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            Dlg("40-an-an-hop-xem-truoc", () => (System.Threading.Tasks.Task)mi.Invoke(anv, new object[] { pv1 })!).GetAwaiter().GetResult();
+            s.AnAn.Commit(pv1);
+            var pv2 = s.AnAn.Preview(f2);
+            Console.WriteLine($"[AN-AN] xem trước file 2: hợp lệ {pv2.Check.Ok} · kiểm tra {pv2.Check.Warn} · lỗi {pv2.Check.Err} · chặn {pv2.Blocking}");
+            Dlg("40-an-an-hop-xem-truoc-co-loi", () => (System.Threading.Tasks.Task)mi.Invoke(anv, new object[] { pv2 })!).GetAwaiter().GetResult();
+            s.AnAn.Commit(pv2);
+            var bt = main.PageHost.GetVisualDescendants().OfType<Button>().ToList();
+            tabs.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+            Button B(string pre) => main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string)?.Contains(pre) == true);
+            Dlg("40-an-an-lich-su-nap", () => { B("Lịch sử nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
+            Dlg("40-an-an-so-sanh", () => { B("So sánh 2 lần nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
+            Console.WriteLine($"[AN-AN] lịch sử nạp: {s.AnAn.History().Count} mục · hoàn tác được: {s.AnAn.CanUndo}");
+        }
     }
     if (key == "m6")
     {
