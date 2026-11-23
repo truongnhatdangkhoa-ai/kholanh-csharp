@@ -232,6 +232,8 @@ public partial class MainWindow : Window
             await Ui.Message(this, "Đã đổi mật khẩu.");
     }
 
+    private async void OnBootSettings(object? sender, RoutedEventArgs e) => await BootSettings.ShowDialog(this);
+
     private void OnLogout(object? sender, RoutedEventArgs e) => Logout();
 
     public void Logout()

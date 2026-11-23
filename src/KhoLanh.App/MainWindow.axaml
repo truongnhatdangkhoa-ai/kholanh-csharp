@@ -33,6 +33,7 @@
               <MenuItem x:Name="UserInfo" IsEnabled="False"/>
               <Separator/>
               <MenuItem Header="Đổi mật khẩu" Click="OnChangePassword"/>
+              <MenuItem Header="Khởi động cùng Windows…" Click="OnBootSettings"/>
               <Separator/>
               <MenuItem Header="Đăng xuất" Click="OnLogout"/>
             </MenuFlyout>

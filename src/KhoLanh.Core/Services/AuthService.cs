@@ -34,6 +34,14 @@ public class AuthService
         return u;
     }
 
+    /// <summary>Kiểm tra mật khẩu của 1 tài khoản (không đăng nhập, không ghi nhật ký) — dùng khi bật tự đăng nhập.</summary>
+    public bool CheckPassword(string username, string password)
+    {
+        using var c = _db.Open();
+        var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE username=@username", new { username = username.Trim() });
+        return u is not null && u.IsActive && Verify(password, u.Salt, u.PasswordHash);
+    }
+
     public User Login(string username, string password)
     {
         using var c = _db.Open();
