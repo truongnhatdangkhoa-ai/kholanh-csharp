@@ -32,6 +32,7 @@ public class AppServices
     public AccountSyncService Accounts { get; internal set; }
     public LoginMemory Remember { get; }
     public LanService Lan { get; private set; }
+    public DriveSyncService Drive { get; }
     public EntryService Entry { get; }
     public TongHopService TongHop { get; }
     public RaDongService RaDong { get; }
@@ -62,6 +63,7 @@ public class AppServices
         Remember = new LoginMemory(Settings);
         Lan = new LanService(Db, Modules, Settings, Session, Audit);
         Legacy.Target = Lan;
+        Drive = new DriveSyncService(() => Lan, Settings);
         Backup.Guard = () => Lan.Enabled ? "Máy này đang dùng chung dữ liệu qua mạng LAN. Chuyển về \"Máy đơn\" ở Mạng LAN rồi mở lại phần mềm trước khi khôi phục." : null;
         Entry = new EntryService(() => Lan, Session, Audit);
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);

@@ -25,9 +25,9 @@ namespace KhoLanh.Core.Lan;
 ///  - Hai máy cùng làm chủ (đứt mạng giữa hai nhóm) → khi thấy nhau, máy nhiệm kỳ thấp hơn nhường và gửi phần đã sửa lên để gộp.
 /// Mỗi bảng có số phiên bản; ghi kèm số phiên bản lúc đọc → bảng đã bị nơi khác sửa thì từ chối (không ghi đè).
 /// </summary>
-public sealed class LanService : ISheetSource, IDisposable
+public sealed partial class LanService : ISheetSource, IDisposable
 {
-    public const string RoleSingle = "", RoleServer = "chu", RoleStandby = "duphong", RoleClient = "con";
+    public const string RoleSingle = "", RoleServer = "chu", RoleStandby = "duphong", RoleClient = "con", RoleRemote = "xa";
     public const int DefaultPort = 47820;
     public const string CodePrefix = "KLLAN1-";
     private const int PromoteAfterSeconds = 10;
@@ -86,11 +86,11 @@ public sealed class LanService : ISheetSource, IDisposable
         _epochStart = long.TryParse(settings.Get("lan_epoch_start"), out var es) ? es : 0;
     }
 
-    public bool Enabled => Role is RoleServer or RoleStandby or RoleClient && _key.Length > 0;
+    public bool Enabled => (Role is RoleServer or RoleStandby or RoleClient && _key.Length > 0) || Role == RoleRemote;
     public bool Capable => Role is RoleServer or RoleStandby;
     public static string RoleLabel(string r) => r switch
     {
-        RoleServer => "Máy chủ chính", RoleStandby => "Máy dự phòng", RoleClient => "Máy con", _ => "Máy đơn (không dùng LAN)",
+        RoleServer => "Máy chủ chính", RoleStandby => "Máy dự phòng", RoleClient => "Máy con", RoleRemote => "Máy xem từ xa (qua Google Drive)", _ => "Máy đơn (không dùng LAN)",
     };
 
     // =====================================================================================
@@ -301,7 +301,7 @@ public sealed class LanService : ISheetSource, IDisposable
 
     public void Start()
     {
-        if (!Enabled || _cts is not null) return;
+        if (!Enabled || _cts is not null || Role == RoleRemote) return;   // máy xem từ xa: không mở / không nối mạng LAN
         _cts = new CancellationTokenSource();
         if (Capable) Listen();
         _loop = Task.Run(() => Loop(_cts.Token));
@@ -1189,6 +1189,7 @@ public sealed class LanService : ISheetSource, IDisposable
         get
         {
             if (!Enabled) return "";
+            if (Role == RoleRemote) { var pe = PendingCount(); return "Drive: " + (RemoteStatus.Length > 0 ? RemoteStatus : "chưa đồng bộ") + (pe > 0 ? $" · {pe} chờ gửi" : ""); }
             if (Serving) return _frozen ? "LAN: đang chuyển máy chủ…" : $"LAN: máy chủ · {Machines().Count} máy đang nối";
             var pend = PendingCount();
             if (Online) return $"LAN: nối {ServerName}" + (pend > 0 ? $" · {pend} chờ gửi" : "");
@@ -1197,7 +1198,7 @@ public sealed class LanService : ISheetSource, IDisposable
     }
 
     /// <summary>0 = máy đơn, 1 = tốt, 2 = cảnh báo (làm riêng / chuyển máy chủ).</summary>
-    public int Health => !Enabled ? 0 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : 2;
+    public int Health => !Enabled ? 0 : Role == RoleRemote ? 1 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : 2;
 
     private void Raise() { try { Changed?.Invoke(); } catch { } }
 
