@@ -639,7 +639,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
 
     private async Task LoadGoc()
     {
-        var path = await Ui.OpenFile(this, "Chọn file gốc của phần mềm kho", "xlsx", "Excel");
+        var path = await Ui.OpenFile(this, "Chọn file gốc của phần mềm kho (xlsx / csv)", "xlsx;csv", "Excel / CSV");
         if (path is null) return;
         DoiChieuService.Goc? g = null;
         if (!await Ui.RunAsync(this, () => Task.Run(() => g = Svc.ReadGoc(path)))) return;

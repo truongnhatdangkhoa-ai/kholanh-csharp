@@ -175,6 +175,42 @@ public static class DcxXlsx
         }
         return wb;
     }
+
+    /// <summary>Đọc file .csv / .txt (dấu phân cách , ; hoặc Tab, có ngoặc kép) thành 1 sheet "CSV" — để nạp file gốc xuất từ phần mềm kho dạng CSV.</summary>
+    public static Workbook ReadCsv(byte[] bytes, int maxCol = 40)
+    {
+        var text = Encoding.UTF8.GetString(bytes).TrimStart('\uFEFF');
+        var first = text.Split('\n').FirstOrDefault(l => l.Trim().Length > 0) ?? "";
+        var delim = new[] { '\t', ';', ',' }.OrderByDescending(d => first.Count(c => c == d)).First();
+        var rows = new List<List<string>>(); var row = new List<string>(); var sb = new StringBuilder(); var q = false; var any = false;
+        void EndField() { row.Add(sb.ToString()); sb.Clear(); }
+        void EndRow() { EndField(); if (row.Any(x => x.Trim().Length > 0)) rows.Add(row); else if (any) rows.Add(row); row = new(); any = false; }
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (q) { if (ch == '"') { if (i + 1 < text.Length && text[i + 1] == '"') { sb.Append('"'); i++; } else q = false; } else sb.Append(ch); continue; }
+            if (ch == '"') { q = true; any = true; }
+            else if (ch == delim) { EndField(); any = true; }
+            else if (ch == '\r') { }
+            else if (ch == '\n') EndRow();
+            else { sb.Append(ch); any = true; }
+        }
+        if (sb.Length > 0 || row.Count > 0) EndRow();
+        var width = Math.Min(maxCol, rows.Count == 0 ? 0 : rows.Max(r => r.Count));
+        var aoa = new List<object?[]>();
+        foreach (var r in rows)
+        {
+            var o = new object?[width];
+            for (var c = 0; c < width && c < r.Count; c++)
+            {
+                var t = r[c].Trim(); if (t.Length == 0) continue;
+                o[c] = Regex.IsMatch(t, @"^-?(0|[1-9]\d*)([.,]\d+)?$") && Num(t.Replace(',', '.')) is { } n && !double.IsNaN(n) ? n : t;
+            }
+            aoa.Add(o);
+        }
+        var wb = new Workbook(); wb.Names.Add("CSV"); wb.Aoa["CSV"] = aoa; return wb;
+    }
+    public static bool IsCsv(string path) => Path.GetExtension(path).ToLowerInvariant() is ".csv" or ".txt";
     private static List<object?[]> ReadAoa(string xml, List<string> sst, int maxCol)
     {
         var cells = new List<(int r, int c, object v)>(); int maxR = -1, maxC = -1;

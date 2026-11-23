@@ -896,7 +896,8 @@ public sealed class DoiChieuService
     {
         RequireEdit();
         if (!IsLinked(P1) || !IsLinked(P2)) throw new BusinessException("Cần liên kết file Excel của cả Xuất thay thùng và Xuất rã đông — nạp file gốc sẽ cập nhật vào hai file đó.");
-        var book = DcxXlsx.ReadWorkbook(ReadShared(path));
+        var raw = ReadShared(path);
+        var book = DcxXlsx.IsCsv(path) ? DcxXlsx.ReadCsv(raw) : DcxXlsx.ReadWorkbook(raw);
         var name = book.Names.FirstOrDefault(n => ParseSheet(book.Aoa[n]).Ok)
             ?? throw new BusinessException("Không nhận ra cột trong file này (cần Ngày chứng từ, Mã hàng, Số lượng, Net, Loại chứng từ).");
         var res = ParseSheet(book.Aoa[name]); var sp = SplitByLoai(res.Rows);

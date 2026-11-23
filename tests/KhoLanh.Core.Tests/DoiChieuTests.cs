@@ -155,6 +155,21 @@ public class DoiChieuTests : IDisposable
         Assert.Equal("31/40", y.Worksheet("Xuat").Cell(4, col).GetString());
     }
 
+    [Fact]
+    public void ReadCsv_parses_delimiter_quotes_and_numbers()
+    {
+        var csv = "Ngày chứng từ;Mã hàng;Số lượng;Net\r\n01/11/2026;\"" + A + "\";10;100,5\r\n01/11/2026;" + B + ";5;45\r\n";
+        var wb = DcxXlsx.ReadCsv(System.Text.Encoding.UTF8.GetBytes("\uFEFF" + csv));
+        Assert.Equal("CSV", wb.Names[0]);
+        var aoa = wb.Aoa["CSV"];
+        Assert.Equal(3, aoa.Count);
+        Assert.Equal(100.5, aoa[1][3]);
+        var p = ParseSheet(aoa);
+        Assert.True(p.Ok);
+        Assert.Equal(2, p.Rows.Count);
+        Assert.Equal(10, p.Rows.First(r => r.Ma == A).Sl);
+    }
+
     // mã thường (không phải BTP/NL) → so theo mã, không gộp theo size
     private const string MA = "SPA00000000000000000A", MB = "SPB00000000000000000B", MC = "SPC00000000000000000C", MD = "SPD00000000000000000D", ME = "SPE00000000000000000E";
     private DoiChieuService Linked()

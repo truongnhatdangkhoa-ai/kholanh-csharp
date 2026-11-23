@@ -178,7 +178,7 @@ public static class Ui
         var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = title, SuggestedFileName = suggestedName, DefaultExtension = ext, ShowOverwritePrompt = true,
-            FileTypeChoices = new[] { new FilePickerFileType(typeName) { Patterns = new[] { "*." + ext } } },
+            FileTypeChoices = new[] { new FilePickerFileType(typeName) { Patterns = ext.Split(';').Select(e => "*." + e).ToArray() } },
         });
         return file?.TryGetLocalPath();
     }
