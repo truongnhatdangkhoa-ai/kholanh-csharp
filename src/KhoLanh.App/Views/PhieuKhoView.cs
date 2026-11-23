@@ -70,6 +70,7 @@ public sealed class PhieuKhoView : UserControl, IPage
 
         var leftTop = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         if (_edit) leftTop.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
+        if (_export) leftTop.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
         leftTop.Children.Add(_search);
         leftTop.Children.Add(new TextBlock { Text = "Chỉ hiện phiếu Xuất khẩu (các loại khác làm ở giai đoạn sau).", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
         var left = new DockPanel { Width = 300 };
@@ -376,6 +377,22 @@ public sealed class PhieuKhoView : UserControl, IPage
         {
             _status.Text = "Đã xuất " + Path.GetFileName(path);
             if (cur.Id.Length > 0) RenderList(cur.Id);
+            Ui.OpenExternal(path);
+        }
+    }
+
+    private async Task DoThongKe()
+    {
+        var def = _cur is { Ngay.Length: >= 7 } ? _cur.Ngay[..7] : DateTime.Today.ToString("yyyy-MM");
+        var ans = await Ui.Prompt(this, "Tháng cần thống kê (yyyy-mm). Tính theo ngày xuất của các phiếu xuất khẩu ĐÃ LƯU:", "Thống kê xuất khẩu theo tháng", def);
+        if (ans is null) return;
+        var mk = ans.Trim();
+        var path = await Ui.SaveFile(this, "Xuất thống kê tháng", ThongKeThang.FileName(System.Text.RegularExpressions.Regex.IsMatch(mk, @"^\d{4}-\d{2}$") ? mk : def), "xlsx", "Excel");
+        if (path is null) return;
+        if (await Ui.Run(this, () => Svc.ExportThongKe(mk, path)))
+        {
+            var d = Svc.ThongKe(mk);
+            _status.Text = $"Đã xuất {Path.GetFileName(path)} — {d.Groups.Count} phiếu, {d.TongThang:#,0.##} kiện.";
             Ui.OpenExternal(path);
         }
     }

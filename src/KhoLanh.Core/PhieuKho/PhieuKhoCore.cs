@@ -145,6 +145,27 @@ public static class PhieuKhoCore
     public static string TodayKey() => DateTime.Today.ToString("yyyy-MM-dd");
     public static string Dm(string k) => Regex.IsMatch(k ?? "", @"^\d{4}-\d{2}-\d{2}$") ? k![8..10] + "." + k[5..7] : "";
 
+    /// <summary>So sánh có số tự nhiên: "PX2" &lt; "PX10".</summary>
+    public static int NaturalCmp(string a, string b)
+    {
+        int i = 0, j = 0;
+        while (i < a.Length && j < b.Length)
+        {
+            if (char.IsDigit(a[i]) && char.IsDigit(b[j]))
+            {
+                int si = i, sj = j;
+                while (i < a.Length && char.IsDigit(a[i])) i++;
+                while (j < b.Length && char.IsDigit(b[j])) j++;
+                var na = a[si..i].TrimStart('0'); var nb = b[sj..j].TrimStart('0');
+                if (na.Length != nb.Length) return na.Length.CompareTo(nb.Length);
+                var c = string.CompareOrdinal(na, nb);
+                if (c != 0) return c;
+            }
+            else { var c = char.ToLowerInvariant(a[i]).CompareTo(char.ToLowerInvariant(b[j])); if (c != 0) return c; i++; j++; }
+        }
+        return (a.Length - i).CompareTo(b.Length - j);
+    }
+
     /// <summary>Số do người dùng gõ: null = trống, NaN = không đọc được.</summary>
     public static double? Num(string? v)
     {

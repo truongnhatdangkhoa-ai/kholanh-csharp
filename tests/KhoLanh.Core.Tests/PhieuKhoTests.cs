@@ -196,4 +196,30 @@ public class PhieuKhoTests : IDisposable
         var bad = Sample(); bad.SoPhieu = "";
         Assert.Throws<BusinessException>(() => sv.Export(bad, Path.Combine(_dir, "x.xlsm")));
     }
+
+    [Fact]
+    public void Monthly_stats_groups_by_slip_and_exports()
+    {
+        var sv = _s.PhieuKho; sv.Load();
+        var a = Sample(); a.SoPhieu = "01.11 XKAA 01"; a.Ngay = "2026-11-03"; sv.Save(a);
+        var b = Sample(); b.SoPhieu = "02.11 XKAA 02"; b.Ngay = "2026-11-20"; b.Lsx = "26.09.060"; b.Mh = new() { new MatHang { Ten = "X", Ma = "V1", Lsx = "26.09.060", DongList = new() { new Dong { Date = "05.11.2026", Size = "31/40", Packing = "10kg", Kien = "7" }, new Dong { Date = "05.11.2026", Size = "31/40", Packing = "10kg", Kien = "3" } } } }; sv.Save(b);
+        var c = Sample(); c.SoPhieu = "01.12 XKAA 01"; c.Ngay = "2026-12-01"; sv.Save(c);   // tháng khác → không tính
+        var d = sv.ThongKe("2026-11");
+        Assert.Equal(2, d.Groups.Count);
+        Assert.Equal(165 + 10, d.TongThang);                         // 100+60+5 và 7+3 (dòng cùng LSX·ngày·size cộng dồn)
+        Assert.Equal(new[] { "01.11 XKAA 01", "02.11 XKAA 02" }, d.Groups.Select(g => g.SoPhieu));
+        Assert.Single(d.Groups[1].Rows); Assert.Equal(10, d.Groups[1].Rows[0].Kien);
+        Assert.Equal("2026-11-05", d.Groups[1].Rows[0].Ngay);
+        Assert.Equal("31/40", d.BySize[0].Size); Assert.Equal(110, d.BySize[0].Kien);
+        var path = Path.Combine(_dir, ThongKeThang.FileName("2026-11"));
+        sv.ExportThongKe("2026-11", path);
+        using var wb = new ClosedXML.Excel.XLWorkbook(path);
+        var ws = wb.Worksheets.First();
+        Assert.Contains("THỐNG KÊ XUẤT KHẨU THÁNG 11/2026", ws.Cell(1, 1).GetString());
+        Assert.Equal("TỔNG THÁNG", ws.Cell(ws.LastRowUsed()!.RowNumber(), 1).GetString());
+        Assert.Equal(175, ws.Cell(ws.LastRowUsed()!.RowNumber(), 8).Value.GetNumber());
+        Assert.Equal("Tổng theo Size", wb.Worksheet(2).Name);
+        Assert.Throws<BusinessException>(() => sv.ExportThongKe("2027-01", Path.Combine(_dir, "x.xlsx")));
+        Assert.Throws<BusinessException>(() => sv.ExportThongKe("abc", Path.Combine(_dir, "x.xlsx")));
+    }
 }

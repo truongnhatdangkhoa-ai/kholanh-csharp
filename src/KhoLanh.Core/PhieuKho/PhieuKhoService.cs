@@ -87,6 +87,18 @@ public sealed class PhieuKhoService
         Log("Xóa phiếu", p.SoPhieu);
     }
 
+    public ThongKeThang.Data ThongKe(string monthKey) => ThongKeThang.Build(List, monthKey);
+
+    public void ExportThongKe(string monthKey, string path)
+    {
+        if (!CanExport) throw new BusinessException("Tài khoản không có quyền xuất file Phiếu xuất kho.");
+        if (!System.Text.RegularExpressions.Regex.IsMatch(monthKey, @"^\d{4}-(0[1-9]|1[0-2])$")) throw new BusinessException("Tháng phải dạng yyyy-mm (VD 2026-11).");
+        var d = ThongKe(monthKey);
+        if (d.Groups.Count == 0) throw new BusinessException($"Tháng {monthKey[5..7]}/{monthKey[0..4]} chưa có phiếu xuất khẩu nào đã lưu.");
+        ThongKeThang.Export(d, path);
+        Log("Thống kê tháng", $"{monthKey}: {d.Groups.Count} phiếu, {d.TongThang:#,0.##} kiện");
+    }
+
     public static byte[] Template()
     {
         using var s = typeof(PhieuKhoService).Assembly.GetManifestResourceStream("KhoLanh.Core.PhieuKho.mau-xuat-khau.xlsm")
