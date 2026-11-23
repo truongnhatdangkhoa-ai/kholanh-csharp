@@ -757,4 +757,107 @@ public static class DcxXlsx
         DropCalcChain(book.Zip);
         return (book.Zip.Save(), rep);
     }
+
+    // ------------------------------------------------------------------ thêm cột SIZE vào file kho (để in chứng từ)
+
+    public sealed class SizeReport
+    {
+        public string Sheet = "", Col = "", Mode = ""; public int Header, Rows, Filled, Empty, Width; public List<string> NoSize = new();
+        public string? PrintArea, Filter; public bool FitAlready, FitWillSet, FitCanSet, Nothing;
+    }
+    /// <summary>Thêm cột "Size" SAU cột cuối đang dùng (không dịch ô / công thức nào); chỉ ghi chữ, chép kiểu ô từ ô Tên hàng / Mã hàng. Đã có cột Size → chỉ điền ô TRỐNG của dòng chi tiết.</summary>
+    public static (byte[]? Bytes, SizeReport Report) AddSizeColumn(byte[] bytes, string sheetName, Func<string, string, string> sizeOf, bool fitWidth = false, bool dry = false)
+    {
+        var book = OpenBook(bytes, sheetName); var info = FindCols(book); Classify(book, info);
+        var hdr = book.Rows.FirstOrDefault(r => r.R == info.Header);
+        var lastIdx = 0; foreach (var r in book.Rows) foreach (var c in r.Cells) lastIdx = Math.Max(lastIdx, ColIdx(c.Col));
+        var exists = info["size"] is not null; var col = exists ? info["size"]! : ColName(lastIdx + 1); var newIdx = ColIdx(col);
+        var rep = new SizeReport { Sheet = book.SheetName, Header = info.Header, Col = col, Mode = exists ? "fill" : "add" };
+        string? StyleOf(XRow row, params string?[] cols) { foreach (var k in cols) { var c = k is null ? null : CellOf(row, k); if (c?.S is not null) return c.S; } return null; }
+        string NoSpans(string a) => Regex.Replace(a, @"\sspans=""[^""]*""", "");
+        var maxLen = 4;
+        if (!exists && hdr is not null)
+        {
+            hdr.Cells.Add(new XCell { Col = col, S = StyleOf(hdr, info["ten"], info["ma"]), T = "inlineStr", Is = "<is><t>Size</t></is>" }); hdr.Attrs = NoSpans(hdr.Attrs);
+        }
+        foreach (var row in book.Rows)
+        {
+            if (row.R <= info.Header) continue;
+            var s0 = StyleOf(row, info["ten"], info["ma"], info["ngay"]);
+            if (row.Kind == "det")
+            {
+                rep.Rows++;
+                var ma = TextOf(book, CellOf(row, info["ma"])).Trim(); var ten = info["ten"] is null ? "" : TextOf(book, CellOf(row, info["ten"])).Trim();
+                var z = ""; try { z = (sizeOf(ma, ten) ?? "").Trim(); } catch { z = ""; }
+                var cur = exists ? CellOf(row, col) : null; var curTxt = cur is null ? "" : TextOf(book, cur).Trim();
+                if (exists && curTxt.Length > 0) continue;
+                if (z.Length == 0) { rep.Empty++; if (rep.NoSize.Count < 12 && ma.Length > 0) rep.NoSize.Add(ma); if (!exists && s0 is not null) row.Cells.Add(new XCell { Col = col, S = s0 }); continue; }
+                var isx = "<is><t xml:space=\"preserve\">" + Xesc(z) + "</t></is>";
+                if (cur is not null) { cur.T = "inlineStr"; cur.Is = isx; cur.V = null; cur.F = null; cur.S ??= s0; }
+                else { row.Cells.Add(new XCell { Col = col, S = s0, T = "inlineStr", Is = isx }); row.Attrs = NoSpans(row.Attrs); }
+                rep.Filled++; maxLen = Math.Max(maxLen, z.Length);
+            }
+            else if (!exists && row.Cells.Count > 0 && s0 is not null) { row.Cells.Add(new XCell { Col = col, S = s0 }); row.Attrs = NoSpans(row.Attrs); }
+        }
+        rep.Width = Math.Min(16, Math.Max(8, maxLen + 3));
+        rep.Nothing = exists && rep.Filled == 0;
+        string head = book.Head, tail = book.Tail;
+        string? Extend(string rf)
+        {
+            if (Regex.IsMatch(rf, @"[,\s]")) return null;
+            var m = Regex.Match(rf, @"^(.*:)(\$?)([A-Z]{1,3})(.*)$"); if (!m.Success) return null;
+            var e = ColIdx(m.Groups[3].Value); if (e >= newIdx || e < lastIdx) return null;
+            return m.Groups[1].Value + m.Groups[2].Value + col + m.Groups[4].Value;
+        }
+        var wb = book.WbXml;
+        if (!exists)
+        {
+            head = Regex.Replace(head, @"<dimension\s+ref=""([^""]*)""", m => { var x = Regex.Match(m.Groups[1].Value, @"^(.*:)([A-Z]{1,3})(\d+)$"); return x.Success && ColIdx(x.Groups[2].Value) < newIdx ? "<dimension ref=\"" + x.Groups[1].Value + col + x.Groups[3].Value + "\"" : m.Value; });
+            string ColTag(int mn, int mx, string extra) => $"<col min=\"{mn}\" max=\"{mx}\"{extra}/>";
+            if (head.Contains("<cols>"))
+            {
+                var done = false;
+                head = Regex.Replace(head, @"<col\b([^>]*?)/>", m =>
+                {
+                    var a = m.Groups[1].Value; var mnm = Regex.Match(a, @"\smin=""(\d+)"""); var mxm = Regex.Match(a, @"\smax=""(\d+)""");
+                    if (done || !mnm.Success || !mxm.Success) return m.Value; int mn = int.Parse(mnm.Groups[1].Value), mx = int.Parse(mxm.Groups[1].Value);
+                    if (newIdx < mn || newIdx > mx) return m.Value; done = true;
+                    var rest = Regex.Replace(Regex.Replace(Regex.Replace(Regex.Replace(a, @"\smin=""\d+""", ""), @"\smax=""\d+""", ""), @"\swidth=""[^""]*""", ""), @"\scustomWidth=""[^""]*""", "");
+                    var plain = Regex.Replace(Regex.Replace(a, @"\smin=""\d+""", ""), @"\smax=""\d+""", "");
+                    return (mn < newIdx ? ColTag(mn, newIdx - 1, plain) : "") + ColTag(newIdx, newIdx, rest + $" width=\"{rep.Width}\" customWidth=\"1\"") + (mx > newIdx ? ColTag(newIdx + 1, mx, plain) : "");
+                });
+                if (!done) head = head.Replace("</cols>", ColTag(newIdx, newIdx, $" width=\"{rep.Width}\" customWidth=\"1\"") + "</cols>");
+            }
+            else head = Regex.Replace(head, @"<sheetData>$", "<cols>" + ColTag(newIdx, newIdx, $" width=\"{rep.Width}\" customWidth=\"1\"") + "</cols><sheetData>");
+            tail = Regex.Replace(tail, @"(<autoFilter\b[^>]*?\sref="")([^""]*)("")", m => { var n = Extend(m.Groups[2].Value); if (n is not null) rep.Filter = m.Groups[2].Value + " → " + n; return n is null ? m.Value : m.Groups[1].Value + n + m.Groups[3].Value; });
+            var names = new List<string>(); foreach (Match m in Regex.Matches(wb, @"<sheet\b([^>]*?)/>")) { var n = Regex.Match(m.Groups[1].Value, @"\sname=""([^""]*)"""); if (n.Success) names.Add(Xunesc(n.Groups[1].Value)); }
+            var sidx = names.IndexOf(book.SheetName);
+            wb = Regex.Replace(wb, @"<definedName\b([^>]*)>([^<]*)</definedName>", m =>
+            {
+                var a = m.Groups[1].Value; if (sidx < 0 || !Regex.IsMatch(a, $@"\slocalSheetId=""{sidx}""")) return m.Value;
+                var pa = a.Contains("name=\"_xlnm.Print_Area\""); var fd = a.Contains("name=\"_xlnm._FilterDatabase\""); if (!pa && !fd) return m.Value;
+                var rf = m.Groups[2].Value; var bang = rf.LastIndexOf('!'); var n = Extend(rf[(bang + 1)..]); if (n is null) return m.Value;
+                if (pa) rep.PrintArea = rf[(bang + 1)..] + " → " + n;
+                return "<definedName" + a + ">" + rf[..(bang + 1)] + n + "</definedName>";
+            });
+        }
+        var fitOn = Regex.IsMatch(head, @"<pageSetUpPr\b[^>]*fitToPage=""(1|true)""");
+        var ps = Regex.Match(tail, @"<pageSetup\b[^>]*>"); var fw = ps.Success ? Regex.Match(ps.Value, @"\sfitToWidth=""(\d+)""") : null;
+        rep.FitAlready = fitOn && (fw is null || !fw.Success || fw.Groups[1].Value == "1");
+        rep.FitCanSet = ps.Success || Regex.IsMatch(tail, @"<pageMargins\b[^>]*/>");
+        if (fitWidth && !rep.FitAlready && rep.FitCanSet)
+        {
+            rep.FitWillSet = true;
+            if (Regex.IsMatch(head, @"<pageSetUpPr\b")) head = Regex.Replace(head, @"<pageSetUpPr\b[^>]*/>", "<pageSetUpPr fitToPage=\"1\"/>");
+            else if (Regex.IsMatch(head, @"<sheetPr\b[^>]*/>")) head = Regex.Replace(head, @"<sheetPr\b([^>]*)/>", "<sheetPr${1}><pageSetUpPr fitToPage=\"1\"/></sheetPr>");
+            else if (head.Contains("</sheetPr>")) head = head.Replace("</sheetPr>", "<pageSetUpPr fitToPage=\"1\"/></sheetPr>");
+            else head = Regex.Replace(head, @"(<worksheet\b[^>]*>)", "${1}<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>");
+            if (ps.Success) tail = Regex.Replace(tail, @"<pageSetup\b([^>]*?)(/?)>", m => "<pageSetup" + Regex.Replace(Regex.Replace(m.Groups[1].Value, @"\sfitToWidth=""[^""]*""", ""), @"\sfitToHeight=""[^""]*""", "") + " fitToWidth=\"1\" fitToHeight=\"0\"" + m.Groups[2].Value + ">");
+            else tail = Regex.Replace(tail, @"(<pageMargins\b[^>]*/>)", "${1}<pageSetup fitToWidth=\"1\" fitToHeight=\"0\"/>");
+        }
+        if (dry || rep.Nothing) return (null, rep);
+        book.Zip.Set(book.Path, head + string.Concat(book.Rows.Select(r => SerRow(r, r.R))) + "</sheetData>" + tail);
+        if (wb != book.WbXml) book.Zip.Set("xl/workbook.xml", wb);
+        return (book.Zip.Save(), rep);
+    }
 }

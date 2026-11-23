@@ -191,6 +191,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
             act.Children.Add(Btn("＋ Thêm dòng vào file Kho…", async () => await AddRow()));
             act.Children.Add(Btn("✎ Sửa mã / ngày…", async () => await Retag()));
             act.Children.Add(Btn("🗑 Xóa khỏi file Kho", async () => await DeleteSelected(), danger: true));
+            act.Children.Add(Btn("🔠 Thêm cột Size…", async () => await AddSizeCol(), tip: "Thêm cột Size (theo từ điển Mã hóa sản phẩm) vào file Kho để in chứng từ"));
             act.Children.Add(Btn("↶ Hoàn tác lần ghi cuối", async () => await UndoLast()));
         }
         act.Children.Add(Btn("⟳ Đọc lại file", async () => await Act(() => { Svc.SyncLinks(true); return "Đã đọc lại các file đã liên kết."; })));
@@ -397,6 +398,13 @@ public sealed partial class DoiChieuView : UserControl, IPage
         return why.Length == 0;
     }
 
+    private async Task AddSizeCol()
+    {
+        string msg;
+        try { msg = Svc.AddSizeColumn(_pid, false, true).Message; } catch (Exception e) { await Ui.Message(this, e.Message); return; }
+        if (!await Ui.Confirm(this, DoiChieuService.KN(_pid) + ": " + msg + "\n\nGhi vào file Excel đã liên kết? (file gốc được sao lưu trước khi ghi; cột chỉ chứa chữ, không đổi công thức.)", "Thêm cột Size", "Ghi file")) return;
+        await Act(() => Svc.AddSizeColumn(_pid, true).Message);
+    }
     private async Task MoveSelected()
     {
         var items = SelectedItems().Where(i => !i.TheoSize && Svc.Movable(P, i.Ngay, i.Ma) > 0).ToList();

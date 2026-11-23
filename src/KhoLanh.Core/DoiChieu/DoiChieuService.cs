@@ -769,6 +769,26 @@ public sealed class DoiChieuService
         return dest;
     }
 
+    /// <summary>Thêm cột Size (từ điển Mã hóa sản phẩm › Size) vào file Kho đang liên kết để in chứng từ. dry = chỉ xem trước.</summary>
+    public (DcxXlsx.SizeReport Report, string Message) AddSizeColumn(int pid, bool fitWidth, bool dry = false)
+    {
+        RequireEdit();
+        for (var attempt = 0; ; attempt++)
+        {
+            SyncLinks(true);
+            var p = PairOf(pid); if (!IsLinked(p)) throw new BusinessException($"Cần Liên kết file Excel {KN(pid)} (đọc được đủ cột) mới thêm được cột Size.");
+            var (bytes, rep) = DcxXlsx.AddSizeColumn(p.Bytes!, p.Kho!.Sheet, SizeOf, fitWidth, dry);
+            var what = rep.Mode == "fill" ? $"điền {rep.Filled} ô Size còn trống" : $"thêm cột Size ({rep.Col}) và điền {rep.Filled} / {rep.Rows} dòng";
+            var tail = (rep.Empty > 0 ? $" · {rep.Empty} dòng chưa có size trong từ điển" + (rep.NoSize.Count > 0 ? " (" + string.Join(", ", rep.NoSize) + ")" : "") : "") + (rep.FitWillSet ? " · bật vừa chiều ngang 1 trang khi in" : "");
+            if (dry || bytes is null) return (rep, rep.Nothing ? "Không có ô Size nào cần điền." : "Sẽ " + what + tail + ".");
+            try { Commit(new() { (SlotOf(pid), bytes, p.Sha) }); }
+            catch (CommitException e) when (e.Code == "CHANGED" && attempt == 0) { continue; }
+            LoadFromLink(SlotOf(pid)); foreach (var q in Pairs) RefreshPair(q); Persist();
+            _audit.Log(User, "doi-chieu-them-size", KN(pid) + ": " + what);
+            return (rep, "✔ Đã " + what + tail + ".");
+        }
+    }
+
     public sealed record ApplyResult(string Message, int NetKept);
     /// <summary>Đổi thao tác → sửa file Kho (giữ mẫu) → ghi cả 2 file hoặc không file nào → đọc lại. Ghi lịch sử kèm thao tác ngược.</summary>
     public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false)

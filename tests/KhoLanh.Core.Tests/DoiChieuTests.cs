@@ -131,6 +131,30 @@ public class DoiChieuTests : IDisposable
         Assert.Contains("SUM", x.Worksheet("Xuat").CellsUsed(c => c.HasFormula).First().FormulaA1);
     }
 
+    [Fact]
+    public void AddSizeColumn_adds_column_and_fills_only_empty()
+    {
+        var path = KhoFile("k2.xlsx", (D1, new[] { (A, 10.0, 10.0), (B, 5.0, 9.0) }), (D2, new[] { (A, 3.0, 10.0) }));
+        var bytes = File.ReadAllBytes(path);
+        var (outB, rep) = DcxXlsx.AddSizeColumn(bytes, "Xuat", (ma, _) => ma == A ? "31/40" : "", true);
+        Assert.NotNull(outB);
+        Assert.Equal("add", rep.Mode);
+        Assert.True(rep.Filled >= 2); Assert.True(rep.Empty >= 1);
+        using var x = new XLWorkbook(new MemoryStream(outB!));
+        var ws = x.Worksheet("Xuat");
+        var hc = ws.Row(3).CellsUsed().First(c => c.GetString() == "Size");
+        var col = hc.Address.ColumnNumber;
+        Assert.Equal("31/40", ws.Cell(4, col).GetString());
+        // chạy lại: đã có cột Size → không điền đè, không còn gì để điền
+        var (b2, r2) = DcxXlsx.AddSizeColumn(outB!, "Xuat", (ma, _) => ma == A ? "XX" : "", false);
+        Assert.Equal("fill", r2.Mode); Assert.True(r2.Nothing); Assert.Null(b2);
+        // ô đã có không bị đổi; dòng trống được điền khi từ điển có size
+        var (b3, r3) = DcxXlsx.AddSizeColumn(outB!, "Xuat", (ma, _) => "21/25", false);
+        Assert.NotNull(b3);
+        using var y = new XLWorkbook(new MemoryStream(b3!));
+        Assert.Equal("31/40", y.Worksheet("Xuat").Cell(4, col).GetString());
+    }
+
     // mã thường (không phải BTP/NL) → so theo mã, không gộp theo size
     private const string MA = "SPA00000000000000000A", MB = "SPB00000000000000000B", MC = "SPC00000000000000000C", MD = "SPD00000000000000000D", ME = "SPE00000000000000000E";
     private DoiChieuService Linked()
