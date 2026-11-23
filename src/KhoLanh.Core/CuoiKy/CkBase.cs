@@ -23,7 +23,7 @@ public static class Ck
         return (n < 0 || (n == 0 && double.IsNegative(n)) ? "-" : "") + s;
     }
     public static string Sg(double n) => (n > 0 ? "+" : "") + Vn(n);
-    public static string Dmy(string? iso) => string.IsNullOrEmpty(iso) ? "" : string.Join("/", iso.Split('-').Reverse());
+    public static string Dmy(string? iso) => string.IsNullOrEmpty(iso) ? "" : string.Join("/", Enumerable.Reverse(iso.Split('-')));
     public static string Pct(double x) => Rnd(x * 100).ToString(CultureInfo.InvariantCulture) + "%";
 
     /// <summary>String(v) kiểu JS cho ô Excel.</summary>
