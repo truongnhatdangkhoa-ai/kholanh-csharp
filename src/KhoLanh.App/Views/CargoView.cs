@@ -36,6 +36,7 @@ public sealed class CargoView : UserControl
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _totals = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _problems = new() { FontSize = 12.5, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _stockInfo = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _ksInfo = new() { Classes = { "muted" }, FontSize = 12 };
     private readonly StackPanel _kindBar = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly GridModel _pm = new() { ReadOnly = true };
@@ -82,7 +83,7 @@ public sealed class CargoView : UserControl
         DockPanel.SetDock(leftTop, Dock.Top); left.Children.Add(leftTop); left.Children.Add(Framed(_lb));
 
         var head = new StackPanel { Spacing = 4 };
-        head.Children.Add(_kindBar); head.Children.Add(bar); head.Children.Add(_problems); head.Children.Add(_totals); head.Children.Add(_ksInfo); head.Children.Add(_status);
+        head.Children.Add(_kindBar); head.Children.Add(bar); head.Children.Add(_problems); head.Children.Add(_totals); head.Children.Add(_stockInfo); head.Children.Add(_ksInfo); head.Children.Add(_status);
         var right = new DockPanel { Margin = new Thickness(10, 0, 0, 0) };
         DockPanel.SetDock(head, Dock.Top); right.Children.Add(head); right.Children.Add(_tabs);
         var root = new DockPanel(); DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
@@ -326,7 +327,7 @@ public sealed class CargoView : UserControl
 
     private void RefreshAll()
     {
-        if (_cur is null) { _totals.Text = ""; _problems.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _ksInfo.Text = ""; return; }
+        if (_cur is null) { _totals.Text = ""; _problems.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _ksInfo.Text = ""; _stockInfo.Text = ""; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export;
         var chk = Svc.CheckRec(_prof, _cur);
         double kg;
@@ -334,6 +335,9 @@ public sealed class CargoView : UserControl
         _totals.Text = $"Tổng: {chk.Kien:#,0.##} kiện · {kg:#,0.###} kg · {DayCount(_cur)} dãy" + (chk.Kien > 0 ? "  —  " + PhieuKhoCore.DocSo(chk.Kien) + " kiện" : "");
         _problems.IsVisible = chk.Problems.Count > 0;
         _problems.Text = chk.Problems.Count == 0 ? "" : $"Cần xử lý trước khi xuất ({chk.Problems.Count}): " + string.Join(" · ", chk.Problems.Take(3)) + (chk.Problems.Count > 3 ? " …" : "");
+        var sc = Svc.StockCheck(_cur); var bad = sc.Where(x => x.St != "ok").ToList();
+        _stockInfo.Foreground = bad.Count > 0 ? Warn : null;
+        _stockInfo.Text = Svc.Stock.Count == 0 ? "Chưa có Tồn kho An An để dò tồn (nạp file ở module Tồn kho An An)." : bad.Count == 0 ? (sc.Count > 0 ? $"✔ Dò tồn An An: {sc.Count} mã đều đủ tồn." : "") : $"⚠ Dò tồn An An ({bad.Count}/{sc.Count} mã cần xem, không chặn xuất): " + string.Join(" · ", bad.Take(4).Select(x => x.Ma + " — " + x.Text)) + (bad.Count > 4 ? " …" : "");
         _ksInfo.Text = $"Kết quả kháng sinh đã nạp: {Svc.Ks.Size:#,0} lô (đọc lúc {Svc.KsAt:HH:mm:ss}). Chưa có kết quả thì nhập ở module “Kết quả kháng sinh” rồi bấm “Tra lại”, hoặc gõ số kết quả tay.";
         _status.Text = _dirty ? "● Có thay đổi chưa lưu" : (_cur.Id.Length > 0 ? "Đã lưu" : "");
         if (_tabs?.SelectedIndex == 1) RenderPreview();

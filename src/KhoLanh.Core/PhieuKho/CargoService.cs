@@ -1,3 +1,4 @@
+using KhoLanh.Core.KiemKe;
 using System.Text.Json.Nodes;
 using KhoLanh.Core.KhangSinh;
 using KhoLanh.Core.Models;
@@ -55,6 +56,7 @@ public sealed class CargoService
             try { if (JsonNode.Parse(o["value"]?.ToString() ?? "") is JsonObject j) recs.Add(new KhangSinhCore.Rec { Key = k, J = j }); } catch { }
         }
         Ks = CargoCore.KsIndex.From(recs); KsAt = DateTime.Now;
+        LoadStock();
     }
 
     public void SaveCfg(CargoCfg cfg)
@@ -123,6 +125,24 @@ public sealed class CargoService
             ?? throw new InvalidOperationException("Thiếu file mẫu Cargo " + prof.Mau);
         using var ms = new MemoryStream(); s.CopyTo(ms); return ms.ToArray();
     }
+
+    public List<CargoStock.Item> Stock { get; private set; } = new();
+    public string StockInfo { get; private set; } = "";
+    /// <summary>Đọc Tồn kho An An (Load Data) để dò tồn theo mã hàng. Không có file tồn → danh sách rỗng.</summary>
+    public void LoadStock()
+    {
+        Stock = new(); StockInfo = "";
+        try
+        {
+            var meta = Read("ton-kho-an-an", "LoadDataMeta"); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonNode.Parse((mo["data"]?.ToString() ?? "").Replace("__JSON__", "")) as JsonObject : null;
+            var headers = (mj?["headers"] as JsonArray ?? new JsonArray()).Select(x => x?.ToString() ?? "").ToList(); if (headers.Count == 0) return;
+            var rows = Read("ton-kho-an-an", "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, headers.Count).Select(i => o["c" + i]?.ToString() ?? "").ToArray()).ToList();
+            Stock = CargoStock.Aggregate(KiemKeCore.MakeStock(headers, rows));
+            StockInfo = $"Tồn kho An An: {Stock.Count:#,0} mã (file {mj?["fileName"]}, ngày {mj?["dataDate"]})";
+        }
+        catch { Stock = new(); }
+    }
+    public List<CargoStock.Result> StockCheck(CargoRec rec) => Stock.Count == 0 ? new() : CargoStock.CheckRec(Cfg, rec, Ks, Stock);
 
     public sealed record Check(double Kien, List<string> Problems);
 
