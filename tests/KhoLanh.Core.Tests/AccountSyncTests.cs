@@ -194,6 +194,40 @@ public class AccountSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task Admin_can_unlock_writing_from_accounts_screen()
+    {
+        var a = await AdminMachine();
+        var b = Machine("B");
+        await b.Accounts.ConnectAsync(a.Accounts.ConnectionCode(false));
+        b.Auth.Login("admin", "matkhau1");                            // máy gốc chưa đăng nhập lại → Sheet chưa có gói khóa
+        Assert.False(b.Accounts.CanWrite);
+        await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.UnlockAsync("sai-mat-khau"));
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.UnlockAsync("matkhau1"));
+        Assert.Contains("chưa có khóa ghi", ex.Message);
+        await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.UnlockAsync(a.Accounts.ConnectionCode(false)));   // mã nhân viên không đủ
+
+        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1");          // máy gốc đăng nhập → gói khóa lên Sheet
+        await b.Accounts.UnlockAsync("matkhau1");                    // máy B không cần đăng nhập lại: tải gói mới nhất rồi mở
+        Assert.True(b.Accounts.CanWrite);
+        b.Auth.CreateUser("nv7", "X", "matkhau7", Roles.Staff);
+        Assert.Contains(_web.Rows, r => r["username"] == "nv7");
+        b.Auth.Logout();
+        Assert.False(b.Accounts.CanWrite);
+
+        var c = Machine("C");                                        // hoặc dán mã cho máy quản trị ngay ở màn hình Tài khoản
+        await c.Accounts.ConnectAsync(a.Accounts.ConnectionCode(false));
+        c.Auth.Login("nv7", "matkhau7");
+        await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.UnlockAsync(a.Accounts.ConnectionCode(true)));   // không phải Quản trị
+        c.Auth.Logout(); c.Auth.Login("admin", "matkhau1");
+        c.Accounts.AfterLogout();                                    // giả lập chưa mở được bằng mật khẩu
+        Assert.False(c.Accounts.CanWrite);
+        await c.Accounts.UnlockAsync(a.Accounts.ConnectionCode(true));
+        Assert.True(c.Accounts.CanWrite);
+        c.Auth.Logout();
+        Assert.True(c.Accounts.CanWrite);                            // mã đã lưu vào máy
+    }
+
+    [Fact]
     public async Task Failed_upload_changes_nothing_and_offline_login_uses_cache()
     {
         var a = await AdminMachine();

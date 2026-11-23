@@ -9,7 +9,7 @@ public partial class UsersView : UserControl, IPage
     public string Title => "Tài khoản";
     public string Subtitle => App.Services.Accounts.Enabled
         ? "Tài khoản dùng chung cho mọi máy qua Google Sheet: sửa ở đây là lưu lên Sheet, máy khác nhận ở lần đăng nhập sau."
-          + (App.Services.Accounts.CanWrite ? "" : " Chưa mở khóa ghi — đăng nhập bằng tài khoản Quản trị.")
+          + (App.Services.Accounts.CanWrite ? "" : " Máy này chưa mở khóa ghi — bấm Lưu sẽ hỏi mật khẩu Quản trị để mở.")
         : "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
     private User _editing = new();
     private readonly Dictionary<string, ComboBox> _permBoxes = new();
@@ -124,8 +124,26 @@ public partial class UsersView : UserControl, IPage
 
     private void OnNew(object? sender, RoutedEventArgs e) { Grid.SelectedItem = null; Edit(new User()); UserBox.Focus(); }
 
+    /// <summary>
+    /// Dùng chung tài khoản mà máy chưa mở khóa ghi → hỏi mật khẩu Quản trị (hoặc mã cho máy quản trị) để mở ngay, thay vì chỉ báo lỗi.
+    /// </summary>
+    private async Task<bool> EnsureWrite()
+    {
+        var a = App.Services.Accounts;
+        if (!a.Enabled || a.CanWrite) return true;
+        while (true)
+        {
+            var input = await Ui.Prompt(this,
+                "Máy này chưa mở khóa ghi tài khoản lên Google Sheet. Nhập lại MẬT KHẨU QUẢN TRỊ để mở khóa (hoặc dán \"mã cho máy quản trị\" KLTK1-… chép từ máy đã thiết lập Google Sheet).",
+                "Mở khóa ghi tài khoản", password: true);
+            if (string.IsNullOrWhiteSpace(input)) return false;
+            if (await Ui.RunAsync(this, () => a.UnlockAsync(input))) return true;
+        }
+    }
+
     private async void OnSave(object? sender, RoutedEventArgs e)
     {
+        if (!await EnsureWrite()) return;
         var role = SelectedRole;
         var perms = PermissionsToSave();
         var editing = _editing; var user = UserBox.Text ?? ""; var name = NameBox.Text ?? ""; var pass = PassBox.Text ?? ""; var active = ActiveBox.IsChecked == true;
@@ -148,6 +166,7 @@ public partial class UsersView : UserControl, IPage
 
     private async void OnReset(object? sender, RoutedEventArgs e)
     {
+        if (!await EnsureWrite()) return;
         var pw = await Ui.Prompt(this, $"Mật khẩu mới cho {_editing.Username} (ít nhất 6 ký tự):", "Đặt lại mật khẩu", password: true);
         if (pw is null) return;
         var id = _editing.Id;

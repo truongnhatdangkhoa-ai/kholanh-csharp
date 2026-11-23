@@ -359,6 +359,44 @@ public class AccountSyncService
 
     public void AfterLogout() => _sessionKey = "";
 
+    /// <summary>
+    /// Mở khóa ghi tài khoản ngay trên màn hình Tài khoản (máy chưa có mã quản trị, Quản trị đang đăng nhập):
+    /// <paramref name="input"/> là mật khẩu Quản trị (tải gói khóa mới nhất trên Sheet rồi giải mã) hoặc "mã cho máy quản trị" KLTK1-…
+    /// (lưu luôn vào máy). Không mở được → BusinessException kèm hướng dẫn.
+    /// </summary>
+    public async Task UnlockAsync(string input, CancellationToken ct = default)
+    {
+        _session.RequireAdmin();
+        if (!Enabled) throw new BusinessException("Máy này chưa dùng chung tài khoản qua Google Sheet.");
+        var text = input.Trim();
+        if (text.StartsWith(CodePrefix))
+        {
+            var (url, token, admin, _) = ParseFull(text);
+            if (admin.Length == 0) throw new BusinessException("Đây là mã cho máy NHÂN VIÊN (chỉ đọc). Cần \"mã cho máy quản trị\" — chép ở máy đã thiết lập Google Sheet, mục Sao lưu và cài đặt › Tài khoản dùng chung.");
+            if (!string.Equals(url, Url, StringComparison.Ordinal) || token != Token) throw new BusinessException("Mã này của một Google Sheet khác với Sheet máy này đang dùng.");
+            var list = await CallAsync(url, token, "", "list", null, ct);
+            var users = list["users"]?.AsArray() ?? new JsonArray();
+            var probe = users.OfType<JsonObject>().FirstOrDefault(o => !(o["username"]?.ToString() ?? "").TrimStart('\'').StartsWith('#'));
+            if (probe is not null) await CallAsync(url, token, admin, "save", new JsonObject { ["user"] = probe.DeepClone() }, ct); // thử mã quản trị
+            _settings.Set(KeyAdmin, Secret.Protect(admin));
+            _audit.Log(_session.Username, "Mở khóa ghi tài khoản", "dán mã cho máy quản trị");
+            return;
+        }
+        var me = _session.CurrentUser!;
+        using (var c = _db.Open())
+        {
+            var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id = me.Id });
+            if (u is null || !AuthService.Verify(text, u.Salt, u.PasswordHash)) throw new BusinessException("Mật khẩu Quản trị không đúng.");
+        }
+        var res = await CallAsync(Url, Token, "", "list", null, ct);
+        var rows = res["users"]?.AsArray() ?? new JsonArray();
+        CacheBlobs(rows);
+        var key = BlobsFromRows(rows).TryGetValue(me.Username, out var blob) ? Unseal(text, blob) : "";
+        if (key.Length == 0)
+            throw new BusinessException($"Trên Google Sheet chưa có khóa ghi cho tài khoản {me.Username}. Làm MỘT trong hai cách: (1) ở máy đã thiết lập Google Sheet (máy tạo mã Apps Script), đăng nhập {me.Username} một lần rồi quay lại đây bấm lại; hoặc (2) ở máy đó vào Hệ thống › Sao lưu và cài đặt › \"Chép mã cho máy quản trị\" rồi dán mã vào ô này.");
+        _sessionKey = key;
+    }
+
     /// <summary>Mật khẩu Quản trị vừa đổi / tạo mới: ghi lại gói khóa bằng mật khẩu mới (cần đang giữ mã quản trị). Lỗi chỉ ghi nhật ký.</summary>
     public void Reseal(string username, string password)
     {
@@ -394,7 +432,7 @@ public class AccountSyncService
     {
         if (!Enabled) return;
         if (!CanWrite)
-            throw new BusinessException("Tài khoản đang dùng chung qua Google Sheet nhưng máy này chưa mở được khóa ghi. Hãy đăng nhập bằng tài khoản Quản trị (khóa ghi tự mở bằng mật khẩu Quản trị). Nếu vẫn báo, nhờ Quản trị đăng nhập MỘT LẦN ở máy đã thiết lập Google Sheet để cấp khóa cho tài khoản này, hoặc dán \"mã cho máy quản trị\" vào máy này.");
+            throw new BusinessException("Tài khoản đang dùng chung qua Google Sheet nhưng máy này chưa mở được khóa ghi. Ở màn hình Tài khoản, bấm Lưu và nhập lại mật khẩu Quản trị (hoặc dán \"mã cho máy quản trị\") để mở khóa.");
         var url = Url; var token = Token; var admin = AdminKey;
         var row = ToRow(u);
         try { Task.Run(() => CallAsync(url, token, admin, "save", new JsonObject { ["user"] = row })).GetAwaiter().GetResult(); }

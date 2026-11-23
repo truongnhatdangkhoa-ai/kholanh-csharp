@@ -173,7 +173,7 @@ public class AuthService
         return (Convert.ToBase64String(hash), Convert.ToBase64String(salt));
     }
 
-    private static bool Verify(string password, string salt, string expected)
+    internal static bool Verify(string password, string salt, string expected)
     {
         var hash = Rfc2898DeriveBytes.Pbkdf2(password, Convert.FromBase64String(salt), Iterations, HashAlgorithmName.SHA256, 32);
         return CryptographicOperations.FixedTimeEquals(hash, Convert.FromBase64String(expected));
