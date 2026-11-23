@@ -108,11 +108,33 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Bật chế độ LAN (nếu đã cấu hình) và tắt khi thoát.</summary>
+    /// <summary>Câu báo lần tự nhận vai LAN gần nhất (lúc đăng nhập).</summary>
+    public static string LanNote { get; set; } = "";
+    /// <summary>Lỗi ghi địa chỉ máy chủ lên Google Sheet (rỗng = ổn).</summary>
+    public static string LanPublishNote { get; private set; } = "";
+    private static int _publishing;
+
+    /// <summary>Bật chế độ LAN (nếu đã cấu hình) và tắt khi thoát. Máy chủ / dự phòng ghi địa chỉ lên Google Sheet mỗi 2 phút.</summary>
     public static void StartLan(IClassicDesktopStyleApplicationLifetime desktop)
     {
         try { Services.Lan.Start(); } catch (Exception ex) { Ui.Describe(ex); }
         desktop.Exit += (_, _) => { try { Services.Lan.Dispose(); } catch { } };
+        var t = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
+        t.Tick += (_, _) => PublishLan();
+        t.Start();
+    }
+
+    /// <summary>Ghi địa chỉ / khóa máy chủ lên Google Sheet nếu khác (chạy ngầm, không chặn giao diện).</summary>
+    public static void PublishLan()
+    {
+        if (Services.Session.CurrentUser is null || Interlocked.Exchange(ref _publishing, 1) == 1) return;
+        var s = Services;
+        _ = Task.Run(async () =>
+        {
+            try { LanPublishNote = await KhoLanh.Core.Lan.LanPlanSync.PublishAsync(s) ?? ""; }
+            catch (Exception ex) { LanPublishNote = ex.Message; }
+            finally { Interlocked.Exchange(ref _publishing, 0); }
+        });
     }
 
     public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop, bool afterLogout = false)
@@ -121,6 +143,12 @@ public partial class App : Application
         login.LoggedIn += () =>
         {
             var main = new MainWindow();
+            Avalonia.Threading.DispatcherTimer.RunOnce(PublishLan, TimeSpan.FromSeconds(5));
+            if (LanNote.Length > 0)
+            {
+                var note = LanNote; LanNote = "";
+                Avalonia.Threading.DispatcherTimer.RunOnce(() => _ = Ui.Message(main, note + "\n\nVai mạng LAN do Quản trị gán theo tài khoản (Hệ thống › Mạng LAN)."), TimeSpan.FromMilliseconds(600));
+            }
             main.LoggedOut += () => { ShowLogin(desktop, afterLogout: true); main.Close(); };
             main.Closed += (_, _) => { if (!main.IsLoggingOut) desktop.Shutdown(); };
             desktop.MainWindow = main;

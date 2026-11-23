@@ -362,6 +362,23 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
 {
     main.Navigate(key);
     Snap(main, name);
+    if (key == "lan")
+    {
+        // Phân vai theo tài khoản (giả lập đã nối Google Sheet ở máy quản trị; không gọi mạng khi chỉ mở trang).
+        s.Auth.CreateUser("quanly", "Lê Văn Cường", "matkhau3", Roles.Manager);
+        var sec = (Func<string, string>)KhoLanh.Core.Services.Secret.Protect;
+        s.Settings.Set("acct_url", "https://script.google.com/macros/s/DEMO/exec");
+        s.Settings.Set("acct_token", sec("demo-token"));
+        s.Settings.Set("acct_admin_key", sec("demo-admin"));
+        var lp = new KhoLanh.Core.Lan.LanPlan { On = true, Key = "demo", Port = s.Lan.Port };
+        lp.Vai["admin"] = "chu"; lp.Vai["quanly"] = "duphong";
+        lp.Chu = new KhoLanh.Core.Lan.LanPlan.Slot(s.Lan.MachineId, "MAY-CHU-KHO", new() { "192.168.1.10:47820" }, "", "admin");
+        lp.DuPhong = new KhoLanh.Core.Lan.LanPlan.Slot("x", "MAY-VAN-PHONG", new() { "192.168.1.11:47820" }, "", "quanly");
+        s.Settings.Set("lan_plan", lp.ToJson());
+        main.Navigate("audit"); main.Navigate("lan");
+        Snap(main, "15b-mang-lan-theo-tai-khoan");
+        foreach (var k in new[] { "acct_url", "acct_token", "acct_admin_key", "lan_plan" }) s.Settings.Set(k, "");
+    }
     if (key == "backup" && main.PageHost.Content is BackupView bv)
     {
         bv.AcctStatus.BringIntoView();

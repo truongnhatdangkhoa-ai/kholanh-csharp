@@ -22,7 +22,7 @@ public class AccountSyncTests : IDisposable
     }
 
     /// <summary>Giả lập Apps Script: mã đọc / mã quản trị, tab TaiKhoan là danh sách dòng chữ.</summary>
-    private sealed class FakeWebApp : HttpMessageHandler
+    internal sealed class FakeWebApp : HttpMessageHandler
     {
         public string Token = "", Admin = "";
         public readonly List<Dictionary<string, string>> Rows = new();

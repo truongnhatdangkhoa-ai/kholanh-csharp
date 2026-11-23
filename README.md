@@ -47,7 +47,7 @@ Menu trên cùng gom theo nhóm (Tồn kho, Báo cáo, Nhập liệu, Hệ thố
 ## Dùng chung qua mạng LAN
 
 Nhiều máy trong mạng nội bộ dùng chung dữ liệu module: máy chủ chính, máy dự phòng tự thay khi máy chủ tắt, máy con.
-Mất máy chủ vẫn làm việc được, có máy chủ lại thì tự gộp. Xem [docs/MANG-LAN.md](docs/MANG-LAN.md).
+Mất máy chủ vẫn làm việc được, có máy chủ lại thì tự gộp. Từ 1.18.0 Quản trị gán vai LAN theo tài khoản, máy tự nhận vai khi đăng nhập. Xem [docs/MANG-LAN.md](docs/MANG-LAN.md).
 
 ## Cài đặt và chạy
 

@@ -37,7 +37,9 @@ public partial class LanView : UserControl, IPage
         PortBox.Text = lan.Port.ToString();
         _loading = false;
         OnRoleChanged(null, new RoutedEventArgs());
+        _subscribed = lan;
         lan.Changed += OnLanChanged;
+        LoadPlan();
         _timer.Tick += (_, _) => Refresh();
         AttachedToVisualTree += (_, _) => { _timer.Start(); Refresh(); };
         DetachedFromVisualTree += (_, _) => _timer.Stop();
@@ -45,6 +47,127 @@ public partial class LanView : UserControl, IPage
     }
 
     private void OnLanChanged() => Dispatcher.UIThread.Post(Refresh);
+    private LanService _subscribed = null!;
+
+    /// <summary>Phần LAN vừa được tạo lại (đổi vai) → nghe sự kiện của phần mới.</summary>
+    private void Resubscribe()
+    {
+        _subscribed.Changed -= OnLanChanged;
+        _subscribed = App.Services.Lan;
+        _subscribed.Changed += OnLanChanged;
+        Refresh();
+    }
+
+    // ----------------------------------------------------------------- phân vai theo tài khoản
+
+    private readonly List<(string User, ComboBox Box)> _autoBoxes = new();
+    private static readonly (string Role, string Label)[] AutoChoices =
+    {
+        (LanService.RoleClient, "Máy con"), (LanService.RoleServer, "Máy chủ chính"), (LanService.RoleStandby, "Máy dự phòng"),
+    };
+
+    private void LoadPlan()
+    {
+        var s = App.Services;
+        var plan = s.Accounts.Plan ?? new LanPlan();
+        AutoRows.Children.Clear(); _autoBoxes.Clear();
+        if (!s.Accounts.Enabled)
+        {
+            AutoOn.IsEnabled = AutoSaveButton.IsEnabled = ClaimButton.IsEnabled = DropStandbyButton.IsEnabled = false;
+            AutoMsg.Text = "Cần bật tài khoản dùng chung (Google Sheet) trước: Hệ thống › Sao lưu và cài đặt.";
+            AutoSlots.Text = "";
+            ShowManual(false);
+            return;
+        }
+        AutoOn.IsChecked = plan.On;
+        var anyAssigned = plan.Vai.Count > 0;
+        foreach (var u in s.Auth.ListUsers().Where(u => u.IsActive).OrderBy(u => u.Role == Core.Models.Roles.Admin ? 0 : u.Role == Core.Models.Roles.Manager ? 1 : 2).ThenBy(u => u.Username))
+        {
+            var role = anyAssigned ? plan.RoleOf(u.Username) : u.Username == s.Session.Username ? LanService.RoleServer : LanService.RoleClient;
+            var box = new ComboBox { ItemsSource = AutoChoices.Select(c => c.Label).ToList(), Width = 150, SelectedIndex = Array.FindIndex(AutoChoices, c => c.Role == role) };
+            var row = new DockPanel();
+            DockPanel.SetDock(box, Avalonia.Controls.Dock.Right);
+            row.Children.Add(box);
+            row.Children.Add(new TextBlock
+            {
+                Text = $"{u.Username} — {u.FullName} ({Core.Models.Roles.Label(u.Role)})", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
+            });
+            AutoRows.Children.Add(row);
+            _autoBoxes.Add((u.Username, box));
+        }
+        var canWrite = s.Accounts.CanWrite;
+        AutoOn.IsEnabled = AutoSaveButton.IsEnabled = canWrite;
+        ClaimButton.IsEnabled = canWrite && plan.On && !(plan.Chu?.Id == s.Lan.MachineId && s.Lan.Role == LanService.RoleServer);
+        DropStandbyButton.IsEnabled = canWrite && plan.On && plan.DuPhong is not null;
+        if (!canWrite) AutoMsg.Text = "Máy này không có mã quản trị nên chỉ xem được — sửa phân vai ở máy quản trị.";
+        ShowPlanSlots(plan);
+        ShowManual(plan.On);
+    }
+
+    private void ShowManual(bool planOn)
+    {
+        ManualNote.IsVisible = planOn;
+        foreach (var r in new[] { RoleSingle, RoleServer, RoleStandby, RoleClient }) r.IsEnabled = !planOn;
+        CodePanel.IsEnabled = PortPanel.IsEnabled = ManualSave.IsEnabled = !planOn;
+    }
+
+    private void ShowPlanSlots(LanPlan plan)
+    {
+        var me = App.Services.Lan.MachineId;
+        string S(LanPlan.Slot? x) => x is null ? "chưa có" : $"{x.Name}{(x.Id == me ? " (máy này)" : "")} — {string.Join(", ", x.Addrs)}";
+        AutoSlots.Text = plan.On
+            ? $"Máy chủ chính: {S(plan.Chu)}\nMáy dự phòng: {S(plan.DuPhong)}" + (App.LanPublishNote.Length > 0 ? "\n" + App.LanPublishNote : "")
+            : "Đang tắt — mỗi máy dùng vai cài tay bên dưới.";
+    }
+
+    private async void OnAutoSave(object? sender, RoutedEventArgs e)
+    {
+        var s = App.Services;
+        var on = AutoOn.IsChecked == true;
+        var vai = _autoBoxes.Where(x => x.Box.SelectedIndex > 0).ToDictionary(x => x.User, x => AutoChoices[x.Box.SelectedIndex].Role, StringComparer.OrdinalIgnoreCase);
+        if (on && !vai.ContainsValue(LanService.RoleServer) && (s.Accounts.Plan?.Chu is null))
+        { await Ui.Message(this, "Chưa có tài khoản nào được gán Máy chủ chính và chưa có máy chủ — gán cho tài khoản Quản trị của máy chủ."); return; }
+        LanPlan? plan = null;
+        if (!await Ui.RunAsync(this, async () => plan = await s.Accounts.UpdatePlanAsync(p =>
+            {
+                p.On = on;
+                p.Vai = new Dictionary<string, string>(vai, StringComparer.OrdinalIgnoreCase);
+                return true;
+            }))) return;
+        s.Audit.Log(s.Session.Username, "Phân vai LAN theo tài khoản", on ? string.Join(", ", vai.Select(p => $"{p.Key}={LanService.RoleLabel(p.Value)}")) : "tắt");
+        // áp ngay cho máy này (như vừa đăng nhập)
+        string? msg = null;
+        try { msg = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s); } catch (Exception ex) { msg = "Không tự đổi vai LAN được: " + ex.Message; }
+        Resubscribe();
+        App.PublishLan();
+        AutoMsg.Text = "Đã lưu lên Google Sheet. Các máy khác nhận vai ở lần đăng nhập tới." + (msg is null ? "" : "\n" + msg);
+        LoadPlan();
+    }
+
+    private async void OnClaim(object? sender, RoutedEventArgs e)
+    {
+        var plan = App.Services.Accounts.Plan;
+        var old = plan?.Chu is { } c && c.Id != App.Services.Lan.MachineId ? c.Name : null;
+        if (!await Ui.Confirm(this, "Máy này sẽ làm Máy chủ chính (giữ database chính cho mọi máy)."
+                + (old is null ? "" : $"\n\nMáy chủ cũ ({old}) trả vai sau khi máy này chép đủ dữ liệu, rồi thành máy con. Không mất dữ liệu.")
+                + "\n\nMáy chủ nên là máy luôn bật.", "Chuyển máy chủ", "Chuyển")) return;
+        string msg = "";
+        if (!await Ui.RunAsync(this, async () => msg = await KhoLanh.Core.Lan.LanPlanSync.ClaimServerAsync(App.Services))) return;
+        Resubscribe();
+        App.PublishLan();
+        AutoMsg.Text = msg;
+        LoadPlan();
+    }
+
+    private async void OnDropStandby(object? sender, RoutedEventArgs e)
+    {
+        if (App.Services.Accounts.Plan?.DuPhong is not { } d) return;
+        if (!await Ui.Confirm(this, $"Bỏ ghi nhận máy dự phòng {d.Name}? Lần đăng nhập tới máy đó thành máy con (trừ khi người đăng nhập được gán Máy dự phòng).", "Bỏ máy dự phòng", "Bỏ")) return;
+        if (!await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p => { p.DuPhong = null; return true; }))) return;
+        AutoMsg.Text = "Đã bỏ máy dự phòng.";
+        LoadPlan();
+    }
 
     private string SelectedRole =>
         RoleServer.IsChecked == true ? LanService.RoleServer :
@@ -79,6 +202,7 @@ public partial class LanView : UserControl, IPage
             SyncText.Text = lan.LastSync.Length > 0 ? "Lần gửi sổ chờ gần nhất: " + lan.LastSync : "";
         }
         ShareCard.IsVisible = lan.Enabled && lan.Role == LanService.RoleServer;
+        if (App.Services.Accounts.Plan is { } plan) ShowPlanSlots(plan);
         MachinesGrid.ItemsSource = lan.Machines().Select(m => new MachineRow(m.Name, LanService.RoleLabel(m.Role), m.Addr, m.At, m.Pending)).ToList();
         var sel = (ConflictsGrid.SelectedItem as ConflictRow)?.C.Id;
         var rows = lan.Conflicts(AllBox.IsChecked == true).Select(c => new ConflictRow(c)).ToList();

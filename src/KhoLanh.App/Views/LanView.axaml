@@ -14,7 +14,25 @@
         </Border>
         <Border Classes="card">
           <StackPanel Spacing="6">
-            <TextBlock Text="Vai của máy này" Classes="section"/>
+            <TextBlock Text="Phân vai theo tài khoản" Classes="section"/>
+            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
+                       Text="Quản trị gán vai cho tài khoản, mọi máy tự nhận vai khi đăng nhập (không cần chép mã LAN). Không gán = máy con. Máy đã làm máy chủ / dự phòng thì giữ vai dù ai đăng nhập. Lưu trên Google Sheet tài khoản dùng chung, không phải dán lại Apps Script."/>
+            <CheckBox x:Name="AutoOn" Content="Bật: máy tự nhận vai theo tài khoản đăng nhập"/>
+            <StackPanel x:Name="AutoRows" Spacing="4"/>
+            <TextBlock x:Name="AutoSlots" TextWrapping="Wrap" FontSize="12"/>
+            <WrapPanel ItemSpacing="6" LineSpacing="6">
+              <Button x:Name="AutoSaveButton" Content="Lưu phân vai" Classes="primary" Click="OnAutoSave"/>
+              <Button x:Name="ClaimButton" Content="Chuyển máy chủ về máy này" Click="OnClaim"/>
+              <Button x:Name="DropStandbyButton" Content="Bỏ máy dự phòng" Click="OnDropStandby"/>
+            </WrapPanel>
+            <TextBlock x:Name="AutoMsg" Classes="muted" TextWrapping="Wrap" FontSize="12"/>
+          </StackPanel>
+        </Border>
+        <Border Classes="card" x:Name="ManualCard">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Vai của máy này (cài tay)" Classes="section"/>
+            <TextBlock x:Name="ManualNote" Classes="muted" TextWrapping="Wrap" FontSize="12" IsVisible="False"
+                       Text="Đang phân vai theo tài khoản: vai của máy do kế hoạch ở trên quyết định lúc đăng nhập."/>
             <RadioButton x:Name="RoleSingle" GroupName="role" Content="Máy đơn (không dùng LAN)" IsCheckedChanged="OnRoleChanged"/>
             <RadioButton x:Name="RoleServer" GroupName="role" Content="Máy chủ chính — giữ database chính" IsCheckedChanged="OnRoleChanged"/>
             <RadioButton x:Name="RoleStandby" GroupName="role" Content="Máy dự phòng — tự thay khi máy chủ tắt" IsCheckedChanged="OnRoleChanged"/>
@@ -29,7 +47,7 @@
             </StackPanel>
             <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
                        Text="Đổi vai xong phần mềm tự mở lại. Máy con / dự phòng tải lại toàn bộ dữ liệu từ máy chủ (dữ liệu module đang có trong máy được thay bằng dữ liệu máy chủ). Mọi máy cần dùng chung tài khoản (Google Sheet) để máy chủ nhận ra người dùng."/>
-            <Button Content="Lưu và mở lại phần mềm" Classes="primary" Click="OnSave" Margin="0,4,0,0"/>
+            <Button x:Name="ManualSave" Content="Lưu và mở lại phần mềm" Classes="primary" Click="OnSave" Margin="0,4,0,0"/>
           </StackPanel>
         </Border>
         <Border Classes="card" x:Name="ShareCard">

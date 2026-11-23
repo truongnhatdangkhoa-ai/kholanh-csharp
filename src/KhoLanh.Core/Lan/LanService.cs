@@ -69,7 +69,7 @@ public sealed class LanService : ISheetSource, IDisposable
     public event Action? Changed;
 
     public record Node(string Id, string Name, string Role, List<string> Addrs);
-    public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending);
+    public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending, string User = "");
 
     public LanService(Database db, ModuleStore store, SettingsService settings, Session session, AuditService audit)
     {
@@ -137,6 +137,55 @@ public sealed class LanService : ISheetSource, IDisposable
         settings.Set("lan_role", role);
         settings.Set("lan_serving", "");
     }
+
+    /// <summary>
+    /// Đặt vai theo kế hoạch phân vai theo tài khoản (không cần quyền Quản trị — vai do Quản trị gán sẵn trên Google Sheet).
+    /// Máy chủ giữ khóa của mình (chưa có thì lấy khóa trong kế hoạch / tạo mới); máy dự phòng / máy con lấy khóa + địa chỉ
+    /// máy chủ trong kế hoạch. Trả true nếu có gì thay đổi (cần khởi động lại phần LAN).
+    /// </summary>
+    public static bool ApplyPlan(SettingsService settings, LanPlan plan, string role)
+    {
+        var before = string.Join("|", settings.Get("lan_role"), settings.Get("lan_key"), settings.Get("lan_port"), settings.Get("lan_nodes"));
+        var oldRole = settings.Get("lan_role");
+        var myKey = Secret.Unprotect(settings.Get("lan_key"));
+        if (plan.Port > 0 && settings.Get("lan_port").Length == 0) settings.Set("lan_port", plan.Port.ToString());
+        if (role == RoleServer)
+        {
+            if (myKey.Length == 0)
+                settings.Set("lan_key", Secret.Protect(plan.Key.Length > 0 ? plan.Key : Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant()));
+        }
+        else if (role is RoleStandby or RoleClient)
+        {
+            if (plan.Key.Length > 0 && plan.Key != myKey) settings.Set("lan_key", Secret.Protect(plan.Key));
+            List<JsonObject> nodes;
+            try { nodes = (JsonNode.Parse(settings.Get("lan_nodes", "[]")) as JsonArray ?? new JsonArray()).OfType<JsonObject>().Select(o => (JsonObject)o.DeepClone()).ToList(); }
+            catch { nodes = new(); }
+            var myId = settings.Get("lan_machine_id");
+            foreach (var (slot, r) in new[] { (plan.Chu, RoleServer), (plan.DuPhong, RoleStandby) })
+            {
+                if (slot is null || slot.Id == myId || slot.Addrs.Count == 0) continue;
+                nodes.RemoveAll(o => (o["id"]?.ToString() ?? "") == slot.Id || (o["id"]?.ToString() ?? "") == ""
+                    || (r == RoleServer && o["role"]?.ToString() == RoleServer));
+                nodes.Add(new JsonObject { ["id"] = slot.Id, ["name"] = slot.Name, ["role"] = r, ["addrs"] = new JsonArray(slot.Addrs.Select(a => (JsonNode)a).ToArray()) });
+            }
+            var json = new JsonArray(nodes.Select(n => (JsonNode)n).ToArray()).ToJsonString();
+            if (json != settings.Get("lan_nodes", "[]")) settings.Set("lan_nodes", json);
+            if (oldRole is not (RoleStandby or RoleClient)) settings.Set("lan_last_seq", "0"); // tải lại toàn bộ từ máy chủ
+        }
+        if (oldRole != role) { settings.Set("lan_role", role); if (role != RoleServer) settings.Set("lan_claim", ""); }
+        var after = string.Join("|", settings.Get("lan_role"), settings.Get("lan_key"), settings.Get("lan_port"), settings.Get("lan_nodes"));
+        return before != after;
+    }
+
+    /// <summary>Đánh dấu "chuyển máy chủ về máy này": máy chủ đang chạy được báo nhường vai khi máy này đã chép đủ.</summary>
+    public static void MarkClaim(SettingsService settings) => settings.Set("lan_claim", "1");
+
+    /// <summary>Địa chỉ (IP:cổng) của máy này trong mạng nội bộ.</summary>
+    public List<string> Addresses() => MyAddrs();
+    internal string Key => _key;
+    /// <summary>Máy chủ đã được báo nhường vai cho máy chủ chính mới.</summary>
+    public bool Yielding => _yield;
+    private volatile bool _yield;
 
     /// <summary>Dòng mã LAN cho file ket-noi.txt của bộ cài máy mới (máy mới thành máy con).</summary>
     public string? BundleLine() => Enabled && Role == RoleServer ? ConnectionCode() : null;
@@ -306,6 +355,15 @@ public sealed class LanService : ISheetSource, IDisposable
         }
         else
         {
+            if (Role == RoleServer && _settings.Get("lan_claim") == "1" && _server is { } cur && cur.Id != MachineId)
+            {
+                try
+                {
+                    var r = await CallNode(cur, Req("nhuong"), TimeSpan.FromSeconds(5), ct);
+                    if (r["ok"]?.GetValue<bool>() == true) _settings.Set("lan_claim", "");
+                }
+                catch (LanUnreachableException) { }
+            }
             var every = Capable ? T(1) : T(15);
             if (now - _lastPull > every) await Pull(ct, full: false);
             if (Online && PendingCount() > 0) await Flush(ct);
@@ -369,10 +427,21 @@ public sealed class LanService : ISheetSource, IDisposable
             var prev = _seen.GetValueOrDefault(from);
             _seen[from] = new Seen(from, req["mn"]?.ToString() ?? "", fromRole, string.Join(";", addrs), DateTime.Now,
                 op == "beat" ? req["down"]?.GetValue<bool>() ?? false : prev?.ServerDown ?? false,
-                req["pend"]?.GetValue<int>() ?? prev?.Pending ?? 0);
+                req["pend"]?.GetValue<int>() ?? prev?.Pending ?? 0, req["u"]?.ToString() ?? "");
         }
         if (op == "hello") return Hello();
         if (op == "beat") return new JsonObject { ["ok"] = true };
+        if (op == "nhuong")
+        {
+            // Quản trị bấm "Chuyển máy chủ về máy này" ở máy khác: máy này thôi làm máy chủ chính. Đang làm chủ thì trả vai
+            // khi máy kia đã chép đủ (như máy dự phòng trả vai), lần mở sau là máy con.
+            if (fromRole != RoleServer || from.Length == 0 || from == MachineId) return Err("Yêu cầu nhường vai không hợp lệ.");
+            _settings.Set("lan_role", RoleClient);
+            _yield = true;
+            Log("Nhường vai máy chủ chính", $"cho {req["mn"]} (Quản trị chuyển máy chủ)");
+            Raise();
+            return new JsonObject { ["ok"] = true };
+        }
         if (!Serving || (_frozen && op is "write" or "sync"))
             return new JsonObject { ["ok"] = false, ["notServing"] = true, ["error"] = "Máy này không làm máy chủ lúc này." };
         var user = req["u"]?.ToString() ?? "";
@@ -423,7 +492,7 @@ public sealed class LanService : ISheetSource, IDisposable
                     ["nodes"] = NodesInfo(),
                 };
                 // Trả vai cho máy chủ chính khi nó đã chép đủ và không ai đang ghi.
-                if (fromRole == RoleServer && Role != RoleServer && since == seq && items.Count == 0
+                if (fromRole == RoleServer && (Role != RoleServer || _yield) && since == seq && items.Count == 0
                     && (req["pend"]?.GetValue<int>() ?? 1) == 0 && DateTime.Now - _lastWriteAt > T(3))
                 {
                     _frozen = true; _frozenAt = DateTime.Now;

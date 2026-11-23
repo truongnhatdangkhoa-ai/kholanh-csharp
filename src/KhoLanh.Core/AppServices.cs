@@ -28,7 +28,7 @@ public class AppServices
     public UpdateService Updates { get; }
     public AccountSyncService Accounts { get; internal set; }
     public LoginMemory Remember { get; }
-    public LanService Lan { get; }
+    public LanService Lan { get; private set; }
     public EntryService Entry { get; }
     public TongHopService TongHop { get; }
     public RaDongService RaDong { get; }
@@ -65,5 +65,17 @@ public class AppServices
         KhangSinh = new KhangSinhService(() => Lan, Session, Audit);
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
         Bridge = new ModuleBridge(Lan, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
+    }
+
+    /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>
+    public void ReloadLan(bool start = true)
+    {
+        var old = Lan;
+        int tick = old.TickMs; double speed = old.Speed;
+        old.Dispose();
+        Lan = new LanService(Db, Modules, Settings, Session, Audit) { TickMs = tick, Speed = speed };
+        Legacy.Target = Lan;
+        Bridge.Source = Lan;
+        if (start) Lan.Start();
     }
 }

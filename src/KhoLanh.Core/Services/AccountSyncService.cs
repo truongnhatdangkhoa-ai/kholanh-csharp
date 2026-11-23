@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Dapper;
 using KhoLanh.Core.Data;
+using KhoLanh.Core.Lan;
 using KhoLanh.Core.Models;
 
 namespace KhoLanh.Core.Services;
@@ -19,7 +20,7 @@ namespace KhoLanh.Core.Services;
 public class AccountSyncService
 {
     private const string KeyUrl = "acct_url", KeyToken = "acct_token", KeyAdmin = "acct_admin_key", KeyLast = "acct_last_pull",
-        KeyPendToken = "acct_pending_token", KeyPendAdmin = "acct_pending_admin";
+        KeyPendToken = "acct_pending_token", KeyPendAdmin = "acct_pending_admin", KeyPlan = "lan_plan";
     public const string CodePrefix = "KLTK1-";
 
     private readonly Database _db;
@@ -149,6 +150,7 @@ public class AccountSyncService
         url = CheckUrl(url);
         var list = await CallAsync(url, token, "", "list", null, ct);
         var users = list["users"]?.AsArray() ?? new JsonArray();
+        CachePlan(users);
         bool uploaded = false;
         int count;
         if (users.Count == 0)
@@ -195,6 +197,7 @@ public class AccountSyncService
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new BusinessException("Google Sheet trả lời quá lâu."); }
         var users = res["users"]?.AsArray() ?? new JsonArray();
         if (users.Count == 0) throw new BusinessException("Google Sheet không có tài khoản nào — giữ danh sách trong máy.");
+        CachePlan(users);
         var n = Apply(users);
         _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         return n;
@@ -237,6 +240,30 @@ public class AccountSyncService
             if (fresh is not null) { cur.FullName = fresh.FullName; cur.Role = fresh.Role; cur.Permissions = fresh.Permissions; cur.IsActive = fresh.IsActive; }
         }
         return parsed.Count;
+    }
+
+    // ---------------- phân vai mạng LAN theo tài khoản (dòng "#mang-lan") ----------------
+
+    /// <summary>Kế hoạch phân vai LAN lấy từ Sheet ở lần tải gần nhất (null = chưa có).</summary>
+    public LanPlan? Plan => Enabled ? LanPlan.Parse(_settings.Get(KeyPlan)) : null;
+
+    private void CachePlan(JsonArray users) => _settings.Set(KeyPlan, LanPlan.FromRows(users)?.ToJson() ?? "");
+
+    /// <summary>
+    /// Đọc lại kế hoạch mới nhất trên Sheet, cho <paramref name="change"/> sửa; có đổi thì ghi lại dòng "#mang-lan".
+    /// Cần mã quản trị. Trả kế hoạch sau khi sửa.
+    /// </summary>
+    public async Task<LanPlan> UpdatePlanAsync(Func<LanPlan, bool> change, CancellationToken ct = default)
+    {
+        if (!Enabled) throw new BusinessException("Chưa bật tài khoản dùng chung (Google Sheet) — bật ở Sao lưu và cài đặt trước.");
+        if (!CanWrite) throw new BusinessException("Máy này không có mã quản trị nên không ghi được phân vai LAN lên Google Sheet.");
+        var res = await CallAsync(Url, Token, "", "list", null, ct);
+        var users = res["users"]?.AsArray() ?? new JsonArray();
+        var plan = LanPlan.FromRows(users) ?? new LanPlan();
+        if (change(plan))
+            await CallAsync(Url, Token, AdminKey, "save", new JsonObject { ["user"] = plan.ToRow() }, ct);
+        _settings.Set(KeyPlan, plan.ToJson());
+        return plan;
     }
 
     // ---------------- ghi lên ----------------

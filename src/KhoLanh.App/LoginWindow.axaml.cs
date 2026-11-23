@@ -151,6 +151,7 @@ public partial class LoginWindow : Window
                 s.Auth.CreateFirstAdmin(user, FullNameBox.Text ?? "", pass);
             }
             s.Auth.Login(user, pass);
+            try { App.LanNote = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s) ?? ""; } catch (Exception ex) { App.LanNote = "Không tự đổi vai LAN được: " + ex.Message; }
             s.Remember.Save(user, pass, RememberBox.IsChecked == true, AutoBox.IsChecked == true);
             Succeeded = true;
             LoggedIn?.Invoke();
