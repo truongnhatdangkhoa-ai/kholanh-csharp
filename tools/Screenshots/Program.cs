@@ -344,6 +344,31 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     s.Lan.Write(KhoLanh.Core.KhangSinh.KhangSinhService.Db, new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { [KhoLanh.Core.KhangSinh.KhangSinhService.Sheet] = rows });
 }
 
+// Phiếu xuất mẫu cho "Phiếu xuất hệ thống" (Tồn kho An An, Tồn kho gửi; Tồn theo vị trí đã có phiếu mẫu ở trên)
+{
+    var t0 = DateTime.Today;
+    var slips = new System.Text.Json.Nodes.JsonArray();
+    string[] tens = { "Tôm sú BTP IQF", "Tôm thẻ PD Semi", "Mực ống cắt khoanh", "Cá basa fillet" };
+    for (var i = 0; i < 9; i++)
+    {
+        var lines = new System.Text.Json.Nodes.JsonArray();
+        for (var k = 0; k <= i % 4; k++)
+            lines.Add(new System.Text.Json.Nodes.JsonObject { ["maHang"] = $"TPC-VRHLBTNX{k}CR00{314 + i}IME1", ["tenHang"] = tens[k], ["size"] = new[] { "16/20", "21/25", "31/40", "U10" }[k], ["hopDong"] = $"HD{20 + i}", ["qty"] = 10 + i * 3 + k });
+        var o = new System.Text.Json.Nodes.JsonObject { ["id"] = $"PX-{118 + i:0000}", ["createdAt"] = t0.AddDays(-i / 2.0).AddHours(8 + i).ToString("yyyy-MM-dd'T'HH:mm:ss"), ["nguoiTao"] = i % 3 == 0 ? "Lan" : "Nguyễn Văn An", ["ghiChu"] = i % 2 == 0 ? "Xuất container 40ft" : "", ["deducted"] = true, ["lines"] = lines };
+        if (i % 3 == 0) { o["phoneId"] = "dt" + i; o["phoneMaPhieu"] = $"DT{t0:yyMMdd}-0{i}30"; }
+        slips.Add(o);
+    }
+    s.Modules.WriteSheets("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PhieuXuat"] = new() { new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + new System.Text.Json.Nodes.JsonObject { ["slips"] = slips, ["seq"] = 130 }.ToJsonString() } } });
+    var heads = new System.Text.Json.Nodes.JsonArray(); var items = new System.Text.Json.Nodes.JsonArray();
+    for (var i = 0; i < 5; i++)
+    {
+        heads.Add(new System.Text.Json.Nodes.JsonObject { ["id"] = (19 + i).ToString(), ["maPhieu"] = $"PX00{19 + i}", ["ngayTao"] = t0.AddDays(-i).AddHours(9).ToString("yyyy-MM-dd'T'HH:mm:ss"), ["nguon"] = i == 1 ? "Điện thoại" : "PC", ["nguoiTao"] = "Thắng", ["ghiChu"] = i == 0 ? "Xuất cho khách Bình Dương" : "" });
+        for (var k = 0; k < 2 + i; k++)
+            items.Add(new System.Text.Json.Nodes.JsonObject { ["phieuId"] = (19 + i).ToString(), ["maHang"] = $"G{k + 1}0{i}", ["tenHang"] = tens[k % 4] + " (gửi)", ["phieuNhap"] = $"PN{i}{k}", ["soLo"] = $"L{k}", ["size"] = "21/25", ["soKien"] = 100, ["soLuongXuat"] = 5 + k, ["trongLuongTru"] = (5 + k) * 10.8 });
+    }
+    s.Modules.WriteSheets("ton-kho-gui", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PhieuXuat"] = heads, ["PhieuXuatItems"] = items });
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -358,7 +383,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong") })
 {
     main.Navigate(key);
     Snap(main, name);

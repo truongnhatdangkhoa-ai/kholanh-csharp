@@ -65,6 +65,10 @@ public partial class MainWindow : Window
                 new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
             }),
+            ("PHIẾU & CHỨNG TỪ", new[]
+            {
+                new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
+            }),
             ("NHẬP LIỆU", new[]
             {
                 new NavItem("m6", "Nhập liệu", () => new EntryView()),

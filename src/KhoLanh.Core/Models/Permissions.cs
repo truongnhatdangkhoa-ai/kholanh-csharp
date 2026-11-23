@@ -23,6 +23,7 @@ public static class Perm
         new("m5", "Đối chiếu hàng ngày (báo cáo hàng ngày)", "Báo cáo", new[] { View, Export, Edit }, "Sửa = ghi vào file Excel Kho đã liên kết"),
         new("m9", "Đối chiếu kiểm kê", "Báo cáo", new[] { View, Export, Edit }, "Sửa = chọn trang kiểm kê, số kế toán, chụp tồn, sửa mã, chốt kỳ"),
         new("m10", "Kết quả kháng sinh", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nhập kết quả (theo lô, Excel), xóa dữ liệu, sửa quy định kháng sinh"),
+        new("m11", "Phiếu xuất hệ thống", "Phiếu & chứng từ", new[] { View, Export }, "Chỉ xem phiếu xuất của mọi module; Xem + xuất file = xuất Excel danh sách"),
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
@@ -46,7 +47,7 @@ public static class Perm
         {
             d["backup"] = None; d["audit"] = None;
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
-            d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m10"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
+            d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m10"] = Export; d["m11"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
         return d;
     }
