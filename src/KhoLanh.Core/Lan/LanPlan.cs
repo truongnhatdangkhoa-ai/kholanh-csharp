@@ -23,6 +23,8 @@ public sealed class LanPlan
     public Slot? Chu, DuPhong;
     public string Key = "";
     public int Port;
+    /// <summary>Phân vai Đồng bộ Google Drive theo tài khoản (cùng dòng "#mang-lan", khóa "drive").</summary>
+    public DrivePlan Drive = new();
 
     public string RoleOf(string username) => Vai.TryGetValue(username, out var r) && r is LanService.RoleServer or LanService.RoleStandby ? r : LanService.RoleClient;
 
@@ -39,6 +41,7 @@ public sealed class LanPlan
             ["v"] = 1, ["bat"] = On,
             ["vai"] = new JsonObject(Vai.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase).Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value))),
             ["chu"] = S(Chu), ["duphong"] = S(DuPhong), ["k"] = Key, ["cong"] = Port,
+            ["drive"] = Drive.ToJson(),
         }.ToJsonString();
     }
 
@@ -56,6 +59,7 @@ public sealed class LanPlan
                 On = o["bat"]?.GetValue<bool>() == true, Chu = S(o["chu"]), DuPhong = S(o["duphong"]),
                 Key = o["k"]?.ToString() ?? "", Port = o["cong"] is JsonValue c && c.TryGetValue<int>(out var port) ? port : 0,
             };
+            p.Drive = DrivePlan.From(o["drive"]);
             if (o["vai"] is JsonObject v)
                 foreach (var (k, val) in v)
                     if (val?.ToString() is LanService.RoleServer or LanService.RoleStandby) p.Vai[k] = val.ToString();
@@ -152,5 +156,30 @@ public sealed class LanPlan
     public static void CheckRole(string r)
     {
         if (r is not (LanService.RoleServer or LanService.RoleStandby or LanService.RoleClient)) throw new BusinessException("Vai không hợp lệ.");
+    }
+}
+
+/// <summary>
+/// PHÂN VAI ĐỒNG BỘ GOOGLE DRIVE THEO TÀI KHOẢN: tài khoản trong danh sách "máy chính" đăng nhập ở máy nào thì máy đó là MÁY CHÍNH
+/// (nếu chưa có máy chính khác đang hoạt động — xem khóa main.lock trong thư mục Drive); các tài khoản khác, và máy đăng nhập sau khi
+/// đã có máy chính, là MÁY XEM TỪ XA. Khóa mã hóa (mã đồng bộ) nằm cùng kế hoạch nên máy không phải dán mã.
+/// </summary>
+public sealed class DrivePlan
+{
+    public bool On;
+    public HashSet<string> Main = new(StringComparer.OrdinalIgnoreCase);
+    public string Key = "";
+    public bool IsMain(string user) => Main.Contains(user);
+    internal JsonNode ToJson() => new JsonObject
+    {
+        ["bat"] = On, ["chinh"] = new JsonArray(Main.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Select(x => (JsonNode)x).ToArray()), ["k"] = Key,
+    };
+    internal static DrivePlan From(JsonNode? n)
+    {
+        var d = new DrivePlan();
+        if (n is not JsonObject o) return d;
+        d.On = o["bat"]?.GetValue<bool>() == true; d.Key = o["k"]?.ToString() ?? "";
+        if (o["chinh"] is JsonArray a) foreach (var x in a) if (x?.ToString() is { Length: > 0 } u) d.Main.Add(u);
+        return d;
     }
 }

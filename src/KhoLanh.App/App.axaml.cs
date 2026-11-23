@@ -119,7 +119,7 @@ public partial class App : Application
     {
         try { Services.Lan.Start(); } catch (Exception ex) { Ui.Describe(ex); }
         try { Services.Drive.Start(); } catch { }
-        desktop.Exit += (_, _) => { try { Services.Drive.Stop(); Services.Lan.Dispose(); } catch { } };
+        desktop.Exit += (_, _) => { try { Services.Drive.ReleaseOnExit(); Services.Drive.Stop(); Services.Lan.Dispose(); } catch { } };
         var t = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
         t.Tick += (_, _) => PublishLan();
         t.Start();

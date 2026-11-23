@@ -80,6 +80,61 @@ public class DriveSyncTests : IDisposable
         Assert.Equal(m, Names(remote.Lan.Read(Db, "S")));
     }
 
+
+    // ---------------- vai gắn với tài khoản ----------------
+
+    private AppServices Account(string name, string key, params string[] mainUsers) => AccountWith(name, key, null, mainUsers);
+    private AppServices AccountWith(string name, string key, string? extraUser, params string[] mainUsers)
+    {
+        var m = Machine(name);
+        if (extraUser is not null) m.Auth.CreateUser(extraUser, "Nhân viên", "matkhau1", "staff");
+        m.Settings.Set("acct_url", "http://x"); m.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("t"));   // bật "tài khoản dùng chung" giả (chỉ đọc kế hoạch đã lưu)
+        var plan = new LanPlan { On = false };
+        plan.Drive = new DrivePlan { On = true, Key = key };
+        foreach (var u in mainUsers) plan.Drive.Main.Add(u);
+        m.Settings.Set("lan_plan", plan.ToJson());
+        m.Drive.SetFolder(_drive);
+        return m;
+    }
+
+    [Fact]
+    public void Same_admin_on_two_machines_first_is_main_second_is_remote_until_released()
+    {
+        var key = DriveSyncService.NewKey();
+        var a = Account("cty", key, "admin"); var b = Account("nha", key, "admin");
+        Assert.Contains("MÁY CHÍNH", DrivePlanSync.ApplyAtLogin(a)!);
+        Assert.Equal(DriveSyncService.ModeMain, a.Drive.Mode);
+        a.Lan.Write(Db, One("S", Rows("a", "b"))); a.Drive.SyncNow();
+        var note = DrivePlanSync.ApplyAtLogin(b)!;                                // máy thứ hai: máy chính đang hoạt động
+        Assert.Contains("đang là máy chính", note);
+        Assert.Equal(DriveSyncService.ModeRemote, b.Drive.Mode);
+        b.Drive.SyncNow();
+        Assert.Equal("a,b", Names(b.Lan.Read(Db, "S")));
+        // máy công ty thoát → nhả khóa → máy kia đăng nhập lại thì làm máy chính, kèm việc đã sửa ở máy xa
+        b.Lan.Write(Db, One("S", Rows("a", "b", "nha")));
+        a.Lan.Write(Db, One("T", Rows("t")));
+        a.Drive.ReleaseOnExit(); a.Drive.Stop();
+        Assert.Contains("MÁY CHÍNH", DrivePlanSync.ApplyAtLogin(b)!);
+        Assert.Equal(DriveSyncService.ModeMain, b.Drive.Mode);
+        Assert.Equal("a,b,nha", Names(b.Lan.Read(Db, "S")));                       // thay đổi ở máy xa còn nguyên
+        Assert.Equal("t", Names(b.Lan.Read(Db, "T")));                              // dữ liệu máy cũ đã đưa lên trước khi thoát
+        Assert.Equal(0, b.Lan.PendingCount());
+    }
+
+    [Fact]
+    public void Non_main_account_is_remote_and_stale_lease_can_be_forced()
+    {
+        var key = DriveSyncService.NewKey();
+        var a = Account("cty", key, "admin"); var c = AccountWith("kho", key, "nhanvien", "admin");
+        DrivePlanSync.ApplyAtLogin(a); a.Lan.Write(Db, One("S", Rows("a"))); a.Drive.SyncNow();
+        c.Auth.Logout(); c.Auth.Login("nhanvien", "matkhau1");
+        Assert.Contains("xem từ xa", DrivePlanSync.ApplyAtLogin(c)!);
+        Assert.Equal(DriveSyncService.ModeRemote, c.Drive.Mode);
+        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => c.Drive.BecomeMain(c, "nhanvien"));          // khóa còn hạn
+        var msg = c.Drive.BecomeMain(c, "nhanvien", force: true);                                                  // chiếm quyền (máy kia treo)
+        Assert.Contains("máy chính", msg);
+    }
+
     [Fact]
     public void Wrong_code_is_rejected()
     {

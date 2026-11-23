@@ -60,6 +60,12 @@ public sealed partial class LanService
 
     public long DataSeq() => _store.CurrentSeq();
 
+    /// <summary>Đặt bảng đúng bản của máy chính cũ, bỏ qua sổ chờ (dùng khi máy này nhận làm máy chính — thay đổi chờ gửi sẽ gộp lên trên ngay sau đó).</summary>
+    public void ForceInstallSheet(string db, string sheet, string data, long version)
+    {
+        lock (_dataLock) _store.SetExact(db, sheet, data == "[]" && version == 0 ? null : data, version);
+    }
+
     /// <summary>Đặt bảng đúng bản của máy chính (bỏ qua nếu bảng đang có thay đổi chờ gửi).</summary>
     public bool InstallSheet(string db, string sheet, string data, long version)
     {

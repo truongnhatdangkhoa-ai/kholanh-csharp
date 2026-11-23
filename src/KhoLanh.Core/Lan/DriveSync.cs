@@ -32,6 +32,8 @@ public sealed class DriveSyncService
     public string Dir => _settings.Get("drive_dir");
     public bool Enabled => Mode is ModeMain or ModeRemote && Dir.Length > 0 && Key().Length > 0;
     public string Status { get; private set; } = "";
+    /// <summary>Tài khoản đang đăng nhập (ghi vào khóa máy chính để các máy khác biết ai đang giữ).</summary>
+    public string CurrentUser { get; set; } = "";
     public DateTime LastOk { get; private set; }
     public int IntervalSeconds { get; set; } = 45;
     private string Root => Path.Combine(Dir, Folder);
@@ -158,11 +160,113 @@ public sealed class DriveSyncService
         }
     }
 
+    // ------------------------------------------------------------------ khóa "máy chính" (chỉ một máy được làm máy chính)
+
+    public sealed record Lease(string Id, string Name, string User, DateTime At, bool Released)
+    {
+        public const int StaleMinutes = 15;
+        public bool Fresh => !Released && DateTime.UtcNow - At < TimeSpan.FromMinutes(StaleMinutes);
+    }
+    private string LeasePath => Path.Combine(Root, "main.lock");
+    public Lease? ReadLease()
+    {
+        try
+        {
+            var b = TryRead(LeasePath); if (b is null) return null;
+            var n = Unpack(b);
+            return new Lease(n["id"]?.ToString() ?? "", n["ten"]?.ToString() ?? "", n["tk"]?.ToString() ?? "", DateTime.TryParse(n["luc"]?.ToString(), null, System.Globalization.DateTimeStyles.RoundtripKind, out var t) ? t.ToUniversalTime() : DateTime.MinValue, n["xong"]?.GetValue<bool>() == true);
+        }
+        catch { return null; }
+    }
+    private void WriteLease(LanService lan, string user, bool released)
+    {
+        WriteAtomic(LeasePath, Pack(new JsonObject { ["id"] = lan.MachineId, ["ten"] = lan.MachineName, ["tk"] = user, ["luc"] = DateTime.UtcNow.ToString("o"), ["xong"] = released }));
+    }
+    /// <summary>Máy khác đang giữ khóa máy chính (còn hoạt động)?</summary>
+    public Lease? HeldByOther(LanService lan) { var l = ReadLease(); return l is not null && l.Id != lan.MachineId && l.Fresh ? l : null; }
+
+    /// <summary>Thư mục Drive trên máy này (mỗi máy một đường dẫn riêng).</summary>
+    public void SetFolder(string dir) { if (!Directory.Exists(dir)) throw new BusinessException("Không thấy thư mục " + dir); _settings.Set("drive_dir", dir); }
+    public void SetKey(string key) { if (key.Length > 0 && key != Key()) _settings.Set("drive_key", Secret.Protect(key)); }
+
+    /// <summary>
+    /// Máy này thành MÁY CHÍNH (từ máy xem từ xa hoặc từ tắt): tải bản mới nhất trên Drive, đưa các thay đổi chờ gửi của máy này
+    /// qua cùng cơ chế gộp 3 bên (không mất việc đã làm ở máy xa), rồi giữ khóa máy chính. force = chiếm quyền dù khóa chưa hết hạn.
+    /// </summary>
+    public string BecomeMain(AppServices app, string user, bool force = false)
+    {
+        lock (_run)
+        {
+            var lan = _lan();
+            if (Dir.Length == 0 || Key().Length == 0 || !Directory.Exists(Dir)) throw new BusinessException("Chưa chọn thư mục Drive hoặc chưa có mã đồng bộ.");
+            Directory.CreateDirectory(Root);
+            if (!force && HeldByOther(lan) is { } o) throw new BusinessException($"Máy “{o.Name}” (tài khoản {o.User}) đang là máy chính.");
+            Stop();
+            var pending = lan.PendingItems();
+            Dictionary<(string, string), (long Ver, string Data)>? snap = null; long seq = 0;
+            var lp = Path.Combine(Root, "latest.json");
+            if (File.Exists(lp))
+            {
+                var latest = JsonNode.Parse(Encoding.UTF8.GetString(TryRead(lp) ?? Array.Empty<byte>()));
+                if (latest is not null) { seq = latest["seq"]!.GetValue<long>(); snap = LoadCurrentSnap(lan, latest); }
+            }
+            // tải bản của máy chính cũ về những bảng KHÔNG có thay đổi chờ gửi
+            var local = lan.LocalVersions(); int n = 0;
+            if (snap is not null)
+                foreach (var (k, v) in snap)
+                    if (!lan.HasPendingSheet(k.Item1, k.Item2) && !(local.TryGetValue(k, out var lv) && lv == v.Ver) && lan.InstallSheet(k.Item1, k.Item2, v.Data, v.Ver)) n++;
+            // bảng có thay đổi chờ gửi: đặt bản của máy chính cũ làm "bản hiện tại" rồi gộp thay đổi của mình lên trên
+            if (snap is not null)
+                foreach (var p in pending)
+                    if (snap.TryGetValue((p["db"]!.ToString(), p["sheet"]!.ToString()), out var v)) lan.ForceInstallSheet(p["db"]!.ToString(), p["sheet"]!.ToString(), v.Data, v.Ver);
+            _settings.Set("drive_mode", ModeMain);
+            if (_settings.Get("lan_role") == LanService.RoleRemote) _settings.Set("lan_role", "");
+            _settings.Set("drive_seq", seq.ToString()); _settings.Set("drive_pub_seq", seq.ToString()); _lastPubSeq = -1;
+            app.ReloadLan(start: true);
+            var main = app.Lan; var merged = 0;
+            if (pending.Count > 0)
+            {
+                var res = main.ApplyExternal(pending, lan.MachineName);
+                main.Acknowledge(pending.Select(x => x["op"]!.ToString()));
+                merged = res.Count;
+            }
+            main.RemoteStatus = "";
+            var msg = $"Máy này là máy chính: đã tải bản #{seq} ({n} bảng cập nhật" + (merged > 0 ? $", gộp {merged} bảng thay đổi chờ gửi" : "") + ")";
+            Start();
+            return msg;
+        }
+    }
+
+    /// <summary>Máy này thành MÁY XEM TỪ XA (máy chính khác đang hoạt động). Dữ liệu trên máy giữ nguyên, lần đồng bộ tới sẽ thay bằng bản của máy chính.</summary>
+    public void BecomeRemote(AppServices app)
+    {
+        lock (_run)
+        {
+            Stop();
+            _settings.Set("drive_mode", ModeRemote); _settings.Set("lan_role", LanService.RoleRemote); _settings.Set("drive_seq", "0");
+            app.ReloadLan(start: true);
+            Start();
+        }
+    }
+
+    /// <summary>Thoát phần mềm / đăng xuất: máy chính đưa bản cuối lên Drive rồi nhả khóa để máy khác nhận làm máy chính.</summary>
+    public void ReleaseOnExit()
+    {
+        if (!Enabled || Mode != ModeMain) return;
+        lock (_run)
+        {
+            try { var lan = _lan(); if (lan.HoldsMainData && Directory.Exists(Root)) { RunMain(lan); WriteLease(lan, "", true); } } catch { }
+        }
+    }
+
     // ------------------------------------------------------------------ máy chính
 
     private string RunMain(LanService lan)
     {
         if (!lan.HoldsMainData) return "Máy này không giữ dữ liệu chính (đang là máy con / dự phòng LAN) — chạy đồng bộ Drive trên máy chủ.";
+        if (HeldByOther(lan) is { } other)
+            return $"Lỗi: máy “{other.Name}” (tài khoản {other.User}) cũng đang là máy chính — máy này tạm dừng đưa dữ liệu lên Drive để không ghi đè. Đăng xuất ở một trong hai máy.";
+        WriteLease(lan, CurrentUser, false);
         int applied = 0, merged = 0, conflict = 0, bad = 0;
         var inDir = Path.Combine(Root, "in"); var outDir = Path.Combine(Root, "out");
         if (Directory.Exists(inDir))

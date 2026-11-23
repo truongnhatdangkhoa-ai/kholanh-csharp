@@ -27,6 +27,9 @@ public sealed class DriveSyncView : UserControl, IPage
     private readonly TextBlock _status = new() { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _detail = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _msg = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private CheckBox _planOn = null!;
+    private StackPanel _planBox = null!;
+    private readonly Dictionary<string, CheckBox> _mainBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
 
     public DriveSyncView()
@@ -52,7 +55,18 @@ public sealed class DriveSyncView : UserControl, IPage
         var buttons = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         buttons.Children.Add(Btn("Lưu", async () => await Save(), primary: true));
         buttons.Children.Add(Btn("Đồng bộ ngay", async () => await SyncNow()));
-        s.Children.Add(Card("Vai của máy này", _off, _main, _remote, new TextBlock { Text = "Thư mục Google Drive", FontSize = 12.5 }, dirRow, _mainPanel, _codePanel, buttons, _msg));
+        // ----- phân vai theo tài khoản
+        _planOn = new CheckBox { Content = "Bật: vai Drive theo TÀI KHOẢN đăng nhập (tài khoản “máy chính” đăng nhập ở máy nào, máy đó là máy chính)" };
+        _planBox = new StackPanel { Spacing = 2 };
+        var planBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        planBtns.Children.Add(Btn("Lưu phân vai", async () => await SavePlan(), primary: true));
+        planBtns.Children.Add(Btn("Chỉ lưu thư mục trên máy này", async () => { if (await Ui.Run(this, () => Svc.SetFolder((_dir.Text ?? "").Trim()))) _msg.Text = "Đã lưu thư mục Drive của máy này."; await Task.CompletedTask; }));
+        planBtns.Children.Add(Btn("Chiếm quyền máy chính (khi máy kia treo)", async () => await Force()));
+        s.Children.Add(Card("Phân vai theo tài khoản (khuyên dùng)",
+            Note("Quản trị chọn các tài khoản “máy chính”. Máy nào đăng nhập tài khoản đó trước thì là MÁY CHÍNH; máy đăng nhập sau (kể cả cùng tài khoản) và mọi tài khoản khác là MÁY XEM TỪ XA — nên không có hai máy chính cùng ghi đè nhau."),
+            Note("Máy chính thoát phần mềm thì đưa bản cuối lên Drive và nhả quyền; máy kia đăng nhập lại là thành máy chính, giữ nguyên việc đã sửa ở máy xa. Nếu máy chính treo / mất điện, quyền hết hạn sau 15 phút hoặc bấm “Chiếm quyền”. Mỗi máy chỉ cần chọn thư mục Drive một lần."),
+            _planOn, _planBox, planBtns));
+        s.Children.Add(Card("Vai của máy này (cài tay)", _off, _main, _remote, new TextBlock { Text = "Thư mục Google Drive", FontSize = 12.5 }, dirRow, _mainPanel, _codePanel, buttons, _msg));
         Content = new ScrollViewer { Content = s };
         foreach (var r in new[] { _off, _main, _remote }) r.IsCheckedChanged += (_, _) => ShowPanels();
         _timer.Tick += (_, _) => Refresh();
@@ -64,7 +78,39 @@ public sealed class DriveSyncView : UserControl, IPage
     {
         _dir.Text = Svc.Dir; _code.Text = "";
         _off.IsChecked = Svc.Mode == DriveSyncService.ModeOff; _main.IsChecked = Svc.Mode == DriveSyncService.ModeMain; _remote.IsChecked = Svc.Mode == DriveSyncService.ModeRemote;
-        ShowPanels(); Refresh();
+        ShowPanels(); Refresh(); LoadPlan();
+    }
+    private void LoadPlan()
+    {
+        _planBox.Children.Clear(); _mainBoxes.Clear();
+        var acc = App.Services.Accounts; var plan = acc.Plan; var dp = plan?.Drive ?? new DrivePlan();
+        _planOn.IsChecked = dp.On; _planOn.IsEnabled = acc.CanWrite;
+        if (!acc.Enabled) { _planBox.Children.Add(Note("Cần bật Tài khoản dùng chung (Google Sheet) ở Sao lưu và cài đặt để lưu phân vai.")); return; }
+        foreach (var u in App.Services.Auth.ListUsers().Where(u => u.IsActive).OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase))
+        {
+            var cb = new CheckBox { Content = $"{u.Username} — {u.FullName}  (máy chính)", IsChecked = dp.IsMain(u.Username), IsEnabled = acc.CanWrite };
+            _mainBoxes[u.Username] = cb; _planBox.Children.Add(cb);
+        }
+        if (!acc.CanWrite) _planBox.Children.Add(Note("Chỉ Quản trị (đã mở khóa ghi) mới sửa được phân vai."));
+    }
+    private async Task SavePlan()
+    {
+        var on = _planOn.IsChecked == true; var mains = _mainBoxes.Where(p => p.Value.IsChecked == true).Select(p => p.Key).ToList();
+        if (on && mains.Count == 0) { _msg.Text = "Chọn ít nhất một tài khoản máy chính."; return; }
+        if (!await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p =>
+        {
+            p.Drive.On = on; p.Drive.Main = new HashSet<string>(mains, StringComparer.OrdinalIgnoreCase);
+            if (p.Drive.Key.Length == 0) p.Drive.Key = DriveSyncService.NewKey();
+            return true;
+        }))) return;
+        _msg.Text = "Đã lưu phân vai. Mỗi máy sẽ nhận vai ở lần đăng nhập kế tiếp (máy này: đăng xuất rồi đăng nhập lại).";
+    }
+    private async Task Force()
+    {
+        if (!await Ui.Confirm(this, "Chiếm quyền máy chính ngay cả khi máy kia chưa nhả? Chỉ làm khi máy chính cũ đã tắt / treo — nếu nó vẫn đang chạy sẽ ghi đè lẫn nhau.", "Chiếm quyền", "Chiếm quyền")) return;
+        string r = "";
+        if (await Ui.RunAsync(this, async () => r = await Task.Run(() => Svc.BecomeMain(App.Services, App.Services.Session.Username, force: true)))) _msg.Text = r;
+        Load();
     }
     private void ShowPanels() { _mainPanel.IsVisible = _main.IsChecked == true; _codePanel.IsVisible = _remote.IsChecked == true && Svc.Mode != DriveSyncService.ModeRemote; }
     private void Refresh()

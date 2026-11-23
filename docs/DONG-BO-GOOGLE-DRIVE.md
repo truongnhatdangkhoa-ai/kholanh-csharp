@@ -10,6 +10,14 @@ App không đăng nhập Google; nó chỉ đọc / ghi một **thư mục của
 3. **Máy xa:** *Đồng bộ Google Drive* → vai **Máy xem từ xa** → chọn thư mục (cùng thư mục đã đồng bộ về máy) → dán mã đồng bộ → **Lưu**.
    Máy xa đang dùng LAN thì chuyển về “Máy đơn” trước.
 
+## Gắn vai theo tài khoản (khuyên dùng)
+Thay vì đặt vai từng máy bằng tay: *Đồng bộ Google Drive › Phân vai theo tài khoản* → Quản trị bật, tick các tài khoản **máy chính** (thường là Quản trị), **Lưu phân vai** (lưu trên Google Sheet tài khoản dùng chung, kèm mã đồng bộ nên không phải dán mã). Mỗi máy chỉ cần **chọn thư mục Drive một lần**.
+- Tài khoản máy chính đăng nhập ở máy nào **trước** thì máy đó là **Máy chính**. Máy đăng nhập sau (kể cả cùng tài khoản) và mọi tài khoản khác là **Máy xem từ xa**.
+- Chỉ một máy chính tại một thời điểm, nhờ tệp khóa `main.lock` trong thư mục Drive (mã hóa). Máy chính cập nhật khóa mỗi lượt đồng bộ; máy thứ hai thấy khóa còn hạn thì tự làm máy xa và báo ở màn hình đăng nhập.
+- Máy chính **thoát phần mềm**: đưa bản cuối lên Drive rồi nhả khóa. Máy kia đăng nhập lại → thành máy chính: tải bản mới nhất, **gộp các thay đổi chờ gửi** đã làm ở máy xa (3 bên, như xung đột LAN) rồi làm chủ.
+- Máy chính treo / mất điện: khóa hết hạn sau **15 phút**, hoặc Quản trị bấm **Chiếm quyền máy chính** (chỉ khi chắc máy cũ đã tắt).
+- Giới hạn: hai máy đăng nhập đúng cùng lúc (trong lúc Google Drive chưa kịp đồng bộ khóa) có thể cùng nhận làm máy chính; máy chính thứ hai phát hiện khóa của máy kia ở lượt đồng bộ sau thì tạm dừng đưa dữ liệu lên (báo “cũng đang là máy chính”) — lúc đó đăng xuất ở một máy.
+
 ## Cách hoạt động
 - Máy chính, mỗi ~45 giây: nếu dữ liệu đổi thì chụp toàn bộ bảng dữ liệu → `KhoLanh-Sync/snap/s-NNNNNN.klsync` + `latest.json` (giữ 4 bản gần nhất).
 - Máy xa, mỗi ~45 giây: thấy bản mới → tải về và thay các bảng (bảng nào máy xa đang sửa dở thì giữ nguyên).
