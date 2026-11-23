@@ -1,0 +1,563 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
+using KhoLanh.App.Controls;
+using KhoLanh.Core.Grid;
+using KhoLanh.Core.Services;
+using KhoLanh.Core.SoKho;
+using static KhoLanh.Core.SoKho.SoKhoCore;
+
+namespace KhoLanh.App.Views;
+
+/// <summary>
+/// NXT BỘT/SỐT — SỔ KHO (theo M03 của app cũ, dùng chung database nxt-bot-sot). Mọi nghiệp vụ là dòng trong sổ cái; tồn tính theo lô
+/// (Vị trí · Mã hàng · Size · Hạn dùng · Ngày nhập), xuất không chỉ định lô thì trừ FIFO. Tab: Phiếu nhập · Phiếu xuất · Chuyển vị trí ·
+/// Tồn kho (theo mã / vị trí / lô, NXT trong kỳ, sắp hết hạn, tồn âm, chốt tồn) · Kiểm kê · Định mức · Sổ cái & lịch sử (hoàn tác) · Cấu hình.
+/// </summary>
+public sealed class SoKhoView : UserControl, IPage
+{
+    public string Title => "NXT Bột/Sốt";
+    public string Subtitle => "Sổ kho bột / sốt theo lô (vị trí · mã · size · hạn dùng · ngày nhập) — xuất không chỉ định lô thì trừ FIFO. Dùng chung dữ liệu với app cũ.";
+
+    internal static SoKhoService Svc => App.Services.SoKho;
+    internal static readonly IBrush Line_ = new SolidColorBrush(Color.Parse("#D0D7E2")), Red = new SolidColorBrush(Color.Parse("#FDE7E7")), Yellow = new SolidColorBrush(Color.Parse("#FFF4CC")), Green = new SolidColorBrush(Color.Parse("#E6F4EA"));
+    internal static readonly CultureInfo Ic = CultureInfo.InvariantCulture;
+    private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly List<Action> _refresh = new();
+
+    public SoKhoView()
+    {
+        var tabs = new TabControl();
+        void Tab(string h, Control c, Action refresh) { tabs.Items.Add(new TabItem { Header = h, Content = c }); _refresh.Add(refresh); }
+        var pn = new PhieuPanel("nhap"); Tab("Phiếu nhập", pn, pn.Reload);
+        var px = new PhieuPanel("xuat"); Tab("Phiếu xuất", px, px.Reload);
+        var pc = new PhieuPanel("chuyen"); Tab("Chuyển vị trí", pc, pc.Reload);
+        var ton = new TonPanel(); Tab("Tồn kho", ton, ton.Paint);
+        var kk = new KiemKePanel(); Tab("Kiểm kê", kk, kk.Paint);
+        var dm = new DinhMucPanel(); Tab("Định mức", dm, dm.Paint);
+        var sc = new SoCaiPanel(); Tab("Sổ cái & lịch sử", sc, sc.Paint);
+        var cf = new CauHinhPanel(); Tab("Cấu hình", cf, cf.Paint);
+        tabs.SelectionChanged += (_, _) => { if (tabs.SelectedIndex >= 0 && tabs.SelectedIndex < _refresh.Count && _loaded) _refresh[tabs.SelectedIndex](); };
+        var root = new DockPanel(); DockPanel.SetDock(_status, Dock.Top); root.Children.Add(_status); root.Children.Add(tabs);
+        Content = root;
+        AttachedToVisualTree += async (_, _) =>
+        {
+            if (!await Ui.RunAsync(this, () => Task.Run(Svc.Load))) return;
+            _loaded = true; Status();
+            foreach (var r in _refresh) r();
+        };
+        Changed += () => { Status(); foreach (var r in _refresh) r(); };
+    }
+    private bool _loaded;
+
+    /// <summary>Báo các tab vẽ lại sau khi sổ đổi.</summary>
+    internal static event Action? Changed;
+    internal static void RaiseChanged() => Changed?.Invoke();
+
+    private void Status()
+    {
+        var neg = Negatives(Svc.Lines).Count; var exp = Expiring(Svc.Lines, Iso(DateTime.Today), Svc.HsdDays).Count; var low = Svc.BelowMin().Count;
+        _status.Text = $"Sổ cái {Svc.Lines.Count:#,0} dòng" + (Svc.DroppedDup > 0 ? $" · ⚠ bỏ {Svc.DroppedDup} dòng trùng mã dòng" : "")
+            + (neg > 0 ? $" · ⚠ {neg} lô tồn âm" : "") + (exp > 0 ? $" · ⏰ {exp} lô hết hạn trong {Svc.HsdDays} ngày" : "") + (low > 0 ? $" · {low} mã dưới tồn tối thiểu" : "");
+    }
+
+    // ------------------------------------------------------------------ tiện ích dùng chung
+
+    internal static Button Btn(string t, Func<Task> click, string? tip = null, bool primary = false)
+    {
+        var b = new Button { Content = t, Padding = new Thickness(10, 4), FontSize = 12.5 };
+        if (primary) b.Classes.Add("primary"); if (tip is not null) ToolTip.SetTip(b, tip);
+        b.Click += async (_, _) => await click(); return b;
+    }
+    internal static Button Btn(string t, Action click, string? tip = null, bool primary = false) => Btn(t, () => { click(); return Task.CompletedTask; }, tip, primary);
+    internal static CalendarDatePicker Date(DateTime? d = null) => new() { Width = 135, SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy", SelectedDate = d ?? DateTime.Today };
+    internal static string IsoOf(CalendarDatePicker p) => p.SelectedDate is { } d ? Iso(d) : Iso(DateTime.Today);
+    internal static Border Framed(Control c) => new() { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = c };
+    internal static TextBlock Lb(string t) => new() { Text = t, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
+    internal static string F(double v, int d = 2) => v.ToString("#,0." + new string('#', d), Ic);
+    internal static string F(double? v, int d = 2) => v is { } x ? F(x, d) : "";
+    internal static async Task<string?> SaveXlsx(Control c, string name) => await Ui.SaveFile(c, "Xuất Excel", name + ".xlsx", "xlsx", "Excel");
+
+    // ================================================================== PHIẾU (nhập / xuất / chuyển)
+
+    private sealed class PhieuPanel : UserControl
+    {
+        private readonly string _loai;
+        private readonly ListBox _list = new();
+        private readonly TextBox _q = new() { Watermark = "Tìm số phiếu, LSX, mã…" };
+        private readonly CalendarDatePicker _ngay = Date();
+        private readonly TextBox _ct = new() { Width = 150 }, _hd = new() { Width = 170, Watermark = "LSX / hợp đồng (cả phiếu)" };
+        private readonly GridModel _m = new(); private readonly SheetGrid _g;
+        private readonly GridModel _tm = new() { ReadOnly = true }; private readonly SheetGrid _tg;
+        private readonly TextBlock _msg = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
+        private readonly TextBlock _head = new() { FontSize = 15, FontWeight = FontWeight.Bold };
+        private List<PGroup> _groups = new(); private List<string> _ids = new(); private PGroup? _cur; private List<SkLot> _lots = new();
+        private readonly string[] _keys;
+
+        public PhieuPanel(string loai)
+        {
+            _loai = loai;
+            _keys = loai switch
+            {
+                "chuyen" => new[] { "viTri", "viTriDen", "maHang", "size", "soLuong", "net", "hanDung", "ngayNhap", "ghiChu" },
+                "xuat" => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
+                _ => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
+            };
+            _g = new SheetGrid(_m) { SpareRows = 12 };
+            _tg = new SheetGrid(_tm) { SpareRows = 0 };
+            _list.SelectionChanged += (_, _) => { if (_list.SelectedIndex >= 0 && _list.SelectedIndex < Shown.Count) Open(Shown[_list.SelectedIndex]); };
+            _q.TextChanged += (_, _) => FillList();
+            _ngay.SelectedDateChanged += (_, _) => { if (_cur is null) _ct.Text = NextSo(Svc.Lines, IsoOf(_ngay), _loai == "nhap" ? "NK" : _loai == "chuyen" ? "CV" : "BS"); };
+            var left = new DockPanel { Width = 290 };
+            var lt = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+            if (Svc.CanEdit) lt.Children.Add(Btn("➕ Phiếu " + Ten + " mới", New, primary: true));
+            lt.Children.Add(_q);
+            DockPanel.SetDock(lt, Dock.Top); left.Children.Add(lt); left.Children.Add(Framed(_list));
+            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            bar.Children.Add(Lb("Ngày")); bar.Children.Add(_ngay); bar.Children.Add(Lb("Số chứng từ")); bar.Children.Add(_ct);
+            if (loai == "xuat") { bar.Children.Add(Lb("LSX")); bar.Children.Add(_hd); }
+            var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+            if (Svc.CanEdit) { acts.Children.Add(Btn("💾 Lưu phiếu", Save, primary: true)); acts.Children.Add(Btn("Xóa phiếu", Delete)); }
+            acts.Children.Add(Btn("🖨 In phiếu", Print, "Mở phiếu A4 trong trình duyệt để In / Lưu PDF"));
+            acts.Children.Add(Btn("Kiểm tra", () => { Check(); }, "Kiểm tra lỗi từng dòng, định mức LSX, lô chỉ định"));
+            var top = new StackPanel { Spacing = 6 }; top.Children.Add(_head); top.Children.Add(bar); top.Children.Add(acts);
+            var editor = new Grid { RowDefinitions = new RowDefinitions(loai == "nhap" ? "Auto,*,Auto" : "Auto,3*,Auto,Auto,2*") };
+            editor.Children.Add(top);
+            var gf = Framed(_g); gf.Margin = new Thickness(0, 6); Grid.SetRow(gf, 1); editor.Children.Add(gf);
+            var ms = new ScrollViewer { Content = _msg, MaxHeight = 120 }; Grid.SetRow(ms, 2); editor.Children.Add(ms);
+            if (loai != "nhap")
+            {
+                var th = new DockPanel { Margin = new Thickness(0, 6, 0, 4) };
+                var add = Btn("⬆ Thêm lô đang chọn vào phiếu", AddLot, "Điền Vị trí / Mã / Size / Hạn dùng / Ngày nhập của lô vào dòng trống đầu tiên của phiếu");
+                DockPanel.SetDock(add, Dock.Right); th.Children.Add(add);
+                th.Children.Add(new TextBlock { Text = "Tồn hiện tại theo lô (để chọn đúng lô; để trống Hạn dùng / Ngày nhập = trừ FIFO)", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+                Grid.SetRow(th, 3); editor.Children.Add(th);
+                var tf = Framed(_tg); Grid.SetRow(tf, 4); editor.Children.Add(tf);
+            }
+            var root = new DockPanel();
+            DockPanel.SetDock(left, Dock.Left); root.Children.Add(left);
+            root.Children.Add(new Border { Padding = new Thickness(10, 0, 0, 0), Child = editor });
+            Content = root;
+        }
+        private string Ten => _loai switch { "nhap" => "nhập", "xuat" => "xuất", _ => "chuyển" };
+        private List<PGroup> Shown = new();
+
+        private static readonly Dictionary<string, (string H, double W, string T)> ColDef = new()
+        {
+            ["viTri"] = ("Vị trí", 80, "text"), ["viTriDen"] = ("Vị trí đến", 85, "text"), ["maHang"] = ("Mã hàng", 150, "text"), ["size"] = ("Size", 70, "text"),
+            ["soLuong"] = ("Số lượng (bao)", 95, "number"), ["netDv"] = ("Net (kg/bao)", 85, "number"), ["net"] = ("Tổng (kg)", 85, "number"), ["hopDong"] = ("LSX / Hợp đồng", 120, "text"),
+            ["hanDung"] = ("Hạn dùng", 90, "text"), ["ngayNhap"] = ("Ngày nhập", 90, "text"), ["ghiChu"] = ("Ghi chú", 180, "text"),
+        };
+
+        public void Reload()
+        {
+            _groups = Groups(Svc.Lines, _loai);
+            FillList();
+            _lots = Compute(Svc.Lines).Lots.Where(l => l.Sl > Eps || l.Net > Eps).OrderBy(l => l.MaHang).ThenBy(l => l.ViTri).ThenBy(l => l.NgayNhap).ToList();
+            _tm.Load(new[] { new GridColumn("vt", "Vị trí", 70), new GridColumn("ma", "Mã hàng", 140), new GridColumn("sz", "Size", 60), new GridColumn("hd", "Hạn dùng", 85), new GridColumn("nn", "Ngày nhập", 85),
+                new GridColumn("sl", "Tồn (bao)", 75, "number"), new GridColumn("net", "Tồn (kg)", 80, "number"), new GridColumn("lsx", "Hợp đồng nhập", 110) },
+                _lots.Select(l => new[] { l.ViTri, l.MaHang, l.Size, Dmy(l.HanDung), Dmy(l.NgayNhap), F(l.Sl), F(l.Net), l.HopDong }));
+            _tg.Refresh();
+            if (_cur is not null && _groups.FirstOrDefault(g => g.Key == _cur.Key) is { } again) Open(again); else if (_cur is null && _m.ColCount == 0) New();
+        }
+        private void FillList()
+        {
+            var q = Core.ChungTu.ChungTuService.StripAccents(_q.Text ?? "");
+            Shown = _groups.Where(g => q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents(g.Ct + " " + g.HopDong + " " + string.Join(" ", g.Lines.Select(l => l.MaHang))).Contains(q)).ToList();
+            _list.ItemsSource = Shown.Select(g => $"{(g.Ct.Length > 0 ? g.Ct : "(không số)")} · {Dmy(g.Ngay)}\n{g.Dong} dòng · {F(g.Net)} kg{(g.HopDong.Length > 0 ? " · " + g.HopDong : "")}{(g.Nguon == "dt" ? " · 📱" : "")}").ToList();
+        }
+        private void Load(IEnumerable<SkLine> ls)
+        {
+            string V(SkLine l, string k) => k switch
+            {
+                "viTri" => l.ViTri, "viTriDen" => l.ViTriDen, "maHang" => l.MaHang, "size" => l.Size, "soLuong" => F(l.SoLuong, 4), "netDv" => F(l.NetDv, 4), "net" => F(l.Net, 4),
+                "hopDong" => l.HopDong, "hanDung" => Dmy(l.HanDung), "ngayNhap" => _loai == "nhap" && l.NgayNhap == l.Ngay ? "" : Dmy(l.NgayNhap), "ghiChu" => l.GhiChu, _ => "",
+            };
+            var list = ls.ToList(); _ids = list.Select(l => l.Id).ToList();
+            _m.Load(_keys.Select(k => new GridColumn(k, ColDef[k].H, ColDef[k].W, ColDef[k].T)), list.Select(l => _keys.Select(k => V(l, k))));
+            _g.Refresh(); _msg.Text = "";
+        }
+        private void New()
+        {
+            _cur = null; _list.SelectedIndex = -1; _ngay.SelectedDate = DateTime.Today; _hd.Text = "";
+            _ct.Text = NextSo(Svc.Lines, Iso(DateTime.Today), _loai == "nhap" ? "NK" : _loai == "chuyen" ? "CV" : "BS");
+            _head.Text = "Phiếu " + Ten + " mới"; Load(Array.Empty<SkLine>());
+        }
+        private void Open(PGroup g)
+        {
+            _cur = g; _ngay.SelectedDate = DateTime.ParseExact(g.Ngay.Length == 10 ? g.Ngay : Iso(DateTime.Today), "yyyy-MM-dd", Ic); _ct.Text = g.Ct;
+            _hd.Text = g.Lines.Select(l => l.HopDong).Distinct().Count() == 1 ? g.Lines[0].HopDong : "";
+            _head.Text = $"Phiếu {Ten} {g.Ct} · {Dmy(g.Ngay)}" + (g.Nguon == "dt" ? " · từ điện thoại" : "");
+            Load(g.Lines);
+        }
+        private List<SkLine> Draft()
+        {
+            var o = new List<SkLine>(); var ngay = IsoOf(_ngay);
+            for (var r = 0; r < _m.RowCount; r++)
+            {
+                if (_keys.All(k => _m.Get(r, Array.IndexOf(_keys, k)).Trim().Length == 0)) continue;
+                var raw = new JsonObject { ["loai"] = _loai, ["ngay"] = ngay, ["chungTu"] = (_ct.Text ?? "").Trim() };
+                for (var c = 0; c < _keys.Length; c++) raw[_keys[c]] = _m.Get(r, c).Trim();
+                if (_loai == "xuat" && S(raw["hopDong"]).Length == 0) raw["hopDong"] = (_hd.Text ?? "").Trim();
+                if (r < _ids.Count) raw["id"] = _ids[r];
+                var keep = _cur?.Lines.FirstOrDefault(l => l.Id == S(raw["id"]));
+                if (keep is not null) { raw["nguon"] = keep.Nguon; raw["nguoi"] = keep.Nguoi; raw["luc"] = keep.Luc; raw["phieuId"] = keep.PhieuId; }
+                o.Add(NormLine(raw));
+            }
+            return o;
+        }
+        private bool Check()
+        {
+            var d = Draft();
+            if (d.Count == 0) { _msg.Text = "Phiếu chưa có dòng nào."; _msg.Foreground = Brushes.DarkRed; return false; }
+            var chk = Svc.CheckDraft(d, _cur?.Lines.Select(l => l.Id));
+            var lines = chk.Rows.Where(r => r.Check.Level != "ok").Select(r => $"{(r.Check.Level == "err" ? "✖" : "⚠")} Dòng {r.Row + 1} ({d[r.Row].MaHang}): {string.Join("; ", r.Check.Msgs)}").ToList();
+            lines.AddRange(chk.DinhMuc.Where(x => x.St != "ok").Select(x => x.St == "thieu" ? $"ⓘ {x.HopDong} · {x.MaHang}: {x.Why} — chưa kiểm được định mức." :
+                $"{(x.St == "vuot" ? "✖" : "⚠")} Định mức {x.HopDong} · {x.MaHang}: dự kiến {F(x.Du)} {(x.DimKind == "net" ? "kg" : "bao")}, đã xuất {F(x.Da)}, phiếu này {F(x.Nay)} → {F(x.Sau)} ({StatusTen.GetValueOrDefault(x.St, x.St)}{(x.Pct is { } p ? $", {(p > 0 ? "+" : "")}{F(p)}%" : "")})"));
+            lines.AddRange(chk.Spills.Select(s => $"⚠ {s.Line.MaHang} ({s.Line.ViTri}): lô hạn {Dmy(s.Spill.HanDung)} {(s.Spill.LoFound ? $"chỉ có {F(s.Spill.ExSl)} bao" : "không tìm thấy")} — {F(s.Spill.Sl)} bao lấy sang lô khác (FIFO)."));
+            var tot = $"Phiếu {d.Count} dòng · {F(d.Sum(l => l.SoLuong ?? 0))} bao · {F(d.Sum(l => l.Net ?? 0))} kg.";
+            _msg.Text = lines.Count == 0 ? "✓ " + tot + " Không có lỗi." : tot + "\n" + string.Join("\n", lines);
+            _msg.Foreground = chk.HasError ? Brushes.DarkRed : lines.Count > 0 ? new SolidColorBrush(Color.Parse("#8A5A00")) : new SolidColorBrush(Color.Parse("#1E7B34"));
+            return !chk.HasError;
+        }
+        private async Task Save()
+        {
+            if (!Check()) return;
+            if (_msg.Text?.Contains('⚠') == true || _msg.Text?.Contains("Định mức") == true)
+                if (!await Ui.Confirm(this, "Phiếu có cảnh báo (xem bên dưới bảng). Vẫn lưu?", "Cảnh báo", "Vẫn lưu")) return;
+            var d = Draft(); var ct = (_ct.Text ?? "").Trim(); var rep = _cur?.Lines.Select(l => l.Id).ToList();
+            if (await Ui.RunAsync(this, () => Task.Run(() => Svc.SavePhieu(d, rep, _loai, ct))))
+            {
+                var key = ct.Length > 0 ? ct : "#" + IsoOf(_ngay);
+                _cur = Groups(Svc.Lines, _loai).FirstOrDefault(g => g.Key == key);
+                RaiseChanged();
+                _msg.Text = "✓ Đã lưu phiếu " + ct + "."; _msg.Foreground = new SolidColorBrush(Color.Parse("#1E7B34"));
+            }
+        }
+        private async Task Delete()
+        {
+            if (_cur is null) { New(); return; }
+            if (!await Ui.Confirm(this, $"Xóa phiếu {_cur.Ct} ({_cur.Dong} dòng)? Hoàn tác được ở tab Sổ cái & lịch sử.", "Xóa phiếu", "Xóa")) return;
+            var ids = _cur.Lines.Select(l => l.Id).ToList(); var ct = _cur.Ct;
+            if (await Ui.RunAsync(this, () => Task.Run(() => Svc.DeleteLines(ids, "Xóa phiếu " + ct)))) { _cur = null; New(); RaiseChanged(); }
+        }
+        private Task Print()
+        {
+            var d = _cur?.Lines ?? Draft();
+            if (d.Count == 0) return Ui.Message(this, "Phiếu chưa có dòng nào.");
+            var path = Path.Combine(Path.GetTempPath(), $"phieu-{Ui.SafeFileName((_ct.Text ?? "phieu").Trim())}-{DateTime.Now:HHmmss}.html");
+            File.WriteAllText(path, SoKhoService.PhieuHtml(d, (_ct.Text ?? "").Trim(), App.Services.Session.Username));
+            Ui.OpenExternal(path);
+            return Task.CompletedTask;
+        }
+        private void AddLot()
+        {
+            var r = _tg.Row; if (r < 0 || r >= _lots.Count) { _msg.Text = "Chọn một lô ở bảng tồn bên dưới."; return; }
+            var l = _lots[r]; var row = 0; while (row < _m.RowCount && _keys.Any(k => _m.Get(row, Array.IndexOf(_keys, k)).Trim().Length > 0)) row++;
+            if (row >= _m.RowCount) _m.InsertRows(_m.RowCount, 1);
+            var cells = new List<(int, int, string)>();
+            void Set(string k, string v) { var c = Array.IndexOf(_keys, k); if (c >= 0) cells.Add((row, c, v)); }
+            Set("viTri", l.ViTri); Set("maHang", l.MaHang); Set("size", l.Size); Set("hanDung", Dmy(l.HanDung)); Set("ngayNhap", Dmy(l.NgayNhap));
+            if (_loai == "xuat" && l.Sl > Eps && l.Net > Eps) Set("netDv", F(l.Net / l.Sl, 4));
+            _m.SetCells(cells); _g.Refresh(); _g.Select(row, Array.IndexOf(_keys, "soLuong"));
+        }
+    }
+
+    // ================================================================== TỒN KHO
+
+    private sealed class TonPanel : UserControl
+    {
+        private readonly ComboBox _mode = new() { MinWidth = 230, ItemsSource = new[] { "Tồn theo mã + size", "Tồn theo vị trí + mã", "Tồn theo lô (đầy đủ)", "NXT trong kỳ (mã + size)", "Sắp / đã hết hạn dùng", "Lô tồn âm" }, SelectedIndex = 0 };
+        private readonly CalendarDatePicker _from = Date(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)), _to = Date();
+        private readonly TextBox _q = new() { Watermark = "Lọc mã, vị trí, size…", Width = 200 };
+        private readonly GridModel _m = new() { ReadOnly = true }; private readonly SheetGrid _g;
+        private readonly TextBlock _sum = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold };
+        private List<string[]> _rows = new(); private string[] _head = Array.Empty<string>(); private List<string> _bg = new();
+
+        public TonPanel()
+        {
+            _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _bg.Count ? _bg[r] switch { "neg" => Red, "exp" => Yellow, "low" => Yellow, _ => null } : null };
+            _mode.SelectionChanged += (_, _) => Paint(); _from.SelectedDateChanged += (_, _) => Paint(); _to.SelectedDateChanged += (_, _) => Paint(); _q.TextChanged += (_, _) => Paint();
+            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            bar.Children.Add(_mode); bar.Children.Add(Lb("Từ")); bar.Children.Add(_from); bar.Children.Add(Lb("Đến ngày")); bar.Children.Add(_to); bar.Children.Add(_q);
+            if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, "TonKho_BotSot_" + IsoOf(_to)); if (p is not null) await Ui.Run(this, () => SoKhoService.ExportTable("Ton kho", _head, _rows.Select(r => r.Select(x => (object?)(double.TryParse(x.Replace(",", ""), NumberStyles.Float, Ic, out var d) && x.Length > 0 && char.IsDigit(x[^1]) && !x.Contains('/') ? d : x)).ToArray()), p)); }));
+            if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
+            var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar); top.Children.Add(_sum);
+            var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(Framed(_g));
+            Content = root;
+        }
+
+        public void Paint()
+        {
+            var L = Svc.Lines; var to = IsoOf(_to); var q = Core.ChungTu.ChungTuService.StripAccents(_q.Text ?? ""); _bg = new();
+            bool Hit(params string[] s) => q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents(string.Join(" ", s)).Contains(q);
+            var mode = _mode.SelectedIndex; var cols = new List<GridColumn>();
+            _from.IsVisible = mode == 3;
+            if (mode is 0 or 1)
+            {
+                var dims = mode == 0 ? new[] { "maHang", "size" } : new[] { "viTri", "maHang", "size" };
+                var rows = Stock(L, to, dims).Where(r => Hit(dims.Select(d => r[d]).ToArray())).ToList();
+                _head = dims.Select(d => DimLabel[d]).Concat(new[] { "Tồn (bao)", "Tồn (kg)", "Số lô" }).ToArray();
+                _rows = rows.Select(r => dims.Select(d => r[d]).Concat(new[] { F(r.Sl), F(r.Net), r.Lots.ToString() }).ToArray()).ToList();
+                _bg = rows.Select(r => r.Sl < -Eps || r.Net < -Eps ? "neg" : mode == 0 && Svc.MinStock.TryGetValue(r["maHang"], out var mn) && r.Sl < mn ? "low" : "").ToList();
+                _sum.Text = $"Tồn đến hết {Dmy(to)}: {rows.Count} dòng · {F(rows.Sum(r => r.Sl))} bao · {F(rows.Sum(r => r.Net))} kg";
+            }
+            else if (mode is 2 or 4 or 5)
+            {
+                var lots = Compute(L, to).Lots.Where(l => Hit(l.ViTri, l.MaHang, l.Size, l.HopDong));
+                if (mode == 4) lots = lots.Where(l => (l.Sl > Eps || l.Net > Eps) && l.HanDung.Length > 0 && string.CompareOrdinal(l.HanDung, AddDays(Iso(DateTime.Today), Svc.HsdDays)) <= 0).OrderBy(l => l.HanDung);
+                if (mode == 5) lots = lots.Where(l => l.Sl < -Eps || l.Net < -Eps);
+                var ls = lots.ToList();
+                _head = new[] { "Vị trí", "Mã hàng", "Size", "Hạn dùng", "Ngày nhập", "Hợp đồng nhập", "Chứng từ nhập", "Tồn (bao)", "Tồn (kg)" };
+                _rows = ls.Select(l => new[] { l.ViTri, l.MaHang, l.Size, Dmy(l.HanDung), Dmy(l.NgayNhap), l.HopDong, l.ChungTu, F(l.Sl), F(l.Net) }).ToList();
+                var today = Iso(DateTime.Today);
+                _bg = ls.Select(l => l.Sl < -Eps || l.Net < -Eps ? "neg" : l.HanDung.Length > 0 && string.CompareOrdinal(l.HanDung, AddDays(today, Svc.HsdDays)) <= 0 ? "exp" : "").ToList();
+                _sum.Text = (mode == 4 ? $"Lô hết hạn trong {Svc.HsdDays} ngày tới (đỏ nhạt = tồn âm, vàng = sắp / đã hết hạn): " : mode == 5 ? "Lô tồn âm (xuất nhiều hơn đã nhập — thiếu dòng nhập / tồn đầu, xuất nhầm mã…): " : "Tồn theo lô: ")
+                    + $"{ls.Count} lô · {F(ls.Sum(l => l.Sl))} bao · {F(ls.Sum(l => l.Net))} kg";
+            }
+            else
+            {
+                var from = IsoOf(_from); var rows = Nxt(L, from, to, "maHang", "size").Where(r => Hit(r["maHang"], r["size"])).ToList(); var t = NxtTotal(rows);
+                _head = new[] { "Mã hàng", "Size", "Đầu kỳ (bao)", "Đầu kỳ (kg)", "Nhập (bao)", "Nhập (kg)", "Xuất (bao)", "Xuất (kg)", "Điều chỉnh (bao)", "Điều chỉnh (kg)", "Cuối kỳ (bao)", "Cuối kỳ (kg)" };
+                _rows = rows.Select(r => new[] { r["maHang"], r["size"], F(r.DauSl), F(r.DauNet), F(r.NhapSl), F(r.NhapNet), F(r.XuatSl), F(r.XuatNet), F(r.DcSl), F(r.DcNet), F(r.CuoiSl), F(r.CuoiNet) }).ToList();
+                _rows.Add(new[] { "TỔNG", "", F(t.DauSl), F(t.DauNet), F(t.NhapSl), F(t.NhapNet), F(t.XuatSl), F(t.XuatNet), F(t.DcSl), F(t.DcNet), F(t.CuoiSl), F(t.CuoiNet) });
+                _bg = rows.Select(r => r.CuoiSl < -Eps || r.CuoiNet < -Eps ? "neg" : "").Append("").ToList();
+                _sum.Text = $"NXT từ {Dmy(from)} đến {Dmy(to)}: Đầu kỳ + Nhập − Xuất ± Điều chỉnh (chuyển vị trí, kiểm kê, chốt tồn) = Cuối kỳ.";
+            }
+            _m.Load(_head.Select((h, i) => new GridColumn("c" + i, h, i < 3 && mode != 3 ? 120 : 95, h.Contains("(bao)") || h.Contains("(kg)") || h == "Số lô" ? "number" : "text")), _rows);
+            _g.Refresh();
+        }
+
+        private async Task Chot()
+        {
+            var s = await Ui.Prompt(this, "Chốt tồn cuối kỳ: tồn cuối ngày TRƯỚC ngày này thành dòng Tồn đầu của ngày này (dd/mm/yyyy):", "Chốt tồn", Dmy(Iso(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1))));
+            if (s is null) return; var d = ParseDate(s);
+            if (d.Length == 0) { await Ui.Message(this, "Ngày không hợp lệ."); return; }
+            (SoKhoService.CommitResult?, int, bool) r = default;
+            if (!await Ui.RunAsync(this, () => Task.Run(() => r = Svc.Snapshot(d)))) return;
+            await Ui.Message(this, r.Item3 ? $"Ngày {Dmy(d)} đã có dòng Tồn đầu — không tạo thêm (tránh nhân đôi tồn)." : $"Đã chốt {r.Item1?.Added ?? 0} lô thành Tồn đầu ngày {Dmy(d)}." + (r.Item2 > 0 ? $"\n⚠ {r.Item2} lô đang ÂM không chuyển sang kỳ sau — kiểm tra lại các lô đó." : ""));
+            RaiseChanged();
+        }
+    }
+
+    // ================================================================== KIỂM KÊ
+
+    private sealed class KiemKePanel : UserControl
+    {
+        private readonly CalendarDatePicker _ngay = Date();
+        private readonly GridModel _m = new(); private readonly SheetGrid _g;
+        private readonly GridModel _rm = new() { ReadOnly = true }; private readonly SheetGrid _rg;
+        private readonly TextBlock _msg = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
+        private List<SkLine> _adj = new(); private List<KkRow> _res = new();
+
+        public KiemKePanel()
+        {
+            _g = new SheetGrid(_m) { SpareRows = 10 };
+            _rg = new SheetGrid(_rm) { SpareRows = 0, CellBackground = (r, _) => r < _res.Count ? _res[r].Kind switch { "khop" => Green, "thieu" => Red, _ => Yellow } : null };
+            _ngay.SelectedDateChanged += (_, _) => Paint();
+            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            bar.Children.Add(Lb("Ngày kiểm kê")); bar.Children.Add(_ngay);
+            bar.Children.Add(Btn("Tính chênh lệch", Calc, primary: true));
+            if (Svc.CanEdit) bar.Children.Add(Btn("Ghi điều chỉnh vào sổ", Apply, "Mỗi dòng lệch thành 1 dòng Điều chỉnh (dương = thêm, âm = bớt) ngày kiểm kê"));
+            bar.Children.Add(Btn("Tải lại tồn sổ", Paint));
+            var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar);
+            top.Children.Add(new TextBlock { Text = "Gõ / dán SỐ ĐẾM thực tế vào cột cuối (để trống = chưa đếm, bỏ qua). Thêm dòng cho hàng có ngoài sổ. Net điều chỉnh tính theo tỷ lệ kg / bao của tồn sổ.", FontSize = 12, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
+            var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,3*,Auto,2*") };
+            grid.Children.Add(top);
+            var a = Framed(_g); Grid.SetRow(a, 1); grid.Children.Add(a);
+            Grid.SetRow(_msg, 2); _msg.Margin = new Thickness(0, 6); grid.Children.Add(_msg);
+            var b = Framed(_rg); Grid.SetRow(b, 3); grid.Children.Add(b);
+            Content = grid;
+        }
+        public void Paint()
+        {
+            var st = Stock(Svc.Lines, IsoOf(_ngay), "maHang", "size", "viTri").Where(r => Math.Abs(r.Sl) > Eps || Math.Abs(r.Net) > Eps).ToList();
+            _m.Load(new[] { new GridColumn("ma", "Mã hàng", 150), new GridColumn("sz", "Size", 70), new GridColumn("vt", "Vị trí", 80), new GridColumn("sl", "Tồn sổ (bao)", 95, "number") { ReadOnly = true },
+                new GridColumn("kg", "Tồn sổ (kg)", 95, "number") { ReadOnly = true }, new GridColumn("dem", "SỐ ĐẾM (bao)", 110, "number") },
+                st.Select(r => new[] { r["maHang"], r["size"], r["viTri"], F(r.Sl), F(r.Net), "" }));
+            _g.Refresh(); _res = new(); _adj = new(); _rm.Load(Array.Empty<GridColumn>(), Array.Empty<string[]>()); _rg.Refresh(); _msg.Text = "";
+        }
+        private void Calc()
+        {
+            var counts = new List<KkCount>();
+            for (var r = 0; r < _m.RowCount; r++) if (_m.Get(r, 0).Trim().Length > 0 && ParseNum(_m.Get(r, 5)) is { } d && !double.IsNaN(d)) counts.Add(new KkCount(_m.Get(r, 0), _m.Get(r, 1), _m.Get(r, 2), d));
+            var k = KiemKePlan(Svc.Lines, IsoOf(_ngay), counts, App.Services.Session.Username);
+            _res = k.Rows; _adj = k.Adj;
+            _rm.Load(new[] { new GridColumn("ma", "Mã hàng", 150), new GridColumn("sz", "Size", 70), new GridColumn("vt", "Vị trí", 80), new GridColumn("so", "Sổ", 80, "number"), new GridColumn("dem", "Đếm", 80, "number"),
+                new GridColumn("ch", "Chênh (bao)", 90, "number"), new GridColumn("net", "Chênh (kg)", 90, "number"), new GridColumn("kq", "Kết quả", 160) },
+                _res.Select(r => new[] { r.MaHang, r.Size, r.ViTri, F(r.So), F(r.Dem), F(r.Chenh), F(r.Net), r.Kind switch { "khop" => "Khớp", "thua" => "Thừa", "moi" => r.ThieuNet ? "Có ngoài sổ — thiếu Net" : "Có ngoài sổ", _ => "Thiếu" } }));
+            _rg.Refresh();
+            _msg.Text = counts.Count == 0 ? "Chưa có số đếm nào." : $"{k.NKhop} khớp · {k.NLech} lệch (thừa {F(k.Thua)} bao, thiếu {F(-k.Thieu)} bao). " + (k.NLech > 0 ? "Bấm «Ghi điều chỉnh vào sổ» để cập nhật tồn." : "");
+        }
+        private async Task Apply()
+        {
+            if (_adj.Count == 0) { Calc(); if (_adj.Count == 0) { await Ui.Message(this, "Không có dòng lệch để ghi."); return; } }
+            if (!await Ui.Confirm(this, $"Ghi {_adj.Count} dòng Điều chỉnh ngày {Dmy(IsoOf(_ngay))} vào sổ cái?", "Kiểm kê", "Ghi")) return;
+            var adj = _adj.ToList(); var d = IsoOf(_ngay);
+            if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ApplyKiemKe(adj, d)))) { RaiseChanged(); _msg.Text = $"✓ Đã ghi {adj.Count} dòng điều chỉnh."; }
+        }
+    }
+
+    // ================================================================== ĐỊNH MỨC
+
+    private sealed class DinhMucPanel : UserControl
+    {
+        private readonly GridModel _nm = new(), _om = new(), _rm = new() { ReadOnly = true }, _mm = new() { ReadOnly = true };
+        private readonly SheetGrid _ng, _og, _rg, _mg;
+        private readonly CalendarDatePicker _from = Date(new DateTime(DateTime.Today.Year, 1, 1)), _to = Date();
+        private List<DmRow> _rows = new();
+        public DinhMucPanel()
+        {
+            _ng = new SheetGrid(_nm) { SpareRows = 8 }; _og = new SheetGrid(_om) { SpareRows = 8 }; _mg = new SheetGrid(_mm) { SpareRows = 0 };
+            _rg = new SheetGrid(_rm) { SpareRows = 0, CellBackground = (r, _) => r < _rows.Count ? _rows[r].Status switch { "vuot" => Red, "chuY" => Yellow, "dat" or "tietkiem" => Green, _ => null } : null };
+            _from.SelectedDateChanged += (_, _) => Report(); _to.SelectedDateChanged += (_, _) => Report();
+            var edit = new Grid { ColumnDefinitions = new ColumnDefinitions("*,10,*"), RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+            void Add(Control c, int r, int col) { Grid.SetRow(c, r); Grid.SetColumn(c, col); edit.Children.Add(c); }
+            Add(new TextBlock { Text = "Định mức (LSX để trống = áp cho mọi LSX). Đơn vị: " + string.Join(" · ", DmUnits.Select(u => u.Key)), FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, 0, 0);
+            Add(new TextBlock { Text = "Sản lượng thành phẩm theo LSX (kg)", FontWeight = FontWeight.SemiBold }, 0, 2);
+            Add(Framed(_ng), 1, 0); Add(Framed(_og), 1, 2);
+            if (Svc.CanEdit) { Add(Btn("💾 Lưu định mức", SaveNorms), 2, 0); Add(Btn("💾 Lưu sản lượng", SaveOutputs), 2, 2); }
+            var rbar = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 8, 0, 4) };
+            rbar.Children.Add(new TextBlock { Text = "Báo cáo định mức — thực xuất bột / sốt theo LSX so với dự kiến", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            rbar.Children.Add(Lb("Từ")); rbar.Children.Add(_from); rbar.Children.Add(Lb("đến")); rbar.Children.Add(_to);
+            var root = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,3*,Auto,*") };
+            root.Children.Add(edit);
+            Grid.SetRow(rbar, 1); root.Children.Add(rbar);
+            var rf = Framed(_rg); Grid.SetRow(rf, 2); root.Children.Add(rf);
+            var mh = new TextBlock { Text = "LSX có xuất nhưng chưa có định mức cho mã đó", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 4) }; Grid.SetRow(mh, 3); root.Children.Add(mh);
+            var mf = Framed(_mg); Grid.SetRow(mf, 4); root.Children.Add(mf);
+            Content = root;
+        }
+        public void Paint()
+        {
+            _nm.Load(new[] { new GridColumn("hd", "LSX / Hợp đồng", 120), new GridColumn("ma", "Mã bột / sốt", 130), new GridColumn("sz", "Size", 60), new GridColumn("dm", "Định mức", 75, "number"), new GridColumn("dv", "Đơn vị", 85), new GridColumn("gc", "Ghi chú", 140) },
+                Svc.Norms.Select(n => new[] { n.HopDong, n.MaHang, n.Size, F(n.DinhMuc, 4), n.DonVi, n.GhiChu }));
+            _om.Load(new[] { new GridColumn("hd", "LSX / Hợp đồng", 130), new GridColumn("tp", "Thành phẩm (kg)", 110, "number"), new GridColumn("kh", "Khách", 120), new GridColumn("gc", "Ghi chú", 140) },
+                Svc.Outputs.Select(o => new[] { o.HopDong, F(o.ThanhPham), o.Khach, o.GhiChu }));
+            _ng.Refresh(); _og.Refresh(); Report();
+        }
+        private void Report()
+        {
+            var (rows, miss) = DinhMuc(Svc.Lines, Svc.Norms, Svc.Outputs, Svc.Tol, IsoOf(_from), IsoOf(_to)); _rows = rows;
+            _rm.Load(new[] { new GridColumn("hd", "LSX", 110), new GridColumn("kh", "Khách", 100), new GridColumn("tp", "Thành phẩm (kg)", 100, "number"), new GridColumn("ma", "Mã", 110), new GridColumn("dm", "Định mức", 110),
+                new GridColumn("du", "Dự kiến", 80, "number"), new GridColumn("tx", "Thực xuất", 80, "number"), new GridColumn("ch", "Chênh", 75, "number"), new GridColumn("pct", "%", 60, "number"), new GridColumn("st", $"Đánh giá (dung sai {F(Svc.Tol)}%)", 150) },
+                rows.Select(r => new[] { r.HopDong, r.Khach, F(r.ThanhPham), r.MaHang + (r.Size.Length > 0 ? " " + r.Size : ""), F(r.DinhMuc, 4) + " " + r.DonVi, F(r.DuKien), F(r.ThucXuat), F(r.Chenh), F(r.Pct), StatusTen.GetValueOrDefault(r.Status, r.Status) }));
+            _mm.Load(new[] { new GridColumn("hd", "LSX", 120), new GridColumn("kh", "Khách", 110), new GridColumn("tp", "Thành phẩm (kg)", 110, "number"), new GridColumn("ma", "Mã", 120), new GridColumn("sz", "Size", 60), new GridColumn("sl", "Đã xuất (bao)", 95, "number"), new GridColumn("kg", "Đã xuất (kg)", 95, "number") },
+                miss.Select(m => new[] { m.HopDong, m.Khach, F(m.ThanhPham), m.MaHang, m.Size, F(m.ThucXuatSl), F(m.ThucXuatNet) }));
+            _rg.Refresh(); _mg.Refresh();
+        }
+        private async Task SaveNorms()
+        {
+            var rows = new List<Norm>();
+            for (var r = 0; r < _nm.RowCount; r++) if (_nm.Get(r, 1).Trim().Length > 0) rows.Add(new Norm(r < Svc.Norms.Count ? Svc.Norms[r].Id : "", _nm.Get(r, 0), _nm.Get(r, 1), _nm.Get(r, 2), ParseNum(_nm.Get(r, 3)) is { } d && !double.IsNaN(d) ? d : null, _nm.Get(r, 4), _nm.Get(r, 5)));
+            if (await Ui.Run(this, () => Svc.SaveNorms(rows))) Paint();
+        }
+        private async Task SaveOutputs()
+        {
+            var rows = new List<Output>();
+            for (var r = 0; r < _om.RowCount; r++) if (_om.Get(r, 0).Trim().Length > 0) rows.Add(new Output(r < Svc.Outputs.Count ? Svc.Outputs[r].Id : "", _om.Get(r, 0), ParseNum(_om.Get(r, 1)) is { } d && !double.IsNaN(d) ? d : null, _om.Get(r, 2), _om.Get(r, 3)));
+            if (await Ui.Run(this, () => Svc.SaveOutputs(rows))) Paint();
+        }
+    }
+
+    // ================================================================== SỔ CÁI & LỊCH SỬ
+
+    private sealed class SoCaiPanel : UserControl
+    {
+        private readonly CalendarDatePicker _from = Date(DateTime.Today.AddDays(-30)), _to = Date();
+        private readonly ComboBox _loai = new() { ItemsSource = new[] { "Mọi loại" }.Concat(LoaiTen.Values).ToList(), SelectedIndex = 0, MinWidth = 130 };
+        private readonly TextBox _q = new() { Watermark = "Tìm mã, chứng từ, LSX, ghi chú…", Width = 210 };
+        private readonly GridModel _m = new() { ReadOnly = true }, _hm = new() { ReadOnly = true }; private readonly SheetGrid _g, _hg;
+        private List<SkLine> _shown = new(); private List<Op> _ops = new();
+        public SoCaiPanel()
+        {
+            _g = new SheetGrid(_m) { SpareRows = 0 }; _hg = new SheetGrid(_hm) { SpareRows = 0 };
+            _from.SelectedDateChanged += (_, _) => Paint(); _to.SelectedDateChanged += (_, _) => Paint(); _loai.SelectionChanged += (_, _) => Paint(); _q.TextChanged += (_, _) => Paint();
+            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            bar.Children.Add(Lb("Từ")); bar.Children.Add(_from); bar.Children.Add(Lb("đến")); bar.Children.Add(_to); bar.Children.Add(_loai); bar.Children.Add(_q);
+            if (Svc.CanEdit) { bar.Children.Add(Btn("Xóa dòng đang chọn", DelSel)); bar.Children.Add(Btn("📥 Nạp từ Excel…", Import, "File có dòng tiêu đề: Ngày · Loại · Vị trí · Mã hàng · Size · Số lượng · Net · Hợp đồng · Hạn dùng · Ngày nhập · Ghi chú")); }
+            if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, $"SoCai_BotSot_{IsoOf(_from)}_{IsoOf(_to)}"); if (p is not null) await Ui.Run(this, () => Svc.ExportLedger(_shown, p)); }));
+            var hb = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 8, 0, 4) };
+            hb.Children.Add(new TextBlock { Text = $"Lịch sử thao tác ({HistDays} ngày gần nhất) — hoàn tác chỉ khi các dòng chưa bị sửa tiếp", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            if (Svc.CanEdit) hb.Children.Add(Btn("↶ Hoàn tác thao tác đang chọn", Undo));
+            var root = new Grid { RowDefinitions = new RowDefinitions("Auto,3*,Auto,2*") };
+            bar.Margin = new Thickness(0, 6); root.Children.Add(bar);
+            var a = Framed(_g); Grid.SetRow(a, 1); root.Children.Add(a);
+            Grid.SetRow(hb, 2); root.Children.Add(hb);
+            var b = Framed(_hg); Grid.SetRow(b, 3); root.Children.Add(b);
+            Content = root;
+        }
+        public void Paint()
+        {
+            var loai = _loai.SelectedIndex > 0 ? LoaiTen.Keys.ElementAt(_loai.SelectedIndex - 1) : null;
+            var q = Core.ChungTu.ChungTuService.StripAccents(_q.Text ?? "");
+            _shown = SortLines(Svc.Lines.Where(l => string.CompareOrdinal(l.Ngay, IsoOf(_from)) >= 0 && string.CompareOrdinal(l.Ngay, IsoOf(_to)) <= 0 && (loai is null || l.Loai == loai)
+                && (q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents($"{l.MaHang} {l.ChungTu} {l.HopDong} {l.GhiChu} {l.ViTri}").Contains(q)))).ToList();
+            _m.Load(new[] { new GridColumn("ngay", "Ngày", 80), new GridColumn("loai", "Loại", 90), new GridColumn("ct", "Chứng từ", 100), new GridColumn("vt", "Vị trí", 70), new GridColumn("vd", "→ Vị trí", 65),
+                new GridColumn("ma", "Mã hàng", 130), new GridColumn("sz", "Size", 60), new GridColumn("sl", "SL (bao)", 70, "number"), new GridColumn("net", "Tổng (kg)", 80, "number"), new GridColumn("hd", "LSX / HĐ", 110),
+                new GridColumn("han", "Hạn dùng", 80), new GridColumn("nn", "Ngày nhập", 80), new GridColumn("gc", "Ghi chú", 180), new GridColumn("ng", "Nguồn · người", 110) },
+                _shown.Select(l => new[] { Dmy(l.Ngay), LoaiTen.GetValueOrDefault(l.Loai, l.Loai), l.ChungTu, l.ViTri, l.ViTriDen, l.MaHang, l.Size, F(l.SoLuong), F(l.Net), l.HopDong, Dmy(l.HanDung), Dmy(l.NgayNhap), l.GhiChu, l.Nguon + (l.Nguoi.Length > 0 ? " · " + l.Nguoi : "") }));
+            _ops = HistOps(Svc.Hist);
+            _hm.Load(new[] { new GridColumn("luc", "Lúc", 120), new GridColumn("ng", "Người", 90), new GridColumn("mt", "Thao tác", 360), new GridColumn("t", "Thêm", 55, "number"), new GridColumn("s", "Sửa", 50, "number"), new GridColumn("x", "Xóa", 50, "number"), new GridColumn("u", "Trạng thái", 110) },
+                _ops.Select(o => new[] { DateTime.TryParse(o.Luc, Ic, DateTimeStyles.RoundtripKind, out var d) ? d.ToLocalTime().ToString("dd/MM HH:mm:ss") : o.Luc, o.Nguoi, o.MoTa, o.Them.ToString(), o.Sua.ToString(), o.Xoa.ToString(), o.Undone ? "Đã hoàn tác" : "" }));
+            _g.Refresh(); _hg.Refresh();
+        }
+        private async Task DelSel()
+        {
+            var sel = _g.Selection; var ids = Enumerable.Range(sel.R1, sel.Rows).Where(r => r >= 0 && r < _shown.Count).Select(r => _shown[r].Id).ToList();
+            if (ids.Count == 0) { await Ui.Message(this, "Bôi chọn các dòng cần xóa trong bảng sổ cái."); return; }
+            if (!await Ui.Confirm(this, $"Xóa {ids.Count} dòng sổ? Hoàn tác được trong 30 ngày.", "Xóa dòng", "Xóa")) return;
+            if (await Ui.RunAsync(this, () => Task.Run(() => Svc.DeleteLines(ids, $"Xóa {ids.Count} dòng ở sổ cái")))) RaiseChanged();
+        }
+        private async Task Import()
+        {
+            var path = await Ui.OpenFile(this, "Chọn file Excel sổ kho", "xlsx", "Excel"); if (path is null) return;
+            var ch = await Ui.Choose(this, "Dòng nào không có cột Loại thì coi là:", "Nạp Excel", LoaiTen.Values.ToList(), 1);
+            if (ch is null) return; var loai = LoaiTen.Keys.ElementAt(ch.Value.Index);
+            SoKhoService.CommitResult? r = null;
+            if (await Ui.RunAsync(this, () => Task.Run(() => r = Svc.ImportExcel(path, loai)))) { await Ui.Message(this, $"Đã nạp {r!.Added} dòng vào sổ cái. Hoàn tác được ở bảng lịch sử."); RaiseChanged(); }
+        }
+        private async Task Undo()
+        {
+            var r = _hg.Row; if (r < 0 || r >= _ops.Count) { await Ui.Message(this, "Chọn một thao tác trong bảng lịch sử."); return; }
+            var op = _ops[r]; if (!await Ui.Confirm(this, $"Hoàn tác «{op.MoTa}»?", "Hoàn tác", "Hoàn tác")) return;
+            (int, List<(string, string)>) res = default;
+            if (!await Ui.RunAsync(this, () => Task.Run(() => res = Svc.Undo(op.OpId)))) return;
+            await Ui.Message(this, $"Đã hoàn tác {res.Item1} dòng." + (res.Item2.Count > 0 ? $"\n{res.Item2.Count} dòng giữ nguyên vì: " + string.Join("; ", res.Item2.Take(5).Select(c => c.Item2)) : ""));
+            RaiseChanged();
+        }
+    }
+
+    // ================================================================== CẤU HÌNH
+
+    private sealed class CauHinhPanel : UserControl
+    {
+        private readonly NumericUpDown _tol = new() { Minimum = 0, Maximum = 50, Increment = 0.5m, Width = 140, FormatString = "0.##" }, _hsd = new() { Minimum = 0, Maximum = 365, Width = 140, FormatString = "0" };
+        private readonly GridModel _mm = new(); private readonly SheetGrid _mg;
+        public CauHinhPanel()
+        {
+            _mg = new SheetGrid(_mm) { SpareRows = 10, Height = 320 };
+            var s = new StackPanel { Spacing = 6, MaxWidth = 640, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8) };
+            s.Children.Add(Lb("Dung sai định mức (%) — chênh trong khoảng này coi là Đạt")); s.Children.Add(_tol);
+            s.Children.Add(Lb("Báo hạn dùng trước (ngày)")); s.Children.Add(_hsd);
+            s.Children.Add(Lb("Tồn tối thiểu theo mã (bao) — dưới mức hiện vàng ở Tồn kho")); s.Children.Add(Framed(_mg));
+            if (Svc.CanEdit) s.Children.Add(Btn("💾 Lưu cấu hình", Save, primary: true));
+            Content = new ScrollViewer { Content = s };
+        }
+        public void Paint()
+        {
+            _tol.Value = (decimal)Svc.Tol; _hsd.Value = Svc.HsdDays;
+            _mm.Load(new[] { new GridColumn("ma", "Mã hàng", 180), new GridColumn("min", "Tồn tối thiểu (bao)", 140, "number") }, Svc.MinStock.Select(m => new[] { m.Key, F(m.Value) }));
+            _mg.Refresh();
+        }
+        private async Task Save()
+        {
+            var min = new Dictionary<string, double>();
+            for (var r = 0; r < _mm.RowCount; r++) if (_mm.Get(r, 0).Trim().Length > 0 && ParseNum(_mm.Get(r, 1)) is { } d && !double.IsNaN(d)) min[_mm.Get(r, 0).Trim()] = d;
+            if (await Ui.Run(this, () => Svc.SaveConfig((double)(_tol.Value ?? 3), (int)(_hsd.Value ?? 30), min))) { await Ui.Message(this, "Đã lưu cấu hình."); RaiseChanged(); }
+        }
+    }
+}

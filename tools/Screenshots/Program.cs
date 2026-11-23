@@ -916,6 +916,28 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     main.Show("m13", new PhieuKhoView(1, null, "26.11.031")); for (var i = 0; i < 80; i++) { Thread.Sleep(30); Pump(); }
     Snap(main, "30c-list-san-xuat");
 }
+// ---------------- NXT Bột/Sốt (Sổ kho) ----------------
+{
+    var sk = s.SoKho; sk.Load(); var t0 = DateTime.Today; string D(int d) => KhoLanh.Core.SoKho.SoKhoCore.Iso(t0.AddDays(d));
+    System.Text.Json.Nodes.JsonObject L(string loai, int d, string vt, string ma, double sl, double netDv, string hd = "", string han = "", string ct = "") =>
+        new() { ["loai"] = loai, ["ngay"] = D(d), ["viTri"] = vt, ["maHang"] = ma, ["size"] = "", ["soLuong"] = sl, ["netDv"] = netDv, ["hopDong"] = hd, ["hanDung"] = han, ["chungTu"] = ct };
+    var add = new[]
+    {
+        L("nhap", -20, "B1", "BOT-CHIEN-XU", 40, 25, han: D(60), ct: "NK-0311-01"), L("nhap", -20, "B2", "BOT-NHUNG", 30, 20, han: D(12), ct: "NK-0311-01"),
+        L("nhap", -15, "S1", "SOT-TERIYAKI", 50, 10, han: D(150), ct: "NK-0811-01"), L("nhap", -10, "B1", "BOT-CHIEN-XU", 20, 25, han: D(90), ct: "NK-1311-01"),
+        L("xuat", -8, "B1", "BOT-CHIEN-XU", 12, 25, "LSX 26.11.020", ct: "BS-1511-01"), L("xuat", -8, "S1", "SOT-TERIYAKI", 8, 10, "LSX 26.11.020", ct: "BS-1511-01"),
+        L("xuat", -4, "B2", "BOT-NHUNG", 6, 20, "LSX 26.11.031", ct: "BS-1911-01"), L("xuat", -1, "B1", "BOT-CHIEN-XU", 15, 25, "LSX 26.11.044", ct: "BS-2211-01"),
+    }.Select(KhoLanh.Core.SoKho.SoKhoCore.NormLine).ToList();
+    sk.Commit(add, Array.Empty<string>(), Array.Empty<KhoLanh.Core.SoKho.SkLine>(), "nhap", "Dữ liệu mẫu");
+    sk.SaveNorms(new[] { new KhoLanh.Core.SoKho.SoKhoCore.Norm("", "", "BOT-CHIEN-XU", "", 3, "kg/100kg", "") });
+    sk.SaveOutputs(new[] { new KhoLanh.Core.SoKho.SoKhoCore.Output("", "LSX 26.11.020", 9000, "CGC", ""), new KhoLanh.Core.SoKho.SoKhoCore.Output("", "LSX 26.11.044", 12000, "MARUHA", "") });
+    main.Navigate("m3sk"); for (var i = 0; i < 80; i++) { Thread.Sleep(30); Pump(); }
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    tc.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35-nxt-bot-sot-phieu-xuat");
+    tc.SelectedIndex = 3; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35b-nxt-bot-sot-ton-kho");
+    tc.SelectedIndex = 5; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35c-nxt-bot-sot-dinh-muc");
+    tc.SelectedIndex = 6; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35d-nxt-bot-sot-so-cai");
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

@@ -21,7 +21,7 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 
 | # | Module | Trạng thái |
 |---|---|---|
-| 1 | NXT Bột/Sốt (Sổ kho) | ⏳ chưa làm |
+| 1 | NXT Bột/Sốt (Sổ kho) | 🔶 đang làm — lõi + service + test + giao diện xong; còn chụp màn hình, nâng bản, README (xem BÀN GIAO) |
 | 2 | Số liệu cuối kỳ | ⏳ chưa làm |
 | 3 | Vị Trí Bột | ⏳ chưa làm |
 | 4 | Xử lý PDF & Excel | ⏳ chưa làm |
@@ -65,3 +65,30 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 (Ghi theo mẫu: ngày · module · bản · đã làm · còn thiếu / lưu ý · file chính.)
 
 - 23/11/2026 · lập kế hoạch 7 module ở trên. Bản hiện tại 1.28.0 (đã phát hành: Trợ lý hệ thống, Tổng quan + Lịch xuất, List sản xuất, Drive máy ở nhà, khởi động cùng Windows).
+- 23/11/2026 · NXT Bột/Sốt · (chưa nâng bản) · lõi + service + 6 test đạt + giao diện 8 tab, build đạt · còn chụp màn hình / nâng 1.29.0 / README — xem mục BÀN GIAO · `SoKho/*.cs`, `Views/SoKhoView.cs`.
+
+## BÀN GIAO (tạm dừng 23/11/2026, giữa module 1)
+Đã commit lên nhánh `claude/blissful-brown-82s8ht` (chưa vào `main`, chưa phát hành; bản vẫn 1.28.0).
+
+**Đã xong (module 1 — NXT Bột/Sốt):**
+- `src/KhoLanh.Core/SoKho/SoKhoCore.cs` — port `so-kho-core.js`: NormLine, Validate, Compute (lô + FIFO + mốc tồn đầu), Stock, Nxt, Detail, Negatives, Expiring,
+  Snapshot (chốt tồn), KiemKePlan, XuatLoCheck (tràn lô chỉ định), DinhMuc / DinhMucCheck, lịch sử (HistRows / HistOps / UndoPlan), Groups (gom phiếu), NextSo.
+- `src/KhoLanh.Core/SoKho/SoKhoService.cs` — Load / Commit (ghi SoCai + _SoKhoLichSu cùng lúc), CheckDraft, SavePhieu, DeleteLines, Snapshot, ApplyKiemKe, Undo,
+  SaveNorms / SaveOutputs / SaveConfig, BelowMin, ReadExcel / ImportExcel / ExportLedger / ExportTable, PhieuHtml (in A4).
+- Đăng ký `AppServices.SoKho`; quyền `m3sk` trong `Permissions.cs`; menu `NavItem("m3sk", "NXT Bột/Sốt")` (nhóm TỒN KHO, trước Sơ đồ kho).
+- Test: `SoKhoTests.cs` (4 test đối chiếu lõi JS qua `Data/sokho-oracle.json`, khớp tuyệt đối) + `SoKhoServiceTests.cs` (2 test) — đều ĐẠT.
+  Oracle sinh bằng node chạy chính `so-kho-core.js` của app cũ (script cũ ở /tmp, không còn — muốn sinh lại thì viết lại theo cấu trúc JSON trong file oracle).
+- `src/KhoLanh.App/Views/SoKhoView.cs` — 8 tab: Phiếu nhập · Phiếu xuất · Chuyển vị trí (danh sách phiếu trái, soạn phiếu trên lưới, Kiểm tra / Lưu / Xóa / In,
+  bảng tồn theo lô + "Thêm lô đang chọn") · Tồn kho (theo mã+size / vị trí / lô / NXT kỳ / sắp hết hạn / tồn âm, Xuất Excel, Chốt tồn) · Kiểm kê (gõ số đếm → chênh → ghi điều chỉnh) ·
+  Định mức (định mức + sản lượng + báo cáo + LSX thiếu định mức) · Sổ cái & lịch sử (lọc, xóa dòng, nạp Excel, xuất Excel, hoàn tác) · Cấu hình (dung sai, báo hạn, tồn tối thiểu).
+  App **build đạt** (Release).
+
+**Việc còn lại của module 1 (làm tiếp theo thứ tự):**
+1. Cảnh chụp đã thêm ở cuối `tools/Screenshots/Program.cs` (khối "NXT Bột/Sốt (Sổ kho)", ảnh 35-…35d) nhưng **CHƯA chạy thử** — chạy
+   `dotnet run -c Release --project tools/Screenshots -- <thư mục>`, sửa lỗi nếu có, xem ảnh, chỉnh giao diện; chép ảnh 35/35b vào `docs/anh/`.
+2. Thử tay trong ảnh / logic: lưu phiếu xuất có cảnh báo định mức, hoàn tác, kiểm kê.
+3. Chưa làm so với app cũ: mẫu cột `SoKhoMau`, sheet `SoKhoSanLuong` chỉ dùng như bảng sản lượng; nút "Đưa tồn theo vị trí lên Vị Trí Bột" để dành cho module 3.
+4. Nâng `<Version>` lên 1.29.0, thêm dòng "NXT Bột/Sốt" vào bảng module `README.md`, đổi trạng thái bảng trên thành ✅, ghi Nhật ký tiến độ, commit + push.
+5. Sau đó sang module 2 (Số liệu cuối kỳ) theo kế hoạch ở trên.
+
+Lưu ý môi trường: cloud chưa có .NET → `apt-get install -y dotnet-sdk-8.0`; test: `dotnet test tests/KhoLanh.Core.Tests -c Release`.

@@ -19,6 +19,7 @@ public static class Perm
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
         new("m7", "Tồn kho theo vị trí", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, lập / sửa / xóa phiếu xuất"),
+        new("m3sk", "NXT Bột/Sốt (Sổ kho)", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = lập phiếu nhập / xuất / chuyển, chốt tồn, kiểm kê, định mức, nạp Excel, hoàn tác"),
         new("m8", "Sơ đồ kho", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = cấu hình kho, quy cách, khóa kiểm kê"),
         new("m3", "Tổng hợp", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
         new("m4", "Báo cáo rã đông", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, lưu số liệu theo ngày"),
