@@ -50,6 +50,7 @@ public class AppServices
     public PhieuKhoService PhieuKho { get; }
     public CargoService Cargo { get; }
     public KhoLanh.Core.TroLy.TroLyService TroLy { get; }
+    public KhoLanh.Core.LichXuat.LichXuatService LichXuat { get; }
 
     public AppServices(string dbPath)
     {
@@ -86,6 +87,7 @@ public class AppServices
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
+        LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }
 

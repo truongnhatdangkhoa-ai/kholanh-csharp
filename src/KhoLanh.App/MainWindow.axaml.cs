@@ -42,6 +42,10 @@ public partial class MainWindow : Window
 
         _menu = new()
         {
+            ("TỔNG QUAN", new[]
+            {
+                new NavItem("lx", "Tổng quan", () => new TongQuanView()),
+            }),
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
@@ -126,6 +130,9 @@ public partial class MainWindow : Window
         _lanTimer.Start();
         Closed += (_, _) => _lanTimer.Stop();
         ShowLan();
+        // Lịch xuất: tự quét Gmail cập nhật lịch (tài khoản có quyền «Duyệt email Lịch xuất», đã khai báo Gmail, bật tự quét).
+        s.LichXuat.StartAutoEmail();
+        Closed += (_, _) => s.LichXuat.StopAutoEmail();
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {

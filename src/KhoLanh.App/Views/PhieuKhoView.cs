@@ -42,8 +42,14 @@ public sealed class PhieuKhoView : UserControl, IPage
     private readonly List<(MatHang M, GridModel Gm)> _blocks = new();
     private readonly Button _save, _del, _exp, _copy;
 
-    public PhieuKhoView()
+    private readonly string? _openId;
+    private readonly ListSxView _lsxView;
+    private readonly TabControl _outer;
+
+    /// <summary>Mở module: <paramref name="tab"/> 0 = Phiếu xuất khẩu · 1 = List sản xuất · 2 = Cargo list; <paramref name="openPhieuId"/> / <paramref name="openListLsx"/> = mở thẳng phiếu / List đó.</summary>
+    public PhieuKhoView(int tab = 0, string? openPhieuId = null, string? openListLsx = null)
     {
+        _openId = openPhieuId;
         _edit = Svc.CanEdit; _export = Svc.CanExport;
         _list.SelectionChanged += async (_, _) => await OnPick();
         var deb = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -84,14 +90,18 @@ public sealed class PhieuKhoView : UserControl, IPage
         var root = new DockPanel();
         DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
         // 2 phần của module: phiếu xuất khẩu theo LSX (List sản xuất) và Cargo list (hàng tạm: Thuận Phước · Gia công · Gửi kho)
-        Content = new TabControl
+        _lsxView = new ListSxView(openListLsx, OpenFromList);
+        _outer = new TabControl
         {
             Items =
             {
                 new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = root },
+                new TabItem { Header = "List sản xuất", Content = _lsxView },
                 new TabItem { Header = "Cargo list: Thuận Phước · Gia công · Gửi kho", Content = new CargoView() },
             },
+            SelectedIndex = Math.Clamp(tab, 0, 2),
         };
+        Content = _outer;
         ShowEditor();
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }
@@ -139,6 +149,15 @@ public sealed class PhieuKhoView : UserControl, IPage
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
         _status.Text = "";
         RenderList();
+        if (_openId is not null && _shown.FindIndex(p => p.Id == _openId) is var i && i >= 0) _list.SelectedIndex = i;
+    }
+
+    /// <summary>List sản xuất → phiếu vừa tạo / phiếu đã có: chuyển sang tab phiếu và mở phiếu đó.</summary>
+    private async void OpenFromList(string phieuId)
+    {
+        await LoadAsync();
+        _outer.SelectedIndex = 0;
+        if (_shown.FindIndex(p => p.Id == phieuId) is var i && i >= 0) _list.SelectedIndex = i;
     }
 
     private void RenderList(string? keepId = null)
