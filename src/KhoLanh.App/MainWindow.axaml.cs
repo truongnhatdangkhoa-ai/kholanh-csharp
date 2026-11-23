@@ -52,6 +52,7 @@ public partial class MainWindow : Window
                 new NavItem("m2", "Tồn kho gửi", () => new GuiView()),
                 new NavItem("m7", "Tồn kho theo vị trí", () => new ViTriView()),
                 new NavItem("m3sk", "NXT Bột/Sốt", () => new SoKhoView()),
+                new NavItem("m1vtb", "Vị Trí Bột", () => new VtbView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
             }),
             ("BÁO CÁO", new[]

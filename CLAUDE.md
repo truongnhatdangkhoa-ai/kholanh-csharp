@@ -23,7 +23,7 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 |---|---|---|
 | 1 | NXT Bột/Sốt (Sổ kho) | ✅ xong — bản 1.29.0 |
 | 2 | Số liệu cuối kỳ | ✅ xong — bản 1.30.0 |
-| 3 | Vị Trí Bột | ⏳ chưa làm |
+| 3 | Vị Trí Bột | ✅ xong — bản 1.31.0 |
 | 4 | Xử lý PDF & Excel | ⏳ chưa làm |
 | 5 | So sánh & Tra cứu bảng | ⏳ chưa làm |
 | 6 | Giao diện Sáng / Tối + cỡ chữ | ⏳ chưa làm |
@@ -68,3 +68,5 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 - 23/11/2026 · NXT Bột/Sốt · (chưa nâng bản) · lõi + service + 6 test đạt + giao diện 8 tab, build đạt.
 - 23/11/2026 · NXT Bột/Sốt · 1.29.0 · chụp màn hình (35–35d, chép 35/35b/35c vào docs/anh), sửa nhãn "Từ" thừa ở tab Tồn kho, thêm test lưu phiếu vượt định mức (chỉ cảnh báo) + kiểm kê + hoàn tác kiểm kê (7 test SoKho đạt), README · còn: mẫu cột `SoKhoMau`; đẩy tồn lên Vị Trí Bột để dành module 3 · `SoKho/*.cs`, `Views/SoKhoView.cs`.
 - 23/11/2026 · Số liệu cuối kỳ · 1.30.0 · lõi `CuoiKy/` (CkBase cấu hình + chuẩn hoá, CkImport đọc An An / Kế toán + CT + DMVT / Kho gửi / file điều chỉnh, CkSuggest gợi ý mã + CkTrace cờ chứng từ, CkEngine đối chiếu + nguyên nhân + KPI + kiểm tra dữ liệu, CkHistory xử lý / hoàn tác / gộp 2 máy, CkService lưu DC2_* + xuất Excel 10 sheet); test `CuoiKyTests` đối chiếu lõi JS (Data/ck-golden.json, sinh lại bằng `node Data/ck-golden.gen.js`) + test service; giao diện `Views/CuoiKyView.cs` (nguồn, KPI, lọc, bảng, chi tiết nguyên nhân / gợi ý / chứng từ, xử lý, lịch sử, kiểm tra dữ liệu, tự đồng bộ 8 giây); quyền `m7ck` · còn: lấy nguồn thẳng từ module Tồn An An / Tồn kho gửi (app cũ có), sửa ô dữ liệu nguồn trên lưới (lõi đã có ApplyEdits), chứng từ nhập / xuất An An.
+- 23/11/2026 · Số liệu cuối kỳ · 1.30.0 đã phát hành (lần đầu CI lỗi vì `.Reverse()` của mảng trên SDK mới → dùng `Enumerable.Reverse(...)`; lưu ý khi viết code mới).
+- 23/11/2026 · Vị Trí Bột · 1.31.0 · `SoKho/VtbService.cs` (đọc / ghi ViTriBotMeta + ViTriBot + ViTriBotPhieuDienThoai đúng định dạng app cũ, FromLedger + Push từ NXT Bột/Sốt, tạo phiếu trừ ngay, hủy trừ / trừ lại / xóa, khóa phiếu đợt cũ, định dạng ngày giống vtbFmtDate), nút "📱 Đưa lên Vị Trí Bột…" ở NXT Bột/Sốt › Tồn kho, `Views/VtbView.cs`, quyền `m1vtb` (MissingDefault = Xem), test `VtbTests` · còn: nhận phiếu từ điện thoại (khi làm bản điện thoại), nạp file "Vị trí Bột" kiểu cũ (app cũ đã bỏ từ PC 1.62).

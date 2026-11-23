@@ -968,6 +968,14 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     tc.SelectedIndex = 3; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35b-nxt-bot-sot-ton-kho");
     tc.SelectedIndex = 5; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35c-nxt-bot-sot-dinh-muc");
     tc.SelectedIndex = 6; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35d-nxt-bot-sot-so-cai");
+    // Vị Trí Bột: đưa tồn theo vị trí lên, gõ SL xuất, tạo 1 phiếu
+    s.Vtb.Push(KhoLanh.Core.SoKho.VtbService.FromLedger(sk.Lines, D(0)), D(0));
+    s.Vtb.Load(); s.Vtb.CreateSlip(new[] { new KhoLanh.Core.SoKho.VtbService.Pick(0, 2) }, "Xuất cho line chiên");
+    main.Navigate("m1vtb"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+    var vg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    vg.Model.Set(1, 3, "x"); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    Snap(main, "37-vi-tri-bot");
+    Console.WriteLine($"[VTB] {s.Vtb.Rows.Count} dòng, {s.Vtb.Slips.Count} phiếu");
 }
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);

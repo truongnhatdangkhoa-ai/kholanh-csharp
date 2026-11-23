@@ -19,6 +19,7 @@ public static class Perm
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
         new("m7", "Tồn kho theo vị trí", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, lập / sửa / xóa phiếu xuất"),
+        new("m1vtb", "Vị Trí Bột", "Tồn kho gốc", new[] { View, Edit }, "Xem tồn bột / sốt theo vị trí (đẩy từ NXT Bột/Sốt); Sửa = lập / hủy trừ / trừ lại / xóa phiếu xuất"),
         new("m3sk", "NXT Bột/Sốt (Sổ kho)", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = lập phiếu nhập / xuất / chuyển, chốt tồn, kiểm kê, định mức, nạp Excel, hoàn tác"),
         new("m8", "Sơ đồ kho", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = cấu hình kho, quy cách, khóa kiểm kê"),
         new("m3", "Tổng hợp", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
@@ -42,7 +43,7 @@ public static class Perm
     /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
     /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
     /// </summary>
-    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit };
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 
