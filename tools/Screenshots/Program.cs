@@ -657,6 +657,20 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Console.WriteLine($"[AN-AN] tạo phiếu xuất: {before} -> {s.AnAn.Slips.Count} phiếu");
         Snap(main, "40-an-an-sau-tao-phieu");
+        // Theo Dõi Tồn: gõ ghi chú vào cột cuối của dòng đầu → phải lưu
+        tabs.SelectedIndex = 3; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var tg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        var notesBefore = s.AnAn.Tdt.Notes.Count;
+        Console.WriteLine($"[AN-AN] Theo Dõi Tồn: {tg.Model.RowCount} dòng hiện");
+        if (tg.Model.RowCount > 0)
+        {
+            tg.Select(0, 9); tg.Focus(); Pump();
+            main.KeyTextInput("Cho xuat lo Nhat"); Pump();
+            main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
+            for (var i = 0; i < 14; i++) { Thread.Sleep(30); Pump(); }
+            Console.WriteLine($"[AN-AN] ghi chú Theo Dõi Tồn: {notesBefore} -> {s.AnAn.Tdt.Notes.Count}");
+            Snap(main, "40-an-an-theo-doi-ton-ghi-chu");
+        }
     }
     if (key == "m6")
     {
