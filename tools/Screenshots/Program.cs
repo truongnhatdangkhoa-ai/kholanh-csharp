@@ -391,6 +391,27 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     });
 }
 
+// Phiếu xuất kho mẫu (đúng định dạng app cũ: database "phieu-nhap-xuat", sheet PNX_Phieu)
+{
+    var mk = new KhoLanh.Core.PhieuKho.Phieu { Id = "pxdemo1", Ngay = DateTime.Today.AddDays(-1).ToString("yyyy-MM-dd"), SoPhieu = $"03.{DateTime.Today:MM} XKAA 02", Lsx = "26.09.057", Khach = "WISMETTAC", HopDong = "WM-2611", O40 = "XK199", XuatLuc = "" };
+    mk.Xe.TaiXe = "Nguyễn Văn Hùng"; mk.Xe.Sdt = "0903 456 789"; mk.Xe.SoXe = "51C-123.45"; mk.Xe.Cont = "MSKU1234567"; mk.Xe.Seal = "SL-889900"; mk.Xe.Booking = "BK2611";
+    mk.Mh = new()
+    {
+        new KhoLanh.Core.PhieuKho.MatHang { Ten = "Tôm TCT cooked PDTO", Ma = "VRHLBTNXECR003140IME1", Lo = "L2611", Lsx = "26.09.057", DongList = new()
+        {
+            new() { Date = "10.11.2026", Size = "31/40", Packing = "1.0 kg x 5 x 2", Kien = "120", Mks = "40" }, new() { Date = "10.11.2026", Size = "41/50", Packing = "1.0 kg x 5 x 2", Kien = "80" },
+            new() { Date = "11.11.2026", Size = "31/40", Packing = "1.0 kg x 5 x 2", Kien = "60" },
+        } },
+        new KhoLanh.Core.PhieuKho.MatHang { Ten = "Tôm sú tẩm bột", Ma = "PBTO0001ECR0031403IM", DongList = new() { new() { Date = "12.11.2026", Size = "U10", Packing = "24 oz x 12", Kien = "25" } } },
+    };
+    var other = KhoLanh.Core.PhieuKho.PhieuKhoCore.Clone(mk); other.Id = "pxdemo0"; other.SoPhieu = $"02.{DateTime.Today:MM} XKTP 01"; other.Ngay = DateTime.Today.AddDays(-5).ToString("yyyy-MM-dd"); other.Lsx = "26.08.071"; other.Khach = "SYSCO"; other.XuatLuc = "2026-11-18T01:00:00.000Z";
+    mk.CapNhat = "2026-11-22T01:00:00.000Z"; other.CapNhat = "2026-11-18T01:00:00.000Z";
+    var rowsPk = new System.Text.Json.Nodes.JsonArray();
+    foreach (var q in new[] { mk, other })
+        rowsPk.Add(new System.Text.Json.Nodes.JsonObject { ["id"] = q.Id, ["loai"] = q.Loai, ["ngay"] = q.Ngay, ["soPhieu"] = q.SoPhieu, ["lsx"] = q.Lsx, ["khach"] = q.Khach, ["capNhat"] = q.CapNhat, ["data"] = "__JSON__" + KhoLanh.Core.PhieuKho.PhieuKhoCore.ToJson(q) });
+    s.Modules.WriteSheets("phieu-nhap-xuat", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PNX_Phieu"] = rowsPk });
+}
+
 var main = new MainWindow { Width = 1440, Height = 880, WindowState = WindowState.Normal };
 main.Show();
 Snap(main, "03-man-hinh-chinh");
@@ -405,7 +426,7 @@ Snap(small, "03c-man-hinh-1366");
 }
 small.Close();
 
-foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho") })
+foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho") })
 {
     main.Navigate(key);
     Snap(main, name);
@@ -545,6 +566,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         qg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         qg.Select(1, 2); WaitPdf(); Snap(main, "27h-khang-sinh-pdf-lan1");
         tc.SelectedIndex = 0;
+    }
+    if (key == "m13")
+    {
+        var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
+        lb.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "30-phieu-xuat-kho");
+        var tcPk = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        tcPk.SelectedIndex = 1; Pump(); Snap(main, "30b-phieu-xuat-kho-email");
+        tcPk.SelectedIndex = 0; Pump();
     }
     if (key == "m6")
     {

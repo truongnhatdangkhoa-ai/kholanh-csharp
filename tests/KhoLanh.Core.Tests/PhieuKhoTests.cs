@@ -173,6 +173,24 @@ public class PhieuKhoTests : IDisposable
         Assert.DoesNotMatch(@"<row\b[^>]*\sr=""41""[^>]*\shidden=""1""", sheetXml);               // dòng đầu mặt hàng 2 đang dùng
         Assert.Contains("fullCalcOnLoad", new StreamReader(z.GetEntry("xl/workbook.xml")!.Open()).ReadToEnd());
 
+        // mở lại bằng thư viện Excel độc lập (ClosedXML) để chắc file hợp lệ và các ô đúng giá trị
+        var copyPath = Path.Combine(_dir, "doc-lai.xlsx");
+        File.Copy(path, copyPath);
+        using (var wb = new ClosedXML.Excel.XLWorkbook(copyPath))
+        {
+            var ws = wb.Worksheet("01");
+            Assert.Equal("Số : 05.11 XKAA 03", ws.Cell("G8").GetString());
+            Assert.Equal("TÔM TCT COOKED PDTO", ws.Cell("B16").GetString());
+            Assert.Equal("DATE: 10.11.2026", ws.Cell("B17").GetString());
+            Assert.Equal("31/40", ws.Cell("C17").GetString());
+            Assert.Equal(100, ws.Cell("G17").GetDouble());
+            Assert.Equal(10, ws.Cell("K17").GetDouble());
+            Assert.Equal(40, ws.Cell("L17").GetDouble());           // MKS
+            Assert.Equal("x", ws.Cell("H40").GetString());          // mặt hàng 2 là Thuận Phước (mã bắt đầu bằng P)
+            Assert.True(ws.Row(20).IsHidden);
+            Assert.False(ws.Row(41).IsHidden);
+        }
+
         sv.Delete(p.Id);
         Assert.Empty(sv.List);
         var bad = Sample(); bad.SoPhieu = "";
