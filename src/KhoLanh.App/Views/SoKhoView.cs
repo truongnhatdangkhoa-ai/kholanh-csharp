@@ -277,12 +277,13 @@ public sealed class SoKhoView : UserControl, IPage
         private readonly TextBlock _sum = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold };
         private List<string[]> _rows = new(); private string[] _head = Array.Empty<string>(); private List<string> _bg = new();
 
+        private readonly TextBlock _fromLb = Lb("Từ"), _toLb = Lb("Đến ngày");
         public TonPanel()
         {
             _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _bg.Count ? _bg[r] switch { "neg" => Red, "exp" => Yellow, "low" => Yellow, _ => null } : null };
             _mode.SelectionChanged += (_, _) => Paint(); _from.SelectedDateChanged += (_, _) => Paint(); _to.SelectedDateChanged += (_, _) => Paint(); _q.TextChanged += (_, _) => Paint();
             var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-            bar.Children.Add(_mode); bar.Children.Add(Lb("Từ")); bar.Children.Add(_from); bar.Children.Add(Lb("Đến ngày")); bar.Children.Add(_to); bar.Children.Add(_q);
+            bar.Children.Add(_mode); bar.Children.Add(_fromLb); bar.Children.Add(_from); bar.Children.Add(_toLb); bar.Children.Add(_to); bar.Children.Add(_q);
             if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, "TonKho_BotSot_" + IsoOf(_to)); if (p is not null) await Ui.Run(this, () => SoKhoService.ExportTable("Ton kho", _head, _rows.Select(r => r.Select(x => (object?)(double.TryParse(x.Replace(",", ""), NumberStyles.Float, Ic, out var d) && x.Length > 0 && char.IsDigit(x[^1]) && !x.Contains('/') ? d : x)).ToArray()), p)); }));
             if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
             var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar); top.Children.Add(_sum);
@@ -295,7 +296,7 @@ public sealed class SoKhoView : UserControl, IPage
             var L = Svc.Lines; var to = IsoOf(_to); var q = Core.ChungTu.ChungTuService.StripAccents(_q.Text ?? ""); _bg = new();
             bool Hit(params string[] s) => q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents(string.Join(" ", s)).Contains(q);
             var mode = _mode.SelectedIndex; var cols = new List<GridColumn>();
-            _from.IsVisible = mode == 3;
+            _from.IsVisible = _fromLb.IsVisible = mode == 3; _toLb.Text = mode == 3 ? "đến" : "Đến ngày";
             if (mode is 0 or 1)
             {
                 var dims = mode == 0 ? new[] { "maHang", "size" } : new[] { "viTri", "maHang", "size" };

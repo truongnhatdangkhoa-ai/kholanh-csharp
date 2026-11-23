@@ -79,4 +79,32 @@ public class SoKhoServiceTests : IDisposable
         Sk.SaveConfig(5, 45, new() { ["BOT-01"] = 100 });
         Assert.Equal(5, Sk.Tol); Assert.Single(Sk.BelowMin());
     }
+
+    [Fact]
+    public void Luu_xuat_vuot_dinh_muc_roi_kiem_ke_va_hoan_tac()
+    {
+        Sk.Load();
+        Sk.SavePhieu(new[] { L("nhap", "2026-11-01", "BOT-01", 40, 25, ct: "NK-1"), L("nhap", "2026-11-01", "BOT-01", 10, 25, vt: "A2", ct: "NK-1") }, null, "nhap", "NK-1");
+        Sk.SaveNorms(new[] { new Norm("", "", "BOT-01", "", 5, "kg/100kg", "") });
+        Sk.SaveOutputs(new[] { new Output("", "LSX 9", 10000, "K", "") });
+        // xuất 24 bao = 600 kg so với dự kiến 500 kg: chỉ CẢNH BÁO (không phải lỗi) → vẫn lưu được
+        var draft = new[] { L("xuat", "2026-11-05", "BOT-01", 24, hd: "LSX 9", ct: "BS-1") };
+        var chk = Sk.CheckDraft(draft);
+        Assert.False(chk.HasError);
+        Assert.Equal("vuot", Assert.Single(chk.DinhMuc).St);
+        Sk.SavePhieu(draft, null, "xuat", "BS-1");
+        Assert.Equal(26, Stock(Sk.Lines, null).Single().Sl);          // FIFO: 40+10−24
+        // kiểm kê 10/11: A1 đếm được 14 (sổ 16 → thiếu 2), A2 đếm 11 (sổ 10 → thừa 1)
+        var st = Stock(Sk.Lines, "2026-11-10", "maHang", "size", "viTri").ToDictionary(r => r["viTri"], r => r.Sl);
+        Assert.Equal(16, st["A1"]); Assert.Equal(10, st["A2"]);
+        var k = KiemKePlan(Sk.Lines, "2026-11-10", new[] { new KkCount("BOT-01", "", "A1", 14), new KkCount("BOT-01", "", "A2", 11) }, "admin");
+        Assert.Equal(2, k.NLech); Assert.Equal(2, k.Adj.Count);
+        var r = Sk.ApplyKiemKe(k.Adj, "2026-11-10");
+        Assert.Equal(25, Stock(Sk.Lines, null).Single().Sl);
+        Assert.Equal(-50, k.Adj.Single(a => a.ViTri == "A1").Net);   // −2 bao × 25 kg
+        // hoàn tác kiểm kê → về 26 bao
+        Sk.Undo(r.OpId);
+        Assert.Equal(26, Stock(Sk.Lines, null).Single().Sl);
+        Assert.DoesNotContain(Sk.Lines, l => l.Loai == "dieuchinh");
+    }
 }
