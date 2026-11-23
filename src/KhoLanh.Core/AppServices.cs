@@ -43,6 +43,7 @@ public class AppServices
     public PxhtService Pxht { get; }
     public ChungTuService ChungTu { get; }
     public PhieuKhoService PhieuKho { get; }
+    public CargoService Cargo { get; }
 
     public AppServices(string dbPath)
     {
@@ -71,6 +72,7 @@ public class AppServices
         KhangSinh = new KhangSinhService(() => Lan, Session, Audit);
         Pxht = new PxhtService(() => Lan, Session);
         PhieuKho = new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
+        Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         DoiChieu = new DoiChieuService(() => Lan, Session, Audit, Settings, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
         Bridge = new ModuleBridge(Lan, Session, Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "logs"));
