@@ -4,6 +4,7 @@ using KhoLanh.Core.TongHop;
 using KhoLanh.Core.RaDong;
 using KhoLanh.Core.DoiChieu;
 using KhoLanh.Core.ViTri;
+using KhoLanh.Core.TonKho;
 using KhoLanh.Core.SoDo;
 using KhoLanh.Core.KiemKe;
 using KhoLanh.Core.KhangSinh;
@@ -38,6 +39,7 @@ public class AppServices
     public RaDongService RaDong { get; }
     public DoiChieuService DoiChieu { get; }
     public ViTriService ViTri { get; }
+    public AnAnService AnAn { get; }
     public SoDoService SoDo { get; }
     public KiemKeService KiemKe { get; }
     public KhangSinhService KhangSinh { get; }
@@ -69,6 +71,7 @@ public class AppServices
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);
         RaDong = new RaDongService(() => Lan, Session, Audit);
         ViTri = new ViTriService(() => Lan, Session, Audit);
+        AnAn = new AnAnService(() => Lan, Session, Audit, Settings, new NapUndoStore(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "nap")));
         SoDo = new SoDoService(() => Lan, Session, Audit, Entry);
         KiemKe = new KiemKeService(() => Lan, Session, Audit, Entry, new SoDoService(() => Lan, Session, Audit, Entry));
         KhangSinh = new KhangSinhService(() => Lan, Session, Audit);
