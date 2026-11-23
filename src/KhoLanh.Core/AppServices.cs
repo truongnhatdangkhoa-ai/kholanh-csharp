@@ -40,6 +40,7 @@ public class AppServices
     public DoiChieuService DoiChieu { get; }
     public ViTriService ViTri { get; }
     public AnAnService AnAn { get; }
+    public KhoLanh.Core.TonKhoGui.GuiService Gui { get; }
     public SoDoService SoDo { get; }
     public KiemKeService KiemKe { get; }
     public KhangSinhService KhangSinh { get; }
@@ -71,6 +72,7 @@ public class AppServices
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);
         RaDong = new RaDongService(() => Lan, Session, Audit);
         ViTri = new ViTriService(() => Lan, Session, Audit);
+        Gui = new KhoLanh.Core.TonKhoGui.GuiService(() => Lan, Session, Audit, Settings, new NapUndoStore(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "nap")));
         AnAn = new AnAnService(() => Lan, Session, Audit, Settings, new NapUndoStore(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "nap")));
         SoDo = new SoDoService(() => Lan, Session, Audit, Entry);
         KiemKe = new KiemKeService(() => Lan, Session, Audit, Entry, new SoDoService(() => Lan, Session, Audit, Entry));

@@ -159,6 +159,38 @@ public static class NapExcel
         return Finish(R, lv);
     }
 
+    /// <summary>checkM2 — Tồn kho gửi: kiểm tra từng dòng đã lọc (số kiện / trọng lượng là số, ngày nhập kho không ở tương lai, trùng khóa).</summary>
+    public static Check CheckM2(IReadOnlyList<(string MaHang, string SoLo, string PhieuNhap, string Size, string QuyCach, string Ngay, string? SoKien, string? TrongLuong)> rows, string? todayIso)
+    {
+        var R = new Check { Total = rows.Count }; var lv = new Dictionary<int, string>();
+        if (rows.Count == 0) R.Errors.Add("Không có dòng nào để nạp (chưa có \"Dữ liệu đã lọc\" khớp mẫu).");
+        var seen = new Dictionary<string, int>(); var items = new HashSet<string>(); double kg = 0, kien = 0; var zero = 0;
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i]; var n = i + 1; var ma = JsText.JsTrim(r.MaHang);
+            if (ma.Length == 0) { R.Problems.Add(new(n, "warn", "Mã hàng để trống")); Level(lv, n, "warn"); } else items.Add(ma);
+            var sk = Num(r.SoKien); var tl = Num(r.TrongLuong);
+            if (sk is double a && double.IsNaN(a)) { R.Problems.Add(new(n, "err", $"Số kiện không phải số: \"{r.SoKien}\"")); Level(lv, n, "err"); }
+            else if (sk is double b && b < 0) { R.Problems.Add(new(n, "warn", "Số kiện âm: " + JsText.JsStr(b))); Level(lv, n, "warn"); }
+            else if (sk is double c) kien += c;
+            if (tl is double a2 && double.IsNaN(a2)) { R.Problems.Add(new(n, "err", $"Trọng lượng không phải số: \"{r.TrongLuong}\"")); Level(lv, n, "err"); }
+            else if (tl is double t2) { kg += t2; if (t2 < 0) { R.Problems.Add(new(n, "warn", "Trọng lượng âm: " + JsText.JsStr(t2))); Level(lv, n, "warn"); } }
+            if ((sk is null or 0) && (tl is null or 0)) zero++;
+            var d = JsText.JsTrim(r.Ngay);
+            if (d.Length > 0 && !string.IsNullOrEmpty(todayIso))
+            {
+                string? iso = null; var m = Regex.Match(d, @"^(\d{4})-(\d{2})-(\d{2})");
+                if (m.Success) iso = $"{m.Groups[1].Value}-{m.Groups[2].Value}-{m.Groups[3].Value}";
+                else if ((m = Regex.Match(d, @"^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})")).Success) iso = $"{m.Groups[3].Value}-{m.Groups[2].Value.PadLeft(2, '0')}-{m.Groups[1].Value.PadLeft(2, '0')}";
+                if (iso is not null && string.CompareOrdinal(iso, todayIso) > 0) { R.Problems.Add(new(n, "warn", "Ngày nhập kho ở tương lai: " + d)); Level(lv, n, "warn"); }
+            }
+            var key = string.Join("|", new[] { ma, r.SoLo, r.PhieuNhap, r.Size, r.QuyCach, r.Ngay }.Select(x => (x ?? "").ToLowerInvariant()));
+            if (ma.Length > 0) { if (seen.TryGetValue(key, out var first)) { R.Problems.Add(new(n, "warn", $"Trùng mã hàng + số lô + phiếu nhập với dòng {first}")); Level(lv, n, "warn"); } else seen[key] = n; }
+        }
+        if (zero > 0) R.Infos.Add(Fmt(zero) + " dòng đã hết tồn cuối kỳ (0 kiện / 0 kg) — bình thường, vẫn được nạp.");
+        R.Kg = kg; R.Kien = kien; R.Items = items.Count; return Finish(R, lv);
+    }
+
     public sealed record Snapshot(int Rows, int Items, double Kg, string Date);
     public sealed record CmpLine(string Label, double Cur, double Next, double? Pct);
 
