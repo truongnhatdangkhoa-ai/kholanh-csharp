@@ -198,6 +198,36 @@ public partial class BackupView : UserControl, IPage
 
     private void OnOpenFolder(object? sender, RoutedEventArgs e) => Ui.OpenExternal(App.DataFolder);
 
+    /// <summary>Đổi thư mục lưu database: chép dữ liệu hiện tại sang (hoặc dùng dữ liệu có sẵn ở đó), app đóng để mở lại.</summary>
+    private async void OnChangeFolder(object? sender, RoutedEventArgs e)
+    {
+        var s = App.Services;
+        if (KhoLanh.Core.Data.DataLocation.EnvFolder is not null)
+        {
+            await Ui.Message(this, "Máy này đang đặt thư mục dữ liệu bằng biến môi trường KHOLANH_DATA — đổi ở đó.");
+            return;
+        }
+        if (!await Ui.Run(this, () => s.Session.Require("backup"))) return;
+        var target = await Ui.OpenFolder(this, "Chọn thư mục lưu dữ liệu mới");
+        if (target is null) return;
+        if (KhoLanh.Core.Data.DataLocation.Same(target, App.DataFolder)) { await Ui.Message(this, "Đây là thư mục đang dùng."); return; }
+        string full = "";
+        if (!await Ui.Run(this, () => full = KhoLanh.Core.Data.DataLocation.Validate(target))) return;
+        var has = KhoLanh.Core.Data.DataLocation.HasDb(full);
+        var text = has
+            ? $"Thư mục\n{full}\nđã có dữ liệu Kho Lạnh.\n\nChuyển sang DÙNG dữ liệu đó? Dữ liệu ở thư mục hiện tại vẫn giữ nguyên, không bị xóa."
+            : $"Chép toàn bộ dữ liệu hiện tại sang\n{full}\nvà dùng thư mục này từ lần mở sau?\n\nThư mục cũ giữ nguyên làm bản dự phòng.";
+        if (!await Ui.Confirm(this, text, "Đổi nơi lưu dữ liệu", has ? "Dùng dữ liệu đó" : "Chép và đổi")) return;
+        if (!await Ui.Run(this, () =>
+            {
+                if (!has) s.Backup.ManualBackup(Path.Combine(full, KhoLanh.Core.Data.DataLocation.DbFileName));
+                new KhoLanh.Core.Data.DataLocation().Save(full);
+                s.Audit.Log(s.Session.Username, "Đổi nơi lưu dữ liệu", $"{App.DataFolder} → {full}");
+            })) return;
+        await Ui.Message(this, $"Đã đổi nơi lưu dữ liệu sang:\n{full}\n\nApp sẽ đóng lại — hãy mở lại Kho Lạnh để dùng thư mục mới.");
+        AppUpdater.ExitForUpdate();
+    }
+
     private async void OnImportLegacy(object? sender, RoutedEventArgs e)
     {
         var path = await Ui.OpenFile(this, "Chọn database app cũ (khokhanh.db)", "db", "Database Kho Lạnh cũ");

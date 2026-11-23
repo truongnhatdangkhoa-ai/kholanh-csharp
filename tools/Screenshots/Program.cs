@@ -34,6 +34,12 @@ void Snap(Window w, string name)
     Console.WriteLine("  " + name);
 }
 
+// Máy mới cài lần đầu: chọn nơi lưu dữ liệu
+var pickWin = new DataFolderWindow(new KhoLanh.Core.Data.DataLocation(Path.Combine(Path.GetTempPath(), "kholanh-demo-macdinh")));
+pickWin.Show();
+Snap(pickWin, "00-chon-noi-luu-du-lieu");
+pickWin.Close();
+
 // Màn đăng nhập lần đầu
 var first = new LoginWindow();
 first.Show();

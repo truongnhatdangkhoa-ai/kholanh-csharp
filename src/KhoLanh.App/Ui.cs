@@ -195,6 +195,14 @@ public static class Ui
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
+    public static async Task<string?> OpenFolder(Visual v, string title)
+    {
+        var top = TopLevel.GetTopLevel(v);
+        if (top is null) return null;
+        var dirs = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = title, AllowMultiple = false });
+        return dirs.Count > 0 ? dirs[0].TryGetLocalPath() : null;
+    }
+
     /// <summary>Mở file / thư mục bằng chương trình mặc định của Windows.</summary>
     public static void OpenExternal(string path)
     {

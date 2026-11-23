@@ -42,11 +42,15 @@ Windows SmartScreen có thể cảnh báo vì file chưa ký số: bấm **More 
 
 ## Dữ liệu nằm ở đâu
 
-`%LOCALAPPDATA%\KhoLanhCS\`
+Máy mới cài lần đầu: trước khi đăng nhập, app hỏi **nơi lưu dữ liệu** (gợi ý sẵn `%LOCALAPPDATA%\KhoLanhCS\`, nên chọn ổ dữ liệu như `D:\KhoLanhData`). Đổi lại được ở **Hệ thống › Sao lưu và cài đặt › Đổi nơi lưu dữ liệu…** (app chép dữ liệu sang rồi đóng để mở lại; thư mục cũ giữ nguyên). Máy đã dùng từ bản trước không bị hỏi.
+
+Trong thư mục dữ liệu:
 - `khodata.db` — toàn bộ dữ liệu (SQLite)
 - `SaoLuu\` — bản sao lưu tự động hằng ngày
 
-Muốn đặt dữ liệu ở chỗ khác (ví dụ ổ D), đặt biến môi trường `KHOLANH_DATA=D:\KhoLanhData` trước khi chạy.
+Lựa chọn được ghi ở `%LOCALAPPDATA%\KhoLanhCS\noi-luu-du-lieu.txt`. Biến môi trường `KHOLANH_DATA` (nếu đặt) được ưu tiên hơn.
+
+![Chọn nơi lưu dữ liệu](docs/anh/00-chon-noi-luu-du-lieu.png)
 
 ## Dành cho lập trình viên
 

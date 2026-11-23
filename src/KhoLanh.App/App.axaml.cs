@@ -25,17 +25,35 @@ public partial class App : Application
                 base.OnFrameworkInitializationCompleted();
                 return;
             }
+            // Máy mới cài lần đầu → chọn nơi lưu database trước khi đăng nhập.
+            var loc = new DataLocation();
+            if (loc.NeedsChoice && Array.IndexOf(Program.Args, "--da-cap-nhat") < 0)
+            {
+                var w = new DataFolderWindow(loc);
+                w.Done += folder => { Start(desktop, folder); w.Close(); };
+                w.Closed += (_, _) => { if (w.Chosen is null) desktop.Shutdown(); };
+                desktop.MainWindow = w;
+                w.Show();
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+            Start(desktop, loc.Resolve());
+        }
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void Start(IClassicDesktopStyleApplicationLifetime desktop, string dataFolder)
+    {
             try
             {
-                InitServices(Environment.GetEnvironmentVariable("KHOLANH_DATA") is { Length: > 0 } custom
-                    ? custom : Database.DefaultDataFolder);
+                InitServices(dataFolder);
                 // Bản mới đã tải ngầm từ lần trước → áp dụng ngay trước khi hiện cửa sổ (không cần cài lại).
                 AppUpdater.Cleanup();
                 if (Array.IndexOf(Program.Args, "--da-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
                 {
                     // Chỉ dùng cho kiểm thử tự động: xác nhận bản mới đã được mở lại sau khi thay exe.
                     File.WriteAllText(Path.Combine(DataFolder, "da-cap-nhat.txt"), Environment.ProcessPath ?? "");
-                    desktop.Shutdown(); base.OnFrameworkInitializationCompleted(); return;
+                    desktop.Shutdown(); return;
                 }
                 if (Array.IndexOf(Program.Args, "--tu-kiem-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
                 {
@@ -51,11 +69,11 @@ public partial class App : Application
                         try { if (AppUpdater.ApplyAndRestart()) AppUpdater.ExitForUpdate(); }
                         catch (Exception ex) { File.WriteAllText(Path.Combine(DataFolder, "loi-tu-kiem.txt"), ex.ToString()); desktop.Shutdown(1); }
                     }, TimeSpan.FromSeconds(10));
-                    base.OnFrameworkInitializationCompleted(); return;
+                    return;
                 }
                 if (OperatingSystem.IsWindows() && AppUpdater.StagedVersion is not null && Services.Updates.Auto)
                 {
-                    try { if (AppUpdater.ApplyAndRestart()) { AppUpdater.ExitForUpdate(); base.OnFrameworkInitializationCompleted(); return; } }
+                    try { if (AppUpdater.ApplyAndRestart()) { AppUpdater.ExitForUpdate(); return; } }
                     catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
                 }
                 try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
@@ -74,8 +92,6 @@ public partial class App : Application
                 desktop.MainWindow = w;
                 w.Show();
             }
-        }
-        base.OnFrameworkInitializationCompleted();
     }
 
     /// <summary>Mở CSDL trong thư mục dữ liệu (dùng cả cho công cụ chụp màn hình).</summary>

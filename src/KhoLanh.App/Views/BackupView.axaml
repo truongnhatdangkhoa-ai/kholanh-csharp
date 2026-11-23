@@ -21,6 +21,7 @@
                      Text="Dữ liệu của phần mềm này nằm riêng, không dùng chung và không ảnh hưởng tới phần mềm kho cũ."/>
           <StackPanel Orientation="Horizontal" Spacing="8">
             <Button Content="Mở thư mục dữ liệu" Click="OnOpenFolder"/>
+            <Button Content="Đổi nơi lưu dữ liệu…" Click="OnChangeFolder"/>
           </StackPanel>
         </StackPanel>
       </Border>
