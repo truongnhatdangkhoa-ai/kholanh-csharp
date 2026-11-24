@@ -58,7 +58,7 @@ public sealed class ListSxView : UserControl
 
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 6, 0, 6) };
         top.Children.Add(bar); top.Children.Add(_status);
-        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("5*,6,4*") };
+        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("1*,6,1*") };   // 1.52: khung chi tiết rộng ngang danh sách
         split.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _lg });
         var gs = new GridSplitter { Background = Brushes.Transparent }; Grid.SetColumn(gs, 1); split.Children.Add(gs);
         var right = new ScrollViewer { Content = new Border { Padding = new Thickness(8, 0, 4, 8), Child = _detail }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
@@ -151,7 +151,8 @@ public sealed class ListSxView : UserControl
         var sm = new GridModel { ReadOnly = !_edit };
         sm.Load(new[] { new GridColumn("size", "Size", 90) { ReadOnly = true }, new GridColumn("ten", "Tên hàng", 200), new GridColumn("ma", "Mã hàng", 180), new GridColumn("lo", "Mã lô", 80), new GridColumn("tong", "Tổng kiện", 75, "number") { ReadOnly = true } },
             d.Sizes.Select(z => new[] { z.Size, z.Ten, z.Ma, z.Lo, F(d.Rows.Sum(r => r.Qty.GetValueOrDefault(z.Size))) }));
-        _detail.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Height = Math.Min(280, 48 + 28 * Math.Max(1, d.Sizes.Count)), Child = new SheetGrid(sm) { SpareRows = 0 } });
+        // 1.52: cao theo số dòng thật (tối thiểu 3 dòng, kèm thanh cuộn ngang) — trước đây chỉ thấy 1 dòng; ⤢ ở góc bảng mở cửa sổ lớn
+        _detail.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Height = SubH(d.Sizes.Count, 320), Child = new SheetGrid(sm) { SpareRows = 0, LargeTitle = $"LSX {info.Rec.Lsx} — Hàng theo size" } });
         if (_edit) _detail.Children.Add(Btn("💾 Lưu Tên / Mã / Lô", async () =>
         {
             for (var i = 0; i < d.Sizes.Count; i++) { d.Sizes[i].Ten = sm.Get(i, 1).Trim(); d.Sizes[i].Ma = sm.Get(i, 2).Trim(); d.Sizes[i].Lo = sm.Get(i, 3).Trim(); }
@@ -172,8 +173,11 @@ public sealed class ListSxView : UserControl
             a.Add(r.Mks ? (r.MksQty is { Count: > 0 } mq ? string.Join(", ", mq.Select(x => x.Key + ":" + F(x.Value))) : r.MksSizes is { Count: > 0 } ms ? string.Join(", ", ms) : "MKS") : "");
             return a.ToArray();
         }));
-        _detail.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Height = Math.Min(400, 48 + 28 * Math.Max(1, d.Rows.Count)), Child = new SheetGrid(rm) { SpareRows = 0 } });
+        _detail.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Height = SubH(d.Rows.Count, 440), Child = new SheetGrid(rm) { SpareRows = 0, LargeTitle = $"LSX {info.Rec.Lsx} — Ngày sản xuất × size" } });
     }
+
+    /// <summary>Chiều cao bảng con: tiêu đề + số dòng (≥ 3) + thanh cuộn ngang, tối đa <paramref name="max"/>.</summary>
+    private static double SubH(int rows, double max) => Math.Min(max, SheetGrid.HeadH + SheetGrid.RowH * Math.Max(3, rows) + 22);
 
     private async Task Import()
     {

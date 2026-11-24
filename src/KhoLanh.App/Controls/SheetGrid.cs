@@ -264,7 +264,10 @@ public sealed class SheetGrid : UserControl
         _vbar.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) { TopRow = (int)Math.Round(_vbar.Value); Redraw(); } };
         _hbar.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) { OffsetX = _hbar.Value; Redraw(); } };
         _surface.SizeChanged += (_, _) => UpdateScroll();
-        Model.Changed += OnModelChanged;
+        // nghe Model chỉ khi đang hiện: lưới trong cửa sổ lớn (OpenLarge) đóng rồi thì thôi nghe, không giữ lại bộ nhớ.
+        // Gắn lại vào màn hình → đồng bộ những gì Model đổi trong lúc ẩn.
+        AttachedToVisualTree += (_, _) => { Model.Changed -= OnModelChanged; Model.Changed += OnModelChanged; OnModelChanged(); };
+        DetachedFromVisualTree += (_, _) => Model.Changed -= OnModelChanged;
         _seenLoads = Model.Loads; _seenRows = Model.RowCount;
         _editor.KeyDown += OnEditorKey;
         _fTimer.Tick += (_, _) => { _fTimer.Stop(); if (_fCol >= 0) SetFilter(_fCol, _fEditor.Text ?? ""); };
@@ -281,6 +284,54 @@ public sealed class SheetGrid : UserControl
     }
 
     public new void Focus() => _surface.Focus();
+
+    // ------------------------------------------------------------------ cửa sổ lớn (1.52)
+    /// <summary>Tiêu đề cửa sổ lớn (mặc định: tên trang đang mở).</summary>
+    public string? LargeTitle { get; set; }
+    /// <summary>Có nút ⤢ ở góc trên trái để mở bảng ra cửa sổ lớn (mặc định bật; lưới trong chính cửa sổ lớn thì tắt).</summary>
+    public bool CanEnlarge { get; set; } = true;
+    /// <summary>Cửa sổ lớn mở gần nhất (công cụ chụp màn hình dùng).</summary>
+    internal static Window? LastLarge;
+
+    /// <summary>
+    /// Mở bảng ra cửa sổ lớn (≈ 92 % màn hình): cùng dữ liệu (cùng GridModel — sửa ở đâu cũng cập nhật cả hai), cùng định dạng,
+    /// ô tích, bộ lọc riêng. Dùng cho bảng con / bảng trong khung hẹp chỉ thấy vài dòng.
+    /// </summary>
+    public async Task OpenLarge()
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner) return;
+        if (_editing) Commit(0, 0);
+        var g = new SheetGrid(Model)
+        {
+            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CanEnlarge = false,
+            CheckFill = CheckFill, Filterable = Filterable,
+        };
+        g.CheckCol = CheckCol;
+        foreach (var (k, f) in _filters) g._filters[k] = new ColumnFilter { Text = f.Text, Allowed = f.Allowed is null ? null : new HashSet<string>(f.Allowed) };
+        var title = LargeTitle ?? owner.Title ?? "Bảng";
+        var close = new Button { Content = "Đóng", IsCancel = true, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var info = new TextBlock { Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
+        void Info() => info.Text = g.IsFiltered ? $"Đang hiện {g.VCount:N0} / {Model.RowCount:N0} dòng" : $"{Model.RowCount:N0} dòng";
+        g.FilterChanged += Info; Info();
+        var bar = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
+        DockPanel.SetDock(close, Dock.Right); bar.Children.Add(close); bar.Children.Add(info);
+        var root = new DockPanel();
+        DockPanel.SetDock(bar, Dock.Bottom); root.Children.Add(bar); root.Children.Add(g);
+        var scr = owner.Screens.ScreenFromWindow(owner)?.WorkingArea;
+        var sc = owner.RenderScaling <= 0 ? 1 : owner.RenderScaling;
+        var w = new Window
+        {
+            Title = title, Width = Math.Max(800, (scr?.Width ?? 1400) / sc * 0.92), Height = Math.Max(500, (scr?.Height ?? 860) / sc * 0.88),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = AppTheme.Card, MinWidth = 600, MinHeight = 360,
+            Content = new Border { Padding = new Thickness(14, 12), Child = root },
+        };
+        close.Click += (_, _) => w.Close();
+        LastLarge = w;
+        var (row, col) = (Row, Col);
+        w.Opened += (_, _) => { g.ApplyFilter(); g.Select(row, col); g.Focus(); };
+        await w.ShowDialog(owner);
+        Redraw();
+    }
 
     internal void Redraw() { _surface.InvalidateVisual(); if (_editing) PlaceEditor(); if (_fEditor.IsVisible) PlaceFilterEditor(); }
 
@@ -394,6 +445,7 @@ public sealed class SheetGrid : UserControl
             case Key.Tab: Move((VR, Col + (shift ? -1 : 1)), false); break;
             case Key.Enter: Move((VR + (shift ? -1 : 1), Col), false); break;
             case Key.F2: BeginEdit(null); break;
+            case Key.F11 when CanEnlarge: _ = OpenLarge(); break;
             case Key.Space when HasCheck && !ctrl: ToggleRows(SelModelRows().Where(m => m < Model.RowCount).ToList()); break;
             case Key.Delete: ClearSelection(); break;
             case Key.Back: BeginEdit(""); break;
@@ -595,11 +647,16 @@ public sealed class SheetGrid : UserControl
                 Item("Làm lại", () => Model.Redo(), "Ctrl+Y"),
             },
         };
+        var big = Item("Mở bảng ra cửa sổ lớn", async () => await OpenLarge(), "F11");
+        var selAll = Item("Chọn tất cả", () => SelectRangeV(new CellRange(0, 0, Math.Max(0, VCount - 1), Math.Max(0, Model.ColCount - 1))), "Ctrl+A");
+        menu.Items.Insert(0, big); menu.Items.Insert(1, new Separator());
+        menu.Items.Add(new Separator()); menu.Items.Add(selAll);
         var fMenu = Item("Lọc cột này…", () => OpenFilterMenu(Col), "Alt+Down");
         var fClear = Item("Bỏ mọi bộ lọc", ClearFilters);
-        menu.Items.Insert(0, fMenu); menu.Items.Insert(1, fClear); menu.Items.Insert(2, new Separator());
+        menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, new Separator());
         menu.Opening += (_, _) =>
         {
+            big.IsVisible = CanEnlarge; ((Separator)menu.Items[1]!).IsVisible = CanEnlarge;
             fMenu.IsVisible = fClear.IsVisible = _filterable;
             fClear.IsEnabled = _map is not null;
             fClear.Header = _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
@@ -738,6 +795,7 @@ public sealed class SheetGrid : UserControl
                 using (dc.PushClip(new Rect(rhw, hh, Math.Max(0, b.Width - rhw), SheetGrid.FilterH)))
                     foreach (var (c, cx, cw) in cols)
                     {
+                        if (cw < 24) continue;   // cột ẩn (rộng 0, giữ mã dòng) / quá hẹp: không có ô tìm
                         var q = _g.FilterOf(c)?.Text ?? "";
                         var cell = new Rect(cx, hh, cw, SheetGrid.FilterH);
                         if (q.Trim().Length > 0) dc.FillRectangle(FilterOnBg, cell);
@@ -785,6 +843,13 @@ public sealed class SheetGrid : UserControl
                 if (filtered) { dc.FillRectangle(FilterOnBg, new Rect(1, hh + 1, rhw - 2, SheetGrid.FilterH - 2)); dc.DrawGeometry(Accent, null, fun); }
                 else dc.DrawGeometry(null, new Pen(Muted, 1), fun);
                 dc.DrawLine(HeadLine, new Point(0, top - 0.5), new Point(rhw, top - 0.5));
+            }
+            if (_g.CanEnlarge)
+            {   // ô góc: nút ⤢ mở bảng ra cửa sổ lớn (hai mũi tên chéo)
+                var cx = _g.NumW / 2; var cy = hh / 2; var pen = new Pen(Muted, 1.4) { LineCap = PenLineCap.Round };
+                dc.DrawLine(pen, new Point(cx - 5, cy + 5), new Point(cx + 5, cy - 5));
+                dc.DrawLine(pen, new Point(cx + 1, cy - 5), new Point(cx + 5, cy - 5)); dc.DrawLine(pen, new Point(cx + 5, cy - 5), new Point(cx + 5, cy - 1));
+                dc.DrawLine(pen, new Point(cx - 5, cy + 1), new Point(cx - 5, cy + 5)); dc.DrawLine(pen, new Point(cx - 5, cy + 5), new Point(cx - 1, cy + 5));
             }
             if (_g.HasCheck)
             {   // ô tích tiêu đề = chọn / bỏ mọi dòng đang hiện
@@ -853,6 +918,7 @@ public sealed class SheetGrid : UserControl
                 if (r < 0 && p.Y < SheetGrid.HeadH) { var all = _g.ShownRows; _g.SetChecked(all, _g.MasterState() != true); e.Handled = true; return; }
                 if (r >= 0) { var m = _g.ToModel(r); if (m < _g.Model.RowCount) { _g.SelectV(r, _g.Col); _g.ToggleRows(new[] { m }); } e.Handled = true; return; }
             }
+            if (r < 0 && c < 0 && _g.CanEnlarge && p.Y < SheetGrid.HeadH && p.X < _g.NumW) { e.Handled = true; _ = _g.OpenLarge(); return; }
             if (r < 0 && c < 0) { _g.SelectRangeV(new CellRange(0, 0, Math.Max(0, _g.VCount - 1), _g.Model.ColCount - 1)); return; }
             if (r < 0) // tiêu đề cột
             {
@@ -882,8 +948,12 @@ public sealed class SheetGrid : UserControl
             var p = e.GetPosition(this);
             if (_drag == Drag.None)
             {
+                var onBig = _g.CanEnlarge && p.Y < SheetGrid.HeadH && p.X < _g.NumW;
                 Cursor = ResizeHit(p) >= 0 ? new Cursor(StandardCursorType.SizeWestEast)
+                    : onBig ? new Cursor(StandardCursorType.Hand)
                     : _g.ShowFilterRow && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH ? new Cursor(StandardCursorType.Ibeam) : Cursor.Default;
+                var tip = onBig ? "Mở bảng ra cửa sổ lớn (F11)" : null;
+                if (!Equals(ToolTip.GetTip(this), tip)) { ToolTip.SetTip(this, tip); ToolTip.SetIsOpen(this, tip is not null); }
                 return;
             }
             if (_drag == Drag.Resize)
