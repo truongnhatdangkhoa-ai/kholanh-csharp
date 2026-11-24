@@ -585,6 +585,40 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
     catch (Exception ex) { Console.WriteLine("[AN-LOC] LỖI: " + ex.GetType().Name + ": " + ex.Message); s.Lan.Dispose(); Environment.Exit(1); }
     s.Lan.Dispose(); Console.WriteLine("Xong (an-loc): " + outDir); return;
 }
+// 1.69: chuột phải ở bảng có lọc báo "Specified cast is not valid" (menu tìm vạch ngăn theo vị trí). SHOTS_ONLY=menu-phai: mở menu chuột phải
+// ở mọi bảng của Tồn kho gửi + Tồn kho An An (mọi tab); thoát mã 1 nếu lỗi.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu-phai")
+{
+    var n = 0;
+    foreach (var key in new[] { "m2", "m1" })
+    {
+        main.Navigate(key); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+        var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        for (var t = 0; t < tabs.ItemCount; t++)
+        {
+            tabs.SelectedIndex = t; for (var i = 0; i < 15; i++) { Thread.Sleep(20); Pump(); }
+            foreach (var sub in main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tabs && x.IsEffectivelyVisible).ToList())
+                for (var u = 0; u < sub.ItemCount; u++)
+                {
+                    sub.SelectedIndex = u; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); }
+                    foreach (var g in main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList())
+                    {
+                        var surf = g.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null);
+                        if (surf?.ContextMenu is not { } cm) continue;
+                        try
+                        {
+                            var op = false; cm.Opened += (_, _) => op = true;
+                            surf.RaiseEvent(new ContextRequestedEventArgs());   // như bấm chuột phải
+                            Pump(); if (!op) cm.Open(surf); Pump(); cm.Close(); Pump(); n++;
+                        }
+                        catch (Exception ex) { Console.WriteLine($"[MENU-PHAI] LỖI ({key} tab {t}.{u}): {ex.GetType().Name}: {ex.Message}"); s.Lan.Dispose(); Environment.Exit(1); }
+                    }
+                }
+        }
+    }
+    Console.WriteLine($"[MENU-PHAI] đạt: mở menu chuột phải {n} lần không lỗi");
+    s.Lan.Dispose(); Console.WriteLine("Xong (menu-phai): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)

@@ -742,23 +742,25 @@ public sealed class SheetGrid : UserControl
         };
         var big = Item("Mở bảng ra cửa sổ lớn", async () => await OpenLarge(), "F11");
         var selAll = Item("Chọn tất cả", () => SelectRangeV(new CellRange(0, 0, Math.Max(0, VCount - 1), Math.Max(0, Model.ColCount - 1))), "Ctrl+A");
-        menu.Items.Insert(0, big); menu.Items.Insert(1, new Separator());
+        // 1.69: giữ thẳng các vạch ngăn (trước đây tìm theo vị trí menu.Items[1] / [2] / [6] — vị trí [2] là mục "Lọc cột này…" chứ không phải
+        // vạch ngăn → InvalidCastException "Specified cast is not valid" mỗi lần chuột phải ở bảng có lọc, vd Tồn kho gửi › Gộp đặc tính).
+        var sepBig = new Separator(); var sepFilter = new Separator(); var sepSum = new Separator();
+        menu.Items.Insert(0, big); menu.Items.Insert(1, sepBig);
         menu.Items.Add(new Separator()); menu.Items.Add(selAll);
         var fMenu = Item("Lọc cột này…", () => OpenFilterMenu(Col), "Alt+Down");
         var fClear = Item("Bỏ mọi bộ lọc", ClearFilters);
-        menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, new Separator());
+        menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, sepFilter);
         var sumItem = new MenuItem { ToggleType = MenuItemToggleType.CheckBox };
         sumItem.Click += (_, _) => { if (Col >= 0 && Col < Model.ColCount) { ToggleSum(Model.Columns[Col].Header); } };
-        menu.Items.Insert(5, sumItem); menu.Items.Insert(6, new Separator());
+        menu.Items.Insert(5, sumItem); menu.Items.Insert(6, sepSum);
         menu.Opening += (_, _) =>
         {
-            big.IsVisible = CanEnlarge; ((Separator)menu.Items[1]!).IsVisible = CanEnlarge;
-            fMenu.IsVisible = fClear.IsVisible = _filterable;
+            big.IsVisible = sepBig.IsVisible = CanEnlarge;
+            fMenu.IsVisible = fClear.IsVisible = sepFilter.IsVisible = _filterable;
             fClear.IsEnabled = _map is not null;
             fClear.Header = _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
-            ((Separator)menu.Items[2]!).IsVisible = _filterable;
             var okc = ShowTotals && Col >= 0 && Col < Model.ColCount;
-            sumItem.IsVisible = okc; ((Separator)menu.Items[6]!).IsVisible = okc;
+            sumItem.IsVisible = sepSum.IsVisible = okc;
             if (okc) { sumItem.Header = $"Cộng cột “{Model.Columns[Col].Header}” ở dòng Tổng"; sumItem.IsChecked = SumCol(Col); }
         };
         _surface.ContextMenu = menu;
