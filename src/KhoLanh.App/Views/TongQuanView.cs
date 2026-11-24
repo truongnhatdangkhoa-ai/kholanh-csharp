@@ -240,7 +240,8 @@ public sealed partial class TongQuanView : UserControl, IPage
     private Control DayCard(ContRow x, int n)
     {
         var st = StStyle.GetValueOrDefault(x.St, StStyle["plan"]);
-        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("28,4,*,110,110,80,110,Auto"), Margin = new Thickness(0) };
+        // cột nút (cuối) co giãn: màn hình hẹp thì nút tự xuống dòng, không bị cắt
+        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("28,4,3*,100,100,80,110,2*"), Margin = new Thickness(0) };
         g.Children.Add(new TextBlock { Text = n.ToString(), FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
         var bar = new Border { Background = B(st.Bar), CornerRadius = new CornerRadius(2) }; Grid.SetColumn(bar, 1); g.Children.Add(bar);
         var who = new StackPanel { Spacing = 2, Margin = new Thickness(10, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
@@ -261,7 +262,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         }
         g.Children.Add(Cell("Cont", x.Cont, 3)); g.Children.Add(Cell("Xe", x.Xe, 4)); g.Children.Add(Cell("Khối lượng", x.Kg > 0 ? Tan(x.Kg) + " tấn" : "", 5));
         var sp = StPill(x.St); sp.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(sp, 6); g.Children.Add(sp);
-        var ac = new WrapPanel { ItemSpacing = 4, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 330 };
+        var ac = new WrapPanel { ItemSpacing = 4, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         var px = Svc.CanEdit && Svc.CanPnx;
         if (x.HasList) ac.Children.Add(Btn("✔ Đã có List", () => OpenPnx(1, null, x.Codes.FirstOrDefault()), "Mở List sản xuất của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo List", async () => await RunPnx(x, false), "Tạo List sản xuất từ tồn kho (Thành Phẩm Chính)", fs: 12));
