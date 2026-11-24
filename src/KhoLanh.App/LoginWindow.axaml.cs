@@ -20,7 +20,10 @@ public partial class LoginWindow : Window
         var s = App.Services;
         _firstRun = !s.Auth.HasAnyUser();
         VersionText.Text = $"Phiên bản {typeof(LoginWindow).Assembly.GetName().Version?.ToString(3)}";
-        DataPathText.Text = "Dữ liệu: " + s.Db.FilePath;
+        // Ghi chú chỉ hiện khi có nội dung cần báo (lần đầu, lỗi, cảnh báo đồng bộ tài khoản) — bản gọn 1.46
+        foreach (var tb in new[] { SubHeading, ErrorText, DataPathText })
+            tb.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) tb.IsVisible = !string.IsNullOrWhiteSpace(tb.Text); };
+        ToolTip.SetTip(VersionText, "Dữ liệu: " + s.Db.FilePath);
         if (_firstRun)
         {
             Heading.Text = "Thiết lập lần đầu";
@@ -33,8 +36,6 @@ public partial class LoginWindow : Window
         }
         else
         {
-            if (s.Accounts.Enabled)
-                SubHeading.Text = "Tài khoản dùng chung cho mọi máy (Google Sheet). Nhập tài khoản được cấp để vào phần mềm.";
             var m = s.Remember;
             UserBox.Text = m.Username;
             if (m.Remember) { PassBox.Text = m.Password; RememberBox.IsChecked = true; AutoBox.IsChecked = m.Auto; }

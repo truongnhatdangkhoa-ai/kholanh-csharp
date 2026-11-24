@@ -83,6 +83,17 @@ public class Database
             c.Execute(SchemaV4, transaction: tx);
             c.Execute("PRAGMA user_version = 4;", transaction: tx);
             tx.Commit();
+            version = 4;
+        }
+        if (version < 5)
+        {
+            // v5: sổ chờ nhớ các lần đã gửi mà chưa nhận được trả lời (máy chủ có thể đã áp) → máy chủ lấy đúng bản gốc khi gộp,
+            // không nhân đôi dòng (lỗi chập chờn khi máy chủ tắt / bật lại đúng lúc máy con gửi).
+            using var tx = c.BeginTransaction();
+            c.Execute("ALTER TABLE lan_pending ADD COLUMN sent INTEGER NOT NULL DEFAULT 0;", transaction: tx);
+            c.Execute("ALTER TABLE lan_pending ADD COLUMN prev_ops TEXT NOT NULL DEFAULT '[]';", transaction: tx);
+            c.Execute("PRAGMA user_version = 5;", transaction: tx);
+            tx.Commit();
         }
     }
 
