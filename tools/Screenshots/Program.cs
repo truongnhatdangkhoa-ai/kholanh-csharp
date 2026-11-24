@@ -442,7 +442,7 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Báo cáo") == true);
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Chức năng") == true);
     gb.Flyout!.ShowAt(gb); Pump();
     Snap(small, "03d-menu-nhom");
     gb.Flyout.Hide(); Pump();

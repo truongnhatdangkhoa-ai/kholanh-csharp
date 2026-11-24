@@ -41,15 +41,23 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 | 1.39 | Tự tạo List / phiếu theo Lịch xuất (`PNX_AutoLog` dùng chung app cũ) | `LichXuat/LichXuatAuto.cs`, `PhieuKho/PhieuKhoAuto.cs` |
 | 1.40 | Danh mục mã hàng (quyền `m3dm`) | `DanhMuc/` |
 | 1.41 | Kiểm kê nhanh (tab đầu Đối chiếu kiểm kê) | `KiemKe/KkNhanh.cs`, `Views/KiemKeView.Nhanh.cs` |
-| 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ | `AppUpdater.cs`, `Services/UpdateScript.cs` |
+| 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ · sắp lại nhóm menu (Chức năng, Chứng từ) | `AppUpdater.cs`, `Services/UpdateScript.cs` |
 
 ## Việc tạm hoãn / còn mở
 - Drive cá nhân / Lưu trữ cá nhân / Dọn rác (app cũ: `core/drive-ca-nhan.js`, `core/luu-tru.js`, `core/kho-ca-nhan.js`, `core/don-rac.js`) — người dùng hoãn 24/11: "khi ổn định sẽ làm sau".
 - Danh mục mã hàng: số "Cần xử lý" trên thanh menu (app cũ có).
 - Cảnh báo build còn lại: API cũ của Avalonia (Clipboard.GetTextAsync, DragEventArgs.Data) — đổi khi thay áo giao diện.
 
-## KẾ HOẠCH TIẾP: THAY ÁO TOÀN BỘ GIAO DIỆN (yêu cầu 24/11/2026)
-(Đang lập đề xuất phong cách — xem mục dưới khi đã chốt.)
+## KẾ HOẠCH TIẾP: THAY ÁO TOÀN BỘ GIAO DIỆN (yêu cầu 24/11/2026 — CHỜ NGƯỜI DÙNG CHỐT PHONG CÁCH)
+- Đề xuất phong cách "Băng sạch" (bản dựng thử: https://claude.ai/artifact/N7BE31VXtV6cH4TgFzXfGk): nền xám lạnh rất nhạt, 1 màu nhấn xanh băng theo logo,
+  màu chỉ để báo trạng thái (nền nhạt + chữ đậm), chữ Inter, số căn phải tabular, bỏ emoji trong nút / tiêu đề, Sáng dịu + Tối thiết kế riêng, mật độ bảng Gọn / Vừa / Thoáng.
+- **Thanh menu bên trái** thay menu thả xuống; **thu gọn được** (chỉ còn biểu tượng) — khi thu gọn, rê chuột vào mục nào thì **hiện tên mục đó tức thì** (không độ trễ tooltip);
+  nhớ trạng thái thu gọn theo tài khoản; số việc cần xử lý cạnh tên module.
+- Thứ tự nhóm menu (đã áp ở 1.42.0): Tổng quan · Nhập liệu · Tồn kho · Chức năng (Báo cáo rã đông, Đối chiếu hàng ngày, Đối chiếu kiểm kê, Số liệu cuối kỳ,
+  Tổng hợp, Danh mục mã hàng, Kết quả kháng sinh) · Chứng từ (Phiếu xuất kho, In chứng từ kho, Phiếu xuất hệ thống) · Công cụ · Hệ thống.
+- Mỗi trang cùng khuôn: tiêu đề + mô tả 1 dòng, nút chính góc phải → thẻ số → thanh lọc → bảng → khung chi tiết bên phải; 1 nút chính / màn hình, nút xóa viền đỏ.
+- Các bước (mỗi bước 1 bản): 1 nền móng (bộ màu / kiểu control / biểu tượng) · 2 khung app (thanh bên thu gọn, đầu trang, Ctrl+K, trạng thái LAN / Drive) ·
+  3 khuôn trang dùng chung + Tổng quan / Tồn kho · 4 các module còn lại + chụp lại ảnh. Sửa luôn API Avalonia cũ (Clipboard.GetTextAsync, DragEventArgs.Data).
 
 ## Nhật ký tiến độ
 (Ghi theo mẫu: ngày · việc · bản · đã làm · còn thiếu / lưu ý · file chính.)
