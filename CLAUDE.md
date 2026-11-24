@@ -13,109 +13,44 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 - Mỗi lần xong một phần: `dotnet test tests/KhoLanh.Core.Tests -c Release` phải đạt hết; build `src/KhoLanh.App`; chụp màn hình bằng
   `dotnet run -c Release --project tools/Screenshots -- <thư mục>` (thêm cảnh chụp cho module mới ở cuối `tools/Screenshots/Program.cs`), chép ảnh cần thiết vào `docs/anh/`.
 - Nâng `<Version>` trong `Directory.Build.props` mỗi bản; cập nhật bảng module trong `README.md`.
-- Phát hành: code vào `main` (qua PR) → workflow `.github/workflows/build.yml` tự đóng gói `KhoLanh.exe` và tạo Release `v<Version>`; app các máy tự cập nhật.
+- Phát hành: PR từ nhánh làm việc vào `main` (đẩy thẳng `main` bị chặn ở môi trường cloud), gộp khi CI xanh (build + `tu-kiem-windows` chạy cập nhật thật) →
+  workflow `.github/workflows/build.yml` đóng gói `KhoLanh.exe` (một file) và tạo Release `v<Version>`; app các máy tự cập nhật.
 - Môi trường cloud chưa có .NET: `apt-get install -y dotnet-sdk-8.0`.
 
-## KẾ HOẠCH ĐANG LÀM (yêu cầu 23/11/2026)
-Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký tiến độ" bên dưới + đổi trạng thái ở bảng này + commit + push**.
+## Ghi chú kỹ thuật cần nhớ
+- Đối chiếu với app cũ: chạy CHÍNH lõi JS cũ bằng node để sinh đáp án (`tests/KhoLanh.Core.Tests/Data/*-golden.gen.js` → `*.json`), test C# so từng giá trị.
+- Màu: dùng `AppTheme.Brush("#...")` (tự đổi theo Sáng dịu / Tối), không `new SolidColorBrush(Color.Parse(..))`. Cỡ chữ: `LayoutTransformControl` ở MainWindow + `Ui.ApplyZoom` cho hộp thoại.
+- SDK mới: mảng `.Reverse()` lỗi → dùng `Enumerable.Reverse(...)`.
+- Lưới: `SheetGrid` + `GridModel`; cột tính toán dùng `SheetGrid.Display`, giữ mã dòng bằng cột ẩn rộng 0 (xem `DanhMucMaView`).
+- Exe một file: thư viện nạp từ chính file exe khi cần lần đầu → `AppUpdater.Warmup()` nạp sẵn lúc mở app; không thay exe khi còn cửa sổ KhoLanh khác chạy (`UpdateScript`).
+- Lỗi chưa bắt: `Program.cs` (AppDomain / Task) + `App` (`Dispatcher.UIThread.UnhandledException` → ghi `logs/loi.log`, báo người dùng, KHÔNG sập app). Trợ lý hệ thống đọc lại log.
+- Công cụ chụp màn hình chạy đủ mất > 10 phút: chạy nền, hoặc `SHOTS_ONLY=dm|ck|tools` để chụp riêng.
+- Repo app cũ chỉ đọc; không chép token cố định trong `core/app-config` của app cũ.
 
-| # | Module | Trạng thái |
+## Các bản đã phát hành (tóm tắt — chi tiết ở README và lịch sử commit)
+| Bản | Nội dung chính | File / lõi chính |
 |---|---|---|
-| 1 | NXT Bột/Sốt (Sổ kho) | ✅ xong — bản 1.29.0 |
-| 2 | Số liệu cuối kỳ | ✅ xong — bản 1.30.0 |
-| 3 | Vị Trí Bột | ✅ xong — bản 1.31.0 |
-| 4 | Xử lý PDF & Excel | ✅ xong — bản 1.32.0 |
-| 5 | So sánh & Tra cứu bảng | ✅ xong — bản 1.33.0 |
-| 6 | Giao diện Sáng / Tối + cỡ chữ | ✅ xong — bản 1.34.0 |
-| 7 | Tìm nhanh toàn app | ✅ xong — bản 1.35.0 |
+| 1.25–1.28 | Trợ lý hệ thống · Tổng quan + Lịch xuất (email) · List sản xuất · Drive máy ở nhà · khởi động cùng Windows | `TroLy/`, `LichXuat/`, `Lan/DriveSync.cs` |
+| 1.29 | NXT Bột/Sốt (sổ kho theo lô, FIFO, định mức, kiểm kê, hoàn tác) | `SoKho/`, test `sokho-oracle.json` |
+| 1.30 | Số liệu cuối kỳ (đối chiếu kế toán – kho, nguyên nhân, lịch sử) | `CuoiKy/` |
+| 1.31 | Vị Trí Bột (đẩy từ NXT, phiếu trừ tồn) | `SoKho/VtbService.cs` |
+| 1.32–1.33 | Xử lý PDF & Excel · So sánh & Tra cứu bảng | `Bang/CcBang.cs`, `Controls/PdfOps.cs` |
+| 1.34 | Giao diện Sáng dịu / Tối + cỡ chữ | `App/AppTheme.cs` |
+| 1.35–1.36 | Tìm nhanh toàn app (Ctrl+K, phiếu / LSX / cont, giải mã 21 ký tự) + việc còn lại | `TimNhanh/` |
+| 1.37–1.38 | Vị Trí Bột + đồng bộ điện thoại mọi module · icon / logo mới | `PhoneSync/`, `Services/PhoneWebApp.cs`, `docs/DONG-BO-DIEN-THOAI.md` |
+| 1.39 | Tự tạo List / phiếu theo Lịch xuất (`PNX_AutoLog` dùng chung app cũ) | `LichXuat/LichXuatAuto.cs`, `PhieuKho/PhieuKhoAuto.cs` |
+| 1.40 | Danh mục mã hàng (quyền `m3dm`) | `DanhMuc/` |
+| 1.41 | Kiểm kê nhanh (tab đầu Đối chiếu kiểm kê) | `KiemKe/KkNhanh.cs`, `Views/KiemKeView.Nhanh.cs` |
+| 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ | `AppUpdater.cs`, `Services/UpdateScript.cs` |
 
-### 1. NXT Bột/Sốt — Sổ kho (app cũ: `js/so-kho-core.js`, `js/so-kho-ui.js`; db `nxt-bot-sot`)
-- Mô hình: MỌI nghiệp vụ là dòng trong **sổ cái** `SoCai` (loai: tondau · nhap · xuat · chuyen · dieuchinh). Lô = Vị trí · Mã hàng · Size · Hạn dùng · Ngày nhập.
-  Xuất không ghi hạn dùng / ngày nhập → trừ **FIFO** (ngày nhập cũ trước, rồi hạn dùng gần trước). Tồn được âm (cảnh báo). Mốc **Tồn đầu** (tondau): dòng cũ hơn mốc bị bỏ qua.
-- Sheet khác: `SoKhoMau` (mẫu cột), `SoKhoDinhMuc`, `SoKhoSanLuong`, `SoKhoCauHinh`, `_SoKhoLichSu` (lịch sử + hoàn tác theo thao tác).
-- Làm: lõi `SoKhoCore` (normLine, compute tồn theo lô + FIFO, NXT theo kỳ, tồn tại 1 ngày, chốt tồn, định mức, cảnh báo hạn dùng, lịch sử / hoàn tác) + test đối chiếu kết quả lõi JS;
-  `SoKhoService` (đọc / ghi sổ cái, kiểm tra dòng, chống trùng id); giao diện các tab: Phiếu nhập · Phiếu xuất · Tồn kho (NXT | tồn tại ngày | theo vị trí) · Kiểm kê · Định mức · Lịch sử · Cấu hình; nhập Excel; xuất Excel.
-- Quyền mới `m3sk` "NXT Bột/Sốt". Menu nhóm TỒN KHO.
+## Việc tạm hoãn / còn mở
+- Drive cá nhân / Lưu trữ cá nhân / Dọn rác (app cũ: `core/drive-ca-nhan.js`, `core/luu-tru.js`, `core/kho-ca-nhan.js`, `core/don-rac.js`) — người dùng hoãn 24/11: "khi ổn định sẽ làm sau".
+- Danh mục mã hàng: số "Cần xử lý" trên thanh menu (app cũ có).
+- Cảnh báo build còn lại: API cũ của Avalonia (Clipboard.GetTextAsync, DragEventArgs.Data) — đổi khi thay áo giao diện.
 
-### 2. Số liệu cuối kỳ (app cũ: `html/quan-ly-kho/dc2-*.js`, `dc-*.js`; module M07)
-- Đối chiếu TỒN CUỐI KỲ theo mã (kg): Tồn kho = Tồn An An + Tồn kho gửi; Chênh lệch = Tồn kho − Kế toán. Nhập / xuất / đầu kỳ chỉ để tham khảo + tự khớp của từng nguồn.
-- Nguyên nhân gắn nhãn "xác định" / "nghi ngờ" + độ tin cậy; không đủ bằng chứng → "Chưa xác định". Lịch sử các kỳ, xuất Excel.
-- Làm: đọc kỹ `dc2-engine.js`, `dc2-import.js`, `dc2-suggest.js`, `dc2-trace.js`, `dc2-history.js`, `dc2-config.js`; port lõi + test; giao diện. Xem chỗ dùng chung với `KiemKe` (Đối chiếu kiểm kê) để tái dùng.
-
-### 3. Vị Trí Bột (app cũ: `ton-kho-an-an.js` từ dòng ~7770; sheet `ton-kho-an-an` / `ViTriBot`, `ViTriBotMeta`, `ViTriBotPhieuDienThoai`)
-- Từ PC 1.62 tồn Vị Trí Bột được **đẩy từ NXT Bột/Sốt › Tồn theo vị trí** (`so-kho-ui.js › pushViTriBot`), phiếu điện thoại trừ tồn. Làm sau mục 1:
-  màn hình tồn theo vị trí của bột (lọc, bỏ dòng SL = 0), nút "Đưa tồn theo vị trí lên Vị Trí Bột" từ Sổ kho, danh sách phiếu (PC / điện thoại) — hủy trừ / trừ lại / xóa.
-
-### 4. Xử lý PDF & Excel (app cũ: `js/xu-ly-tep.js`, `js/cc-bang-engine.js`)
-- PDF: gộp, tách, xoay / xóa trang, đóng dấu chữ, đánh số trang. Excel: gộp nhiều file / sheet, tách theo cột, làm sạch (khoảng trắng, dòng trùng, số / ngày dạng chữ).
-- Thư viện C#: PDF dùng PdfSharp hoặc PdfPig + ghi (kiểm tra gói đã có: PdfPig, PDFium để vẽ); Excel dùng ClosedXML (đã có).
-
-### 5. So sánh & Tra cứu bảng (app cũ: `js/so-sanh-bang.js`, `js/cc-bang-engine.js › compareTables / lookupTables`)
-- Nạp 2 bảng (Excel / CSV), chọn cột khóa: (1) so sánh — dòng chỉ có ở A / B, khác số liệu theo cột; (2) tra cứu kiểu VLOOKUP — kéo cột từ B sang A. Xuất Excel.
-
-### 6. Giao diện Sáng / Tối + cỡ chữ
-- 2 bộ màu: **Sáng dịu** (nền trắng ngà / xám rất nhạt, không trắng tinh — đỡ chói) và **Tối** (xám đen cơ bản). Thu phóng cỡ chữ (90–130%).
-- Hiện màu đang viết cứng trong nhiều View (`B("#...")`) → gom về bảng màu dùng chung (tài nguyên Avalonia `DynamicResource` / lớp `Theme`), đổi dần từng View. Lưu theo tài khoản trên máy.
-
-### 7. Tìm nhanh toàn app (app cũ: `js/global-search.js`)
-- Ô tìm / Ctrl + K trên thanh menu: tìm tên module (nhảy tới) + tìm mã hàng / tên hàng / lô / hợp đồng trong tồn hiện tại của mọi module
-  (Tồn An An, Tồn vị trí, Tồn kho gửi, NXT Bột/Sốt, Vị Trí Bột) → bảng kết quả; bấm mã → chi tiết mã đó ở mọi module. Cách khớp từ giống app cũ (`wordsHit`).
+## KẾ HOẠCH TIẾP: THAY ÁO TOÀN BỘ GIAO DIỆN (yêu cầu 24/11/2026)
+(Đang lập đề xuất phong cách — xem mục dưới khi đã chốt.)
 
 ## Nhật ký tiến độ
-(Ghi theo mẫu: ngày · module · bản · đã làm · còn thiếu / lưu ý · file chính.)
-
-- 23/11/2026 · lập kế hoạch 7 module ở trên. Bản hiện tại 1.28.0 (đã phát hành: Trợ lý hệ thống, Tổng quan + Lịch xuất, List sản xuất, Drive máy ở nhà, khởi động cùng Windows).
-- 23/11/2026 · NXT Bột/Sốt · (chưa nâng bản) · lõi + service + 6 test đạt + giao diện 8 tab, build đạt.
-- 23/11/2026 · NXT Bột/Sốt · 1.29.0 · chụp màn hình (35–35d, chép 35/35b/35c vào docs/anh), sửa nhãn "Từ" thừa ở tab Tồn kho, thêm test lưu phiếu vượt định mức (chỉ cảnh báo) + kiểm kê + hoàn tác kiểm kê (7 test SoKho đạt), README · còn: mẫu cột `SoKhoMau`; đẩy tồn lên Vị Trí Bột để dành module 3 · `SoKho/*.cs`, `Views/SoKhoView.cs`.
-- 23/11/2026 · Số liệu cuối kỳ · 1.30.0 · lõi `CuoiKy/` (CkBase cấu hình + chuẩn hoá, CkImport đọc An An / Kế toán + CT + DMVT / Kho gửi / file điều chỉnh, CkSuggest gợi ý mã + CkTrace cờ chứng từ, CkEngine đối chiếu + nguyên nhân + KPI + kiểm tra dữ liệu, CkHistory xử lý / hoàn tác / gộp 2 máy, CkService lưu DC2_* + xuất Excel 10 sheet); test `CuoiKyTests` đối chiếu lõi JS (Data/ck-golden.json, sinh lại bằng `node Data/ck-golden.gen.js`) + test service; giao diện `Views/CuoiKyView.cs` (nguồn, KPI, lọc, bảng, chi tiết nguyên nhân / gợi ý / chứng từ, xử lý, lịch sử, kiểm tra dữ liệu, tự đồng bộ 8 giây); quyền `m7ck` · còn: lấy nguồn thẳng từ module Tồn An An / Tồn kho gửi (app cũ có), sửa ô dữ liệu nguồn trên lưới (lõi đã có ApplyEdits), chứng từ nhập / xuất An An.
-- 23/11/2026 · Số liệu cuối kỳ · 1.30.0 đã phát hành (lần đầu CI lỗi vì `.Reverse()` của mảng trên SDK mới → dùng `Enumerable.Reverse(...)`; lưu ý khi viết code mới).
-- 23/11/2026 · Vị Trí Bột · 1.31.0 · `SoKho/VtbService.cs` (đọc / ghi ViTriBotMeta + ViTriBot + ViTriBotPhieuDienThoai đúng định dạng app cũ, FromLedger + Push từ NXT Bột/Sốt, tạo phiếu trừ ngay, hủy trừ / trừ lại / xóa, khóa phiếu đợt cũ, định dạng ngày giống vtbFmtDate), nút "📱 Đưa lên Vị Trí Bột…" ở NXT Bột/Sốt › Tồn kho, `Views/VtbView.cs`, quyền `m1vtb` (MissingDefault = Xem), test `VtbTests` · còn: nhận phiếu từ điện thoại (khi làm bản điện thoại), nạp file "Vị trí Bột" kiểu cũ (app cũ đã bỏ từ PC 1.62).
-- 23/11/2026 · Xử lý PDF & Excel · 1.32.0 · lõi `Bang/CcBang.cs` (làm sạch, gộp, tách, so sánh, tra cứu — test `CcBangTests` đối chiếu lõi JS, Data/cc-golden.json sinh bằng `node Data/cc-golden.gen.js`), `Bang/ExcelOps.cs` (đọc / ghi nhiều sheet), `App/Controls/PdfOps.cs` (PDFium: gộp, tách, xoay, xóa, đóng dấu số trang / chữ chìm / hình, tìm trang trắng, vẽ theo dpi), `JpegPdf.Page` thêm cỡ trang (giảm dung lượng), `Views/XuLyTepView.cs` (8 chức năng PDF + 3 Excel), quyền `m21`; chạy thử thật các thao tác trong tools/Screenshots (dòng [PDF] / [XLS]) · còn: làm sạch tùy chọn theo từng cột (lõi đã có `Cols`), xem trước trang PDF.
-- 23/11/2026 · So sánh & Tra cứu bảng · 1.33.0 · `Views/SoSanhBangView.cs` (2 bảng A / B, cột khóa tự chọn theo tên trùng, so sánh song song kiểu buildSbs của app cũ + lọc Giống / Khác / Chỉ A / Chỉ B / Mã trùng, tra cứu kéo cột B → A với 5 cách xử lý mã nhiều dòng, xuất Excel), dùng lõi `CcBang.CompareTables / LookupTables` (đã có test golden); quyền `m22`; `MissingDefault` bật sẵn m21 + m22 (công cụ chỉ tạo file mới) · còn: ngày trong Excel hiện dạng số ngày (OADate) khi xem.
-- 23/11/2026 · Giao diện Sáng / Tối + cỡ chữ · 1.34.0 · `App/AppTheme.cs` (tên lớp AppTheme vì Control đã có thuộc tính `Theme`): `AppTheme.Brush(hex)` brush dùng chung được giữ lại và đổi màu tại chỗ khi đổi giao diện (cả brush static trong View), `AppTheme.Color(hex)`, Sáng dịu = trắng tinh → #FBFAF6, Tối = đổi HSL (nền sáng → tối, chữ đậm → sáng), tài nguyên App.axaml thay bằng brush AppTheme (`Install`, XAML chuyển DynamicResource, thêm NavBg / GridLine / GridHead), FluentTheme đổi ThemeVariant; đã thay toàn bộ `new SolidColorBrush(Color.Parse(..))` / `Color.Parse` / `Brushes.White` nền / `Brushes.Black` chữ trong App (trừ PdfOps / PdfRender / ScanImaging và các bộ vẽ ảnh xuất file RaDong / ViTri). Thu phóng = LayoutTransformControl bọc cửa sổ chính; menu tài khoản › "Giao diện & cỡ chữ…" + Ctrl + / − / 0; lưu settings `ui_theme:<user>`, `ui_scale:<user>`. **Code mới: dùng `AppTheme.Brush("#...")` thay cho `new SolidColorBrush(Color.Parse(..))`.** · còn: ô vẽ tay (SheetGrid, sơ đồ kho) lấy màu mới khi dựng lại trang (tự dựng lại khi lưu); hộp thoại không thu phóng.
-- 23/11/2026 · Tìm nhanh toàn app · 1.35.0 · lõi `Core/TimNhanh/TimNhanh.cs`: `Gs` (Norm / MaKey / WordsHit / Match nhãn size / Search / Highlight — chép global-search.js) + `GsService.Build()` gom tồn hiện tại M01VT (Tồn theo vị trí), M01 (Load Data An An, mã chưa có ở vị trí), M01VTB (Vị Trí Bột), M02 (Tồn kho gửi, nhãn từ mã hoặc cột Size dạng chữ+số), M03 (NXT Bột/Sốt: lô còn tồn) theo quyền xem; size / nhãn lấy qua `ViTriService.SizeOf / GopLabel`; test `TimNhanhTests`. Giao diện `Views/TimNhanhWindow.cs` (ô tìm, nút module khớp tên, bảng kết quả 400 dòng / trang, chi tiết mã + mở module), nút 🔍 trên thanh menu + Ctrl + K (`MainWindow.OpenSearch`) · còn: tìm Phiếu / LSX / Số cont (app cũ core/tim-nhanh.js), giải mã 10 đoạn mã 21 ký tự trong chi tiết, lọc theo cột. **Hết kế hoạch 7 module.**
-- 24/11/2026 · Hoàn thành việc còn lại · 1.36.0 · **Tìm nhanh**: `GsDocs` (chép core/tim-nhanh.js: Phiếu xuất kho PNX_Phieu + phiếu vị trí, mở thẳng phiếu qua `PhieuKhoView(0, id)` / `ViTriView.OpenSlipId`), lọc cột phân tầng, `Gs.Decode` + `GsService.ReadMaHoa` (giải mã 10 đoạn). **Công cụ**: `CkService.ReadExcel(keepDates)` → ExcelOps giữ DateTime, `ExcelOps.Show` (dd/MM/yyyy); làm sạch theo từng cột (tùy chọn chung đổi thành tùy chọn từng cột để lựa chọn riêng luôn ưu tiên); xem trước trang PDF (`OnePdf`, `LoadPdfForTest`); `Ui.ApplyZoom` cho mọi hộp thoại qua `Ui.Show` + cửa sổ Tìm nhanh. **Số liệu cuối kỳ**: `CkMovement` (readMovementAnAn + phần đọc báo cáo nhập / xuất của dc-engine.js; test `CkMovementTests` với Data/cm-golden.json sinh bằng `node Data/cm-golden.gen.js`), nguồn anan_nhap / anan_xuat lưu `DC2_Nguon_*` dạng chứng từ, `CkService.LoadFromModule` / `ModuleInfo` (LoadData+LoadDataMeta, FileNap+FileNap_Meta), `CkHistory.EditCells / RevertCell` + `CkService.EditCell / RevertCell / CurrentValue / IsEdited`, tab "Dữ liệu nguồn". **NXT Bột/Sốt**: `SoKho/SkTemplate.cs` (defaultTemplate / normTemplate / templateFor / store — test `SkTemplateTests` với Data/sk-tpl-golden.json, `node Data/sk-tpl-golden.gen.js`), lưới phiếu theo mẫu + cột phụ x_ (ghi `extra`), Sổ cái hiện cột phụ, Cấu hình › Mẫu cột phiếu, công thức cột `SkTemplate.Eval` (evalFormula: ô để trống thì tự tính khi lưu phiếu). · Còn để dành có chủ đích: nhận phiếu điện thoại cho Vị Trí Bột (chờ bản điện thoại).
-- 24/11/2026 · Vị Trí Bột — 2 việc cuối · 1.37.0 · **Điện thoại**: `Services/PhoneWebApp.cs` (chép core/sheets-webapp-client.js: pc.ping / pc.ensureTabs / pc.readTable / pc.writeTable / pc.markRows, POST text/plain theo 302; cấu hình `phone_webapp_url` + `phone_pc_token` (Secret) — dùng chung Web App với app điện thoại, `AppServices.Phone`), `VtbService.PushRows / ApplyPhone / SyncPhoneAsync` (kéo phiếu `PhieuXuat`/`PhieuXuatItems` module "M01VTB" chưa xử lý → trừ SL theo `_key`, đánh dấu "Đã xử lý" / "Lỗi - không có dòng hàng" sau 10 phút; đẩy `TonKho_M01_ViTriBot` + Meta `lastPushAt_M01VTB`, `m01ViTriBot*`; chỉ đụng phiếu Vị Trí Bột) — test `VtbPhoneTests` với Web App giả `FakeWebApp`. Nút "📱 Đồng bộ điện thoại" + "Kết nối điện thoại…" ở Vị Trí Bột; "Đưa lên Vị Trí Bột" ở NXT Bột/Sốt tự đẩy lên điện thoại khi đã kết nối. **Nạp file kiểu cũ**: `VtbService.ParseSheet / ParseBook / LoadFile` (dòng "NGÀY:", nhận cột theo VTB_COL_ALIASES, ngày qua `FmtDate`), nút "📄 Nạp file Vị trí Bột…" + "Tải file mẫu…". · Lưu ý: đồng bộ điện thoại của các module khác (Tồn An An, Tồn vị trí, Tồn kho gửi, NXT, Tổng hợp…) CHƯA có ở bản C# — app cũ vẫn làm phần đó; `PhoneWebApp` dùng lại được khi làm tiếp.
-
-## KẾ HOẠCH 24/11/2026 (đợt 2)
-| # | Việc | Trạng thái |
-|---|---|---|
-| 1 | Đổi icon + logo theo ảnh | ✅ 1.38.0 |
-| 2 | Đồng bộ điện thoại mọi module (hạ tầng cho bản mobile) | ✅ 1.38.0 |
-| 3 | Tự tạo List / phiếu theo Lịch xuất | ✅ 1.39.0 |
-| 4 | Danh mục mã hàng | ✅ 1.40.0 |
-| 5 | Drive cá nhân / Lưu trữ, Dọn rác | ⏸ tạm hoãn (người dùng: "khi ổn định sẽ làm sau") |
-| 6 | Kiểm kê nhanh | ✅ 1.41.0 |
-
-- 24/11/2026 · Icon + Đồng bộ điện thoại · 1.38.0 · icon / logo mới (`Assets/app.ico` 16–256, `Assets/logo.png`, bản 1024 ở `docs/brand/icon-1024.png` cho bản mobile). `Core/PhoneSync/PhoneSyncService.cs`: đẩy M01 / M01VT (+ cột phụ vt-push-extra) / M01VTB / M02 (đặc tính suy ra) / M03 (pushRows + LSX) / M08 (`AnhXa.ToPhoneTable`) / LX / C3D + phiếu PC (`CollectPcSlips` = phieu-pc-push.js) + Meta; nhận phiếu M01 / M01VT / M01VTB / M02 / M03 (`ApplyPhonePhieu` = so-kho-core.js) đọc / ghi THẲNG sheet dùng chung rồi nạp lại service; chọn bảng `phone_sync_pick`, trạng thái `phone_sync_status`, tự đồng bộ `PhoneAutoSync` (`phone_sync_interval`). Giao diện `Views/PhoneSyncView.cs` (quyền `phone`), hộp thoại dùng chung `Views/PhoneConnect.cs`. Test `PhoneSyncTests` (Web App giả). Giao thức: `docs/DONG-BO-DIEN-THOAI.md`. · còn: tab báo cáo Excel BaoCao_M01/M02, kháng sinh chỉ phần mới, yêu cầu lịch xuất từ điện thoại, lưu trữ phiếu cũ, tài khoản điện thoại.
-- 24/11/2026 · Tự tạo List / phiếu theo Lịch xuất · 1.39.0 · `LichXuat/LichXuatAuto.cs` (LichXuatService thành partial): `Mutate` chụp LSX + loại phiếu từng lịch trước khi sửa → `AfterWrite` tạo List cho lịch XUẤT sắp tới mới / đổi LSX / đổi loại (từ tồn kho, không có hàng → List trống `(tự tạo từ lịch xuất)`), `Reconcile` (gọi trong `Load`, 2 phút / lần) rà lịch 14 ngày tới thiếu khóa `__list`; `AutoMode` (settings `lx_auto_mode`: list mặc định · phieu = thêm Phiếu xuất khẩu theo nhóm cùng ngày + cont · off); `Auto` chỉ bật ở app (`MainWindow`), test bật tay. `PhieuKho/PhieuKhoAuto.cs` (PhieuKhoService thành partial): nhật ký `PNX_AutoLog` đúng cột app cũ (LogKey = lsxNorm|loaiPhieu, giữ 2000 dòng), nhãn `tuDong` {at, ngayLich, loaiLich, lichIds} trong `Extra`, chưa xem (listNew / phieuNew + listSeen / phieuSeen), `MarkSeen`, `AutoItems`, xóa hết List + Phiếu của LSX → quên nhật ký. Nút Tạo List / Tạo phiếu cũng gắn nhãn + ghi nhật ký (không tính "mới"). Giao diện `Views/PnxAutoView.cs` (tab "⚡ Tự động đã tạo" của Phiếu xuất kho), ⚡ trên danh sách phiếu / List, nút "⚡ Tự tạo: n" trên thanh menu. Test `Tu_tao_list_theo_lich_xuat_va_nhat_ky`. · còn: tự tạo phiếu loại khác xuất khẩu (app cũ cũng chỉ tạo List), cập nhật List khi Load Data mới (đã có "Quét tồn kho").
-- 24/11/2026 · Danh mục mã hàng · 1.40.0 · lõi `Core/DanhMuc/DanhMucMa.cs` (chép danh-muc-ma-hang.js: SegMap = đoạn 1 cố định + sheet MaHoa, Decode / NoteOf, Check = trùng + nghi gõ sai theo bucket vị trí, StatusOf, CountUse "Đang dùng ở" 5 nguồn, XlData "Cần xử lý") — test `DanhMucTests` đối chiếu lõi JS (Data/dm-golden.json, sinh bằng `node Data/dm-golden.gen.js`, cắt phần lõi của file JS cũ) + test service; `DanhMuc/DanhMucService.cs` (Load, Visible, Apply sửa / thêm sau dòng đứng trước / xóa, AddMissing, ghi MaDaTao + M8_Meta, cập nhật `TongHop.Results` để Tổng hợp không ghi đè, Export 7 cột); `Views/DanhMucMaView.cs` (lưới tự lưu, cột ẩn `_id` giữ mã dòng, cột tính bằng `SheetGrid.Display`, tab Cần xử lý); quyền mới `m3dm` (nhân viên mặc định Xem + xuất file, MissingDefault = Xem), menu Báo cáo › Danh mục mã hàng; ảnh 44 / 44b; `SHOTS_ONLY=dm` chạy riêng cảnh này (chạy đủ công cụ chụp quá 10 phút) · còn: số "Cần xử lý" trên thanh menu (app cũ có), nút "+ Tạo mã" theo tổ hợp vẫn ở Tổng hợp.
-
-- 24/11/2026 · Kiểm kê nhanh · 1.41.0 · lõi `KiemKe/KkNhanh.cs` (chép kk-nhanh-core.js: Strip, DetectKind / DetectBook theo tiêu đề, Summarize + AutoList, TodoList, FilterRows; Readiness dùng `KiemKeService.Readiness`) — test `KkNhanhTests` đối chiếu lõi JS (Data/kkn-golden.json, `node Data/kkn-golden.gen.js`; khác duy nhất nhãn nút "Mở Số liệu kiểm kê"); giao diện `Views/KiemKeView.Nhanh.cs` (KiemKeView thành partial, tab đầu "⚡ Kiểm kê nhanh" → các tab cũ lùi 1 chỉ số, đã sửa cả tools/Screenshots): chọn / thả file → An An `AnAn.Preview + Commit`, Gửi `Gui.Preview + Commit` (+ bật cộng kho gửi), Kế toán `ReadKeToanFile + SaveKeToan`; nguồn, KPI, Việc cần làm, Sẵn sàng chốt + Chốt, báo cáo, bảng lọc / tìm / sao chép / Excel / sửa mã 1 dòng / đúp mở tab An An. Ảnh 45 · còn: "Bản vẽ kho / Lệnh đếm" trong tab nhanh (đã có ở tab Theo vị trí / Lệnh đếm), việc 5 tạm hoãn.
-
-## BIÊN BẢN BÀN GIAO (24/11/2026 — tạm dừng theo yêu cầu người dùng)
-Trạng thái repo: mọi việc đã xong đều đã commit + đẩy lên `claude/confident-bardeen-fhu6c6` VÀ `main` (bản mới nhất **1.41.0**, commit "1.41.0: Kiểm kê nhanh"). 269 test đạt, App build đạt. Không có thay đổi dở dang chưa commit.
-
-**Đã xong đợt 2:** việc 1 (icon / logo) + 2 (đồng bộ điện thoại) — 1.38.0; việc 3 (tự tạo List / phiếu theo Lịch xuất) — 1.39.0 (chi tiết ở Nhật ký tiến độ phía trên).
-
-**Việc tiếp theo:** việc 4 xong ở 1.40.0, việc 6 xong ở 1.41.0; việc 5 TẠM HOÃN theo yêu cầu người dùng (làm khi app ổn định). Hết kế hoạch đợt 2 — chờ yêu cầu mới.
-
-### 4. Danh mục mã hàng — ✅ XONG 1.40.0 (ghi chú dưới đây giữ để tham khảo)
-- App cũ: `app/html/danh-muc-ma-hang.html` + `app/html/js/danh-muc-ma-hang.js` (227 dòng, đã đọc hết). Nguồn = db `tong-hop`, sheet `MaDaTao` (cột `STT | Mã | Ghi chú | Đủ mã`), ghi kèm `M8_Meta` = `[{data:"__JSON__{savedAt, version:2}"}]`.
-  Đoạn mã: sheet `MaHoa` (cột `Tổ hợp` = số đoạn, `Mã`, `Tên`) + danh sách cố định đoạn 1 (`js/m8-seg1-fixed.js`). 10 đoạn, độ dài 4,1,1,1,1,2,3,4,2,2 = 21 ký tự; đoạn 2–8 toàn "X" = không có (hợp lệ).
-- Cần làm: lõi `Core/DanhMuc/DanhMucMa.cs` — Decode (C# đã có `TimNhanh/Gs.Decode` + `GsService.ReadMaHoa` → tái dùng), NoteOf (ghép tên các đoạn bằng " • "),
-  Checks: trùng mã; "gần giống" = khác đúng 1 ký tự và ký tự đó làm 1 bên có đoạn chưa khai báo còn bên kia hợp lệ (thuật toán bucket theo vị trí — chép `checks()`);
-  StatusOf (lỗi: thiếu mã / không đủ 21 ký tự / trùng; cảnh báo: đoạn chưa khai báo, nghi gõ sai);
-  "Đang dùng ở": đếm dòng có mã `^(TPC-)?[A-Z0-9]{21}$` trong mọi ô chuỗi của `ton-kho-an-an/LoadData`, `ton-vi-tri-an-an/ViTri`, `ton-kho-an-an/ViTriBot` (M01), `ton-kho-gui/DuLieuChinh` (M02), `nxt-bot-sot/SoCai` (SK);
-  "Cần xử lý": mã đang dùng mà chưa có trong danh mục (thêm hàng loạt, diễn giải tự dựng), mã trùng, mã nghi gõ sai, mã có đoạn chưa khai báo. Xuất Excel 7 cột (STT, Mã hàng, Diễn giải, Size đoạn 8, Trọng lượng đoạn 9, Đang dùng ở, Kiểm tra).
-- Service: đọc / ghi `MaDaTao` qua `Func<ISheetSource>`; kiểm tra TongHopService (đang dùng MaDaTao? — grep thấy dùng ở TroLyMaHang, DoiChieu, KiemKe, PhoneSync) để không đè dữ liệu; nạp lại TongHopService sau khi ghi.
-- Giao diện `Views/DanhMucMaView.cs`: lưới SheetGrid sửa được (tối đa 2.000 dòng khớp ô tìm), lọc Tất cả / Trùng / Nghi gõ sai / Đoạn chưa khai báo, tab "Cần xử lý", thêm / xóa dòng, xuất Excel. Quyền mới (vd `dmma`, nhóm Hệ thống hoặc Báo cáo) + `Perm.MissingDefault` nếu cần. Test golden: viết `Data/dm-golden.gen.js` chạy decode / checks của app cũ.
-
-### 5. Drive cá nhân / Lưu trữ, Dọn rác — TẠM HOÃN (người dùng 24/11: "bỏ qua module này, khi ổn định sẽ làm sau")
-- App cũ: `drive-ca-nhan.html` + `core/drive-ca-nhan.js`; `luu-tru.html` / `quan-ly-file.html` + `core/kho-ca-nhan.js`, `core/luu-tru.js`; `core/don-rac.js`. C# đã có module "drive" (Drive máy ở nhà) — xem lại để tái dùng.
-
-### 6. Kiểm kê nhanh — ✅ XONG 1.41.0
-- App cũ: `js/kk-nhanh-core.js` (detectKind, summarize, todo, readiness, filterRows) + `js/kk-nhanh.js`. Làm thành tab trong `Views/KiemKeView.cs`; test golden đối chiếu lõi JS.
-
-**Quy trình mỗi việc (giữ nguyên):** test đạt hết → build App → cảnh chụp mới cuối `tools/Screenshots/Program.cs` (số kế tiếp: 46) + chép vào `docs/anh/` → nâng `<Version>` (kế tiếp 1.42.0) → README + bảng kế hoạch + Nhật ký → commit (kết thúc bằng 2 dòng Co-Authored-By / Claude-Session) → push nhánh làm việc; phát hành = PR vào `main` rồi gộp khi CI xanh (đẩy thẳng `main` bị chặn ở môi trường cloud).
-Lưu ý: không đụng repo cũ (chỉ đọc); không force-push; không copy token cố định trong `core/app-config` của app cũ; dùng `Enumerable.Reverse`; code mới dùng `AppTheme.Brush("#...")`.
+(Ghi theo mẫu: ngày · việc · bản · đã làm · còn thiếu / lưu ý · file chính.)
+- 24/11/2026 · Quét sau phát hành · 1.42.0 · `Dispatcher.UIThread.UnhandledException` (lỗi thao tác không sập app), sửa lỗi Trợ lý báo `FileNotFoundException System.Diagnostics.Process` ở `AppUpdater.RunHelper` (Warmup + chặn cập nhật khi còn cửa sổ khác + script chờ mọi cửa sổ, test `UpdateScriptTests`), MailKit 4.8.0 → 4.18.2 (lỗ hổng GHSA-9j88-vvj5-vhgr), `SoKhoView.ApplyTemplate` → `ApplyMau` (trùng tên hàm Avalonia), xóa `docs/BAN-GIAO.md` (việc WebView2 đã xong) + 60 ảnh không dùng, rút gọn CLAUDE.md.
