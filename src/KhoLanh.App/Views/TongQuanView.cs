@@ -266,7 +266,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         var px = Svc.CanEdit && Svc.CanPnx;
         if (x.HasList) ac.Children.Add(Btn("✔ Đã có List", () => OpenPnx(1, null, x.Codes.FirstOrDefault()), "Mở List sản xuất của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo List", async () => await RunPnx(x, false), "Tạo List sản xuất từ tồn kho (Thành Phẩm Chính)", fs: 12));
-        if (x.HasPhieu) ac.Children.Add(Btn("✔ Đã tạo phiếu xuất", () => OpenPnx(0, Svc.PhieuOf(Svc.Group(x.Ids))?.Id, null), "Mở Phiếu xuất kho của LSX này", fs: 12));
+        if (x.HasPhieu) ac.Children.Add(Btn("✔ Đã có phiếu", () => OpenPnx(0, Svc.PhieuOf(Svc.Group(x.Ids))?.Id, null), "Mở Phiếu xuất kho của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo phiếu xuất", async () => await RunPnx(x, true), "Tạo Phiếu xuất kho từ List (chưa có List thì tạo từ tồn kho)", fs: 12));
         if (Svc.CanEdit) { ac.Children.Add(Btn("✉ Cont", async () => await ContMailDialog(x.Ids), "Dán email «Thông tin xe» để cập nhật số cont", fs: 12)); ac.Children.Add(Btn("✎", async () => await EditDialog(x.Ids[0], null), "Sửa lịch", fs: 12)); }
         Grid.SetColumn(ac, 7); g.Children.Add(ac);
