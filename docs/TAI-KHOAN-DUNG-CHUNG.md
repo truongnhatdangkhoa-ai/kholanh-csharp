@@ -10,7 +10,7 @@ Cách làm giống app kho cũ (Apps Script Web App): **không cần Google Clou
 
 ## A. Thiết lập trên máy quản trị (một lần, khoảng 5 phút)
 
-1. Mở phần mềm và đăng nhập bằng tài khoản Quản trị. Vào **Hệ thống › Sao lưu và cài đặt › Tài khoản dùng chung cho mọi máy**.
+1. Mở phần mềm và đăng nhập bằng tài khoản Quản trị. Vào **Hệ thống › Cài đặt máy › Tài khoản dùng chung cho mọi máy**.
 2. Bấm **Tạo mã Apps Script**. Mã được tự chép vào bộ nhớ, và cũng được lưu ở thư mục dữ liệu, file `TaiKhoan-AppsScript.gs`.
 3. Mở <https://sheets.new> để tạo một Google Sheet trống, rồi đặt tên, ví dụ *Kho Lạnh - Tài khoản*.
 4. Trong Sheet: **Tiện ích mở rộng › Apps Script**. Xóa hết mã có sẵn, dán (Ctrl+V), rồi bấm **Lưu** (biểu tượng đĩa).

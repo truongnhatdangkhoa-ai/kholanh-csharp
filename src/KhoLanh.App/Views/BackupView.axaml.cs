@@ -8,10 +8,8 @@ namespace KhoLanh.App.Views;
 
 public partial class BackupView : UserControl, IPage
 {
-    public string Title => "Sao lưu và cài đặt";
-    public string Subtitle => "Cài đặt máy này, cập nhật phần mềm, tài khoản dùng chung, sao lưu và khôi phục.";
-
-    private record BackupRow(string Name, string FullName, DateTime LastWriteTime, long Kb);
+    public string Title => "Cài đặt máy";
+    public string Subtitle => "Tên kho, nơi lưu dữ liệu, khởi động cùng Windows, cập nhật phần mềm, tài khoản dùng chung. Sao lưu / khôi phục: Dữ liệu & sao lưu.";
 
     public BackupView()
     {
@@ -20,8 +18,6 @@ public partial class BackupView : UserControl, IPage
         WarehouseBox.Text = s.Settings.Get(SettingsService.WarehouseName);
         PathText.Text = s.Db.FilePath; ToolTip.SetTip(PathText, s.Db.FilePath);
         var admin = Roles.IsAdmin(s.Session.Role);
-        RestoreFileButton.IsVisible = RestoreSelButton.IsVisible = admin;
-        LoadBackups();
         // Cập nhật online
         var u = s.Updates;
         UpdVersionText.Text = $"Đang dùng bản {UpdateService.Current}" + (AppUpdater.StagedVersion is { } sv ? $" · đã tải sẵn bản {sv}, chờ áp dụng" : "")
@@ -178,9 +174,7 @@ public partial class BackupView : UserControl, IPage
             AppUpdater.ExitForUpdate();
     }
 
-    private void LoadBackups() =>
-        Grid.ItemsSource = App.Services.Backup.ListAutoBackups()
-            .Select(f => new BackupRow(f.Name, f.FullName, f.LastWriteTime, f.Length / 1024)).ToList();
+    private void OnOpenDuLieu(object? sender, RoutedEventArgs e) => MainWindow.Of(this)?.Navigate("saoluu");
 
     private async void OnSaveSettings(object? sender, RoutedEventArgs e)
     {
@@ -236,38 +230,6 @@ public partial class BackupView : UserControl, IPage
         KhoLanh.Core.Modules.LegacyImporter.Result? r = null;
         if (await Ui.Run(this, () => r = App.Services.Legacy.Import(path)) && r is not null)
             await Ui.Message(this, $"Đã chép {r.Sheets} bảng, {r.Rows:#,0} dòng.\n\nMở lại các module để thấy dữ liệu.");
-    }
-
-    private async void OnBackup(object? sender, RoutedEventArgs e)
-    {
-        var path = await Ui.SaveFile(this, "Sao lưu dữ liệu", $"KhoLanh_SaoLuu_{DateTime.Now:yyyyMMdd_HHmm}.db", "db", "File sao lưu Kho Lạnh");
-        if (path is null) return;
-        if (await Ui.Run(this, () => App.Services.Backup.ManualBackup(path)))
-            await Ui.Message(this, $"Đã sao lưu ra:\n{path}");
-    }
-
-    private async void OnRestoreFile(object? sender, RoutedEventArgs e)
-    {
-        var path = await Ui.OpenFile(this, "Chọn file sao lưu", "db", "File sao lưu Kho Lạnh");
-        if (path is not null) await Restore(path);
-    }
-
-    private async void OnRestoreSelected(object? sender, RoutedEventArgs e)
-    {
-        if (Grid.SelectedItem is BackupRow r) await Restore(r.FullName);
-        else await Ui.Message(this, "Chọn một bản sao lưu trong danh sách trước.");
-    }
-
-    private async Task Restore(string path)
-    {
-        if (!await Ui.Confirm(this,
-                $"Khôi phục dữ liệu từ:\n{path}\n\nToàn bộ dữ liệu hiện tại sẽ được thay bằng bản sao lưu này. Phần mềm sẽ tự sao lưu bản hiện tại trước khi khôi phục, rồi yêu cầu đăng nhập lại.",
-                "Khôi phục dữ liệu", "Khôi phục")) return;
-        string safety = "";
-        if (!await Ui.Run(this, () => safety = App.Services.Backup.Restore(path))) return;
-        var main = MainWindow.Of(this);
-        await Ui.Message(this, $"Đã khôi phục xong. Bản dữ liệu trước khi khôi phục được giữ ở:\n{safety}\n\nVui lòng đăng nhập lại.");
-        main?.Logout();
     }
 
     // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------
