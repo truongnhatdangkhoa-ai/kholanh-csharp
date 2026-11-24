@@ -566,6 +566,25 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")
     s.Lan.Dispose(); Console.WriteLine("Xong (lt): " + outDir); return;
 }
 static string LtStoreDefault() => KhoLanh.Core.LuuTru.LtStore.DefaultNgan;
+// Kiểm tra lỗi "ComboBox already has a visual parent WrapPanel" (Trợ lý 24/11): Tồn kho An An › bảng lọc — vẽ lại khung điều kiện
+// nhiều lần (đổi bảng lọc + gọi lại RenderPl) phải không ném lỗi. SHOTS_ONLY=an-loc; thoát mã 1 nếu lỗi.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
+{
+    main.Navigate("m1"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+    var anv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.AnAnView>().First();
+    var plMod = (ComboBox)typeof(KhoLanh.App.Views.AnAnView).GetField("_plMod", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(anv)!;
+    try
+    {
+        anv.RenderPl(); anv.RenderPl();
+        var n = plMod.ItemCount;
+        for (var k = 0; k < Math.Max(2, n) * 2; k++) { plMod.SelectedIndex = k % Math.Max(1, n); Pump(); anv.RenderPl(); }
+        var bar = anv.CfBar();
+        Console.WriteLine($"[AN-LOC] đạt: vẽ lại {Math.Max(2, n) * 2 + 2} lần, thanh Thêm có {bar.Children.Count} ô, trong cây: {bar.GetVisualParent() is not null}");
+        Snap(main, "an-loc");
+    }
+    catch (Exception ex) { Console.WriteLine("[AN-LOC] LỖI: " + ex.GetType().Name + ": " + ex.Message); s.Lan.Dispose(); Environment.Exit(1); }
+    s.Lan.Dispose(); Console.WriteLine("Xong (an-loc): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })

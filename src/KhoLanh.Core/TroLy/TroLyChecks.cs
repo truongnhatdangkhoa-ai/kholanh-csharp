@@ -241,10 +241,23 @@ public static class TroLyChecks
     /// <summary>Kết quả thử mở bản sao lưu mới nhất (Quét sâu): Ok, lỗi, số bảng module, tổng dòng.</summary>
     public sealed record RestoreProbe(bool Ok, string Error, int Sheets, long Rows);
 
+    /// <summary>
+    /// Bản chụp an toàn "truoc-…" (truoc-doi-vai-… lúc máy nhận vai LAN mới, truoc-khoi-phuc_… lúc khôi phục): chụp dữ liệu CŨ ngay
+    /// trước khi bị thay hết, nên không dùng làm "bản sao lưu mới nhất" để so số dòng với dữ liệu hiện tại.
+    /// </summary>
+    public static bool IsSnapshot(string name) => name.StartsWith("truoc-", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Bản sao lưu đều đặn mới nhất (theo giờ sửa file), không có thì bản mới nhất bất kỳ. Trợ lý thử mở (Quét sâu) đúng bản này.</summary>
+    public static BackupFile? PickLatest(IEnumerable<BackupFile> backups)
+    {
+        var all = backups.OrderByDescending(b => b.Modified).ToList();
+        return all.FirstOrDefault(b => !IsSnapshot(b.Name)) ?? all.FirstOrDefault();
+    }
+
     public static List<Finding> CheckBackup(List<BackupFile> backups, long liveRows, RestoreProbe? probe, DateTime now, double staleDays = 2, double shrinkRatio = 0.5)
     {
         var o = new List<Finding>(); const string M = "Sao lưu tự động";
-        var latest = backups.OrderByDescending(b => b.Modified).FirstOrDefault();
+        var latest = PickLatest(backups);
         if (latest is null)
         {
             if (liveRows > 0) o.Add(Mk("sao-luu", "vang", M, "Chưa có bản sao lưu", $"Dữ liệu có {liveRows:#,0} dòng nhưng thư mục SaoLuu chưa có bản nào (app tự sao lưu mỗi ngày khi mở)."));
@@ -256,6 +269,10 @@ public static class TroLyChecks
         if (probe is not null)
         {
             if (!probe.Ok) o.Add(Mk("sao-luu", "do", M, "Thử phục hồi THẤT BẠI", "Không đọc được bản sao lưu mới nhất: " + probe.Error[..Math.Min(200, probe.Error.Length)], new[] { latest.Name }));
+            else if (liveRows > 20 && probe.Rows < liveRows * shrinkRatio && age < 1
+                     && backups.Where(b => IsSnapshot(b.Name) && b.Modified > latest.Modified).OrderByDescending(b => b.Modified).FirstOrDefault() is { } swap)
+                // Sau bản sao lưu đó máy đã đổi vai LAN / khôi phục (có bản chụp truoc-… mới hơn) → dữ liệu được thay hết, số dòng khác là đúng.
+                o.Add(Mk("sao-luu", "xanh", M, "Thử phục hồi đạt", $"Bản {latest.Name} đọc được: {probe.Sheets} bảng, {probe.Rows:#,0} dòng. Hiện có {liveRows:#,0} dòng vì dữ liệu đã được thay lúc {swap.Modified:dd/MM HH:mm} ({(swap.Name.StartsWith("truoc-doi-vai", StringComparison.OrdinalIgnoreCase) ? "máy nhận vai LAN mới, lấy dữ liệu máy chủ" : "khôi phục bản sao lưu")}); bản tự động của ngày mai sẽ chụp dữ liệu mới.", new[] { latest.Name, swap.Name }));
             else if (liveRows > 20 && probe.Rows < liveRows * shrinkRatio && age < 1)
                 o.Add(Mk("sao-luu", "vang", M, "Bản sao lưu ít dòng hơn nhiều so với dữ liệu hiện tại", $"Bản sao lưu {probe.Rows:#,0} dòng, hiện có {liveRows:#,0} dòng dù bản sao lưu mới (<1 ngày).", new[] { latest.Name }));
             else o.Add(Mk("sao-luu", "xanh", M, "Thử phục hồi đạt", $"Bản {latest.Name} đọc được: {probe.Sheets} bảng, {probe.Rows:#,0} dòng, kiểm tra toàn vẹn đạt."));
