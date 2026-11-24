@@ -9,6 +9,7 @@ function makeSheet() {
   const cells = [];
   const sh = {
     getLastRow: () => cells.length,
+    getLastColumn: () => cells.reduce((m, r) => Math.max(m, (r || []).length), 0),
     getRange: (r, c, nr, nc) => ({
       setValues(v) { for (let i = 0; i < nr; i++) { cells[r - 1 + i] = cells[r - 1 + i] || []; for (let j = 0; j < nc; j++) { let x = v[i][j]; if (typeof x === 'string' && x[0] === "'") x = x.slice(1); else if (typeof x === 'string' && x[0] === '=') x = '#ERROR!'; cells[r - 1 + i][c - 1 + j] = x; } } return this; },
       getValues() { const o = []; for (let i = 0; i < nr; i++) { const row = []; for (let j = 0; j < nc; j++) row.push(((cells[r - 1 + i] || [])[c - 1 + j]) ?? ''); o.push(row); } return o; },
@@ -46,4 +47,12 @@ assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'replaceAll', 
 l = post({ token: 'doc1', action: 'list' });
 assert.deepStrictEqual(l.users.map(x => x.username), ['x']);
 assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'replaceAll', users: [] }).ok, false);
+// 1.59: cột email_google — lưu / đọc được, Sheet tạo bằng bản cũ (9 cột) tự thêm tiêu đề cột mới, dữ liệu cũ giữ nguyên.
+assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'save', user: { ...u('NV9'), email_google: 'nv9@gmail.com' } }).ok, true);
+assert.strictEqual(post({ token: 'doc1', action: 'list' }).users.find(x => x.username === 'NV9').email_google, 'nv9@gmail.com');
+for (const r of sheet.cells) r.length = 9;
+const l2 = post({ token: 'doc1', action: 'list' });
+assert.strictEqual(sheet.cells[0][9], 'email_google');
+assert.strictEqual(l2.users.find(x => x.username === 'NV9').email_google, '');
+assert.strictEqual(l2.users.find(x => x.username === 'NV9').muoi, 'h:cd');
 console.log('TaiKhoan.gs: tất cả kiểm tra đạt');

@@ -84,6 +84,15 @@ public class AccountSyncService
         return ScriptTemplate().Replace("__MA_DOC__", tok).Replace("__MA_QUAN_TRI__", adm);
     }
 
+    /// <summary>Nội dung Apps Script BẢN MỚI nhưng GIỮ 2 mã đang dùng (1.59: thêm cột email_google) — dán đè vào Apps Script rồi
+    /// Triển khai › Quản lý triển khai › Phiên bản mới; đường dẫn và các máy giữ nguyên. Chỉ máy quản trị đã mở khóa ghi.</summary>
+    public string UpgradeScript()
+    {
+        _session.RequireAdmin();
+        if (!CanWrite) throw new BusinessException("Máy này chưa mở khóa ghi tài khoản dùng chung (cần mã quản trị) nên không tạo được mã cập nhật.");
+        return ScriptTemplate().Replace("__MA_DOC__", Token).Replace("__MA_QUAN_TRI__", AdminKey);
+    }
+
     internal static string ScriptTemplate()
     {
         using var s = typeof(AccountSyncService).Assembly.GetManifestResourceStream("KhoLanh.Core.Accounts.TaiKhoan.gs")
@@ -229,11 +238,12 @@ public class AccountSyncService
         {
             names.Add(u.Username.ToLowerInvariant());
             var n = c.Execute("""
-                UPDATE users SET full_name=@FullName, password_hash=@PasswordHash, salt=@Salt, role=@Role, is_active=@IsActive, permissions=@Permissions
+                UPDATE users SET full_name=@FullName, password_hash=@PasswordHash, salt=@Salt, role=@Role, is_active=@IsActive, permissions=@Permissions,
+                    google_email=COALESCE(@GoogleEmail, google_email)
                 WHERE username=@Username COLLATE NOCASE
                 """, u, tx);
             if (n == 0)
-                c.Execute("INSERT INTO users(username, full_name, password_hash, salt, role, is_active, permissions) VALUES(@Username, @FullName, @PasswordHash, @Salt, @Role, @IsActive, @Permissions)", u, tx);
+                c.Execute("INSERT INTO users(username, full_name, password_hash, salt, role, is_active, permissions, google_email) VALUES(@Username, @FullName, @PasswordHash, @Salt, @Role, @IsActive, @Permissions, COALESCE(@GoogleEmail, ''))", u, tx);
         }
         foreach (var local in c.Query<string>("SELECT username FROM users", transaction: tx).ToList())
             if (!names.Contains(local.ToLowerInvariant()))
@@ -448,6 +458,7 @@ public class AccountSyncService
         ["vai_tro"] = u.Role,
         ["dang_dung"] = u.IsActive ? "1" : "0",
         ["quyen"] = u.Permissions,
+        ["email_google"] = u.GoogleEmail ?? "",
         // Băm / muối gửi dạng "h:" + hex để Google Sheet không hiểu nhầm thành số hay công thức.
         ["mat_khau_bam"] = "h:" + Convert.ToHexString(Convert.FromBase64String(u.PasswordHash)).ToLowerInvariant(),
         ["muoi"] = "h:" + Convert.ToHexString(Convert.FromBase64String(u.Salt)).ToLowerInvariant(),
@@ -478,6 +489,8 @@ public class AccountSyncService
         {
             Username = name, FullName = S("ho_ten").Trim(), Role = role, PasswordHash = hash, Salt = salt,
             IsActive = act is "1" or "true" or "có", Permissions = role == Roles.Admin ? "" : perms,
+            // Sheet có cột email_google (TaiKhoan.gs 1.59+) → lấy theo Sheet; Sheet cũ chưa có cột → null = giữ email trong máy.
+            GoogleEmail = o.ContainsKey("email_google") ? GoogleSignIn.NormEmail(S("email_google")) : null,
         };
     }
 

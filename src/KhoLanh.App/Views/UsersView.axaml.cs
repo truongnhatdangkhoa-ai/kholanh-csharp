@@ -31,7 +31,7 @@ public partial class UsersView : UserControl, IPage
     /// <summary>1 dòng bảng danh sách (kèm vai máy LAN theo phân vai tài khoản).</summary>
     public sealed record Row(User U, string LanLabel)
     {
-        public string Username => U.Username; public string FullName => U.FullName; public string RoleLabel => U.RoleLabel; public string StatusLabel => U.StatusLabel;
+        public string Username => U.Username; public string FullName => U.FullName; public string RoleLabel => U.RoleLabel; public string StatusLabel => U.StatusLabel; public string GoogleEmail => U.GoogleEmail ?? "";
     }
 
     private static string LanRoleOf(string user)
@@ -57,6 +57,7 @@ public partial class UsersView : UserControl, IPage
         FormTitle.Text = isNew ? "Tài khoản mới" : $"Sửa tài khoản {u.Username}";
         UserBox.Text = u.Username; UserBox.IsReadOnly = !isNew;
         NameBox.Text = u.FullName;
+        GoogleBox.Text = u.GoogleEmail ?? "";
         RoleBox.SelectedIndex = u.Role switch { Roles.Admin => 2, Roles.Manager => 1, _ => 0 };
         PassPanel.IsVisible = isNew; PassBox.Text = "";
         ActiveBox.IsChecked = u.IsActive;
@@ -172,7 +173,7 @@ public partial class UsersView : UserControl, IPage
         if (!await EnsureWrite()) return;
         var role = SelectedRole;
         var perms = PermissionsToSave();
-        var editing = _editing; var user = UserBox.Text ?? ""; var name = NameBox.Text ?? ""; var pass = PassBox.Text ?? ""; var active = ActiveBox.IsChecked == true;
+        var editing = _editing; var user = UserBox.Text ?? ""; var name = NameBox.Text ?? ""; var pass = PassBox.Text ?? ""; var active = ActiveBox.IsChecked == true; var gmail = GoogleBox.Text ?? "";
         // Chạy nền: khi dùng chung tài khoản, mỗi thay đổi được ghi lên Google Sheet (vài giây) — không làm đơ cửa sổ.
         var ok = await Ui.RunAsync(this, () => Task.Run(() =>
         {
@@ -180,11 +181,13 @@ public partial class UsersView : UserControl, IPage
             {
                 var u = App.Services.Auth.CreateUser(user, name, pass, role, perms);
                 if (!active) App.Services.Auth.UpdateUser(u.Id, u.FullName, role, false);
+                App.Services.Auth.SetGoogleEmail(u.Id, gmail);
             }
             else
             {
                 App.Services.Auth.UpdateUser(editing.Id, name, role, active);
                 App.Services.Auth.SetPermissions(editing.Id, perms);
+                App.Services.Auth.SetGoogleEmail(editing.Id, gmail);
             }
         }));
         if (ok && App.Services.Accounts.Enabled)
@@ -200,6 +203,35 @@ public partial class UsersView : UserControl, IPage
                 }));
         }
         if (ok) { Load(); Tabs.SelectedIndex = 0; Edit(new User()); }
+    }
+
+    /// <summary>Mã OAuth cho "Đăng nhập bằng Google" trên máy này (Client ID cài sẵn = mã Desktop của dự án kholanhcloud; Client secret quản trị dán 1 lần).</summary>
+    private async void OnGoogleConfig(object? sender, RoutedEventArgs e)
+    {
+        var g = App.Services.Google;
+        var id = new TextBox { Text = g.ClientId };
+        var sec = new TextBox { PasswordChar = '•', Watermark = g.ClientSecret.Length > 0 ? "(đã lưu — để trống = giữ nguyên)" : "GOCSPX-…" };
+        var msg = new TextBlock { FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Tag = "keep" };
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep",
+            Text = "Mã OAuth loại Desktop trong Google Cloud (dự án kholanhcloud › APIs & Services › Credentials › kholanhanan). Client ID đã cài sẵn; chỉ cần dán Client secret một lần trên mỗi máy. Sau đó gán Email Google cho từng tài khoản." });
+        body.Children.Add(new TextBlock { Text = "Client ID", Classes = { "label" } }); body.Children.Add(id);
+        body.Children.Add(new TextBlock { Text = "Client secret", Classes = { "label" } }); body.Children.Add(sec);
+        body.Children.Add(msg);
+        var test = new Button { Content = "Thử đăng nhập Google" }; var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var close = new Button { Content = "Đóng", IsCancel = true };
+        body.Children.Add(Ui.Buttons(test, close, ok));
+        var w = Ui.Dialog("Đăng nhập Google", body, 540);
+        bool Apply() { try { g.SaveConfig(id.Text ?? "", sec.Text ?? ""); sec.Text = ""; return true; } catch (Exception ex) { msg.Foreground = AppTheme.Danger; msg.Text = ex.Message; return false; } }
+        ok.Click += (_, _) => { if (Apply()) w.Close(); };
+        close.Click += (_, _) => w.Close();
+        test.Click += async (_, _) =>
+        {
+            if (!Apply()) return;
+            msg.Foreground = AppTheme.Muted; msg.Text = "Đang mở trình duyệt — chọn tài khoản Google…";
+            try { var r = await g.SignInAsync(Ui.OpenExternal); msg.Foreground = AppTheme.Brush("#1E7B4A"); msg.Text = $"✔ Đăng nhập được: {r.Email}" + (r.Name.Length > 0 ? $" ({r.Name})" : ""); }
+            catch (Exception ex) { msg.Foreground = AppTheme.Danger; msg.Text = ex.Message; }
+        };
+        await Ui.Show(this, w);
     }
 
     private async void OnReset(object? sender, RoutedEventArgs e)

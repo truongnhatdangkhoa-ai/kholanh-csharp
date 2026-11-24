@@ -94,6 +94,15 @@ public class Database
             c.Execute("ALTER TABLE lan_pending ADD COLUMN prev_ops TEXT NOT NULL DEFAULT '[]';", transaction: tx);
             c.Execute("PRAGMA user_version = 5;", transaction: tx);
             tx.Commit();
+            version = 5;
+        }
+        if (version < 6)
+        {
+            // v6 (1.59): email Google của tài khoản — đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt.
+            using var tx = c.BeginTransaction();
+            c.Execute("ALTER TABLE users ADD COLUMN google_email TEXT NOT NULL DEFAULT '';", transaction: tx);
+            c.Execute("PRAGMA user_version = 6;", transaction: tx);
+            tx.Commit();
         }
     }
 

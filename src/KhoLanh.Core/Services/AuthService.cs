@@ -58,6 +58,42 @@ public class AuthService
         return u;
     }
 
+    /// <summary>Đăng nhập bằng email Google đã xác minh (1.59): tìm tài khoản đang dùng được gán đúng email đó.</summary>
+    public User LoginGoogle(string email)
+    {
+        email = GoogleSignIn.NormEmail(email);
+        using var c = _db.Open();
+        var list = c.Query<User>("SELECT * FROM users WHERE google_email=@email COLLATE NOCASE AND google_email<>''", new { email }).ToList();
+        if (list.Count == 0)
+        {
+            _audit.Log(email, "Đăng nhập Google không có tài khoản", "");
+            throw new BusinessException($"Tài khoản Google {email} chưa được gán cho tài khoản nào. Nhờ Quản trị gán ở Hệ thống › Tài khoản (ô Email Google).");
+        }
+        var u = list.FirstOrDefault(x => x.IsActive) ?? throw new BusinessException("Tài khoản gán với Google này đã bị khóa. Liên hệ Quản trị.");
+        _session.CurrentUser = u;
+        _audit.Log(u.Username, "Đăng nhập Google", email);
+        Sync?.AfterLogout();   // không có mật khẩu: máy quản trị chưa mở khóa ghi tài khoản dùng chung trong phiên này
+        return u;
+    }
+
+    /// <summary>Gán / bỏ email Google cho tài khoản (chỉ Quản trị); 1 email chỉ gán cho 1 tài khoản.</summary>
+    public void SetGoogleEmail(long id, string email)
+    {
+        _session.RequireAdmin();
+        email = GoogleSignIn.NormEmail(email);
+        if (email.Length > 0 && !GoogleSignIn.LooksLikeEmail(email)) throw new BusinessException("Email Google không hợp lệ.");
+        using var c = _db.Open();
+        var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        if ((u.GoogleEmail ?? "") == email) return;
+        if (email.Length > 0 && c.QuerySingleOrDefault<string>("SELECT username FROM users WHERE google_email=@email COLLATE NOCASE AND id<>@id", new { email, id }) is { } other)
+            throw new BusinessException($"Email {email} đã gán cho tài khoản {other}.");
+        u.GoogleEmail = email;
+        Sync?.BeforeSave(u);
+        c.Execute("UPDATE users SET google_email=@email WHERE id=@id", new { id, email });
+        _audit.Log(_session.Username, "Gán email Google", $"{u.Username}: {(email.Length == 0 ? "(bỏ)" : email)}");
+        if (_session.CurrentUser?.Id == id) _session.CurrentUser.GoogleEmail = email;
+    }
+
     public void Logout()
     {
         if (_session.CurrentUser is not null) _audit.Log(_session.Username, "Đăng xuất", "");
