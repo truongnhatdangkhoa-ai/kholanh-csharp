@@ -70,6 +70,7 @@ public partial class MainWindow : Window
                 new NavItem("m3sk", "NXT Bột/Sốt", () => new SoKhoView()),
                 new NavItem("m1vtb", "Vị Trí Bột", () => new VtbView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
+                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
             }),
             ("CHỨC NĂNG", new[]
             {
@@ -83,7 +84,6 @@ public partial class MainWindow : Window
             }),
             ("CHỨNG TỪ", new[]
             {
-                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
                 new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
                 new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
             }),
@@ -239,7 +239,7 @@ public partial class MainWindow : Window
 
     private void BuildSide()
     {
-        NavPanel.Children.Clear(); _side.Clear(); _groupHeads.Clear(); _buttons.Clear();
+        NavPanel.Children.Clear(); _side.Clear(); _groupHeads.Clear(); _buttons.Clear(); _groups.Clear();
         var first = true;
         foreach (var (group, items) in _menu)
         {
@@ -248,7 +248,23 @@ public partial class MainWindow : Window
             // nhóm 1 mục (Tổng quan, Nhập liệu) không cần tiêu đề nhóm
             if (visible.Count > 1 || !first)
             {
-                var head = new TextBlock { Text = group, Classes = { "sidegrp" } };
+                Control head;
+                if (Accordion.Contains(group))
+                {
+                    // nhóm xếp gọn: bấm tên nhóm để mở / đóng; chỉ mở nhóm chứa màn hình đang dùng
+                    var chev = Controls.Icon.Make("chevron-down", 13);
+                    var cnt = new TextBlock { FontSize = 10.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = AppTheme.Brush("#F0A23A"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 6, 0) };
+                    var hg = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+                    hg.Children.Add(new TextBlock { Text = group, FontSize = 10.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, LetterSpacing = 0.8, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+                    Grid.SetColumn(cnt, 1); hg.Children.Add(cnt);
+                    Grid.SetColumn(chev, 2); hg.Children.Add(chev);
+                    var hb = new Button { Classes = { "sidegrphead" }, Content = hg };
+                    var g = group;
+                    hb.Click += (_, _) => { _openGroup = _openGroup == g ? null : g; ApplyAccordion(); };
+                    _groups[group] = (hb, chev, cnt, visible.Select(i => i.Key).ToList());
+                    head = hb;
+                }
+                else head = new TextBlock { Text = group, Classes = { "sidegrp" } };
                 var line = new Border { Classes = { "sideline" } };
                 _groupHeads.Add(head); _groupHeads.Add(line);
                 if (visible.Count > 1) { NavPanel.Children.Add(head); NavPanel.Children.Add(line); }
@@ -274,6 +290,26 @@ public partial class MainWindow : Window
             }
         }
         if (_current.Length > 0 && _buttons.TryGetValue(_current, out var cur)) cur.Classes.Add("active");
+        ApplyAccordion();
+    }
+
+    /// <summary>Nhóm menu xếp gọn (tự thu lại, chỉ mở nhóm chứa màn hình đang dùng). Tổng quan / Nhập liệu / Tồn kho luôn mở.</summary>
+    private static readonly HashSet<string> Accordion = new() { "CHỨC NĂNG", "CHỨNG TỪ", "CÔNG CỤ", "HỆ THỐNG" };
+    private readonly Dictionary<string, (Button Head, Control Chevron, TextBlock Count, List<string> Keys)> _groups = new();
+    private string? _openGroup;
+
+    /// <summary>Ẩn / hiện các mục theo nhóm đang mở. Khi thanh bên thu gọn (chỉ biểu tượng) thì hiện tất cả.</summary>
+    private void ApplyAccordion()
+    {
+        foreach (var (g, x) in _groups)
+        {
+            var open = _mini || g == _openGroup;
+            foreach (var k in x.Keys) if (_side.TryGetValue(k, out var it)) it.B.IsVisible = open;
+            x.Chevron.RenderTransform = open ? null : new Avalonia.Media.RotateTransform(-90);
+            // nhóm đang thu: hiện tổng số việc cần xử lý của các mục bên trong
+            var n = x.Keys.Sum(k => _side.TryGetValue(k, out var it) && it.Badge.Child is TextBlock t && int.TryParse((t.Text ?? "").TrimEnd('+'), out var v) ? v : 0);
+            x.Count.Text = !open && n > 0 ? n.ToString() : "";
+        }
     }
 
     /// <summary>Thu gọn (chỉ biểu tượng) / mở rộng thanh bên; lưu theo tài khoản trên máy này.</summary>
@@ -284,6 +320,7 @@ public partial class MainWindow : Window
         LogoText.IsVisible = !mini;
         LogoRow.Margin = mini ? new Avalonia.Thickness(15, 14, 0, 10) : new Avalonia.Thickness(14, 14, 10, 10);
         foreach (var c in _groupHeads) c.Classes.Set("mini", mini);
+        ApplyAccordion();
         foreach (var (key, x) in _side)
         {
             x.Name.IsVisible = !mini;
@@ -311,6 +348,7 @@ public partial class MainWindow : Window
         if (x.Badge.Child is TextBlock t) t.Text = n > 0 ? (n > 99 ? "99+" : n.ToString()) : "";
         x.Badge.IsVisible = !_mini && n > 0; x.Dot.IsVisible = _mini && n > 0;
         if (_mini) ToolTip.SetTip(x.B, x.Label + (n > 0 ? $" · {n} cần xử lý" : ""));
+        ApplyAccordion();
     }
 
     private static string GroupLabel(string group) =>
@@ -330,6 +368,8 @@ public partial class MainWindow : Window
         PageHost.Content = page;
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
         foreach (var (k, b) in _buttons) { if (k == key) b.Classes.Add("active"); else b.Classes.Remove("active"); }
+        _openGroup = _groups.FirstOrDefault(g => g.Value.Keys.Contains(key)).Key;   // nhóm khác (Tồn kho…) → thu hết các nhóm xếp gọn
+        ApplyAccordion();
         _current = key;
     }
 
