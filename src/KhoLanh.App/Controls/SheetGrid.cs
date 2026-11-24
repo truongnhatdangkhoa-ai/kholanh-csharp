@@ -47,6 +47,8 @@ public sealed class SheetGrid : UserControl
     public Func<int, int, string, string>? Display { get; set; }
     /// <summary>Màu nền riêng từng ô (null = mặc định).</summary>
     public Func<int, int, IBrush?>? CellBackground { get; set; }
+    /// <summary>Màu chữ riêng từng ô (null = mặc định) — vd dòng đã khóa hiện mờ.</summary>
+    public Func<int, int, IBrush?>? CellForeground { get; set; }
     public event Action? SelectionChanged;
     /// <summary>Đổi bộ lọc cột (dòng tìm kiếm / danh sách lọc).</summary>
     public event Action? FilterChanged;
@@ -316,7 +318,7 @@ public sealed class SheetGrid : UserControl
         if (_editing) Commit(0, 0);
         var g = new SheetGrid(Model)
         {
-            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CanEnlarge = false,
+            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
             CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
@@ -960,7 +962,7 @@ public sealed class SheetGrid : UserControl
                         if (shown.Length == 0) continue;
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
-                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, Text);
+                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, _g.CellForeground?.Invoke(mr, c) ?? Text);
                         var num = m.Columns[c].Type == "number" || (m.Columns[c].Type == "text" && LooksNumber(raw));
                         var tx = num ? cx + cw - ft.Width - 6 : cx + 6;
                         using (dc.PushClip(rect.Deflate(new Thickness(2, 0))))

@@ -590,6 +590,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu-phai")
 {
     var n = 0;
+    try { s.AnAn.AssignGroup(new[] { "IQF" }, KhoLanh.Core.TonKho.AnAnData.HlsoColumns[0]); } catch (Exception ex) { Console.WriteLine("[MENU-PHAI] gộp thử: " + ex.Message); }
     foreach (var key in new[] { "m2", "m1" })
     {
         main.Navigate(key); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
@@ -601,6 +602,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu-phai")
                 for (var u = 0; u < sub.ItemCount; u++)
                 {
                     sub.SelectedIndex = u; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); }
+                    if (u == 0 && (tabs.Items[t] as TabItem)?.Header?.ToString() is { } th && th.Contains("Đặc", StringComparison.OrdinalIgnoreCase))
+                        Snap(main, $"dac-tinh-khoa-{key}");   // 1.69: đặc tính đã gộp hiện mờ (khóa)
                     foreach (var g in main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList())
                     {
                         var surf = g.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null);

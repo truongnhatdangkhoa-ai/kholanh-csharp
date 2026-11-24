@@ -777,19 +777,31 @@ public sealed class AnAnView : UserControl, IPage
     private List<AnAnData.DtRow> _dtRows = new();
     private readonly TextBlock _dtStats = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
 
+    private static readonly IBrush LockedBg = AppTheme.Brush("#EEF1F5"), LockedFg = AppTheme.Brush("#9AA5B1");
+
     private Control BuildDt()
     {
-        _dtg = new SheetGrid(_dtm) { SpareRows = 0, CellBackground = (r, _) => r < _dtRows.Count && !_dtRows[r].Present ? WarnBg : r < _dtRows.Count && D.GroupOf(_dtRows[r].Label) is not null ? ManualBg : null };
+        // 1.69: đặc tính đã gộp = KHÓA (nền xám, chữ mờ; "Gộp dòng chọn" bỏ qua) — "Bỏ gộp dòng chọn" để mở khóa
+        bool Locked(int r) => r < _dtRows.Count && D.GroupOf(_dtRows[r].Label) is not null;
+        _dtg = new SheetGrid(_dtm)
+        {
+            SpareRows = 0,
+            CellBackground = (r, _) => r < _dtRows.Count && !_dtRows[r].Present ? WarnBg : Locked(r) ? LockedBg : null,
+            CellForeground = (r, _) => Locked(r) ? LockedFg : null,
+        };
         var bar = Bar();
         if (_edit)
         {
             bar.Children.Add(Btn("Gộp dòng chọn vào nhóm…", async () =>
             {
-                var labels = SelectedDt();
-                if (labels.Count == 0) { await Ui.Message(this, "Bôi đen các đặc tính cần gộp."); return; }
+                var sel = SelectedDt();
+                if (sel.Count == 0) { await Ui.Message(this, "Bôi đen các đặc tính cần gộp."); return; }
+                var labels = sel.Where(l => D.GroupOf(l) is null).ToList();
+                if (labels.Count == 0) { await Ui.Message(this, "Các đặc tính đã chọn đều ĐÃ GỘP (đang khóa, hiện mờ). Muốn gộp lại vào nhóm khác: bấm “Bỏ gộp dòng chọn” trước."); return; }
+                var skip = sel.Count - labels.Count;
                 var r = await Ui.Choose(this, $"Gộp {labels.Count} đặc tính vào nhóm:", "Gộp đặc tính", AnAnData.HlsoColumns.ToList());
                 if (r is null) return;
-                await Act(() => Svc.AssignGroup(labels, AnAnData.HlsoColumns[r.Value.Index]), $"Đã gộp {labels.Count} đặc tính vào {AnAnData.HlsoColumns[r.Value.Index]}");
+                await Act(() => Svc.AssignGroup(labels, AnAnData.HlsoColumns[r.Value.Index]), $"Đã gộp {labels.Count} đặc tính vào {AnAnData.HlsoColumns[r.Value.Index]}" + (skip > 0 ? $" (bỏ qua {skip} đặc tính đã gộp — đang khóa)" : ""));
             }, primary: true));
             bar.Children.Add(Btn("Bỏ gộp dòng chọn", async () =>
             {
@@ -827,7 +839,7 @@ public sealed class AnAnView : UserControl, IPage
         _dtm.Load(new[] { new GridColumn("l", "Đặc Tính", 220), new GridColumn("n", "Số dòng", 75, "number"), new GridColumn("w", "Trọng lượng (kg)", 130, "number"), new GridColumn("g", "Nhóm đã gộp", 200) },
             _dtRows.Select(r => new[] { r.Label, r.Present ? N(r.Count) : "", r.HasWeight ? Kg(r.Weight) : "", D.GroupOf(r.Label) ?? "" }));
         _dtg.Refresh();
-        _dtStats.Text = $"{N(_dtRows.Count)} đặc tính · {N(_dtRows.Count(r => D.GroupOf(r.Label) is not null))} đã gộp · nền cam = không còn trong dữ liệu hiện tại, xanh = đã gộp";
+        _dtStats.Text = $"{N(_dtRows.Count)} đặc tính · {N(_dtRows.Count(r => D.GroupOf(r.Label) is not null))} đã gộp · nền cam = không còn trong dữ liệu hiện tại, xám mờ = đã gộp (đang khóa — bỏ gộp để sửa)";
         var rows = new List<string[]>();
         foreach (var g in AnAnData.HlsoColumns)
         {

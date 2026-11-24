@@ -530,6 +530,8 @@ public sealed class GuiView : UserControl, IPage
     private List<string> _dtVals = new(); private TabControl _dtTabs = null!;
     private readonly GridModel _dmm = new() { ReadOnly = true }; private SheetGrid _dmg = null!;
 
+    private static readonly IBrush LockedBg = AppTheme.Brush("#EEF1F5"), LockedFg = AppTheme.Brush("#9AA5B1");
+
     private Control BuildDt()
     {
         // --- nhập tay
@@ -552,7 +554,9 @@ public sealed class GuiView : UserControl, IPage
         if (_export) mbar.Children.Add(Btn("⬇ Xuất Excel", async () => await SaveXlsx(GuiExport.DacTinhManual(D), "dac-tinh-nhap-tay.xlsx")));
         var manual = Page(new StackPanel { Children = { mbar, _dtPaste, Muted("Bảng này dùng để đổi mã đặc tính trong Tên hàng: “0083” → “83.EU-H-M” (khớp phần trước dấu chấm, bỏ số 0 đầu). Không có trong bảng thì giữ nguyên.") } }, Framed(_dmg));
         // --- gộp
-        _dtg = new SheetGrid(_dtm) { SpareRows = 0, CellBackground = (r, c) => c == 2 && r < _dtVals.Count && D.DtGroupMap.ContainsKey(_dtVals[r]) ? OkBg : null };
+        // 1.69: đặc tính đã gộp = KHÓA (nền xám, chữ mờ; "Gộp dòng chọn" bỏ qua) — "Bỏ gộp dòng chọn" để mở khóa
+        bool Locked(int r) => r < _dtVals.Count && D.DtGroupMap.ContainsKey(_dtVals[r]);
+        _dtg = new SheetGrid(_dtm) { SpareRows = 0, CellBackground = (r, _) => Locked(r) ? LockedBg : null, CellForeground = (r, _) => Locked(r) ? LockedFg : null };
         _dgg = new SheetGrid(_dgm) { SpareRows = 0 };
         _dtFilter.ItemsSource = new[] { "Tất cả", "Chưa gộp", "Đã gộp" }; _dtFilter.SelectedIndex = 0; _dtGroup.ItemsSource = GuiData.DtGroups.ToList(); _dtGroup.SelectedIndex = 0;
         _dtFilter.SelectionChanged += (_, _) => { if (!_loading) RenderDt(); }; _dtQ.TextChanged += (_, _) => { if (!_loading) RenderDt(); };
@@ -562,9 +566,12 @@ public sealed class GuiView : UserControl, IPage
             gbar.Children.Add(Label("Gộp vào nhóm:")); gbar.Children.Add(_dtGroup);
             gbar.Children.Add(Btn("Gộp dòng chọn", async () =>
             {
-                var s = _dtg.Selection; var vs = Enumerable.Range(s.R1, s.Rows).Where(r => r >= 0 && r < _dtVals.Count).Select(r => _dtVals[r]).ToList();
-                if (vs.Count == 0) { await Ui.Message(this, "Bôi đen các dòng đặc tính cần gộp."); return; }
-                await Act(() => Svc.MergeGroup(vs, GuiData.DtGroups[Math.Max(0, _dtGroup.SelectedIndex)]), "Đã gộp đặc tính");
+                var s = _dtg.Selection; var sel = Enumerable.Range(s.R1, s.Rows).Where(r => r >= 0 && r < _dtVals.Count).Select(r => _dtVals[r]).ToList();
+                if (sel.Count == 0) { await Ui.Message(this, "Bôi đen các dòng đặc tính cần gộp."); return; }
+                var vs = sel.Where(v => !D.DtGroupMap.ContainsKey(v)).ToList();
+                if (vs.Count == 0) { await Ui.Message(this, "Các đặc tính đã chọn đều ĐÃ GỘP (đang khóa, hiện mờ). Muốn gộp lại vào nhóm khác: bấm “Bỏ gộp dòng chọn” trước."); return; }
+                var skip = sel.Count - vs.Count;
+                await Act(() => Svc.MergeGroup(vs, GuiData.DtGroups[Math.Max(0, _dtGroup.SelectedIndex)]), $"Đã gộp {vs.Count} đặc tính" + (skip > 0 ? $" (bỏ qua {skip} đặc tính đã gộp — đang khóa)" : ""));
             }, primary: true, tip: "Bôi đen các dòng chưa gộp rồi chọn nhóm"));
             gbar.Children.Add(Btn("Bỏ gộp dòng chọn", async () =>
             {
