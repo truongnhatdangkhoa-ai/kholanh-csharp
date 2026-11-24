@@ -55,6 +55,19 @@ public class PhoneSyncTests : IDisposable
         _s.Phone.Save("https://script.google.com/macros/s/X/exec", "TK");
         return new PhoneSyncService(_s, new KhoLanh.Core.Services.PhoneWebApp(_s.Settings, _fake)) { Now = () => new DateTime(2026, 11, 24, 9, 0, 0, DateTimeKind.Utc) };
     }
+    [Fact]
+    public void Duong_dan_Web_App_cai_san_chi_can_nhap_ma()
+    {
+        var w = new KhoLanh.Core.Services.PhoneWebApp(_s.Settings);
+        w.Clear();
+        Assert.Equal(KhoLanh.Core.Services.PhoneWebApp.DefaultUrl, w.Url);
+        Assert.Null(KhoLanh.Core.Services.PhoneWebApp.CheckUrl(w.Url));
+        Assert.False(w.Enabled);                      // chưa có mã
+        w.Save("", "PC-ma");                          // để trống đường dẫn = dùng link cài sẵn
+        Assert.True(w.Enabled); Assert.False(w.CustomUrl);
+        w.Save("https://script.google.com/macros/s/KHAC/exec", "PC-ma");
+        Assert.True(w.CustomUrl); Assert.EndsWith("/KHAC/exec", w.Url);
+    }
     private PhoneSyncService Svc() => Seed();
     private List<Dictionary<string, string>> Tab(string n) { var t = _fake.Tabs[n]; return t.Rows.Select(r => t.H.Select((h, i) => (h, v: r[i]?.ToString() ?? "")).ToDictionary(x => x.h, x => x.v)).ToList(); }
 

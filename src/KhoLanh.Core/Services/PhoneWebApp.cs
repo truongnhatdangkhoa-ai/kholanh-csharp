@@ -13,6 +13,9 @@ namespace KhoLanh.Core.Services;
 public sealed class PhoneWebApp
 {
     public const string KeyUrl = "phone_webapp_url", KeyToken = "phone_pc_token";
+    /// <summary>1.58: Web App của Google Sheet MỚI (hệ thống app PC C# + app điện thoại kholanh-csharp-mobile) — cài sẵn, máy chưa
+    /// lưu đường dẫn riêng thì dùng link này; người dùng chỉ nhập mã PC_TOKEN. KHÔNG phải Sheet của app cũ.</summary>
+    public const string DefaultUrl = "https://script.google.com/macros/s/AKfycbyUgzXV6Nvkurd6QSuqHpvMHOwbzP5zKsXb19flE8HgAL3U_RxcyhTw0uwk_usUIqdr/exec";
     /// <summary>Tiêu đề 2 tab phiếu xuất — PHẢI khớp PX_HEADERS / PXI_HEADERS trong Code.gs.</summary>
     public static readonly string[] PhieuHeaders = { "id", "maPhieu", "ngayTao", "trangThai", "nguoiTao", "ghiChu", "xuLyLuc", "module", "lsxXuat" };
     public static readonly string[] PhieuItemHeaders = { "phieuId", "maHang", "tenHang", "phieuNhap", "soLo", "size", "soKien", "soLuongXuat", "itemKey", "rowIndex", "hopDong", "viTri" };
@@ -22,7 +25,8 @@ public sealed class PhoneWebApp
     private readonly HttpMessageHandler? _handler;
     public PhoneWebApp(SettingsService settings, HttpMessageHandler? handler = null) { _settings = settings; _handler = handler; }
 
-    public string Url => _settings.Get(KeyUrl);
+    public string Url => _settings.Get(KeyUrl) is { Length: > 0 } u ? u : DefaultUrl;
+    public bool CustomUrl => _settings.Get(KeyUrl) is { Length: > 0 } u && u != DefaultUrl;
     public string Token => Secret.Unprotect(_settings.Get(KeyToken));
     public bool Enabled => Url.Length > 0 && Token.Length > 0;
 
@@ -34,6 +38,7 @@ public sealed class PhoneWebApp
     }
     public void Save(string url, string token)
     {
+        if (url.Trim().Length == 0) url = DefaultUrl;
         if (CheckUrl(url) is { } err) throw new BusinessException(err);
         if (token.Trim().Length == 0) throw new BusinessException("Chưa nhập mã PC_TOKEN.");
         _settings.Set(KeyUrl, url.Trim()); _settings.Set(KeyToken, Secret.Protect(token.Trim()));
