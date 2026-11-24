@@ -41,10 +41,15 @@ public sealed class ViTriView : UserControl, IPage
     private readonly TabControl _tabs;
 
     // ---------- tab Tồn theo vị trí
-    private readonly TextBox _q = new() { Watermark = "Tìm mã, vị trí, đặc tính, size… (VD: 31/40 A.02)", Width = 330 };
+    private readonly TextBox _q = new() { Watermark = "Tìm: BTP 50 MKS Nau, mã, vị trí, lô… (gõ “BTP 50” chỉ ra đúng size BTP 50)", Width = 330 };
     private readonly ComboBox _zone = new() { MinWidth = 110 };
     private readonly CheckBox _onlyStock = new() { Content = "Chỉ ô còn tồn", IsChecked = true, FontSize = 12.5 };
     private readonly CheckBox _onlyPick = new() { Content = "Chỉ dòng đang xuất", FontSize = 12.5 };
+    private readonly CheckBox _onlyPos = new()
+    {
+        Content = "Lọc vị trí đang chọn", FontSize = 12.5,
+        [ToolTip.TipProperty] = "Hiện mọi mã hàng còn tồn ở các vị trí đã có dòng đang xuất (kể cả mã chưa chọn) — bỏ qua ô tìm và Khu.",
+    };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _gm = new();
     private readonly SheetGrid _grid;
@@ -253,11 +258,12 @@ public sealed class ViTriView : UserControl, IPage
     {
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_q); bar.Children.Add(Label("Khu:")); bar.Children.Add(_zone);
-        bar.Children.Add(_onlyStock); bar.Children.Add(_onlyPick); bar.Children.Add(_gridInfo);
+        bar.Children.Add(_onlyStock); bar.Children.Add(_onlyPick); bar.Children.Add(_onlyPos); bar.Children.Add(_gridInfo);
         _q.TextChanged += (_, _) => { if (!_loading) RenderStock(); };
         _zone.SelectionChanged += (_, _) => { if (!_loading) RenderStock(); };
         _onlyStock.IsCheckedChanged += (_, _) => { if (!_loading) RenderStock(); };
-        _onlyPick.IsCheckedChanged += (_, _) => { if (!_loading) RenderStock(); };
+        _onlyPick.IsCheckedChanged += (_, _) => { if (_loading) return; if (_onlyPick.IsChecked == true) { _loading = true; _onlyPos.IsChecked = false; _loading = false; } RenderStock(); };
+        _onlyPos.IsCheckedChanged += (_, _) => { if (_loading) return; if (_onlyPos.IsChecked == true) { _loading = true; _onlyPick.IsChecked = false; _loading = false; } RenderStock(); };
         var hint = new TextBlock
         {
             Text = _edit
@@ -407,14 +413,22 @@ public sealed class ViTriView : UserControl, IPage
             var cur = _zone.SelectedItem as string;
             if (_zone.ItemsSource is not List<string> old || !old.SequenceEqual(items)) { _zone.ItemsSource = items; _zone.SelectedIndex = Math.Max(0, cur is null ? 0 : items.IndexOf(cur)); }
             var zone = _zone.SelectedIndex > 0 ? _zone.SelectedItem as string : null;
-            var q = _q.Text ?? "";
+            var hit = Svc.Matcher(_q.Text);
+            var pos = _onlyPos.IsChecked == true ? _draft.Keys.Select(i => Svc.Rows[i].Vt).Where(v => v.Length > 0).ToHashSet() : null;
             _done = Svc.DoneMap();
             _rowIdx = Enumerable.Range(0, Svc.Rows.Count).Where(i =>
             {
                 var r = Svc.Rows[i];
                 if (_onlyPick.IsChecked == true) return _draft.ContainsKey(i);
-                if (zone is not null && ZoneOf(r.Vt) != zone) return false;
-                if (!Match(r, q)) return false;
+                if (pos is not null)
+                {
+                    if (!pos.Contains(r.Vt)) return false;
+                }
+                else
+                {
+                    if (zone is not null && ZoneOf(r.Vt) != zone) return false;
+                    if (hit is not null && !hit(r)) return false;
+                }
                 if (_draft.ContainsKey(i)) return true;
                 return _onlyStock.IsChecked != true || r.Sl > 1e-9 || (_editing?.Bonus.ContainsKey(i) ?? false);
             }).OrderBy(i => Svc.Rows[i], Comparer<Row>.Create((a, b) => CmpViTri(a.Vt, b.Vt) is var c && c != 0 ? c : string.Compare(a.Ma, b.Ma, StringComparison.Ordinal))).ToList();
