@@ -65,8 +65,13 @@ mỗi nguồn 200 phiếu mới nhất, tối đa 12.000 dòng hàng.
   `Lỗi - không có dòng hàng`.
 - "Đồng bộ ngay" = nhận phiếu → đẩy lại bảng đã tick + bảng vừa nhận phiếu (điện thoại thấy tồn mới ngay).
 
-## 4. Chưa làm ở bản C# (app cũ có)
+## 4. Phần thêm từ bản 1.55 (chép main.js của app cũ)
 
-- Tab báo cáo Excel cho điện thoại (`BaoCao_M01`, `BaoCao_M02` — file dựng sẵn cắt base64).
-- Kháng sinh "chỉ phần mới" (`M08_KhangSinh`, lệnh `pc.ksUpsert`).
-- Hộp thư yêu cầu lịch xuất từ điện thoại (`LichXuat_YeuCau`), lưu trữ phiếu cũ (`pc.archive`), tài khoản / phân quyền điện thoại.
+| Việc | Tab / lệnh | Cách làm |
+|---|---|---|
+| Báo cáo Excel cho điện thoại tải | `BaoCao_M01` (đẩy cùng M01): `tongton` Báo cáo tổng tồn 7 module, `hlso` Bảng tổng hợp HLSO, `phanloai` JSON Phân loại 8 bảng · `BaoCao_M02` (đẩy cùng M02): `tonghop` Bảng Tổng Hợp, `phanloai` 6 nhóm kho gửi | cột `key, title, name, reportDate, generatedAt, part, parts, data`; mỗi file base64 cắt 40.000 ký tự / dòng, `data` có tiền tố `~`. Meta `m01BaoCaoAt / m01BaoCaoCu / m01BaoCaoLoi` (và `m02…`). Bản C# dựng báo cáo thẳng từ dữ liệu (không cần mở trang module như app cũ) |
+| Kết quả kháng sinh "chỉ phần mới" | `pc.ksUpsert { rows: [[key, "", "~" + JSON rút gọn]], dels: [[key, ""]], full }` (đẩy cùng M08, quyền `m10`) | dấu nội dung FNV-1a (`ksHash`) lưu settings `phone_ks_state`; lần đầu gửi cả bảng (đợt 2.000 dòng). Code.gs cũ chưa có lệnh → ghi cả bảng `M08_KhangSinh (key, value)` |
+| Yêu cầu lịch xuất / nhập từ điện thoại | `LichXuat_YeuCau` (`id, hanhDong add|move, loai xuat|nhap, targetId, ngay, lsx, trangThaiLich, …, trangThai, xuLyLuc`) | mỗi lần "Đồng bộ ngay": thêm nhanh (nhiều LSX trong 1 yêu cầu = chung cont), lịch nhập, chuyển ngày (+ trạng thái); đẩy lại `LichXuat_Cont` rồi đánh dấu `Đã xử lý` / `Lỗi - …`; lỗi cũ hơn 24 giờ → `Đã xử lý (bỏ lỗi cũ)` |
+| Lưu trữ phiếu cũ | `pc.archive { days: 90 }` | tối đa 1 lần / ngày (settings `phone_archive_day`), phiếu đã xong > 90 ngày sang `PhieuXuat_LuuTru` / `PhieuXuatItems_LuuTru` |
+
+Không đẩy `M08_RaDong`, `M08_SizeLabel` (app cũ cũng bỏ từ PC 1.38). Tài khoản / phân quyền điện thoại (`pq.*`) nằm trong Code.gs, không cần PC.
