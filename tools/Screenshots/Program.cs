@@ -26,6 +26,24 @@ App.InitServices(data);
 var s = App.Services;
 
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
+void SnapFlyout(Window w, Button anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pres = ((MenuFlyout)anchor.Flyout!).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<MenuFlyoutPresenter>().First();
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(pres);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(pt.X, pt.Y + 2, ps.Width, ps.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
 void Snap(Window w, string name)
 {
     Pump();
@@ -442,13 +460,14 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    small.SetMini(true, save: false); Pump();
-    var nb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("side") && ToolTip.GetTip(b) is string t && t.StartsWith("Đối chiếu kiểm kê"));
-    ToolTip.SetIsOpen(nb, true); Pump();
-    Snap(small, "03d-menu-thu-gon");
-    ToolTip.SetIsOpen(nb, false); small.SetMini(false, save: false); Pump();
+    // menu ngang: mở nhóm "Tồn kho" (popup vẽ riêng rồi ghép vào ảnh cửa sổ)
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Tồn kho"));
+    gb.Flyout!.ShowAt(gb); for (var i = 0; i < 10; i++) Pump();
+    SnapFlyout(small, gb, "03d-menu-tha-xuong");
+    gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
 // Số liệu cuối kỳ (dữ liệu mẫu = bộ test đối chiếu lõi JS)
