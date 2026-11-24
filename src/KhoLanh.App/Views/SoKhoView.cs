@@ -339,7 +339,15 @@ public sealed class SoKhoView : UserControl, IPage
             var msg = $"Đưa {rows.Count} dòng tồn theo vị trí (tồn cuối đến ngày {Dmy(to)} · SL {F(rows.Sum(r => r.Sl))} · {F(rows.Sum(r => r.Net))} kg) lên Vị Trí Bột?"
                 + (v.Rows.Count > 0 ? $"\n\nDữ liệu Vị Trí Bột hiện có ({v.Rows.Count} dòng · {v.FileName}) sẽ bị THAY bằng số liệu này; các phiếu xuất Vị Trí Bột đã tạo trước đó sẽ bị khóa." : "");
             if (!await Ui.Confirm(this, msg, "Đưa lên Vị Trí Bột", "Đưa lên")) return;
-            if (await Ui.Run(this, () => v.Push(rows, to))) await Ui.Message(this, $"Đã đưa {rows.Count} dòng tồn theo vị trí lên Vị Trí Bột (Tồn kho › Vị Trí Bột).");
+            if (!await Ui.Run(this, () => v.Push(rows, to))) return;
+            // như app cũ (pushViTriBot): đã kết nối điện thoại thì đẩy luôn tồn mới lên điện thoại
+            var ph = App.Services.Phone; var extra = "";
+            if (ph.Enabled)
+            {
+                try { var r = await v.SyncPhoneAsync(ph, pull: false); extra = $"\n\nĐã đẩy {r.Pushed} dòng tồn lên điện thoại."; }
+                catch (Exception e) { extra = "\n\nChưa đẩy được lên điện thoại: " + e.Message + " — vào Vị Trí Bột › 📱 Đồng bộ điện thoại để thử lại."; }
+            }
+            await Ui.Message(this, $"Đã đưa {rows.Count} dòng tồn theo vị trí lên Vị Trí Bột (Tồn kho › Vị Trí Bột)." + extra);
         }
 
         public void Paint()

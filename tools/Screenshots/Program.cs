@@ -989,6 +989,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     // Vị Trí Bột: đưa tồn theo vị trí lên, gõ SL xuất, tạo 1 phiếu
     s.Vtb.Push(KhoLanh.Core.SoKho.VtbService.FromLedger(sk.Lines, D(0)), D(0));
     s.Vtb.Load(); s.Vtb.CreateSlip(new[] { new KhoLanh.Core.SoKho.VtbService.Pick(0, 2) }, "Xuất cho line chiên");
+    s.Vtb.ApplyPhone(new[] { new KhoLanh.Core.SoKho.VtbService.PhonePhieu("dt-1", "DT-2411-01", DateTime.UtcNow.ToString("o"), "kho1", "Xuất từ điện thoại", new() { new KhoLanh.Core.SoKho.VtbService.PhoneItem(KhoLanh.Core.SoKho.VtbService.Keys(s.Vtb.Rows)[1], 3) }) });
     main.Navigate("m1vtb"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
     var vg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
     vg.Model.Set(1, 3, "x"); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }

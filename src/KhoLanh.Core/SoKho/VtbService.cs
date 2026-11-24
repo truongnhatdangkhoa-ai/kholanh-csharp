@@ -227,6 +227,202 @@ public sealed class VtbService
         _audit?.Log(_session.Username, "Vị Trí Bột: Xóa phiếu Vị Trí Bột", s.Id);
     }
 
+    // ------------------------------------------------------------ nạp file "Vị trí Bột" (kiểu cũ — trước PC 1.62)
+    public static readonly string[] TemplateColumns = { "VT", "MÃ HÀNG", "SL", "NSX", "HSD", "NHẬP", "NGÀY XUẤT", "VỊ TRÍ CŨ", "VỊ TRÍ MỚI", "GHI CHÚ" };
+    private static readonly (string F, string[] Aliases)[] ColAliases =
+    {
+        ("vt", new[] { "vt", "vitri", "vitrikho" }), ("ma", new[] { "mahang", "mahh", "masanpham", "itemcode" }), ("sl", new[] { "sl", "soluong", "slton" }),
+        ("nsx", new[] { "nsx", "ngaysanxuat" }), ("hsd", new[] { "hsd", "hansudung" }), ("nhap", new[] { "nhap", "ngaynhap" }), ("ngayXuat", new[] { "ngayxuat", "ngayxuatkho" }),
+        ("vtCu", new[] { "vitricu" }), ("vtMoi", new[] { "vitrimoi" }), ("ghiChu", new[] { "ghichu" }),
+    };
+    /// <summary>Khóa tên cột (giống vtHeaderKey): bỏ dấu, đ → d, chỉ giữ chữ / số.</summary>
+    public static string HeaderKey(object? h)
+    {
+        var d = (h is string hs ? hs : Convert.ToString(h, CultureInfo.InvariantCulture) ?? "").Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(); foreach (var ch in d) if (ch < '\u0300' || ch > '\u036f') sb.Append(ch);
+        return Regex.Replace(sb.ToString().Replace('đ', 'd').Replace('Đ', 'd').ToLowerInvariant(), "[^a-z0-9]", "");
+    }
+    /// <summary>Nhận diện cột (giống vtbMapColumns): trường → chỉ số cột.</summary>
+    public static Dictionary<string, int> MapColumns(IReadOnlyList<object?> row)
+    {
+        var keys = row.Select(HeaderKey).ToList(); var map = new Dictionary<string, int>();
+        foreach (var (f, al) in ColAliases) { var i = keys.FindIndex(k => al.Contains(k)); if (i >= 0) map[f] = i; }
+        return map;
+    }
+    private static string CellText(object? v) => v switch
+    {
+        null => "", DateTime dt => dt.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+        double d => d == Math.Floor(d) && Math.Abs(d) < 1e15 ? ((long)d).ToString(CultureInfo.InvariantCulture) : d.ToString("R", CultureInfo.InvariantCulture),
+        _ => (Convert.ToString(v, CultureInfo.InvariantCulture) ?? "").Trim(),
+    };
+
+    public sealed class FileParse { public bool Ok; public string Error = "", Sheet = "", DataDate = ""; public int HeaderRow, Skipped; public List<VtbRow> Rows = new(); }
+
+    /// <summary>Đọc 1 sheet file "Vị trí Bột": dòng "NGÀY:" (ngày số liệu) rồi dòng tiêu đề (cần VT, MÃ HÀNG, SL); dòng không có cả VT lẫn MÃ HÀNG bị bỏ.</summary>
+    public static FileParse ParseSheet(IReadOnlyList<IReadOnlyList<object?>> aoa, string sheet)
+    {
+        var res = new FileParse { Sheet = sheet };
+        int hr = -1; Dictionary<string, int> map = new();
+        for (var r = 0; r < Math.Min(aoa.Count, 25); r++) { var m = MapColumns(aoa[r]); if (m.ContainsKey("vt") && m.ContainsKey("ma") && m.ContainsKey("sl")) { hr = r; map = m; break; } }
+        if (hr < 0) { res.Error = "Không thấy dòng tiêu đề có đủ cột VT, MÃ HÀNG, SL."; return res; }
+        // ngày số liệu: ô "NGÀY: dd/mm/yyyy" hoặc ô "NGÀY:" + ô kế bên, ở các dòng phía trên tiêu đề
+        for (var r = 0; r < hr && res.DataDate.Length == 0; r++)
+            for (var c = 0; c < aoa[r].Count; c++)
+            {
+                var t = CellText(aoa[r][c]); var k = HeaderKey(t);
+                if (!k.StartsWith("ngay")) continue;
+                var after = t.Contains(':') ? t[(t.IndexOf(':') + 1)..].Trim() : "";
+                if (after.Length == 0) after = aoa[r].Skip(c + 1).Select(CellText).FirstOrDefault(x => x.Length > 0) ?? "";
+                if (after.Length > 0) { res.DataDate = FmtDate(after); break; }
+            }
+        string G(IReadOnlyList<object?> row, string f) => map.TryGetValue(f, out var i) && i < row.Count ? CellText(row[i]) : "";
+        for (var r = hr + 1; r < aoa.Count; r++)
+        {
+            var row = aoa[r]; var vt = G(row, "vt"); var ma = G(row, "ma");
+            if (vt.Length == 0 && ma.Length == 0) { if (row.Any(x => CellText(x).Length > 0)) res.Skipped++; continue; }
+            var slRaw = map.TryGetValue("sl", out var si) && si < row.Count ? row[si] : null;
+            var sl = slRaw is double sd ? (double.IsFinite(sd) ? sd : 0) : (JsText.LooseNum(CellText(slRaw)) is var x && !double.IsNaN(x) ? x : 0);
+            res.Rows.Add(new VtbRow { Vt = vt, Ma = ma, Sl = sl, Nsx = FmtDate(G(row, "nsx")), Hsd = FmtDate(G(row, "hsd")), Nhap = FmtDate(G(row, "nhap")), NgayXuat = FmtDate(G(row, "ngayXuat")), VtCu = G(row, "vtCu"), VtMoi = G(row, "vtMoi"), GhiChu = G(row, "ghiChu") });
+        }
+        res.HeaderRow = hr + 1; res.Ok = res.Rows.Count > 0; if (!res.Ok) res.Error = "Sheet không có dòng dữ liệu nào dưới tiêu đề.";
+        return res;
+    }
+
+    /// <summary>Chọn sheet đầu tiên đọc được (hoặc sheet chỉ định).</summary>
+    public static FileParse ParseBook(IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<object?>>> book, IList<string> names, string? sheet = null)
+    {
+        FileParse? first = null;
+        foreach (var n in sheet is not null && names.Contains(sheet) ? new[] { sheet } : names.ToArray())
+        {
+            var p = ParseSheet(book[n], n); if (p.Ok) return p; first ??= p;
+        }
+        return first ?? new FileParse { Error = "File không có sheet nào." };
+    }
+
+    /// <summary>THAY toàn bộ dữ liệu Vị Trí Bột bằng file "Vị trí Bột" (phiếu đợt cũ bị khóa — giống khi đưa tồn từ NXT Bột/Sốt).</summary>
+    public int LoadFile(FileParse p, string fileName)
+    {
+        if (!CanEdit) throw new BusinessException("Bạn chỉ có quyền xem.");
+        if (!p.Ok) throw new BusinessException(p.Error);
+        Rows = p.Rows;
+        ImportedAt = new DateTimeOffset(Now()).ToUnixTimeMilliseconds();
+        _meta = new JsonObject { ["fileName"] = fileName, ["importedAt"] = ImportedAt, ["dataDate"] = p.DataDate, ["sheet"] = p.Sheet, ["headerRowNumber"] = p.HeaderRow, ["skippedRows"] = p.Skipped };
+        FileName = fileName; DataDate = p.DataDate; Sheet = p.Sheet;
+        Save(true, false);
+        _audit?.Log(_session.Username, "Vị Trí Bột: Nạp file Vị trí Bột", $"{fileName} · {Rows.Count} dòng" + (p.DataDate.Length > 0 ? " · ngày " + p.DataDate : ""));
+        return Rows.Count;
+    }
+
+    // ------------------------------------------------------------ ĐIỆN THOẠI (Google Sheet qua Web App — giống main.js của app cũ)
+    public const string TabStock = "TonKho_M01_ViTriBot", PhoneModule = "M01VTB";
+    public const string DaXuLy = "Đã xử lý", LoiThieuDong = "Lỗi - không có dòng hàng";
+    /// <summary>Cột đẩy lên tab TonKho_M01_ViTriBot (điện thoại + Code.gs đọc theo tên này) + "_key" để phiếu điện thoại chỉ đúng dòng.</summary>
+    public static readonly string[] PushColumns = { "Vị trí", "Mã hàng", "SL", "NSX", "HSD", "Nhập", "Ghi chú", "Vị trí mới", "_key" };
+    private static readonly string[] SyncTables = { "M01", "M01VT", "M01VTB", "M02", "M03", "M08", "LX", "C3D" };
+
+    /// <summary>Dòng đẩy lên điện thoại: đúng thứ tự dòng (khóa tính theo thứ tự này), GIỮ dòng SL = 0.</summary>
+    public List<Dictionary<string, JsonNode?>> PushRows()
+    {
+        var keys = Keys(Rows);
+        return Rows.Select((r, i) => new Dictionary<string, JsonNode?>
+        {
+            ["Vị trí"] = r.Vt.Trim(), ["Mã hàng"] = r.Ma.Trim(), ["SL"] = r.Sl, ["NSX"] = r.Nsx.Trim(), ["HSD"] = r.Hsd.Trim(), ["Nhập"] = r.Nhap.Trim(), ["Ghi chú"] = r.GhiChu.Trim(), ["Vị trí mới"] = r.VtMoi.Trim(), ["_key"] = keys[i],
+        }).Where(o => S(o["_key"]).Length > 0).ToList();
+    }
+
+    public sealed record PhoneItem(string ItemKey, double Qty);
+    public sealed record PhonePhieu(string Id, string MaPhieu, string NgayTao, string NguoiTao, string GhiChu, List<PhoneItem> Items);
+
+    /// <summary>Nhận phiếu điện thoại: trừ cột SL đúng dòng (theo khóa) và lưu phiếu (giống applyPhonePhieuVTBDirectToExcel). Phiếu đã nhận (cùng phoneId) bỏ qua; phiếu có dòng không khớp → không nhận.</summary>
+    public (List<string> Imported, int NewCount, List<string> Errors) ApplyPhone(IEnumerable<PhonePhieu> list)
+    {
+        if (!CanEdit && !_session.Can(SoKhoService.PermKey, Perm.Edit)) throw new BusinessException("Bạn không có quyền nhận phiếu Vị Trí Bột.");
+        var idx = Keys(Rows).Select((k, i) => (k, i)).Where(x => x.k.Length > 0).GroupBy(x => x.k).ToDictionary(g => g.Key, g => g.First().i);
+        var imported = new List<string>(); var errors = new List<string>(); var n = 0;
+        var nowIso = Now().ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        foreach (var ph in list)
+        {
+            if (Slips.Any(x => x.PhoneId == ph.Id)) { imported.Add(ph.Id); continue; }
+            var rows = ph.Items.Select(it => idx.TryGetValue(it.ItemKey.Trim(), out var i) ? i : -1).ToList();
+            if (rows.Count == 0 || rows.Any(i => i < 0)) { errors.Add($"Phiếu {(ph.MaPhieu.Length > 0 ? ph.MaPhieu : ph.Id)}: có dòng không còn khớp tồn hiện tại (tồn đã được đưa lại?)"); continue; }
+            var lines = ph.Items.Select((it, k) =>
+            {
+                var r = Rows[rows[k]]; r.Sl = Math.Round(r.Sl - it.Qty, 6);
+                return new VtbLine { Key = it.ItemKey, Vt = r.Vt, Ma = r.Ma, Nsx = r.Nsx, Hsd = r.Hsd, Nhap = r.Nhap, GhiChu = r.GhiChu, Qty = it.Qty };
+            }).ToList();
+            Slips.Insert(0, new VtbSlip { Id = "VTB-" + Seq++.ToString("0000", CultureInfo.InvariantCulture), PhoneId = ph.Id, MaPhieu = ph.MaPhieu, NguoiTao = ph.NguoiTao, GhiChu = ph.GhiChu, CreatedAt = ph.NgayTao.Length > 0 ? ph.NgayTao : nowIso, Lines = lines, Deducted = true, DeductedAt = nowIso, LoadAt = ImportedAt });
+            imported.Add(ph.Id); n++;
+        }
+        if (n > 0) { Save(true, true); _audit?.Log(_session.Username, "Vị Trí Bột: Nhận phiếu điện thoại", $"{n} phiếu"); }
+        return (imported, n, errors);
+    }
+
+    public sealed record SyncResult(int NewPhieu, int ErrPhieu, int Pushed, List<string> Errors);
+
+    /// <summary>
+    /// Đồng bộ điện thoại cho Vị Trí Bột: (1) kéo phiếu xuất "M01VTB" chưa xử lý ở tab PhieuXuat / PhieuXuatItems → trừ tồn, đánh dấu "Đã xử lý"
+    /// (phiếu không có dòng hàng quá 10 phút → "Lỗi - không có dòng hàng"); (2) đẩy tồn lên tab TonKho_M01_ViTriBot + cập nhật Meta.
+    /// Chỉ đụng tới phiếu của Vị Trí Bột — phiếu module khác giữ nguyên trạng thái.
+    /// </summary>
+    public async Task<SyncResult> SyncPhoneAsync(PhoneWebApp w, bool pull = true, CancellationToken ct = default)
+    {
+        Load();
+        await w.EnsureTabsAsync(new Dictionary<string, string[]?> { [PhoneWebApp.TabMeta] = null, [PhoneWebApp.TabPx] = PhoneWebApp.PhieuHeaders, [PhoneWebApp.TabPxi] = PhoneWebApp.PhieuItemHeaders, [TabStock] = null }, ct);
+        int nNew = 0, nErr = 0; var errors = new List<string>();
+        if (pull)
+        {
+            var px = await w.ReadTableAsync(PhoneWebApp.TabPx, ct);
+            var pending = px.Rows.Where(h =>
+            {
+                var t = PhoneWebApp.Str(h.GetValueOrDefault("trangThai")).Trim();
+                return PhoneWebApp.Str(h.GetValueOrDefault("id")).Trim().Length > 0 && t != DaXuLy && !t.StartsWith("Lỗi", StringComparison.Ordinal) && PhoneWebApp.Str(h.GetValueOrDefault("module")).Trim() == PhoneModule;
+            }).ToList();
+            if (pending.Count > 0)
+            {
+                var pxi = await w.ReadTableAsync(PhoneWebApp.TabPxi, ct);
+                var itemsBy = pxi.Rows.GroupBy(it => PhoneWebApp.Str(it.GetValueOrDefault("phieuId")).Trim()).Where(g => g.Key.Length > 0)
+                    .ToDictionary(g => g.Key, g => g.Select(it => new PhoneItem(PhoneWebApp.Str(it.GetValueOrDefault("itemKey")), PhoneWebApp.Num(it.GetValueOrDefault("soLuongXuat")))).Where(it => it.Qty > 0).ToList());
+                var nowUtc = Now().ToUniversalTime(); var list = new List<(PhonePhieu P, JsonNode? Row)>(); var loi = new List<(JsonNode?, string, IDictionary<string, string>)>();
+                var stamp = nowUtc.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+                foreach (var h in pending)
+                {
+                    var id = PhoneWebApp.Str(h["id"]).Trim(); var ngay = PhoneWebApp.Iso(h.GetValueOrDefault("ngayTao"), nowUtc);
+                    var items = itemsBy.GetValueOrDefault(id) ?? new();
+                    if (items.Count == 0)
+                    {
+                        // điện thoại ghi dòng hàng TRƯỚC rồi mới ghi đầu phiếu → phiếu không có dòng là phiếu hỏng; chờ 10 phút rồi mới đánh dấu lỗi
+                        if (DateTime.TryParse(ngay, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var t0) && (nowUtc - t0).TotalMinutes > 10)
+                            loi.Add((h.GetValueOrDefault("_rowNumber"), id, new Dictionary<string, string> { ["trangThai"] = LoiThieuDong, ["xuLyLuc"] = stamp }));
+                        continue;
+                    }
+                    list.Add((new PhonePhieu(id, PhoneWebApp.Str(h.GetValueOrDefault("maPhieu")).Trim(), ngay, PhoneWebApp.Str(h.GetValueOrDefault("nguoiTao")), PhoneWebApp.Str(h.GetValueOrDefault("ghiChu")), items), h.GetValueOrDefault("_rowNumber")));
+                }
+                if (list.Count > 0)
+                {
+                    var (imported, n, errs) = ApplyPhone(list.Select(x => x.P));
+                    nNew = n; errors.AddRange(errs);
+                    var done = imported.ToHashSet();
+                    await w.MarkRowsAsync(PhoneWebApp.TabPx, list.Where(x => done.Contains(x.P.Id)).Select(x => (x.Row, x.P.Id, (IDictionary<string, string>)new Dictionary<string, string> { ["trangThai"] = DaXuLy, ["xuLyLuc"] = stamp })), ct);
+                }
+                if (loi.Count > 0) { await w.MarkRowsAsync(PhoneWebApp.TabPx, loi, ct); nErr = loi.Count; }
+            }
+        }
+        // đẩy tồn + Meta (ghi SAU CÙNG: điện thoại dựa vào lastPushAt_M01VTB để biết phiếu nào đã nằm trong số tồn)
+        var rows = PushRows();
+        await w.WriteTableAsync(TabStock, rows.Count > 0 ? PushColumns : Array.Empty<string>(), rows, ct);
+        var meta = new Dictionary<string, JsonNode?>();
+        try { foreach (var r in (await w.ReadTableAsync(PhoneWebApp.TabMeta, ct)).Rows) { var k = PhoneWebApp.Str(r.GetValueOrDefault("key")); if (k.Length > 0) meta[k] = r.GetValueOrDefault("value")?.DeepClone(); } } catch { /* Meta chưa có — tạo mới */ }
+        var old = meta.GetValueOrDefault("lastPushAt") is { } lp ? PhoneWebApp.Str(lp) : "";
+        var nowS = Now().ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
+        meta["lastPushAt_M01VTB"] = nowS; meta["m01ViTriBotRows"] = rows.Count; meta["m01ViTriBotDataDate"] = DataDate;
+        meta["m01ViTriBotImportedAt"] = ImportedAt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds((long)ImportedAt).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture) : "";
+        var stamps = SyncTables.Select(t => meta.GetValueOrDefault("lastPushAt_" + t) is { } v ? PhoneWebApp.Str(v) : "").Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).ToList();
+        meta["lastPushAt"] = stamps.Count == SyncTables.Length ? stamps[0] : old;
+        await w.WriteTableAsync(PhoneWebApp.TabMeta, new[] { "key", "value" }, meta.Select(kv => (IDictionary<string, JsonNode?>)new Dictionary<string, JsonNode?> { ["key"] = kv.Key, ["value"] = kv.Value?.DeepClone() }), ct);
+        _audit?.Log(_session.Username, "Vị Trí Bột: Đồng bộ điện thoại", $"nhận {nNew} phiếu · đẩy {rows.Count} dòng tồn");
+        return new SyncResult(nNew, nErr, rows.Count, errors);
+    }
+
     // ------------------------------------------------------------ ngày dd/mm/yyyy (giống vtbFmtDate)
     public static string FmtDate(string? v)
     {

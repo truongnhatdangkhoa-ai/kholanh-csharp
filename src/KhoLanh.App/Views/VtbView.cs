@@ -43,6 +43,13 @@ public sealed class VtbView : UserControl, IPage
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         bar.Children.Add(_q);
         bar.Children.Add(Btn("⟳ Tải lại", Reload));
+        if (Svc.CanEdit || App.Services.Session.Can(KhoLanh.Core.SoKho.SoKhoService.PermKey, KhoLanh.Core.Models.Perm.Edit))
+        {
+            bar.Children.Add(Btn("📱 Đồng bộ điện thoại", SyncPhone, true));
+            bar.Children.Add(Btn("Kết nối điện thoại…", PhoneSettings));
+        }
+        if (Svc.CanEdit) { bar.Children.Add(Btn("📄 Nạp file Vị trí Bột…", LoadFile)); bar.Children.Add(Btn("Tải file mẫu…", SaveTemplate)); }
+        bar.Children.Add(_phone);
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(_info);
         var pickBar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
         pickBar.Children.Add(_pickInfo);
@@ -70,6 +77,77 @@ public sealed class VtbView : UserControl, IPage
     private static string F(double v) => v.ToString("#,0.###", CultureInfo.InvariantCulture);
     private static string When(string iso) => DateTime.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d) ? d.ToLocalTime().ToString("HH:mm dd/MM/yyyy") : iso;
     private static string Fold(string s) => KhoLanh.Core.CuoiKy.Ck.Fold(s).Replace(" ", "");
+
+    private readonly TextBlock _phone = new() { FontSize = 12, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
+    private static KhoLanh.Core.Services.PhoneWebApp Phone => App.Services.Phone;
+
+    /// <summary>Nạp file "Vị trí Bột" kiểu cũ (dòng "NGÀY:" + tiêu đề VT, MÃ HÀNG, SL, NSX, HSD…) — THAY dữ liệu hiện có.</summary>
+    private async Task LoadFile()
+    {
+        var path = await Ui.OpenFile(this, "Chọn file Vị trí Bột", "xlsx;xlsm;xls;csv", "Excel"); if (path is null) return;
+        KhoLanh.Core.SoKho.VtbService.FileParse? p = null;
+        if (!await Ui.RunAsync(this, async () => p = await Task.Run(() => { var (b, n) = KhoLanh.Core.CuoiKy.CkService.ReadExcel(path, keepDates: true); return KhoLanh.Core.SoKho.VtbService.ParseBook(b, n); }))) return;
+        if (!p!.Ok) { await Ui.Message(this, p.Error + "\n\nFile cần: dòng \"NGÀY:\" (ngày số liệu), dòng tiêu đề VT · MÃ HÀNG · SL · NSX · HSD · NHẬP · NGÀY XUẤT · VỊ TRÍ CŨ · VỊ TRÍ MỚI · GHI CHÚ (bấm \"Tải file mẫu\").", "Không đọc được file"); return; }
+        var msg = $"Nạp {p.Rows.Count} dòng từ {Path.GetFileName(path)} (sheet {p.Sheet}" + (p.DataDate.Length > 0 ? $", ngày {p.DataDate}" : "") + ")" + (p.Skipped > 0 ? $" — bỏ {p.Skipped} dòng không có VT / MÃ HÀNG" : "") + "?"
+            + (Svc.Rows.Count > 0 ? $"\n\nDữ liệu Vị Trí Bột hiện có ({Svc.Rows.Count} dòng · {Svc.FileName}) sẽ bị THAY; phiếu xuất đã tạo trước đó sẽ bị khóa." : "");
+        if (!await Ui.Confirm(this, msg, "Nạp file Vị trí Bột", "Nạp")) return;
+        if (!await Ui.Run(this, () => Svc.LoadFile(p, Path.GetFileName(path)))) return;
+        _picks.Clear(); Paint(); PaintSlips();
+        if (Phone.Enabled && await Ui.Confirm(this, "Đẩy tồn mới lên điện thoại luôn?", "Điện thoại", "Đẩy lên")) await SyncPhone();
+    }
+
+    private async Task SaveTemplate()
+    {
+        var path = await Ui.SaveFile(this, "Lưu file mẫu Vị trí Bột", "mau-vi-tri-bot.xlsx", "xlsx", "Excel"); if (path is null) return;
+        await Ui.Run(this, () =>
+        {
+            using var wb = new ClosedXML.Excel.XLWorkbook(); var ws = wb.AddWorksheet("Vị trí Bột");
+            ws.Cell(1, 1).Value = "NGÀY:"; ws.Cell(1, 2).Value = DateTime.Today; ws.Cell(1, 2).Style.DateFormat.Format = "dd/MM/yyyy";
+            var cols = KhoLanh.Core.SoKho.VtbService.TemplateColumns;
+            for (var c = 0; c < cols.Length; c++) { var cell = ws.Cell(2, c + 1); cell.Value = cols[c]; cell.Style.Font.Bold = true; cell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#D9E1F2"); }
+            ws.Columns(1, cols.Length).Width = 14; wb.SaveAs(path);
+        });
+        Ui.OpenExternal(Path.GetDirectoryName(path)!);
+    }
+
+    /// <summary>Nhận phiếu xuất Vị Trí Bột do điện thoại tạo (trừ tồn) rồi đẩy tồn mới lên điện thoại.</summary>
+    private async Task SyncPhone()
+    {
+        if (!Phone.Enabled) { await PhoneSettings(); if (!Phone.Enabled) return; }
+        _phone.Text = "Đang đồng bộ điện thoại…";
+        KhoLanh.Core.SoKho.VtbService.SyncResult? r = null;
+        if (!await Ui.RunAsync(this, async () => r = await Svc.SyncPhoneAsync(Phone))) { _phone.Text = "Đồng bộ điện thoại chưa xong."; Reload(); return; }
+        _phone.Text = $"Đồng bộ lúc {DateTime.Now:HH:mm}: nhận {r!.NewPhieu} phiếu · đẩy {r.Pushed} dòng tồn" + (r.ErrPhieu > 0 ? $" · {r.ErrPhieu} phiếu lỗi (không có dòng hàng)" : "");
+        _picks.Clear(); Paint(); PaintSlips();
+        if (r.Errors.Count > 0) await Ui.Message(this, "Có phiếu điện thoại chưa nhận được:\n• " + string.Join("\n• ", r.Errors) + "\n\nPhiếu này giữ \"Chưa xử lý\" trên điện thoại — kiểm tra lại rồi đồng bộ lần sau.", "Phiếu điện thoại");
+    }
+
+    /// <summary>Đường dẫn Web App + mã PC_TOKEN (giống Cài Đặt › Điện Thoại của app cũ) — lưu trên máy này.</summary>
+    private async Task PhoneSettings()
+    {
+        var url = new TextBox { Text = Phone.Url, Watermark = "https://script.google.com/macros/s/…/exec" };
+        var tok = new TextBox { Text = Phone.Token, PasswordChar = '•', Watermark = "PC_TOKEN" };
+        var msg = new TextBlock { FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        var test = new Button { Content = "Kiểm tra kết nối" }; var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var off = new Button { Content = "Ngắt kết nối" }; var cancel = new Button { Content = "Đóng", IsCancel = true };
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new TextBlock { Text = "Dùng ĐÚNG Web App (Apps Script) mà app điện thoại đang dùng — đường dẫn và mã PC_TOKEN chép từ app cũ (Cài Đặt › Điện Thoại) hoặc từ người quản trị.", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+        body.Children.Add(new TextBlock { Text = "Đường dẫn Web App", FontSize = 12 }); body.Children.Add(url);
+        body.Children.Add(new TextBlock { Text = "Mã PC_TOKEN", FontSize = 12 }); body.Children.Add(tok);
+        body.Children.Add(msg); body.Children.Add(Ui.Buttons(off, test, cancel, ok));
+        var w = Ui.Dialog("Kết nối điện thoại", body, 520);
+        async Task<bool> Apply() { try { Phone.Save(url.Text ?? "", tok.Text ?? ""); return true; } catch (Exception e) { msg.Text = e.Message; msg.Foreground = AppTheme.Danger; return false; } }
+        test.Click += async (_, _) =>
+        {
+            if (!await Apply()) return; msg.Foreground = AppTheme.Muted; msg.Text = "Đang kiểm tra…";
+            try { var (t, sh) = await Phone.PingAsync(); msg.Foreground = AppTheme.Brush("#1B5E20"); msg.Text = $"✔ Kết nối được Google Sheet \"{t}\" ({sh.Count} tab)."; }
+            catch (Exception e) { msg.Foreground = AppTheme.Danger; msg.Text = e.Message; }
+        };
+        ok.Click += async (_, _) => { if (await Apply()) w.Close(); };
+        off.Click += (_, _) => { Phone.Clear(); url.Text = ""; tok.Text = ""; msg.Foreground = AppTheme.Muted; msg.Text = "Đã ngắt kết nối điện thoại trên máy này."; };
+        cancel.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        _phone.Text = Phone.Enabled ? "Đã kết nối điện thoại." : "Chưa kết nối điện thoại.";
+    }
 
     private async void Reload()
     {
