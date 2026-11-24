@@ -1096,7 +1096,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     main.Navigate("m3sk"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44-menu-ngang");
     var gb = main.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && (b.Content?.ToString() ?? "").Contains("Tồn kho"));
     gb.Flyout!.ShowAt(gb); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
-    var pres = ((MenuFlyout)gb.Flyout).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<Control>().Last();
+    var pres = ((MenuFlyout)gb.Flyout).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<MenuFlyoutPresenter>().First();
     using var frame = main.CaptureRenderedFrame()!;
     var pt = gb.TranslatePoint(new Point(0, gb.Bounds.Height), main) ?? new Point(0, 0);
     var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
