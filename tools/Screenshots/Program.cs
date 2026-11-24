@@ -1381,6 +1381,17 @@ void PxScene()
     g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
     Console.WriteLine($"[PX] nội địa: tab con sau bấm đúp = {sub2.SelectedIndex}");
     Snap(main, "31b-phieu-noi-dia-nhap-lieu");
+    {   // 1.67: lưới mục hàng Cargo hiện ≥ 10 dòng, gõ vào dòng trống thì thêm dòng (vẫn còn ≥ 3 dòng trống, lưới cao thêm)
+        var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
+        var cgg = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12);
+        int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Height;
+        var rowsFit = (int)((cgg.Bounds.Height - KhoLanh.App.Controls.SheetGrid.HeadH) / KhoLanh.App.Controls.SheetGrid.RowH);
+        cgg.Model.Set(t0 - 1, 2, "01.08 L9"); W(4);   // gõ vào dòng trống cuối cùng
+        Console.WriteLine($"[CARGO] dòng: {n0} có số liệu, hiện {t0} (vừa khung ~{rowsFit}); gõ dòng {t0} → {cgg.Model.RowCount} dòng, hiện {cgg.TotalRows}, cao {h0:0} → {cgg.Height:0}");
+        if (t0 < KhoLanh.App.Views.CargoView.MinRows || cgg.TotalRows < cgg.Model.RowCount + KhoLanh.App.Views.CargoView.MinSpare) { Console.WriteLine("[CARGO] LỖI: thiếu dòng trống"); Environment.Exit(1); }
+        Snap(main, "31b2-phieu-noi-dia-them-dong");
+        cgg.Model.Undo(); W(2);
+    }
     var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
     pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
     sub2.SelectedIndex = 2; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");

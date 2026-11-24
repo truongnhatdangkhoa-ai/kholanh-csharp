@@ -1195,7 +1195,7 @@ public sealed class SoDoView : UserControl, IPage
         }
         var save = new Button { Content = "💾 Lưu cấu hình", Classes = { "primary" } };
         var reset = new Button { Content = "Khôi phục mặc định" };
-        var close = new Button { Content = "Thôi", IsCancel = true };
+        var close = new Button { Content = "Đóng", IsCancel = true };
         var del = new Button { Content = "Xóa kho này", Classes = { "danger" } };
         var body = new StackPanel { Spacing = 8 };
         var top = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };

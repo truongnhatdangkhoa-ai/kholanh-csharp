@@ -330,7 +330,7 @@ public sealed class CuoiKyView : UserControl, IPage
             var cb = new ComboBox { ItemsSource = opts, SelectedIndex = res.Mapping.TryGetValue(f.Key, out var c) ? c + 1 : res.Ambiguous.TryGetValue(f.Key, out var a) ? a[0] + 1 : 0, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 2) };
             Grid.SetRow(lab, i); Grid.SetRow(cb, i); Grid.SetColumn(cb, 1); grid.Children.Add(lab); grid.Children.Add(cb); boxes[f.Key] = cb;
         }
-        var ok = new Button { Content = "Đọc lại với ánh xạ này", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Đọc lại với ánh xạ này", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(new TextBlock { Text = res.Error, TextWrapping = TextWrapping.Wrap, Foreground = Amber });
         body.Children.Add(Muted($"Dòng tiêu đề: {res.HeaderRow}. Chọn cột tương ứng cho từng trường (* = bắt buộc). Lần sau phần mềm tự nhớ theo tên cột."));
@@ -563,7 +563,7 @@ public sealed class CuoiKyView : UserControl, IPage
         var qty = new TextBox { Text = Vn(Math.Min(Math.Abs(it.Diff), Math.Abs(c.Diff))).Replace(",", ""), Width = 120 };
         var side = new ComboBox { ItemsSource = new[] { CkHistory.SideText["kho"], CkHistory.SideText["kt"] }, SelectedIndex = 0, Width = 260 };
         var reason = new TextBox { Watermark = "Lý do (bắt buộc), VD: phiếu XK… ghi nhầm mã" };
-        var ok = new Button { Content = "Ghi nhận sửa mã", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Ghi nhận sửa mã", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(new TextBlock { Text = $"Chuyển số lượng từ mã THỪA {over} sang mã THIẾU {under}.", TextWrapping = TextWrapping.Wrap });
         body.Children.Add(Muted("Chỉ ghi điều chỉnh trong phiên đối chiếu (file gốc / phần mềm kho, kế toán không bị đổi) — hoàn tác được."));
@@ -581,7 +581,7 @@ public sealed class CuoiKyView : UserControl, IPage
         var qty = new TextBox { Text = Vn(-it.DiffAfter).Replace(",", ""), Width = 120 };
         var side = new ComboBox { ItemsSource = new[] { "Kho (cộng / trừ vào tồn kho)", "Kế toán (cộng / trừ vào tồn kế toán)" }, SelectedIndex = 0, Width = 280 };
         var reason = new TextBox { Watermark = "Lý do (bắt buộc)" };
-        var ok = new Button { Content = "Ghi điều chỉnh", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Ghi điều chỉnh", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(Muted($"Chênh lệch hiện tại {Sg(it.DiffAfter)} kg. kg dương = cộng vào bên được sửa, âm = trừ đi."));
         var r1 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 }; r1.Children.Add(Lb("Số kg")); r1.Children.Add(qty); r1.Children.Add(side);
@@ -600,7 +600,7 @@ public sealed class CuoiKyView : UserControl, IPage
         var note = new TextBox { Watermark = "Diễn giải nguyên nhân (không bắt buộc)" };
         var reason = new TextBox { Watermark = "Lý do / cách đã xử lý (bắt buộc)" };
         var adj = new CheckBox { Content = $"Kèm điều chỉnh kho {Sg(-it.DiffAfter)} kg để khớp", IsChecked = false, IsVisible = Math.Abs(it.DiffAfter) > Svc.Options.Tol };
-        var ok = new Button { Content = "Xác nhận đã xử lý", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Xác nhận đã xử lý", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(Lb("Nguyên nhân")); body.Children.Add(cb); body.Children.Add(note); body.Children.Add(reason); body.Children.Add(adj); body.Children.Add(Ui.Buttons(no, ok));
         var w = Ui.Dialog("Xác nhận xử lý — " + it.Ma, body, 560); var go = false;
@@ -637,7 +637,7 @@ public sealed class CuoiKyView : UserControl, IPage
         var o = Svc.Options;
         var tol = new TextBox { Text = Vn(o.Tol), Width = 90 }; var pt = new TextBox { Text = Vn(o.PairTol), Width = 90 };
         var bot = new CheckBox { Content = "Ẩn hàng Bột (không cần đối chiếu)", IsChecked = o.HideBot }; var zero = new CheckBox { Content = "Hiện cả mã tồn = 0 ở mọi nguồn", IsChecked = o.ShowZero };
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("260,*"), RowDefinitions = new RowDefinitions("Auto,Auto") };
         var l1 = Lb("Ngưỡng khớp (kg)"); var l2 = Lb("Ngưỡng đối ứng 2 mã (kg)"); Grid.SetRow(l2, 1); Grid.SetColumn(tol, 1); Grid.SetColumn(pt, 1); Grid.SetRow(pt, 1);
         g.Children.Add(l1); g.Children.Add(tol); g.Children.Add(l2); g.Children.Add(pt);

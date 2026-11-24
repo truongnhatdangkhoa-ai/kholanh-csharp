@@ -454,7 +454,7 @@ public sealed partial class TongQuanView : UserControl, IPage
     {
         var chosen = QuickChosen().ToHashSet();
         var boxes = Quicks.Where(q => App.Services.Session.Can(q.Perm)).Select(q => new CheckBox { Content = q.Icon + "  " + q.Label, IsChecked = chosen.Contains(q.Key), Tag = q.Key }).ToList();
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var reset = new Button { Content = "Mặc định" }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var reset = new Button { Content = "Mặc định" }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 4 };
         body.Children.Add(new TextBlock { Text = "Chọn các ô hiện ở «Thao tác nhanh» (lưu riêng cho tài khoản này):", TextWrapping = TextWrapping.Wrap });
         foreach (var b in boxes) body.Children.Add(b);

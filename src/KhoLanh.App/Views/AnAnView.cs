@@ -628,7 +628,7 @@ public sealed class AnAnView : UserControl, IPage
         var boxes = AnAnExport.HlsoExportIds.Select(id => new CheckBox { Content = AnAnData.LabelOf(id), IsChecked = true, Tag = id }).ToList();
         foreach (var b in boxes) body.Children.Add(b);
         var ok = false;
-        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Thôi", IsCancel = true };
+        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Đóng", IsCancel = true };
         body.Children.Add(Ui.Buttons(n, y));
         var w = Ui.Dialog("Xuất excel HLSO", body, 360);
         y.Click += (_, _) => { ok = true; w.Close(); }; n.Click += (_, _) => w.Close();

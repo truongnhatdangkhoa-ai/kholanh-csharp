@@ -50,7 +50,7 @@ public sealed partial class TongQuanView
         }
         var probe = Btn("Dò", Probe, "Tìm LSX trong Thành Phẩm Chính của Tồn kho An An (cột Hợp đồng)");
         var save = new Button { Content = id is null ? "Thêm lịch" : "Lưu", Classes = { "primary" }, IsDefault = true };
-        var cancel = new Button { Content = "Thôi", IsCancel = true };
+        var cancel = new Button { Content = "Đóng", IsCancel = true };
         var del = new Button { Content = "Xóa lịch", IsVisible = id is not null, Foreground = B("#B42318") };
         var body = new StackPanel { Spacing = 2 };
         var r1 = new WrapPanel { ItemSpacing = 10 };

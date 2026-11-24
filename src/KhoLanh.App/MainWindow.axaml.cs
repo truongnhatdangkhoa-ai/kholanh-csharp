@@ -392,7 +392,7 @@ public partial class MainWindow : Window
         var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
         void Preview() { AppTheme.SetDensity(AppTheme.Densities[Math.Max(0, dens.SelectedIndex)].Key); AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
         light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview(); dens.SelectionChanged += (_, _) => Preview();
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
         body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);

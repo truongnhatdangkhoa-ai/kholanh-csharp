@@ -652,7 +652,7 @@ internal static class ColumnsDialog
         var grid = ColumnTable.Grid(model); grid.Height = 340;
         List<GridColumn>? result = null;
         var ok = new Button { Content = "Áp dụng", Classes = { "primary" }, IsDefault = false };
-        var cancel = new Button { Content = "Thôi" };
+        var cancel = new Button { Content = "Đóng" };
         var body = new DockPanel { Margin = new Thickness(18) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
         buttons.Children.Add(ColumnTable.HelpButton()); buttons.Children.Add(cancel); buttons.Children.Add(ok);

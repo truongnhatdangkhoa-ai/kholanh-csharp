@@ -759,7 +759,7 @@ public sealed class GuiView : UserControl, IPage
         var all = new Button { Content = "Chọn tất cả" }; var none = new Button { Content = "Bỏ hết" };
         all.Click += (_, _) => { foreach (var b in boxes.Where(b => b.IsVisible)) b.IsChecked = true; };
         none.Click += (_, _) => { foreach (var b in boxes.Where(b => b.IsVisible)) b.IsChecked = false; };
-        var ok = new Button { Content = "Áp dụng", Classes = { "primary" } }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Áp dụng", Classes = { "primary" } }; var cancel = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8, Children = { q, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { all, none } }, new ScrollViewer { Content = list, MaxHeight = 420 }, Ui.Buttons(cancel, ok) } };
         var w = Ui.Dialog(rows ? "Chọn Size" : "Chọn Đặc Tính", body, 420);
         cancel.Click += (_, _) => w.Close();
@@ -770,7 +770,7 @@ public sealed class GuiView : UserControl, IPage
     {
         if (_csData is null) return;
         var box = new TextBox { Watermark = "VD: TGC xuất Nhật", Width = 280 }; string? name = null;
-        var ok = new Button { Content = "Lưu", Classes = { "primary" } }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" } }; var cancel = new Button { Content = "Đóng", IsCancel = true };
         var w = Ui.Dialog("Đặt tên mẫu", new StackPanel { Spacing = 8, Children = { box, Ui.Buttons(cancel, ok) } }, 360);
         cancel.Click += (_, _) => w.Close(); ok.Click += (_, _) => { name = (box.Text ?? "").Trim(); w.Close(); };
         await Ui.Show(this, w);
@@ -810,7 +810,7 @@ public sealed class GuiView : UserControl, IPage
         var box = new TextBox { Text = initial.Length > 0 ? initial : DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), Width = 160 };
         string? res = null; var msg = Muted("");
         var body = new StackPanel { Spacing = 8, Children = { Muted("Nhập NGÀY BÁO CÁO ghi trên file (dd/mm/yyyy). Mặc định = Ngày số liệu."), box, msg } };
-        var cancel = new Button { Content = "Hủy", IsCancel = true }; var ok = new Button { Content = "Xuất Excel", Classes = { "primary" } };
+        var cancel = new Button { Content = "Đóng", IsCancel = true }; var ok = new Button { Content = "Xuất Excel", Classes = { "primary" } };
         body.Children.Add(Ui.Buttons(cancel, ok));
         var w = Ui.Dialog("Ngày báo cáo", body, 380); cancel.Click += (_, _) => w.Close();
         ok.Click += (_, _) => { var d = DataDate.Parse(box.Text ?? ""); if (d.Length == 0) { msg.Text = "Ngày không hợp lệ — gõ dạng dd/mm/yyyy."; return; } res = d; w.Close(); };
