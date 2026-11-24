@@ -390,7 +390,7 @@ public sealed class LuuTruView : UserControl, IPage
             }
             else
             {
-                var cancel = new Button { Content = "Thôi", Classes = { "ghost" } };
+                var cancel = new Button { Content = "Đóng", Classes = { "ghost" } };
                 cancel.Click += (_, _) => { _newMode = false; Reload(); };
                 acts.Children.Add(cancel);
             }

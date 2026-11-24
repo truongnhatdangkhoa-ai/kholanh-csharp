@@ -4,7 +4,7 @@
         Title="Kho Lạnh" Width="1360" Height="820" MinWidth="1024" MinHeight="640"
         WindowStartupLocation="CenterScreen" WindowState="Maximized" Icon="/Assets/app.ico"
         Background="{DynamicResource PageBg}">
-  <!-- Khung "Băng sạch" + menu ngang 2 tầng (1.54): tầng 1 logo · tìm nhanh · trạng thái · tài khoản; tầng 2 nhóm menu; dòng tiêu đề trang Nhóm › Module. -->
+  <!-- Khung "Băng sạch" + menu ngang 2 tầng (1.54): tầng 1 logo · trạng thái · tài khoản (1.65: bỏ ô tìm nhanh, vẫn mở bằng Ctrl + K); tầng 2 nhóm menu; dòng tiêu đề trang Nhóm › Module. -->
   <DockPanel>
     <Border DockPanel.Dock="Top" Background="{DynamicResource NavBg}" Padding="16,0,12,0" Height="52">
       <Grid ColumnDefinitions="Auto,*,Auto">
@@ -15,14 +15,9 @@
             <TextBlock x:Name="WarehouseText" Foreground="{DynamicResource NavMuted}" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
           </StackPanel>
         </StackPanel>
-        <Button Grid.Column="1" x:Name="SearchButton" Classes="searchbox" HorizontalAlignment="Center" Click="OnSearchClick"
-                ToolTip.Tip="Tìm mã hàng / size / vị trí / hợp đồng / phiếu / LSX / cont trong mọi module, hoặc tên module (Ctrl + K)"/>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4">
           <Button x:Name="LanPill" Classes="topnav" IsVisible="False" Click="OnLanPill">
-            <StackPanel Orientation="Horizontal" Spacing="7">
-              <Ellipse x:Name="LanDot" Width="9" Height="9" Fill="#3FB950" VerticalAlignment="Center"/>
-              <TextBlock x:Name="LanText" FontSize="12" VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis"/>
-            </StackPanel>
+            <Ellipse x:Name="LanDot" Width="11" Height="11" Fill="#3FB950" VerticalAlignment="Center"/>
           </Button>
           <Button x:Name="AutoButton" Classes="topnav" IsVisible="False" Foreground="#FFD27A" Click="OnAutoClick"/>
           <Button x:Name="TroLyButton" Classes="topnav" IsVisible="False" Foreground="#FFB4A8" Click="OnTroLyClick"/>

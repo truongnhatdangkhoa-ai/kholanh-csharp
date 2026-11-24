@@ -440,7 +440,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) return;
         var errs = Validate(Clone(_cur));
         if (errs.Count > 0) { await Ui.Message(this, string.Join("\n", errs.Take(6)) + (errs.Count > 6 ? $"\n(+{errs.Count - 6} lỗi nữa)" : ""), "Phiếu chưa đủ để xuất"); return; }
-        if (_cur.Xe.Cont.Trim().Length == 0 && !await Ui.Confirm(this, "Phiếu chưa có SỐ CONT.\n\nXuất file vẫn được; bấm “Vẫn xuất” để tiếp tục, “Thôi” để quay lại nhập.", "Thiếu số cont", "Vẫn xuất")) return;
+        if (_cur.Xe.Cont.Trim().Length == 0 && !await Ui.Confirm(this, "Phiếu chưa có SỐ CONT.\n\nXuất file vẫn được; bấm “Vẫn xuất” để tiếp tục, “Đóng” để quay lại nhập.", "Thiếu số cont", "Vẫn xuất")) return;
         var cur = Clone(_cur);
         var path = await Ui.SaveFile(this, "Xuất Phiếu xuất kho", FileName(cur), "xlsm", "Excel có macro (.xlsm)");
         if (path is null) return;

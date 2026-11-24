@@ -463,7 +463,7 @@ public sealed class AnAnView : UserControl, IPage
         await Act(() => Svc.MoveRows(rows, mods[r.Value.Index].Id), $"Đã chuyển {rows.Count} dòng sang {mods[r.Value.Index].Label}");
     }
 
-    private void RenderPl()
+    internal void RenderPl()
     {
         if (_plMod.ItemsSource is null) { _plMod.ItemsSource = AnAnData.FilterModules.Select(m => m.Label).ToList(); _plMod.SelectedIndex = 0; }
         _plThBox.IsVisible = PlId == "tpc";
@@ -538,10 +538,20 @@ public sealed class AnAnView : UserControl, IPage
         }
         _cfCol.ItemsSource = D.Headers.Count > 0 ? D.Headers.ToList() : AnAnData.FilterColumns.ToList();
         if (_cfCol.SelectedIndex < 0) _cfCol.SelectedIndex = 0;
-        var add = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
-        add.Children.Add(Label("Thêm:")); add.Children.Add(_cfCol); add.Children.Add(_cfOp); add.Children.Add(_cfVal); add.Children.Add(_cfFrom); add.Children.Add(_cfTo);
-        add.Children.Add(Btn("＋ Thêm điều kiện", async () => await AddCf(id), primary: true));
-        _plRules.Children.Add(add);
+        _plRules.Children.Add(CfBar());
+    }
+
+    // Thanh "Thêm:" dựng MỘT lần rồi dùng lại. Trước 1.65 mỗi lần vẽ lại tạo WrapPanel mới và thêm lại các ô _cfCol / _cfOp… vốn vẫn
+    // nằm trong WrapPanel cũ (Clear() của _plRules chỉ gỡ WrapPanel cũ khỏi _plRules, không gỡ các ô khỏi nó) → InvalidOperationException
+    // "ComboBox already has a visual parent WrapPanel" khi đổi bảng lọc / thêm / xóa điều kiện (báo cáo Trợ lý 24/11).
+    private WrapPanel? _cfBar;
+    internal WrapPanel CfBar()
+    {
+        if (_cfBar is not null) return _cfBar;
+        _cfBar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        _cfBar.Children.Add(Label("Thêm:")); _cfBar.Children.Add(_cfCol); _cfBar.Children.Add(_cfOp); _cfBar.Children.Add(_cfVal); _cfBar.Children.Add(_cfFrom); _cfBar.Children.Add(_cfTo);
+        _cfBar.Children.Add(Btn("＋ Thêm điều kiện", async () => await AddCf(PlId), primary: true));
+        return _cfBar;
     }
 
     private async Task AddCf(string id)
@@ -618,7 +628,7 @@ public sealed class AnAnView : UserControl, IPage
         var boxes = AnAnExport.HlsoExportIds.Select(id => new CheckBox { Content = AnAnData.LabelOf(id), IsChecked = true, Tag = id }).ToList();
         foreach (var b in boxes) body.Children.Add(b);
         var ok = false;
-        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Thôi", IsCancel = true };
+        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Đóng", IsCancel = true };
         body.Children.Add(Ui.Buttons(n, y));
         var w = Ui.Dialog("Xuất excel HLSO", body, 360);
         y.Click += (_, _) => { ok = true; w.Close(); }; n.Click += (_, _) => w.Close();

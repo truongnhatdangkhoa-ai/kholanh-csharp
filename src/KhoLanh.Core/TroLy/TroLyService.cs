@@ -129,7 +129,8 @@ public sealed class TroLyService
         {
             var files = _backup.ListAutoBackups().Select(x => new BackupFile(x.Name, x.LastWriteTime, x.Length)).ToList();
             RestoreProbe? probe = null;
-            if (deep && _backup.ListAutoBackups().FirstOrDefault() is { } newest) probe = Probe(newest.FullName);
+            // thử mở ĐÚNG bản mà CheckBackup đánh giá (trước đây lấy bản đầu theo tên → có thể khác bản "mới nhất" ghi trong báo cáo)
+            if (deep && PickLatest(files) is { } newest) probe = Probe(Path.Combine(_backup.AutoBackupFolder, newest.Name));
             f.AddRange(CheckBackup(files, liveRows, probe, now));
         });
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));

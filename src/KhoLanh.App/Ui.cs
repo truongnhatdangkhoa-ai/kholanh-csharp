@@ -110,7 +110,7 @@ public static class Ui
     {
         var result = false;
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(Buttons(n, y));
@@ -127,7 +127,7 @@ public static class Ui
         var box = new TextBox { Text = initial, Margin = new Thickness(0, 10, 0, 0) };
         if (password) box.PasswordChar = '•';
         var y = new Button { Content = "Đồng ý", IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(box);
@@ -140,7 +140,7 @@ public static class Ui
         return result;
     }
 
-    /// <summary>Chọn một mục trong danh sách (kèm ô nhập chữ nếu có <paramref name="inputLabel"/>). Null = bấm Thôi.</summary>
+    /// <summary>Chọn một mục trong danh sách (kèm ô nhập chữ nếu có <paramref name="inputLabel"/>). Null = bấm Đóng.</summary>
     public static async Task<(int Index, string Text)?> Choose(Visual v, string text, string title, IList<string> items, int selected = 0,
         string? inputLabel = null, string inputInitial = "", string yes = "Đồng ý")
     {
@@ -148,7 +148,7 @@ public static class Ui
         var list = new ComboBox { ItemsSource = items, SelectedIndex = Math.Clamp(selected, 0, Math.Max(0, items.Count - 1)), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 10, 0, 0) };
         var box = new TextBox { Text = inputInitial, Margin = new Thickness(0, 4, 0, 0) };
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(list);

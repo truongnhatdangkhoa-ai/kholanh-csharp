@@ -84,6 +84,32 @@ public class TroLyTests : IDisposable
         Assert.Contains(CheckBackup(fresh, 1000, new RestoreProbe(true, "", 5, 990), Today), x => x.Title == "Thử phục hồi đạt");
     }
 
+    /// <summary>
+    /// Báo cáo Trợ lý 24/11 (1.63.0): "Bản sao lưu 13.748 dòng, hiện có 28.195 dòng" với bằng chứng truoc-doi-vai-….db — bản chụp
+    /// dữ liệu CŨ lúc máy nhận vai LAN mới (rồi lấy dữ liệu máy chủ). Không phải bản sao lưu hỏng / thiếu → không cảnh báo.
+    /// </summary>
+    [Fact]
+    public void Sao_luu_sau_khi_doi_vai_lan_khong_bao_thieu_dong()
+    {
+        var files = new List<BackupFile>
+        {
+            new("tu-dong_2026-11-24.db", Today.AddHours(-10), 1000),          // sáng: dữ liệu riêng của máy
+            new("truoc-doi-vai-20261124-173430.db", Today.AddHours(-3), 1000), // chiều: đổi vai → thay bằng dữ liệu máy chủ
+            new("tu-dong_2026-11-23.db", Today.AddHours(-34), 1000),
+        };
+        Assert.Equal("tu-dong_2026-11-24.db", PickLatest(files)!.Name);   // Quét sâu thử mở bản đều đặn, không phải bản chụp
+        var f = CheckBackup(files, 28_195, new RestoreProbe(true, "", 40, 13_748), Today);
+        Assert.DoesNotContain(f, x => x.Title.StartsWith("Bản sao lưu ít dòng"));
+        var ok = Assert.Single(f, x => x.Title == "Thử phục hồi đạt");
+        Assert.Contains("vai LAN", ok.Detail);
+
+        // không có đổi vai / khôi phục sau bản sao lưu → vẫn cảnh báo như cũ
+        var plain = files.Where(x => !x.Name.StartsWith("truoc-")).ToList();
+        Assert.Contains(CheckBackup(plain, 28_195, new RestoreProbe(true, "", 40, 13_748), Today), x => x.Title.StartsWith("Bản sao lưu ít dòng"));
+        // chỉ có bản chụp: vẫn dùng nó (không có bản nào khác)
+        Assert.Equal("truoc-khoi-phuc_2026-11-24_101010.db", PickLatest(new List<BackupFile> { new("truoc-khoi-phuc_2026-11-24_101010.db", Today, 10) })!.Name);
+    }
+
     [Fact]
     public void Dong_bo_lan_va_file_tam()
     {

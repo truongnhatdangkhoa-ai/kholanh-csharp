@@ -112,11 +112,6 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
-        var sg = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        sg.Children.Add(Controls.Icon.Make("search", 15));
-        sg.Children.Add(new TextBlock { Text = "Tìm mã hàng, LSX, phiếu, vị trí hoặc module…", Margin = new Avalonia.Thickness(9, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis }.Also(t => Grid.SetColumn(t, 1)));
-        sg.Children.Add(new Border { Classes = { "kbd" }, Child = new TextBlock { Text = "Ctrl K", FontSize = 11 } }.Also(t => Grid.SetColumn(t, 2)));
-        SearchButton.Content = sg;
         var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
@@ -171,18 +166,17 @@ public partial class MainWindow : Window
     private readonly Avalonia.Threading.DispatcherTimer _lanTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private void OnLanChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(ShowLan);
 
-    /// <summary>Ô trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
+    /// <summary>Dấu chấm trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
     private void ShowLan()
     {
         var lan = App.Services.Lan;
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
-        LanText.Text = lan.Short;
-        LanText.Foreground = AppTheme.Brush("#C8D4E3", "#A9B5C3");
-        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#F0A030" : "#3FB950");
-        ToolTip.SetTip(LanPill, lan.Health == 2
+        // 1.65: chỉ còn dấu chấm (xanh = có kết nối, đỏ = mất máy chủ / làm riêng); chữ trạng thái chuyển vào chú thích khi rê chuột.
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : "#3FB950");
+        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
-            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : ""));
+            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
 
     private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
@@ -371,7 +365,6 @@ public partial class MainWindow : Window
         return fl;
     }
 
-    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
     private Views.TimNhanhWindow? _search;
     /// <summary>Tìm nhanh toàn app (Ctrl + K).</summary>
     public Views.TimNhanhWindow OpenSearch(string text = "")
@@ -399,7 +392,7 @@ public partial class MainWindow : Window
         var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
         void Preview() { AppTheme.SetDensity(AppTheme.Densities[Math.Max(0, dens.SelectedIndex)].Key); AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
         light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview(); dens.SelectionChanged += (_, _) => Preview();
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
         body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);

@@ -279,7 +279,7 @@ public sealed class CargoView : UserControl
         }
         for (var d = 1; d <= NDay; d++) cols.Add(Day(d));
         gm.Load(cols, b.Lines.Select(l => RowOfLine(l, ks)));
-        var grid = new SheetGrid(gm) { SpareRows = 2 };
+        var grid = new SheetGrid(gm) { SpareRows = MinSpare };
         grid.Display = (r, col, raw) =>
         {
             if (r >= b.Lines.Count) return raw;
@@ -294,8 +294,14 @@ public sealed class CargoView : UserControl
             var ln = b.Lines[r]; if (LineTotal(ln) <= 0 && ln.Sn.Trim().Length == 0) return null;
             var res = ResolveLine(Svc.Cfg, b, ln, Svc.Ks); return res.Errors.Count > 0 ? BadBg : (res.Market.Length > 0 ? OkBg : null);
         };
-        // 1.53: cao theo dòng thật (trước tính 24 px/dòng < 26 px thật → hụt dòng), tối đa 560; ⤢ ở góc mở cửa sổ lớn
-        void FixH() => grid.Height = SheetGrid.FitHeight(Math.Max(gm.RowCount, 1) + grid.SpareRows, 560);
+        // 1.53: cao theo dòng thật (trước tính 24 px/dòng < 26 px thật → hụt dòng), tối đa 560; ⤢ ở góc mở cửa sổ lớn.
+        // 1.67: luôn hiện ít nhất 10 dòng (dòng có số liệu + dòng trống để gõ thêm), còn ≥ 3 dòng trống ở cuối. Trước đây chỉ
+        // 1 dòng + 2 dòng trống, thanh cuộn ngang che dòng cuối, Enter xuống dòng mới không thấy → tưởng không thêm dòng được.
+        void FixH()
+        {
+            grid.SpareRows = Math.Max(MinSpare, MinRows - gm.RowCount);
+            grid.Height = SheetGrid.FitHeight(gm.RowCount + grid.SpareRows, 560) + ScrollH;
+        }
         FixH();
         gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); FixH(); Dirty(); };
         _blocks.Add((b, gm));
@@ -307,6 +313,8 @@ public sealed class CargoView : UserControl
         return Section($"Mục hàng {bi + 1} — {(ks ? "kháng sinh" : "khác")}", body);
     }
     private readonly Dictionary<int, Button> _capsBtn = new();
+    /// <summary>Lưới mục hàng: tối thiểu số dòng hiện (kể cả dòng trống), số dòng trống luôn có ở cuối, chỗ cho thanh cuộn ngang.</summary>
+    internal const int MinRows = 10, MinSpare = 3; private const double ScrollH = 14;
 
     private static string[] RowOfLine(CargoLine l, bool ks)
     {
