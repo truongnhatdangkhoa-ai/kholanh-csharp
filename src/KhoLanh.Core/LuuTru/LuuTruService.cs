@@ -212,9 +212,9 @@ public sealed class LuuTruService
         name.StartsWith("data-") && name.EndsWith(".json") && DateTime.TryParseExact(name[5..^5], "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
 
     public static string Size(long b) =>
-        b >= 1L << 30 ? (b / (double)(1L << 30)).ToString("0.##", CultureInfo.GetCultureInfo("vi-VN")) + " GB"
-        : b >= 1 << 20 ? (b / (double)(1 << 20)).ToString("0.#", CultureInfo.GetCultureInfo("vi-VN")) + " MB"
-        : b >= 1024 ? (b / 1024.0).ToString("0", CultureInfo.GetCultureInfo("vi-VN")) + " KB" : b + " B";
+        b >= 1L << 30 ? (b / (double)(1L << 30)).ToString("0.##", KhoLanh.Core.Grid.NumFmt.Culture) + " GB"
+        : b >= 1 << 20 ? (b / (double)(1 << 20)).ToString("0.#", KhoLanh.Core.Grid.NumFmt.Culture) + " MB"
+        : b >= 1024 ? (b / 1024.0).ToString("0", KhoLanh.Core.Grid.NumFmt.Culture) + " KB" : b + " B";
 
     /// <summary>Các bản trên Drive để khôi phục: "data.json" (mới nhất) + bản theo ngày (mới nhất trước).</summary>
     public async Task<List<LtGoogle.DFile>> SnapshotsAsync(CancellationToken ct = default)

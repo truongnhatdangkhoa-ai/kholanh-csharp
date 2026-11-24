@@ -993,7 +993,7 @@ public static class SlipImageRenderer
     private static readonly Typeface Bold = new(new FontFamily("Times New Roman, Liberation Serif, Times, serif"), FontStyle.Normal, FontWeight.Bold);
     private static FormattedText Text(string s, bool bold, double px) => new(s, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, bold ? Bold : Reg, px, Brushes.Black);
     private static double W(string s, bool bold, double px) => s.Length == 0 ? 0 : Text(s, bold, px).Width;
-    private static string N(double v) => v.ToString("#,0.##", CultureInfo.GetCultureInfo("vi-VN"));
+    private static string N(double v) => v.ToString("#,0.##", KhoLanh.Core.Grid.NumFmt.Culture);
 
     private sealed class Surface : Control
     {

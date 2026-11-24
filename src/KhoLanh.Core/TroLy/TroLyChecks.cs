@@ -93,7 +93,7 @@ public static class TroLyChecks
         return double.TryParse(s.Replace(",", "").Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : double.NaN;
     }
 
-    public static string Nf(double n) => (Math.Round(n * 100) / 100).ToString("#,0.##", CultureInfo.GetCultureInfo("vi-VN"));
+    public static string Nf(double n) => (Math.Round(n * 100) / 100).ToString("#,0.##", KhoLanh.Core.Grid.NumFmt.Culture);
     public static string Dmy(string iso) => Regex.Match(iso ?? "", @"^(\d{4})-(\d{2})-(\d{2})") is { Success: true } m ? $"{m.Groups[3]}/{m.Groups[2]}/{m.Groups[1]}" : iso ?? "";
 
     private static readonly Dictionary<string, int> SevOrder = new() { ["do"] = 0, ["vang"] = 1, ["xanh"] = 2 };

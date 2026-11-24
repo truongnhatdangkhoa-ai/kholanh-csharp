@@ -13,7 +13,8 @@ namespace KhoLanh.App;
 /// <summary>Hộp thoại, chọn file, định dạng số dùng chung cho mọi màn hình.</summary>
 public static class Ui
 {
-    public static readonly CultureInfo Vi = CultureInfo.GetCultureInfo("vi-VN");
+    /// <summary>Văn hóa định dạng của app: ngày kiểu Việt, SỐ kiểu 1,500.00 (1.71, <see cref="KhoLanh.Core.Grid.NumFmt"/>).</summary>
+    public static readonly CultureInfo Vi = KhoLanh.Core.Grid.NumFmt.Culture;
 
     public static Window? Owner(Visual v) => TopLevel.GetTopLevel(v) as Window;
 

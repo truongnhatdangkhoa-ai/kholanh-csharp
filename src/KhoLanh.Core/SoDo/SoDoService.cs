@@ -323,7 +323,7 @@ public sealed class SoDoService
             }
             else if (mode == "trong")
             {
-                if (e is not null) for (int t = 1, nt = TangOf(e, n); t <= nt; t++) for (var kk = 1; kk <= e.K; kk++) pg.Rows.Add(new KkLine { Code = CodeOf(kho, khu, n, t, kk) });
+                if (e is not null) for (int t = 1, nt = TangOf(e, n); t <= nt; t++) for (var kk = 1; kk <= e.K; kk++) { var c = CodeOf(kho, khu, n, t, kk); pg.Rows.Add(new KkLine { Code = c, Pos = c, First = true }); }   // 1.71: ghi sẵn mã vị trí như phiếu "vị trí trống"
             }
             else
                 foreach (var r in KkRows(B.Pos, kho, khu, n))
