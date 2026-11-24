@@ -61,6 +61,11 @@ public static class Icon
         ["lock"] = "M5 11 H19 V21 H5 Z M8 11 V7 A4 4 0 0 1 16 7 V11",
         ["calendar"] = "M4 5 H20 V21 H4 Z M4 10 H20 M8 3 V7 M16 3 V7",
         ["mail"] = "M3 5 H21 V19 H3 Z M3 6 L12 13 L21 6",
+        ["warehouse"] = "M3 21 V9 L12 3 L21 9 V21 M7 21 V13 H17 V21 M7 17 H17",
+        ["grid"] = "M3 3 H21 V21 H3 Z M3 9 H21 M3 15 H21 M9 3 V21 M15 3 V21",
+        ["tag"] = "M3 12 V4 A1 1 0 0 1 4 3 H11 L21 13 L13 21 Z M7.5 7 V7.5",
+        ["layers"] = "M12 3 L22 8 L12 13 L2 8 Z M2 13 L12 18 L22 13 M2 17 L12 22 L22 17",
+        ["menu"] = "M3 6 H21 M3 12 H21 M3 18 H21",
         ["logout"] = "M9 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 H9 M16 17 L21 12 L16 7 M21 12 H9",
     };
 

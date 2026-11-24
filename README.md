@@ -69,7 +69,8 @@ Menu trên cùng gom theo nhóm (Tồn kho, Báo cáo, Nhập liệu, Hệ thố
 ![So sánh & Tra cứu bảng](docs/anh/39-so-sanh-bang.png)
 ![Giao diện Tối](docs/anh/40-giao-dien-toi-tong-quan.png)
 ![Tìm nhanh toàn app](docs/anh/41-tim-nhanh.png)
-![Danh mục mã hàng](docs/anh/44-danh-muc-ma-hang.png)
+![Danh mục mã hàng — giao diện Băng sạch, thanh bên trái](docs/anh/44-danh-muc-ma-hang.png)
+![Thanh bên thu gọn](docs/anh/03d-menu-thu-gon.png)
 ![Kiểm kê nhanh](docs/anh/45-kiem-ke-nhanh.png)
 
 ## Dùng chung qua mạng LAN

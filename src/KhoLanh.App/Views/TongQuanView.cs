@@ -110,8 +110,9 @@ public sealed partial class TongQuanView : UserControl, IPage
 
     private Control HomeTab()
     {
-        var dayHead = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
+        // tiêu đề + nút xếp dòng tự do: màn hình hẹp (thanh bên mở) thì nút xuống dòng, không đè lên chữ
+        var dayHead = new WrapPanel { ItemSpacing = 16, LineSpacing = 8, Margin = new Thickness(0, 0, 0, 8) };
+        var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, VerticalAlignment = VerticalAlignment.Center };
         if (Svc.CanEdit)
         {
             acts.Children.Add(Btn("+ Thêm lịch", async () => await EditDialog(null, DayKey()), primary: true));
@@ -122,10 +123,9 @@ public sealed partial class TongQuanView : UserControl, IPage
         acts.Children.Add(Btn("Hôm nay", () => { _dayOff = 0; PaintDay(); return Task.CompletedTask; }));
         acts.Children.Add(Btn("›", () => { _dayOff++; PaintDay(); return Task.CompletedTask; }));
         acts.Children.Add(_pick);
-        DockPanel.SetDock(acts, Dock.Right); dayHead.Children.Add(acts);
         var tl = new StackPanel { Spacing = 2 }; tl.Children.Add(H2("Lịch xuất trong ngày"));
         var sub = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 }; sub.Children.Add(_dayLb); sub.Children.Add(_dayCnt); tl.Children.Add(sub);
-        dayHead.Children.Add(tl);
+        dayHead.Children.Add(tl); dayHead.Children.Add(acts);
         var dayBox = new StackPanel(); dayBox.Children.Add(dayHead); dayBox.Children.Add(_day);
         if (Svc.CanEdit) dayBox.Children.Add(new Button { Content = "＋ Thêm lịch ngày này", Margin = new Thickness(0, 6, 0, 0), FontSize = 12.5, Command = null }.Also(b => b.Click += async (_, _) => await EditDialog(null, DayKey())));
 
