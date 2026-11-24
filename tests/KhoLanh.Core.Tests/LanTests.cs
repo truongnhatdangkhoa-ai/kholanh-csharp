@@ -170,6 +170,8 @@ public class LanTests : IDisposable
         cli.Lan.Write(Db, One("S", Rows("a", "b")));
         cli.Lan.Write(Db, One("U", Rows("u1", "u2")));
         cli.Lan.Write(Db, One("W", Rows("w1", "w2")));
+        // tiền đề của kịch bản: dữ liệu ban đầu đã lên máy chủ (máy chậm có thể đang nằm trong sổ chờ) — bản gốc chung để gộp sau này
+        Until(() => cli.Lan.PendingCount() == 0 && Local(srv, "S") == "a,b" && Local(srv, "U") == "u1,u2" && Local(srv, "W") == "w1,w2", "dữ liệu ban đầu lên máy chủ");
         Stop(srv);
 
         // máy chủ tắt: máy con làm trên database riêng + sổ chờ

@@ -520,8 +520,11 @@ public sealed partial class LanService : ISheetSource, IDisposable
             case "changes":
             {
                 var since = req["since"]?.GetValue<long>() ?? 0;
-                var items = _store.ChangesSince(since);
+                // Đọc số thứ tự TRƯỚC rồi mới lấy danh sách thay đổi: nếu có lần ghi chen giữa thì nó nằm trong danh sách (lượt sau đọc lại cũng vô hại).
+                // Làm ngược lại (lỗi trước 1.46) thì máy nhận ghi "đã đọc tới seq mới" mà thiếu đúng lần ghi đó → bỏ lỡ vĩnh viễn
+                // (test Standby_takes_over… thỉnh thoảng đỏ: máy dự phòng không chép lại sau khi trả vai).
                 var seq = _store.CurrentSeq();
+                var items = _store.ChangesSince(since);
                 var res = new JsonObject
                 {
                     ["ok"] = true, ["seq"] = seq, ["epoch"] = Epoch, ["epochStart"] = _epochStart,
@@ -795,11 +798,13 @@ public sealed partial class LanService : ISheetSource, IDisposable
             if (pending.Contains(db + "/" + sheet)) continue; // đang có thay đổi chờ gửi: giữ bản của mình
             _store.SetExact(db, sheet, it["data"]?.ToString(), it["v"]!.GetValue<long>());
         }
-        if (since == 0)
-            foreach (var (db, sheet, _) in _store.AllVersions())
-                if (!got.Contains(db + "/" + sheet) && !pending.Contains(db + "/" + sheet))
-                    _store.SetExact(db, sheet, null, 0);
         var seq = r["seq"]!.GetValue<long>();
+        if (since == 0)
+            // Tải lại toàn bộ: bảng cục bộ không có trên máy chủ thì xóa — TRỪ bảng có phiên bản mới hơn mốc máy chủ vừa báo
+            // (vừa ghi xong sau khi máy chủ lập câu trả lời; xóa nhầm thì lần sửa kế tiếp lúc mất máy chủ mất bản gốc → gộp nhân đôi dòng).
+            foreach (var (db, sheet, ver) in _store.AllVersions())
+                if (!got.Contains(db + "/" + sheet) && !pending.Contains(db + "/" + sheet) && ver <= seq)
+                    _store.SetExact(db, sheet, null, 0);
         var ep = r["epoch"]?.GetValue<long>() ?? 0;
         if (ep != _serverEpoch) { _serverEpoch = ep; _settings.Set("lan_sync_epoch", ""); return; } // đổi nhiệm kỳ giữa chừng: lượt sau tải lại
         _settings.Set("lan_last_seq", seq.ToString());
