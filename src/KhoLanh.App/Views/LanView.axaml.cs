@@ -80,22 +80,18 @@ public partial class LanView : UserControl, IPage
             return;
         }
         AutoOn.IsChecked = plan.On;
-        var anyAssigned = plan.Vai.Count > 0;
-        foreach (var u in s.Auth.ListUsers().Where(u => u.IsActive).OrderBy(u => u.Role == Core.Models.Roles.Admin ? 0 : u.Role == Core.Models.Roles.Manager ? 1 : 2).ThenBy(u => u.Username))
+        // 1.56: vai từng tài khoản gán ở Hệ thống › Tài khoản (ô "Vai máy LAN"); ở đây chỉ hiện tóm tắt
+        var assigned = s.Auth.ListUsers().Where(u => u.IsActive && plan.RoleOf(u.Username) != LanService.RoleClient)
+            .Select(u => $"{u.Username} — {LanService.RoleLabel(plan.RoleOf(u.Username))}").ToList();
+        AutoRows.Children.Add(new TextBlock
         {
-            var role = anyAssigned ? plan.RoleOf(u.Username) : u.Username == s.Session.Username ? LanService.RoleServer : LanService.RoleClient;
-            var box = new ComboBox { ItemsSource = AutoChoices.Select(c => c.Label).ToList(), Width = 150, SelectedIndex = Array.FindIndex(AutoChoices, c => c.Role == role) };
-            var row = new DockPanel();
-            DockPanel.SetDock(box, Avalonia.Controls.Dock.Right);
-            row.Children.Add(box);
-            row.Children.Add(new TextBlock
-            {
-                Text = $"{u.Username} — {u.FullName} ({Core.Models.Roles.Label(u.Role)})", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis,
-            });
-            AutoRows.Children.Add(row);
-            _autoBoxes.Add((u.Username, box));
-        }
+            Text = (assigned.Count == 0 ? "Chưa gán tài khoản nào làm máy chủ / dự phòng (mọi tài khoản = máy con)." : "Đã gán: " + string.Join(" · ", assigned))
+                   + "\nGán vai cho từng tài khoản ở Hệ thống › Tài khoản (ô Vai máy LAN).",
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep",
+        });
+        var open = new Button { Content = "Mở Tài khoản" };
+        open.Click += (_, _) => MainWindow.Of(this)?.Navigate("users");
+        AutoRows.Children.Add(open);
         var canWrite = s.Accounts.CanWrite;
         AutoOn.IsEnabled = AutoSaveButton.IsEnabled = canWrite;
         ClaimButton.IsEnabled = canWrite && plan.On && !(plan.Chu?.Id == s.Lan.MachineId && s.Lan.Role == LanService.RoleServer);
@@ -125,9 +121,9 @@ public partial class LanView : UserControl, IPage
     {
         var s = App.Services;
         var on = AutoOn.IsChecked == true;
-        var vai = _autoBoxes.Where(x => x.Box.SelectedIndex > 0).ToDictionary(x => x.User, x => AutoChoices[x.Box.SelectedIndex].Role, StringComparer.OrdinalIgnoreCase);
+        var vai = new Dictionary<string, string>(s.Accounts.Plan?.Vai ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
         if (on && !vai.ContainsValue(LanService.RoleServer) && (s.Accounts.Plan?.Chu is null))
-        { await Ui.Message(this, "Chưa có tài khoản nào được gán Máy chủ chính và chưa có máy chủ — gán cho tài khoản Quản trị của máy chủ."); return; }
+        { await Ui.Message(this, "Chưa có tài khoản nào được gán Máy chủ chính và chưa có máy chủ — vào Hệ thống › Tài khoản, chọn tài khoản Quản trị của máy chủ, đặt Vai máy LAN = Máy chủ chính."); return; }
         LanPlan? plan = null;
         if (!await Ui.RunAsync(this, async () => plan = await s.Accounts.UpdatePlanAsync(p =>
             {

@@ -7,10 +7,7 @@ namespace KhoLanh.App.Views;
 public partial class UsersView : UserControl, IPage
 {
     public string Title => "Tài khoản";
-    public string Subtitle => App.Services.Accounts.Enabled
-        ? "Tài khoản dùng chung cho mọi máy qua Google Sheet: sửa ở đây là lưu lên Sheet, máy khác nhận ở lần đăng nhập sau."
-          + (App.Services.Accounts.CanWrite ? "" : " Máy này chưa mở khóa ghi — bấm Lưu sẽ hỏi mật khẩu Quản trị để mở.")
-        : "Tạo tài khoản, phân quyền tới từng màn hình, khóa tài khoản và đặt lại mật khẩu. Quyền mới có hiệu lực từ lần đăng nhập sau.";
+    public string Subtitle => App.Services.Accounts.Enabled ? "Dùng chung cho mọi máy qua Google Sheet." : "Quyền mới có hiệu lực từ lần đăng nhập sau.";
     private User _editing = new();
     private readonly Dictionary<string, ComboBox> _permBoxes = new();
     private bool _loading;
@@ -31,7 +28,27 @@ public partial class UsersView : UserControl, IPage
         catch { /* mất mạng: dùng bản lưu trong máy */ }
     }
 
-    private void Load() => Grid.ItemsSource = App.Services.Auth.ListUsers();
+    /// <summary>1 dòng bảng danh sách (kèm vai máy LAN theo phân vai tài khoản).</summary>
+    public sealed record Row(User U, string LanLabel)
+    {
+        public string Username => U.Username; public string FullName => U.FullName; public string RoleLabel => U.RoleLabel; public string StatusLabel => U.StatusLabel;
+    }
+
+    private static string LanRoleOf(string user)
+    {
+        var a = App.Services.Accounts;
+        if (!a.Enabled) return "";
+        var plan = a.Plan;
+        if (plan is null) return "Máy con";
+        return KhoLanh.Core.Lan.LanService.RoleLabel(plan.RoleOf(user)) + (plan.On ? "" : " (chưa bật)");
+    }
+
+    private void Load()
+    {
+        var list = App.Services.Auth.ListUsers();
+        List.ItemsSource = list.Select(u => new Row(u, LanRoleOf(u.Username))).ToList();
+        CountText.Text = $"{list.Count} tài khoản";
+    }
 
     private void Edit(User u)
     {
@@ -44,6 +61,13 @@ public partial class UsersView : UserControl, IPage
         PassPanel.IsVisible = isNew; PassBox.Text = "";
         ActiveBox.IsChecked = u.IsActive;
         ResetButton.IsVisible = !isNew;
+        // vai máy LAN theo tài khoản (lưu ở phân vai trên Google Sheet tài khoản dùng chung)
+        var acc = App.Services.Accounts;
+        LanPanel.IsVisible = acc.Enabled;
+        var lanRole = acc.Plan?.RoleOf(u.Username) ?? KhoLanh.Core.Lan.LanService.RoleClient;
+        LanBox.SelectedIndex = lanRole == KhoLanh.Core.Lan.LanService.RoleServer ? 1 : lanRole == KhoLanh.Core.Lan.LanService.RoleStandby ? 2 : 0;
+        ToolTip.SetTip(LanPanel, acc.Plan?.On == true ? "Máy đăng nhập bằng tài khoản này tự nhận vai này (Mạng LAN › phân vai theo tài khoản)."
+            : "Có hiệu lực khi bật “máy tự nhận vai theo tài khoản” ở Hệ thống › Mạng LAN.");
         _loading = true;
         CustomBox.IsChecked = u.Role != Roles.Admin && u.Permissions.Length > 0;
         _loading = false;
@@ -52,34 +76,36 @@ public partial class UsersView : UserControl, IPage
 
     private string SelectedRole => (RoleBox.SelectedItem as ComboBoxItem)?.Tag as string ?? Roles.Staff;
 
-    /// <summary>Bảng mục / mức quyền: mỗi màn hình một ô chọn Không / Xem / Xem + xuất file / Sửa.</summary>
+    /// <summary>Bảng phân quyền: mỗi nhóm 1 khung (tên màn hình + ô chọn Không / Xem / Xem + xuất file / Sửa), các khung xếp nhiều cột theo bề rộng.</summary>
     private void BuildPermGrid()
     {
-        var row = 0;
-        string? group = null;
-        foreach (var item in Perm.Items)
+        foreach (var grp in Perm.Items.GroupBy(i => i.Group))
         {
-            if (item.Group != group)
+            var g = new Avalonia.Controls.Grid { ColumnDefinitions = new ColumnDefinitions("*,150"), RowSpacing = 4 };
+            var r = 0;
+            foreach (var item in grp)
             {
-                group = item.Group;
-                PermGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                var g = new TextBlock { Text = group.ToUpper(), Classes = { "label" }, Margin = new Avalonia.Thickness(0, row == 0 ? 0 : 8, 0, 2) };
-                Avalonia.Controls.Grid.SetRow(g, row++); Avalonia.Controls.Grid.SetColumnSpan(g, 2);
-                PermGrid.Children.Add(g);
+                g.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                var label = new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+                if (item.Hint.Length > 0) ToolTip.SetTip(label, item.Hint);
+                var levels = new[] { Perm.None }.Concat(item.Levels).ToList();
+                var box = new ComboBox
+                {
+                    ItemsSource = levels.Select(l => new ComboBoxItem { Content = Perm.LevelLabel(l), Tag = l }).ToList(),
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                };
+                Avalonia.Controls.Grid.SetRow(label, r); Avalonia.Controls.Grid.SetRow(box, r); Avalonia.Controls.Grid.SetColumn(box, 1);
+                g.Children.Add(label); g.Children.Add(box);
+                _permBoxes[item.Key] = box; r++;
             }
-            PermGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var label = new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-            if (item.Hint.Length > 0) ToolTip.SetTip(label, item.Hint);
-            var levels = new[] { Perm.None }.Concat(item.Levels).ToList();
-            var box = new ComboBox
+            var card = new StackPanel { Spacing = 6 };
+            card.Children.Add(new TextBlock { Text = grp.Key.ToUpper(), Classes = { "label" }, FontWeight = Avalonia.Media.FontWeight.SemiBold });
+            card.Children.Add(g);
+            PermPanel.Children.Add(new Border
             {
-                ItemsSource = levels.Select(l => new ComboBoxItem { Content = Perm.LevelLabel(l), Tag = l }).ToList(),
-                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Avalonia.Thickness(0, 2),
-            };
-            Avalonia.Controls.Grid.SetRow(label, row); Avalonia.Controls.Grid.SetRow(box, row); Avalonia.Controls.Grid.SetColumn(box, 1);
-            row++;
-            PermGrid.Children.Add(label); PermGrid.Children.Add(box);
-            _permBoxes[item.Key] = box;
+                Width = 345, Padding = new Avalonia.Thickness(12, 10), CornerRadius = new Avalonia.CornerRadius(8),
+                BorderBrush = AppTheme.Brush("#E3E8EF"), BorderThickness = new Avalonia.Thickness(1), Background = AppTheme.Brush("#F8FAFC"), Child = card,
+            });
         }
     }
 
@@ -101,8 +127,8 @@ public partial class UsersView : UserControl, IPage
             box.IsEnabled = custom;
         }
         PermHint.Text = role == Roles.Admin ? "Quản trị luôn có toàn quyền."
-            : custom ? "Đang dùng quyền riêng — chọn mức cho từng màn hình rồi bấm Lưu."
-            : $"Đang theo quyền mặc định của vai trò {Roles.Label(role)}. Đánh dấu ô trên để chỉnh riêng.";
+            : custom ? "Đang dùng quyền riêng — chọn mức từng màn hình rồi bấm Lưu."
+            : $"Theo quyền mặc định của vai trò {Roles.Label(role)}.";
     }
 
     private Dictionary<string, string>? CurrentBoxes()
@@ -117,12 +143,12 @@ public partial class UsersView : UserControl, IPage
     private string PermissionsToSave() =>
         CustomBox.IsChecked == true && SelectedRole != Roles.Admin && CurrentBoxes() is { } m ? Perm.Serialize(m) : "";
 
-    private void OnSelect(object? sender, SelectionChangedEventArgs e)
-    {
-        if (Grid.SelectedItem is User u) Edit(u);
-    }
+    private void OpenSelected() { if (List.SelectedItem is Row r) { Edit(r.U); Tabs.SelectedIndex = 1; } }
+    private void OnEdit(object? sender, RoutedEventArgs e) => OpenSelected();
+    private void OnListDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e) => OpenSelected();
+    private void OnBack(object? sender, RoutedEventArgs e) => Tabs.SelectedIndex = 0;
 
-    private void OnNew(object? sender, RoutedEventArgs e) { Grid.SelectedItem = null; Edit(new User()); UserBox.Focus(); }
+    private void OnNew(object? sender, RoutedEventArgs e) { List.SelectedItem = null; Edit(new User()); Tabs.SelectedIndex = 1; UserBox.Focus(); }
 
     /// <summary>
     /// Dùng chung tài khoản mà máy chưa mở khóa ghi → hỏi mật khẩu Quản trị (hoặc mã cho máy quản trị) để mở ngay, thay vì chỉ báo lỗi.
@@ -161,7 +187,19 @@ public partial class UsersView : UserControl, IPage
                 App.Services.Auth.SetPermissions(editing.Id, perms);
             }
         }));
-        if (ok) { Load(); Edit(new User()); }
+        if (ok && App.Services.Accounts.Enabled)
+        {
+            var want = (LanBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "client";
+            var lan = want == "server" ? KhoLanh.Core.Lan.LanService.RoleServer : want == "standby" ? KhoLanh.Core.Lan.LanService.RoleStandby : KhoLanh.Core.Lan.LanService.RoleClient;
+            var cur = App.Services.Accounts.Plan?.RoleOf(user) ?? KhoLanh.Core.Lan.LanService.RoleClient;
+            if (cur != lan)
+                ok = await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p =>
+                {
+                    if (lan == KhoLanh.Core.Lan.LanService.RoleClient) p.Vai.Remove(user); else p.Vai[user] = lan;
+                    return true;
+                }));
+        }
+        if (ok) { Load(); Tabs.SelectedIndex = 0; Edit(new User()); }
     }
 
     private async void OnReset(object? sender, RoutedEventArgs e)
