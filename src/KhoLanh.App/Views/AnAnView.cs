@@ -577,7 +577,7 @@ public sealed class AnAnView : UserControl, IPage
 
     private Control BuildBc()
     {
-        _bcg = new SheetGrid(_bcm) { SpareRows = 0, CellBackground = (r, _) => r == _bcm.RowCount - 1 ? TotalBg : r == 0 ? ManualBg : null };
+        _bcg = new SheetGrid(_bcm) { SpareRows = 0, Filterable = false, CellBackground = (r, _) => r == _bcm.RowCount - 1 ? TotalBg : r == 0 ? ManualBg : null };
         _bhg = new SheetGrid(_bhm) { SpareRows = 0, CellBackground = (r, _) => r < _bhRows.Count && _bhRows[r].Kind == "group-title" ? TitleBg : null };
         var bar = Bar();
         if (_export)
@@ -587,19 +587,20 @@ public sealed class AnAnView : UserControl, IPage
             bar.Children.Add(Btn("⬇ Xuất Bảng Tổng Hợp HLSO", async () => await SaveXlsx(AnAnExport.HlsoSummary(D, D.DataDate.Length > 0 ? D.DataDate : Today), $"BangTongHopHLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
         }
         if (_edit) bar.Children.Add(Btn("Lấy Kho Gửi từ Tồn kho gửi", async () => await PullKhoGui()));
-        var left = new StackPanel { Spacing = 6, Width = 440 };
-        left.Children.Add(Label("Báo Cáo Tổng Tồn", true, 14));
-        left.Children.Add(Framed(new Border { Height = 300, Child = _bcg }));
+        // 1.49: bảng Tổng Tồn to hơn, hiện đủ 9 dòng không cuộn; Đối soát thu nhỏ (hiện đủ 5 dòng, hẹp lại) → Bảng Tổng Hợp HLSO có thêm chỗ
+        var left = new StackPanel { Spacing = 6, Width = 560 };
+        left.Children.Add(Label("Báo Cáo Tổng Tồn", true, 15));
+        left.Children.Add(Framed(new Border { Height = SheetGrid.HeadH + SheetGrid.RowH * 9 + 14, Child = _bcg }));
         left.Children.Add(_bcKhoGui);
-        var right = new StackPanel { Spacing = 6, Margin = new Thickness(14, 0, 0, 0) };
-        right.Children.Add(Label("Đối Soát: 8 Module vs Load Data", true, 14));
-        right.Children.Add(Framed(new Border { Height = 150, Child = new SheetGrid(_bdm) { SpareRows = 0, CellBackground = (r, _) => r is 2 or 4 && _bdm.Get(r, 1) is { Length: > 0 } s && s != "0.00" && s != "-0.00" ? WarnBg : null } }));
+        var right = new StackPanel { Spacing = 6, Margin = new Thickness(16, 0, 0, 0), MaxWidth = 470, HorizontalAlignment = HorizontalAlignment.Left };
+        right.Children.Add(Label("Đối Soát: 8 Module vs Load Data", true, 13));
+        right.Children.Add(Framed(new Border { Height = SheetGrid.HeadH + SheetGrid.RowH * 5 + 14, Child = new SheetGrid(_bdm) { SpareRows = 0, Filterable = false, CellBackground = (r, _) => r is 2 or 4 && _bdm.Get(r, 1) is { Length: > 0 } s && s != "0.00" && s != "-0.00" ? WarnBg : null } }));
         right.Children.Add(_bcRecon);
         var row = new DockPanel();
         DockPanel.SetDock(left, Dock.Left); row.Children.Add(left); row.Children.Add(right);
         var head = new StackPanel { Spacing = 6 };
         head.Children.Add(bar); head.Children.Add(row);
-        head.Children.Add(Label("Bảng Tổng Hợp HLSO", true, 14));
+        head.Children.Add(Label("Bảng Tổng Hợp HLSO", true, 15));
         return Page(head, Framed(_bhg));
     }
 
@@ -648,13 +649,13 @@ public sealed class AnAnView : UserControl, IPage
     {
         var rows = D.TongTonRows();
         double? total = null; foreach (var r in rows) if (r.Weight is double w && !double.IsNaN(w)) total = (total ?? 0) + w;
-        _bcm.Load(new[] { new GridColumn("l", "Tên hàng", 200), new GridColumn("w", "Trọng lượng (kg)", 170, "number") },
+        _bcm.Load(new[] { new GridColumn("l", "Tên hàng", 300, "text"), new GridColumn("w", "Trọng lượng (kg)", 190, "number") },
             rows.Select(r => new[] { r.Label, Kg(r.Weight) }).Append(new[] { "TỔNG CỘNG", Kg(total) }));
         _bcg.Refresh();
         _bcKhoGui.Text = $"Báo Cáo Kho Gửi: {(D.KhoGui is double kg ? Kg(kg) + " kg" : "—")} · “Bột + Sốt + Bếp” sửa ở tab Tổng Hợp › Báo cáo ngoài sổ sách.";
         var all = D.TotalWeightAll(); var (hl, hasHl) = D.HlsoGrandTotal();
         double? Diff(double? a, double? b) => a is double x && b is double y ? x - y : null;
-        _bdm.Load(new[] { new GridColumn("l", "", 270), new GridColumn("v", "Trọng lượng (kg)", 140, "number") }, new[]
+        _bdm.Load(new[] { new GridColumn("l", "", 250), new GridColumn("v", "Trọng lượng (kg)", 130, "number") }, new[]
         {
             new[] { "Tổng toàn bộ dữ liệu Load Data", Kg(all) }, new[] { "Tổng cộng 8 module (bảng bên trái)", Kg(total) }, new[] { "Chênh lệch", Kg(Diff(total, all)) },
             new[] { "Tổng Bảng Tổng Hợp HLSO", hasHl ? Kg(hl) : "—" }, new[] { "Chênh lệch (HLSO vs 8 module)", hasHl ? Kg(Diff(hl, total)) : "—" },

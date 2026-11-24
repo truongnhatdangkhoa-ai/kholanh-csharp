@@ -75,7 +75,7 @@ public static class Icon
     };
 
     /// <summary>Biểu tượng cỡ <paramref name="size"/> px; <paramref name="brush"/> null = theo màu chữ của control cha.</summary>
-    public static Control Make(string name, double size = 16, IBrush? brush = null, double stroke = 1.8)
+    public static Control Make(string name, double size = 16, IBrush? brush = null, double stroke = 2.1)
     {
         var path = new Avalonia.Controls.Shapes.Path
         {

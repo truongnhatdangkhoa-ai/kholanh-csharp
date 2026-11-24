@@ -1121,6 +1121,34 @@ void DmScene()
     var dcb = dv.GetVisualDescendants().OfType<ComboBox>().First(); dcb.SelectedIndex = 1; dcb.SelectedIndex = 0;
     for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44-danh-muc-ma-hang");
     var dt = dv.GetVisualDescendants().OfType<TabControl>().First(); dt.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44b-danh-muc-can-xu-ly");
+    dt.SelectedIndex = 0; dq.Text = ""; for (var i = 0; i < 120; i++) { Thread.Sleep(30); Pump(); }
+    FilterScene();
+}
+
+// Lọc theo cột (1.49): dòng tìm kiếm riêng từng cột + danh sách lọc phân tầng ở nút ▾ tiêu đề — kiểm trên bảng thật (Danh mục mã hàng).
+void FilterScene()
+{
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).OrderByDescending(x => x.Model.RowCount).First();
+    var total = g.Model.RowCount;
+    var tc = Enumerable.Range(0, g.Model.ColCount).FirstOrDefault(c => g.Model.Columns[c].Type != "number" && Enumerable.Range(0, Math.Min(total, 50)).Count(r => g.Model.Get(r, c).Length > 3) > 10);
+    var word = Enumerable.Range(0, total).Select(r => g.Model.Get(r, tc)).Where(v => v.Length > 3).Select(v => v.Split(' ')[0]).GroupBy(v => v).OrderByDescending(x => x.Count()).First().Key;
+    g.SetFilter(tc, word[..Math.Min(4, word.Length)].ToLowerInvariant());
+    for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    var shown = g.ShownRows.Count;
+    var okRows = g.ShownRows.All(r => KhoLanh.Core.Grid.GridFilter.MatchText(g.CellText(r, tc), word[..Math.Min(4, word.Length)]));
+    g.Select(g.ShownRows.Count > 1 ? g.ShownRows[1] : 0, tc);
+    var selOk = g.Row == (g.ShownRows.Count > 1 ? g.ShownRows[1] : 0);
+    Console.WriteLine($"  [Lọc] cột \"{g.Model.Columns[tc].Header}\" chứa \"{word[..Math.Min(4, word.Length)]}\": {shown}/{total} dòng · đúng={okRows} · chọn dòng dữ liệu={selOk}");
+    Snap(main, "45-loc-theo-cot");
+    var lc = Enumerable.Range(0, g.Model.ColCount).Where(c => c != tc && g.Model.Columns[c].Width >= 46)
+        .OrderBy(c => g.ShownRows.Select(r => g.CellText(r, c)).Distinct().Count() is var n && n > 1 ? n : 9999).First();
+    g.Col = lc; g.OpenFilterMenu(lc);
+    for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    Snap(main, "45b-loc-danh-sach-phan-tang");
+    foreach (var w in Avalonia.Controls.Primitives.OverlayLayer.GetOverlayLayer(main)?.GetVisualDescendants().OfType<Button>() ?? Enumerable.Empty<Button>())
+        if (KhoLanh.App.Controls.Icon.TextOf(w.Content) == "Hủy") { w.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); break; }
+    g.ClearFilters(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    Console.WriteLine($"  [Lọc] bỏ lọc: {g.ShownRows.Count}/{total} dòng");
 }
 
 static string FindRepo()
