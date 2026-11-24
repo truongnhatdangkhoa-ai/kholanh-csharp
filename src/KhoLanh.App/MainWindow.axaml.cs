@@ -27,8 +27,6 @@ public partial class MainWindow : Window
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
-    private readonly Dictionary<Button, string> _groupLabels = new();
-    private readonly Dictionary<string, MenuItem> _items = new();
     private string _current = "";
 
 
@@ -59,6 +57,14 @@ public partial class MainWindow : Window
             {
                 new NavItem("lx", "Tổng quan", () => new TongQuanView()),
             }),
+            ("NHẬP LIỆU", new[]
+            {
+                new NavItem("m6", "Nhập liệu", () => new EntryView()),
+            }),
+            ("PHIẾU XUẤT KHO", new[]
+            {
+                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
+            }),
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
@@ -68,19 +74,18 @@ public partial class MainWindow : Window
                 new NavItem("m1vtb", "Vị Trí Bột", () => new VtbView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
             }),
-            ("BÁO CÁO", new[]
+            ("CHỨC NĂNG", new[]
             {
-                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
-                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m4", "Báo cáo rã đông", () => new RaDongView()),
                 new NavItem("m5", "Đối chiếu hàng ngày", () => new DoiChieuView()),
                 new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),
                 new NavItem("m7ck", "Số liệu cuối kỳ", () => new CuoiKyView()),
+                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
+                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
             }),
-            ("PHIẾU & CHỨNG TỪ", new[]
+            ("CHỨNG TỪ", new[]
             {
-                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
                 new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
                 new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
             }),
@@ -88,12 +93,9 @@ public partial class MainWindow : Window
             {
                 new NavItem("m14", "Container 3D", () => new C3dView()),
                 new NavItem("m15", "Scan tài liệu", () => new ScanView()),
+                new NavItem("m19", "Lưu trữ cá nhân", () => new LuuTruView()),
                 new NavItem("m21", "Xử lý PDF & Excel", () => new XuLyTepView()),
                 new NavItem("m22", "So sánh & Tra cứu bảng", () => new SoSanhBangView()),
-            }),
-            ("NHẬP LIỆU", new[]
-            {
-                new NavItem("m6", "Nhập liệu", () => new EntryView()),
             }),
             ("HỆ THỐNG", new[]
             {
@@ -106,37 +108,22 @@ public partial class MainWindow : Window
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
             }),
         };
-        // Menu ngang gọn theo nhóm: mỗi nhóm là 1 nút thả xuống (nhóm chỉ có 1 mục thì là nút thường),
-        // nên thêm module không làm tràn thanh menu kể cả màn hình 1366px. Nút nhóm sáng lên và ghi tên module đang mở.
-        // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới), thêm mục quyền trong Perm.Items.
-        foreach (var (group, items) in _menu)
+        // Menu ngang 2 tầng (1.54): tầng 2 = nhóm (nhóm 1 mục bấm mở luôn, nhóm nhiều mục thả xuống chỉ có tên module) + số việc cần xử lý.
+        // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
+        BuildNav();
+        HelpButton.Content = Controls.Icon.Make("info", 17);
+        var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
+        UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
-            var visible = items.Where(Allowed).ToList();
-            if (visible.Count == 0) continue;
-            if (visible.Count == 1)
+            new Border { Width = 28, Height = 28, CornerRadius = new Avalonia.CornerRadius(14), Background = AppTheme.Brush("#1F6FD6"),
+                Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
+            new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Children =
             {
-                var item = visible[0];
-                var b = new Button { Content = item.Label, Classes = { "topnav" } };
-                b.Click += (_, _) => Navigate(item.Key);
-                _buttons[item.Key] = b;
-                NavPanel.Children.Add(b);
-                continue;
-            }
-            var groupButton = new Button { Content = GroupLabel(group) + "  ▾", Classes = { "topnav" } };
-            _groupLabels[groupButton] = GroupLabel(group);
-            var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
-            foreach (var item in visible)
-            {
-                var mi = new MenuItem { Header = item.Label };
-                mi.Click += (_, _) => Navigate(item.Key);
-                flyout.Items.Add(mi);
-                _items[item.Key] = mi;
-                _buttons[item.Key] = groupButton;
-            }
-            groupButton.Flyout = flyout;
-            NavPanel.Children.Add(groupButton);
-        }
-        UserButton.Content = $"{u.Username}  ▾";
+                new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 12.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, MaxWidth = 160, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
+                new TextBlock { Text = u.RoleLabel, FontSize = 10.5, Foreground = AppTheme.Brush("#8FA0B6", "#7A8797") },
+            } },
+            Controls.Icon.Make("chevron-down", 13),
+        } };
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
         UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
         // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
@@ -156,6 +143,8 @@ public partial class MainWindow : Window
         s.LichXuat.AutoMade += OnAutoMade;
         Closed += (_, _) => s.LichXuat.AutoMade -= OnAutoMade;
         Closed += (_, _) => s.LichXuat.StopAutoEmail();
+        // Lưu trữ cá nhân: tự sao lưu Google Drive theo lịch của tài khoản (chỉ chạy khi đã đăng nhập Google trong module).
+        if (s.LuuTru.CanUse) { s.LuuTru.StartAuto(); Closed += (_, _) => s.LuuTru.StopAuto(); }
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {
@@ -164,24 +153,30 @@ public partial class MainWindow : Window
             s.TroLy.StartAuto(TimeSpan.FromSeconds(90), TimeSpan.FromHours(6));
             if (s.TroLy.Last is { } last) OnTroLyScanned(last);
         }
+        // Số "Cần xử lý" của Danh mục mã hàng trên thanh bên: tính ngầm 30 giây sau khi mở app (như app cũ), không làm chậm lúc khởi động.
+        if (s.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey))
+            Avalonia.Threading.DispatcherTimer.RunOnce(async () =>
+            {
+                try { var n = await Task.Run(() => { var d = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => null); d.Load(); return d.XlNow().Count; }); SetBadge("m3dm", n); }
+                catch { /* chỉ là số gợi ý, lỗi thì bỏ qua */ }
+            }, TimeSpan.FromSeconds(30));
         Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
 
     private readonly Avalonia.Threading.DispatcherTimer _lanTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private void OnLanChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(ShowLan);
 
-    /// <summary>Ô trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
+    /// <summary>Dấu chấm trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
     private void ShowLan()
     {
         var lan = App.Services.Lan;
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
-        LanText.Text = lan.Short;
-        LanText.Foreground = Avalonia.Media.Brushes.White;
-        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#F0A030" : "#3FB950");
-        ToolTip.SetTip(LanPill, lan.Health == 2
+        // 1.65: chỉ còn dấu chấm (xanh = có kết nối, đỏ = mất máy chủ / làm riêng); chữ trạng thái chuyển vào chú thích khi rê chuột.
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : "#3FB950");
+        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
-            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : ""));
+            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
 
     private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
@@ -191,7 +186,7 @@ public partial class MainWindow : Window
     private void OnTroLyScanned(KhoLanh.Core.TroLy.TroLyService.ScanResult r) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
         TroLyButton.IsVisible = r.Do > 0;
-        TroLyButton.Content = $"⚠ Trợ lý: {r.Do}";
+        TroLyButton.Content = Controls.Icon.Label($"Trợ lý: {r.Do}", "warn");
         ToolTip.SetTip(TroLyButton, $"Lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
     });
 
@@ -204,7 +199,7 @@ public partial class MainWindow : Window
         var made = msgs.Count(m => m.Contains("tạo List") || m.Contains("List TRỐNG") || m.Contains("tạo phiếu"));
         if (made == 0 && !msgs.Any(m => m.StartsWith("Chưa tự tạo"))) return;
         _autoN += made;
-        AutoButton.Content = _autoN > 0 ? $"⚡ Tự tạo: {_autoN}" : "⚡ Lỗi tự tạo";
+        AutoButton.Content = Controls.Icon.Label(_autoN > 0 ? $"Tự tạo: {_autoN}" : "Lỗi tự tạo", "bolt");
         ToolTip.SetTip(AutoButton, string.Join("\n", msgs.Take(12)) + "\n\nBấm để xem ở Phiếu xuất kho › Tự động đã tạo.");
         AutoButton.IsVisible = true;
     });
@@ -212,7 +207,7 @@ public partial class MainWindow : Window
 
     private void OnUpdateReady(Version v) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
-        UpdateButton.Content = $"⬆ Cập nhật {v}";
+        UpdateButton.Content = Controls.Icon.Label($"Cập nhật {v}", "download");
         ToolTip.SetTip(UpdateButton, $"Đã tải xong bản {v}. Bấm để dùng ngay (app tự mở lại, dữ liệu giữ nguyên).");
         UpdateButton.IsVisible = true;
     });
@@ -224,6 +219,99 @@ public partial class MainWindow : Window
         if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
         if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
             AppUpdater.ExitForUpdate();
+    }
+
+    // ------------------------------------------------------------------ menu ngang
+
+    /// <summary>Biểu tượng từng module (tên trong <see cref="Controls.Icon.Paths"/>).</summary>
+    private static readonly Dictionary<string, string> NavIcons = new()
+    {
+        ["lx"] = "home", ["m6"] = "edit",
+        ["m1"] = "box", ["m2"] = "warehouse", ["m7"] = "pin", ["m3sk"] = "list", ["m1vtb"] = "map", ["m8"] = "grid",
+        ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
+        ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
+        ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
+        ["users"] = "users", ["backup"] = "save", ["lan"] = "network", ["drive"] = "cloud", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
+    };
+    /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
+    private static readonly Dictionary<string, string> GroupIcons = new()
+    {
+        ["TỒN KHO"] = "box", ["CHỨC NĂNG"] = "chart", ["CHỨNG TỪ"] = "doc", ["CÔNG CỤ"] = "tool", ["HỆ THỐNG"] = "gear",
+    };
+    private sealed class NavGroup
+    {
+        public Button Head = null!; public TextBlock Count = null!; public Border CountBox = null!; public List<string> Keys = new();
+    }
+    private readonly Dictionary<string, NavGroup> _navGroups = new();          // key module → nhóm
+    private readonly Dictionary<string, (TextBlock Text, Border Box)> _badges = new();
+    private readonly Dictionary<string, int> _badgeN = new();
+    private readonly Dictionary<string, MenuItem> _menuItems = new();
+
+    private static Border CountBadge(out TextBlock t)
+    {
+        t = new TextBlock { FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White };
+        return new Border { Classes = { "navbadge" }, IsVisible = false, Child = t };
+    }
+
+    private void BuildNav()
+    {
+        NavPanel.Children.Clear(); _buttons.Clear(); _navGroups.Clear(); _badges.Clear(); _menuItems.Clear();
+        foreach (var (group, items) in _menu)
+        {
+            var visible = items.Where(Allowed).ToList();
+            if (visible.Count == 0) continue;
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+            var cnt = CountBadge(out var cntText);
+            if (visible.Count == 1)
+            {
+                var item = visible[0];
+                row.Children.Add(Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 16));
+                row.Children.Add(new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+                row.Children.Add(cnt);
+                var b = new Button { Classes = { "navtab" }, Content = row };
+                b.Click += (_, _) => Navigate(item.Key);
+                _buttons[item.Key] = b; _badges[item.Key] = (cntText, cnt);
+                NavPanel.Children.Add(b);
+                continue;
+            }
+            row.Children.Add(Controls.Icon.Make(GroupIcons.GetValueOrDefault(group, "menu"), 16));
+            row.Children.Add(new TextBlock { Text = GroupLabel(group), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            row.Children.Add(cnt);
+            row.Children.Add(Controls.Icon.Make("chevron-down", 12));
+            var head = new Button { Classes = { "navtab" }, Content = row };
+            var g = new NavGroup { Head = head, Count = cntText, CountBox = cnt, Keys = visible.Select(i => i.Key).ToList() };
+            var fl = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+            foreach (var item in visible)
+            {
+                var ib = CountBadge(out var it);
+                var ig = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), MinWidth = 210 };
+                ig.Children.Add(Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 16));
+                ig.Children.Add(new TextBlock { Text = item.Label, Margin = new Avalonia.Thickness(10, 0, 12, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }.Also(t => Grid.SetColumn(t, 1)));
+                Grid.SetColumn(ib, 2); ig.Children.Add(ib);
+                var mi = new MenuItem { Header = ig, Classes = { "navitem" } };
+                mi.Click += (_, _) => Navigate(item.Key);
+                fl.Items.Add(mi);
+                _menuItems[item.Key] = mi; _badges[item.Key] = (it, ib);
+                _buttons[item.Key] = head; _navGroups[item.Key] = g;
+            }
+            head.Flyout = fl;
+            NavPanel.Children.Add(head);
+        }
+        if (_current.Length > 0 && _buttons.TryGetValue(_current, out var cur)) cur.Classes.Add("active");
+        foreach (var (k, n) in _badgeN.ToList()) SetBadge(k, n);
+    }
+
+    /// <summary>Số việc cần xử lý cạnh tên module (0 = ẩn); nhóm thả xuống hiện tổng số của các mục bên trong.</summary>
+    public void SetBadge(string key, int n)
+    {
+        _badgeN[key] = n;
+        if (!_badges.TryGetValue(key, out var x)) return;
+        x.Text.Text = n > 99 ? "99+" : n.ToString(); x.Box.IsVisible = n > 0;
+        if (_navGroups.TryGetValue(key, out var g))
+        {
+            var sum = g.Keys.Sum(k => _badgeN.GetValueOrDefault(k));
+            g.Count.Text = sum > 99 ? "99+" : sum.ToString(); g.CountBox.IsVisible = sum > 0;
+        }
     }
 
     private static string GroupLabel(string group) =>
@@ -241,15 +329,13 @@ public partial class MainWindow : Window
         page ??= item.Create();
         PageHost.IsVisible = true;
         PageHost.Content = page;
-        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
+        // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
+        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = ""; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
-        foreach (var (gb, label) in _groupLabels) gb.Content = label + "  ▾";
-        foreach (var (k, mi) in _items) mi.FontWeight = k == key ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
-        if (_buttons.TryGetValue(key, out var now))
-        {
-            now.Classes.Add("active");
-            if (_groupLabels.TryGetValue(now, out var gl) && key is not ("users" or "backup" or "lan" or "audit" or "troly")) now.Content = $"{gl}: {item.Label}  ▾";
-        }
+        if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
+        foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
+        var grp = _menu.First(m => m.items.Contains(item)).group;
+        PageGroup.Text = _navGroups.ContainsKey(key) ? GroupLabel(grp) + "  ›" : "";
         _current = key;
     }
 
@@ -268,7 +354,17 @@ public partial class MainWindow : Window
             await Ui.Message(this, "Đã đổi mật khẩu.");
     }
 
-    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
+    /// <summary>Nút "Hướng dẫn": hiện các ghi chú đã thu gọn của trang đang mở (<see cref="Controls.HintTrim"/>).</summary>
+    private void OnHelpClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ShowHelp();
+    internal Flyout ShowHelp()
+    {
+        var hints = PageHost.Content is Avalonia.Visual v ? Controls.HintTrim.Collect(v) : new List<string>();
+        if (PageHost.Content is IPage { Subtitle: { Length: > 0 } sub }) hints.Insert(0, sub);
+        var fl = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = Controls.HintTrim.Panel(hints) };
+        fl.ShowAt(HelpButton);
+        return fl;
+    }
+
     private Views.TimNhanhWindow? _search;
     /// <summary>Tìm nhanh toàn app (Ctrl + K).</summary>
     public Views.TimNhanhWindow OpenSearch(string text = "")
@@ -288,23 +384,26 @@ public partial class MainWindow : Window
     /// <summary>Giao diện Sáng dịu / Tối + cỡ chữ 90–130 % — lưu theo tài khoản trên máy này, áp dụng ngay.</summary>
     private async void OnThemeSettings(object? sender, RoutedEventArgs e)
     {
-        var mode0 = AppTheme.Current; var scale0 = AppTheme.Scale;
-        var light = new RadioButton { Content = "Sáng dịu — nền trắng ngà, đỡ chói", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Light };
+        var mode0 = AppTheme.Current; var scale0 = AppTheme.Scale; var dens0 = AppTheme.Density;
+        var dens = new ComboBox { ItemsSource = AppTheme.Densities.Select(x => x.Label).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(AppTheme.Densities, x => x.Key == dens0)), MinWidth = 220 };
+        var light = new RadioButton { Content = "Sáng dịu — nền xám lạnh nhạt, đỡ chói", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Light };
         var dark = new RadioButton { Content = "Tối — nền xám đen", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Dark };
         var scales = new[] { 0.9, 1.0, 1.1, 1.2, 1.3 };
         var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
-        void Preview() { AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
-        light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview();
+        void Preview() { AppTheme.SetDensity(AppTheme.Densities[Math.Max(0, dens.SelectedIndex)].Key); AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
+        light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview(); dens.SelectionChanged += (_, _) => Preview();
         var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
         body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);
         body.Children.Add(new TextBlock { Text = "Lưu riêng cho tài khoản này trên máy này. Phím tắt: Ctrl + / Ctrl − / Ctrl 0.", Classes = { "muted" }, FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = "Mật độ bảng (chiều cao dòng)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) });
+        body.Children.Add(dens);
         body.Children.Add(Ui.Buttons(cancel, ok));
         var w = Ui.Dialog("Giao diện & cỡ chữ", body, 400); var saved = false;
         ok.Click += (_, _) => { saved = true; w.Close(); }; cancel.Click += (_, _) => w.Close();
         await Ui.Show(this, w);
-        if (!saved) { AppTheme.Apply(mode0, scale0); ApplyZoom(); }
+        if (!saved) { AppTheme.SetDensity(dens0); AppTheme.Apply(mode0, scale0); ApplyZoom(); }
         else AppTheme.SaveFor(App.Services.Session.Username);
         ReloadPage();
     }

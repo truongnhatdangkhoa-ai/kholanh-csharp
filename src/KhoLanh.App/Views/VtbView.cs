@@ -36,7 +36,8 @@ public sealed class VtbView : UserControl, IPage
 
     public VtbView()
     {
-        _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _view.Count && _picks.ContainsKey(_view[r]) ? Pick : null };
+        _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _view.Count && _picks.ContainsKey(_view[r]) ? Pick : null,
+            CheckCol = 3, CheckFill = r => _m.Get(r, 2) };   // 1.50: tích ô đầu dòng = xuất hết SL
         _m.Changed += OnEdit;
         var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; deb.Tick += (_, _) => { deb.Stop(); Paint(); };
         _q.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };

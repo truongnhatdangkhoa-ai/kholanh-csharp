@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Controls.Primitives;
 using Avalonia.Media;
 using Avalonia.Threading;
 using KhoLanh.App.Controls;
@@ -32,6 +33,7 @@ public partial class EntryView : UserControl, IPage
     {
         public string Name => Page.Name;
         public string Line => $"{Page.Rows:#,0} dòng · {Short(Page.UpdatedAt)}" + (Page.UpdatedBy.Length > 0 ? " · " + Page.UpdatedBy : "");
+        public override string ToString() => Name;
         private static string Short(string at) => DateTime.TryParse(at, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd/MM HH:mm") : at;
     }
 
@@ -40,6 +42,14 @@ public partial class EntryView : UserControl, IPage
         InitializeComponent();
         _grid = new SheetGrid(_model) { IsVisible = false };
         _grid.Display = FormatCell;
+        _grid.Suggest = SuggestFor;
+        _grid.SuggestionPicked += OnSuggestionPicked;
+        _grid.CellBackground = CellBg;
+        _model.Derive = DeriveCells;
+        _grid.AddMenuItems(ColorMenu());
+        ColorButton.Flyout = new Flyout { Content = ColorPalette(), Placement = PlacementMode.BottomEdgeAlignedLeft };
+        BuildMauTab();
+        AttachedToVisualTree += (_, _) => LoadSuggestions();
         GridHost.Children.Add(_grid);
         _model.Changed += () =>
         {
@@ -58,7 +68,8 @@ public partial class EntryView : UserControl, IPage
         DetachedFromVisualTree += async (_, _) => { if (_dirty) await SaveAsync(quiet: true); };
         var edit = Svc.CanEdit;
         NewButton.IsEnabled = RenameButton.IsEnabled = DeleteButton.IsEnabled = RestoreButton.IsEnabled = edit;
-        SaveButton.IsVisible = ImportButton.IsVisible = ColumnsButton.IsVisible = TemplateButton.IsVisible = edit;
+        Tabs.SelectionChanged += (_, e) => { if (e.Source == Tabs && Tabs.SelectedIndex == 1) Dispatcher.UIThread.Post(() => PageList.ScrollIntoView(PageList.SelectedItem ?? new object())); };
+        SaveButton.IsVisible = ImportButton.IsVisible = ColumnsButton.IsVisible = TemplateButton.IsVisible = ColorButton.IsVisible = edit;
         ExportButton.IsVisible = Svc.CanExport;
         _model.ReadOnly = !edit;
         ReloadList(selectId: null);
@@ -84,9 +95,37 @@ public partial class EntryView : UserControl, IPage
         DeleteButton.Content = trash ? "Xóa hẳn" : "Xóa";
         var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash ? shown.FirstOrDefault() : null);
         if (target is not null) PageList.SelectedItem = target;
+        SyncCombo();
         EmptyText.IsVisible = _page is null;
         EmptyText.Text = trash ? "Chọn một trang trong thùng rác để xem hoặc khôi phục." : "Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống).";
     }
+
+    private bool _syncing;
+    /// <summary>Ô chọn trang trên đầu bảng: các trang đang dùng (không gồm thùng rác), chọn đúng trang đang mở.</summary>
+    private void SyncCombo()
+    {
+        _syncing = true;
+        try
+        {
+            var trash = TrashToggle.IsChecked == true;
+            var list = trash ? new List<Item>() : _items;
+            PageCombo.ItemsSource = list;
+            PageCombo.SelectedItem = list.FirstOrDefault(i => i.Page.Id == _page?.Id);
+            PageCombo.PlaceholderText = trash ? "(đang xem thùng rác)" : list.Count == 0 ? "(chưa có trang)" : "Chọn trang…";
+        }
+        finally { _syncing = false; }
+    }
+
+    private async void OnComboSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || PageCombo.SelectedItem is not Item it || it.Page.Id == _page?.Id) return;
+        if (_dirty && !await SaveAsync(quiet: true)) { SyncCombo(); return; }
+        PageList.SelectedItem = _items.FirstOrDefault(i => i.Page.Id == it.Page.Id);
+        if (_page?.Id != it.Page.Id) Open(it.Page);
+    }
+
+    private void OnOpenPage(object? sender, RoutedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
+    private void OnListDoubleTapped(object? sender, TappedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
 
     private async void OnPageSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -98,18 +137,18 @@ public partial class EntryView : UserControl, IPage
     private void Open(EntryService.PageInfo p)
     {
         List<string[]> rows;
-        try { rows = Svc.Load(p); }
+        try { rows = Svc.LoadWithColors(p); }
         catch (BusinessException ex) { _ = Ui.Message(this, ex.Message); return; }
         _loading = true;
         _page = p;
-        _model.Load(p.Columns.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type)), rows);
+        LoadModel(p.Columns, rows);
         _model.ReadOnly = !Svc.CanEdit || p.Deleted;
         _loading = false;
         _dirty = false;
         _grid.IsVisible = true; EmptyText.IsVisible = false;
         _grid.Refresh();
         _grid.Select(0, 0);
-        PageTitle.Text = p.Name;
+        SyncCombo();
         SaveState.Text = p.Deleted ? "Trong thùng rác (chỉ xem)" : $"Đã lưu {p.UpdatedAt}";
         UpdateStatus();
         Dispatcher.UIThread.Post(() => _grid.Focus());
@@ -117,7 +156,7 @@ public partial class EntryView : UserControl, IPage
 
     private void OnTrashToggle(object? sender, RoutedEventArgs e)
     {
-        _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -125,7 +164,7 @@ public partial class EntryView : UserControl, IPage
     {
         var tpls = Svc.Templates();
         var r = await Ui.Choose(this, "Chọn mẫu cột cho trang mới (đổi cột được sau, ở nút Cột…).", "Trang mới",
-            tpls.Select(t => t.BuiltIn ? t.Name : t.Name + " (mẫu đã lưu)").ToList(), 0, "Tên trang", "", "Tạo trang");
+            tpls.Select(t => t.BuiltIn ? t.Name + (t.Edited ? " (đã sửa)" : "") : t.Name + " (mẫu tự tạo)").ToList(), 0, "Tên trang", "", "Tạo trang");
         if (r is not { } pick || pick.Index < 0) return;
         if (_dirty && !await SaveAsync(quiet: true)) return;
         EntryService.PageInfo? p = null;
@@ -133,6 +172,7 @@ public partial class EntryView : UserControl, IPage
         if (TrashToggle.IsChecked == true) TrashToggle.IsChecked = false;
         ReloadList(p!.Id);
         Open(p);
+        Tabs.SelectedIndex = 0;
     }
 
     private async void OnRename(object? sender, RoutedEventArgs e)
@@ -142,7 +182,6 @@ public partial class EntryView : UserControl, IPage
         if (string.IsNullOrWhiteSpace(name)) return;
         if (!await Ui.Run(this, () => Svc.Rename(_page.Id, name))) return;
         _page = _page with { Name = name.Trim() };
-        PageTitle.Text = _page.Name;
         ReloadList(_page.Id);
     }
 
@@ -154,7 +193,7 @@ public partial class EntryView : UserControl, IPage
         if (!await Ui.Confirm(this, msg, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
         if (!forever && _dirty) await SaveAsync(quiet: true);
         if (!await Ui.Run(this, () => Svc.Delete(_page.Id, forever))) return;
-        _dirty = false; _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -175,7 +214,7 @@ public partial class EntryView : UserControl, IPage
         if (_page is null || _saving || !_dirty || _model.ReadOnly) { if (!quiet && _page is not null && !_dirty) SaveState.Text = $"Đã lưu {_page.UpdatedAt}"; return true; }
         _saving = true;
         var page = _page;
-        var cols = _model.Columns.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type)).ToList();
+        var cols = PageCols.Select(c => c.Clone()).ToList();
         var rows = _model.Snapshot();
         var version = _model.Version;
         SaveState.Text = "Đang lưu…";
@@ -259,10 +298,11 @@ public partial class EntryView : UserControl, IPage
             TrashToggle.IsChecked = false;
             ReloadList(page!.Id);
             Open(page);
+            Tabs.SelectedIndex = 0;
             return;
         }
         // thêm vào cuối, khớp tên cột (không phân biệt hoa thường); cột không khớp bỏ qua
-        var map = data.cols.Select(c => _model.Columns.FindIndex(x => x.Header.Trim().Equals(c.Header.Trim(), StringComparison.CurrentCultureIgnoreCase))).ToList();
+        var map = data.cols.Select(c => PageCols.FindIndex(x => x.Header.Trim().Equals(c.Header.Trim(), StringComparison.CurrentCultureIgnoreCase) && x.Formula.Length == 0)).ToList();
         var matched = map.Count(i => i >= 0);
         if (matched == 0) { await Ui.Message(this, "Không có cột nào trùng tên với trang đang mở. Hãy tạo trang mới từ file."); return; }
         var start = _model.UsedRows();
@@ -280,7 +320,7 @@ public partial class EntryView : UserControl, IPage
         if (_page is null) return;
         var path = await Ui.SaveFile(this, "Xuất Excel", Ui.SafeFileName(_page.Name) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        var cols = _model.Columns.ToList(); var rows = _model.Snapshot();
+        var cols = PageCols.ToList(); var rows = _model.Snapshot();
         var title = _page.Name;
         if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ExportExcel(path, title, cols, rows)))) Ui.OpenExternal(path);
     }
@@ -290,32 +330,194 @@ public partial class EntryView : UserControl, IPage
     private async void OnColumns(object? sender, RoutedEventArgs e)
     {
         if (_page is null || _model.ReadOnly) return;
-        var result = await ColumnsDialog.Edit(this, _model.Columns);
+        var cur = PageCols;
+        var result = await ColumnsDialog.Edit(this, cur);
         if (result is null) return;
-        var removed = _model.Columns.Where(c => result.All(n => n.Key != c.Key)).ToList();
-        var lost = removed.Count(c => Enumerable.Range(0, _model.RowCount).Any(r => _model.Get(r, _model.Columns.IndexOf(c)).Length > 0));
+        var removed = cur.Where(c => result.All(n => n.Key != c.Key)).ToList();
+        var lost = removed.Count(c => Enumerable.Range(0, _model.RowCount).Any(r => _model.Get(r, cur.IndexOf(c)).Length > 0));
         if (lost > 0 && !await Ui.Confirm(this, $"Bỏ {lost} cột đang có dữ liệu? Dữ liệu các cột đó sẽ mất khi lưu.", "Bỏ cột", "Bỏ cột")) return;
-        var old = _model.Columns.ToList();
         var rows = _model.Snapshot();
-        var idx = result.Select(c => old.FindIndex(o => o.Key == c.Key)).ToList();
-        _model.Load(result, rows.Select(r => idx.Select(i => i >= 0 && i < r.Length ? r[i] : "")));
+        var idx = result.Select(c => cur.FindIndex(o => o.Key == c.Key)).Append(cur.Count).ToList();   // + cột màu ô
+        LoadModel(result, rows.Select(r => idx.Select(i => i >= 0 && i < r.Length ? r[i] : "").ToArray()).ToList());
+        var fx = EntryRules.RecomputeAll(PageCols, _model.Snapshot());
+        if (fx.Count > 0) _model.SetCells(fx, force: true);
         _dirty = true; SaveState.Text = "Chưa lưu…"; _autosave.Stop(); _autosave.Start();
         _grid.Refresh();
     }
+
+    /// <summary>Nạp cột trang + cột ẩn màu ô (cuối, rộng 0); cột công thức chỉ đọc (tự tính).</summary>
+    private void LoadModel(IEnumerable<GridColumn> cols, IEnumerable<string[]> rows)
+    {
+        var list = cols.Select(c => { var x = c.Clone(); x.ReadOnly = c.Formula.Length > 0; return x; }).ToList();
+        list.Add(new GridColumn(EntryService.ColorKey, "", 0) { ReadOnly = true });
+        _model.Load(list, rows);
+    }
+
+    /// <summary>Cột của trang (không gồm cột ẩn màu ô).</summary>
+    private List<GridColumn> PageCols => _model.Columns.Where(c => c.Key != EntryService.ColorKey).ToList();
+    private int ColorCol => _model.Columns.FindIndex(c => c.Key == EntryService.ColorKey);
 
     private async void OnSaveTemplate(object? sender, RoutedEventArgs e)
     {
         if (_page is null) return;
         var name = await Ui.Prompt(this, "Tên mẫu (lưu bộ cột của trang này để tạo trang mới sau). Trùng tên mẫu cũ thì thay mẫu cũ.", "Lưu thành mẫu", _page.Name);
         if (string.IsNullOrWhiteSpace(name)) return;
-        if (await Ui.Run(this, () => Svc.SaveTemplate(name, _model.Columns))) SaveState.Text = $"Đã lưu mẫu “{name.Trim()}”";
+        if (await Ui.Run(this, () => Svc.SaveTemplate(name, PageCols))) { SaveState.Text = $"Đã lưu mẫu “{name.Trim()}”"; ReloadMau(null); }
+    }
+
+    // ------------------------------------------------------------------ gợi ý mã hàng (1.54)
+
+    private static List<MaGoiY.Sug>? _sugs;          // dùng chung giữa các lần mở trang; làm mới sau 5 phút
+    private static HashSet<string> _known = new();
+    private static Dictionary<string, EntryRules.Info>? _lookup;
+    private static DateTime _sugAt;
+    private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
+
+    /// <summary>Nạp ngầm danh sách gợi ý: mã đang có tồn ở mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
+    private void LoadSuggestions()
+    {
+        if (_sugs is not null && (DateTime.Now - _sugAt).TotalMinutes < 5) return;
+        _sugAt = DateTime.Now;
+        var s = App.Services;
+        Task.Run(() =>
+        {
+            try
+            {
+                var data = new KhoLanh.Core.TimNhanh.GsService(s).Build();
+                var list = MaGoiY.Build(data.Rows, MaGoiY.ReadCatalog(s.Lan), data.Seg);
+                var look = MaGoiY.Lookup(list);
+                Dispatcher.UIThread.Post(() => { _sugs = list; _known = MaGoiY.Known(list); _lookup = look; FillPending(); _grid.Refresh(); });
+            }
+            catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
+        });
+    }
+
+    private static bool IsCodeCol(GridColumn c) => EntryRules.IsCodeCol(c);
+    private int ColBy(params string[] names)
+    {
+        for (var i = 0; i < _model.ColCount; i++) if (names.Contains(KhoLanh.Core.Grid.GridFilter.Fold(_model.Columns[i].Header).Trim())) return i;
+        return -1;
+    }
+
+    private IReadOnlyList<SheetGrid.GridSuggestion> SuggestFor(int col, string text)
+    {
+        if (_sugs is null || col >= _model.ColCount || !IsCodeCol(_model.Columns[col])) return Array.Empty<SheetGrid.GridSuggestion>();
+        return MaGoiY.Search(_sugs, text).Select(x => new SheetGrid.GridSuggestion(x.Ma, x.Ma,
+            string.Join(" · ", new[] { x.Ten, x.Size, x.Dt, x.Ton > 0 ? "tồn " + x.Ton.ToString("#,0.###", Ui.Vi) : "", x.Nguon }.Where(t => t.Length > 0)), x)).ToList();
+    }
+
+    /// <summary>Chọn gợi ý → điền thêm Tên hàng / Size / Đặc tính của dòng đó nếu đang trống.</summary>
+    private void OnSuggestionPicked(int row, int col, SheetGrid.GridSuggestion it)
+    {
+        if (it.Tag is not MaGoiY.Sug x || _model.ReadOnly) return;
+        var cells = new List<(int, int, string)>();
+        void Fill(string v, params string[] names) { var c = ColBy(names); if (c >= 0 && v.Length > 0 && _model.Get(row, c).Trim().Length == 0) cells.Add((row, c, v)); }
+        Fill(x.Ten, "ten hang", "ten", "ten san pham", "dien giai");
+        Fill(x.Size, "size", "co", "kich co");
+        Fill(x.Dt, "dac tinh");
+        if (cells.Count > 0) _model.SetCells(cells);
+    }
+
+    /// <summary>Nền ô: màu người dùng tô → cột công thức (xám rất nhạt) → mã gõ tay không có trong tồn lẫn danh mục (vàng nhạt).</summary>
+    private IBrush? CellBg(int r, int c)
+    {
+        if (c >= _model.ColCount) return null;
+        var col = _model.Columns[c];
+        var bg = _model.Get(r, ColorCol);
+        if (bg.Length > 0 && CellColors.Codes(bg).TryGetValue(col.Key, out var code) && CellColors.Hex(code) is { } hex) return AppTheme.Brush(hex);
+        if (col.Formula.Length > 0) return FormulaBg;
+        if (_sugs is null || !IsCodeCol(col)) return null;
+        var v = _model.Get(r, c).Trim();
+        return v.Length > 0 && !_known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
+    }
+    private static readonly IBrush FormulaBg = AppTheme.Brush("#F3F5F8");
+
+    // ------------------------------------------------------------------ tự điền theo mã / ngày / công thức (1.62)
+
+    private readonly HashSet<int> _pending = new();   // dòng đổi mã khi bảng tra chưa nạp xong
+
+    private EntryRules.Info? Lookup(string ma) =>
+        _lookup is not null && _lookup.TryGetValue(KhoLanh.Core.TimNhanh.Gs.MaKey(ma), out var i) ? i : null;
+
+    private IEnumerable<(int r, int c, string v)> DeriveCells(IReadOnlyList<(int r, int c, string before, string after)> changed)
+    {
+        var cols = PageCols;
+        var ch = changed.Where(x => x.c < cols.Count).ToList();
+        if (ch.Count == 0) return Array.Empty<(int, int, string)>();
+        if (_lookup is null)
+        {
+            var code = EntryRules.CodeCol(cols);
+            foreach (var x in ch) if (x.c == code) _pending.Add(x.r);
+        }
+        return EntryRules.Derive(cols, _model.Get, ch, Lookup, DateTime.Today);
+    }
+
+    /// <summary>Bảng tra vừa nạp xong → điền các dòng đã đổi mã trong lúc chờ.</summary>
+    private void FillPending()
+    {
+        if (_pending.Count == 0 || _model.ReadOnly) { _pending.Clear(); return; }
+        var cols = PageCols; var code = EntryRules.CodeCol(cols);
+        var rows = _pending.Where(r => r < _model.RowCount).ToList(); _pending.Clear();
+        if (code < 0 || rows.Count == 0) return;
+        var cells = EntryRules.Derive(cols, _model.Get, rows.Select(r => (r, code, "", _model.Get(r, code))), Lookup, DateTime.Today);
+        if (cells.Count > 0) _model.SetCells(cells, force: true);
+    }
+
+    // ------------------------------------------------------------------ tô màu ô (1.62)
+
+    private void PaintSelection(string code)
+    {
+        if (_page is null || _model.ReadOnly) return;
+        var sel = _grid.Selection; var cols = PageCols; var cc = ColorCol;
+        var keys = Enumerable.Range(sel.C1, sel.Cols).Where(c => c < cols.Count).Select(c => cols[c].Key).ToList();
+        if (keys.Count == 0 || cc < 0) return;
+        var cells = new List<(int, int, string)>();
+        var last = Math.Min(sel.R2, Math.Max(_model.RowCount, _model.UsedRows()) + 50);
+        for (var r = sel.R1; r <= last; r++)
+        {
+            var nv = CellColors.Set(_model.Get(r, cc), keys, code);
+            if (nv != _model.Get(r, cc) && (r < _model.RowCount || nv.Length > 0)) cells.Add((r, cc, nv));
+        }
+        _model.SetCells(cells, force: true);
+        _grid.Focus();
+    }
+
+    private Control ColorPalette()
+    {
+        var wrap = new WrapPanel { MaxWidth = 250 };
+        foreach (var (code, name, hex) in CellColors.Palette)
+        {
+            var b = new Button { Width = 30, Height = 30, Margin = new Thickness(3), Padding = new Thickness(0), Background = AppTheme.Brush(hex), BorderBrush = AppTheme.Brush("#B9C3D0"), BorderThickness = new Thickness(1) };
+            ToolTip.SetTip(b, name);
+            var c0 = code;
+            b.Click += (_, _) => { ColorButton.Flyout?.Hide(); PaintSelection(c0); };
+            wrap.Children.Add(b);
+        }
+        var clear = new Button { Content = "Bỏ màu", Classes = { "ghost" }, Margin = new Thickness(3, 6, 3, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+        clear.Click += (_, _) => { ColorButton.Flyout?.Hide(); PaintSelection(""); };
+        return new StackPanel { Children = { wrap, clear } };
+    }
+
+    private MenuItem ColorMenu()
+    {
+        var m = new MenuItem { Header = "Tô màu ô" };
+        foreach (var (code, name, hex) in CellColors.Palette)
+        {
+            var c0 = code;
+            var it = new MenuItem { Header = name, Icon = new Border { Width = 14, Height = 14, CornerRadius = new CornerRadius(3), Background = AppTheme.Brush(hex), BorderBrush = AppTheme.Brush("#B9C3D0"), BorderThickness = new Thickness(1) } };
+            it.Click += (_, _) => PaintSelection(c0);
+            m.Items.Add(it);
+        }
+        m.Items.Add(new Separator());
+        var clr = new MenuItem { Header = "Bỏ màu" }; clr.Click += (_, _) => PaintSelection(""); m.Items.Add(clr);
+        return m;
     }
 
     // ------------------------------------------------------------------ hiển thị
 
     private string FormatCell(int r, int c, string raw)
     {
-        if (c < _model.ColCount && _model.Columns[c].Type == "number" && EntryService.TryNumber(raw, out var d))
+        if (c < _model.ColCount && _model.Columns[c].Type == "number" && !CongThuc.IsError(raw) && EntryService.TryNumber(raw, out var d))
             return d.ToString("#,0.###", Ui.Vi);
         return raw;
     }
@@ -346,54 +548,125 @@ public partial class EntryView : UserControl, IPage
     }
 }
 
-/// <summary>Hộp sửa danh sách cột: dùng chính lưới Excel (tên cột, kiểu, độ rộng) — dán được cả danh sách tên cột từ Excel.</summary>
-internal static class ColumnsDialog
+/// <summary>
+/// Bảng sửa bộ cột (dùng ở hộp "Cột…" của trang và tab Mẫu): mỗi dòng một cột — Tên cột, Kiểu, Rộng, Tự điền, Công thức.
+/// Dán được danh sách tên cột từ Excel; ô Kiểu / Tự điền gợi ý lựa chọn khi gõ; ô Công thức gõ "[" để chọn tên cột.
+/// </summary>
+internal static class ColumnTable
 {
     private static readonly string[] Types = { "Chữ", "Số", "Ngày" };
-    private static string TypeLabel(string t) => t switch { "number" => "Số", "date" => "Ngày", _ => "Chữ" };
-    private static string TypeKey(string l) => l.Trim().ToLowerInvariant() switch { "số" or "so" or "number" => "number", "ngày" or "ngay" or "date" => "date", _ => "text" };
+    public static string TypeLabel(string t) => t switch { "number" => "Số", "date" => "Ngày", _ => "Chữ" };
+    public static string TypeKey(string l) => KhoLanh.Core.Grid.GridFilter.Fold(l).Trim() switch { "so" or "number" => "number", "ngay" or "date" => "date", _ => "text" };
 
+    public static GridModel Model(IReadOnlyList<GridColumn> cols)
+    {
+        var m = new GridModel();
+        Load(m, cols);
+        return m;
+    }
+
+    public static void Load(GridModel m, IReadOnlyList<GridColumn> cols) =>
+        m.Load(new[]
+        {
+            new GridColumn("h", "Tên cột", 200), new GridColumn("t", "Kiểu", 80), new GridColumn("w", "Rộng", 64, "number"),
+            new GridColumn("a", "Tự điền", 170), new GridColumn("f", "Công thức", 280), new GridColumn("k", "", 0) { ReadOnly = true },
+        }, cols.Select(c => new[] { c.Header, TypeLabel(c.Type), Math.Round(c.Width).ToString(CultureInfo.InvariantCulture), c.Auto.Length > 0 ? EntryRules.AutoLabel(c.Auto) : "", c.Formula, c.Key }));
+
+    public static SheetGrid Grid(GridModel m)
+    {
+        var g = new SheetGrid(m) { SpareRows = 10, ShowTotals = false, Filterable = false, CanEnlarge = false };
+        g.Suggest = (col, text) =>
+        {
+            var q = KhoLanh.Core.Grid.GridFilter.Fold(text ?? "").Trim();
+            IEnumerable<string> opts = col switch
+            {
+                1 => Types,
+                3 => EntryRules.AutoKinds.Select(a => a.Label),
+                _ => Array.Empty<string>(),
+            };
+            if (col == 4)
+            {
+                // gõ "[" → chọn tên cột
+                var t = text ?? ""; var open = t.LastIndexOf('[');
+                if (open < 0 || t.IndexOf(']', open) >= 0) return Array.Empty<SheetGrid.GridSuggestion>();
+                var part = KhoLanh.Core.Grid.GridFilter.Fold(t[(open + 1)..]).Trim();
+                return Enumerable.Range(0, m.RowCount).Select(r => m.Get(r, 0).Trim()).Where(h => h.Length > 0 && KhoLanh.Core.Grid.GridFilter.Fold(h).Contains(part))
+                    .Distinct().Take(10).Select(h => new SheetGrid.GridSuggestion((t.Length == 0 ? "=" : t[..open]) + "[" + h + "]", h, "tên cột")).ToList();
+            }
+            return opts.Where(o => q.Length == 0 || KhoLanh.Core.Grid.GridFilter.Fold(o).Contains(q)).Select(o => new SheetGrid.GridSuggestion(o, o, "")).ToList();
+        };
+        return g;
+    }
+
+    /// <summary>Đọc lại bộ cột; giữ mã cột cũ (dữ liệu đi theo), cột mới cấp mã chưa dùng. Lỗi (công thức sai, trùng tên) → thông báo.</summary>
+    public static List<GridColumn> Read(GridModel m, IEnumerable<string> usedKeys, out string? error)
+    {
+        error = null;
+        var cols = new List<GridColumn>();
+        var used = new HashSet<string>(usedKeys);
+        for (var r = 0; r < m.RowCount; r++) used.Add(m.Get(r, 5));
+        var next = 0;
+        string NewKey() { string k; do k = "c" + next++; while (used.Contains(k)); used.Add(k); return k; }
+        for (var r = 0; r < m.RowCount; r++)
+        {
+            var h = m.Get(r, 0).Trim();
+            if (h.Length == 0) continue;
+            var key = m.Get(r, 5);
+            if (key.Length == 0 || cols.Any(c => c.Key == key)) key = NewKey();
+            var width = double.TryParse(m.Get(r, 2), NumberStyles.Float, CultureInfo.InvariantCulture, out var wd) ? Math.Clamp(wd, 30, 800) : 110;
+            var fx = m.Get(r, 4).Trim();
+            if (fx.Length > 0 && !fx.StartsWith('=')) fx = "=" + fx;
+            if (fx.Length > 0 && CongThuc.Check(fx) is { } err) { error ??= $"Cột “{h}”: {err}"; }
+            cols.Add(new GridColumn(key, h, width, TypeKey(m.Get(r, 1))) { Auto = fx.Length > 0 ? "" : EntryRules.AutoKey(m.Get(r, 3)), Formula = fx });
+        }
+        var dup = cols.GroupBy(c => c.Header, StringComparer.CurrentCultureIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (dup is not null) error ??= $"Có 2 cột cùng tên “{dup.Key}”.";
+        if (cols.Count == 0) error ??= "Cần ít nhất một cột.";
+        return cols;
+    }
+
+    /// <summary>Nút "Công thức…": danh sách hàm hỗ trợ.</summary>
+    public static Button HelpButton()
+    {
+        var sp = new StackPanel { Spacing = 3, Width = 400 };
+        sp.Children.Add(new TextBlock { Text = "Công thức tính cho từng dòng", FontWeight = FontWeight.Bold, FontSize = 14, Margin = new Thickness(0, 0, 0, 4) });
+        foreach (var t in new[]
+        {
+            "=[Số lượng]*[Trọng lượng]  — gọi cột bằng tên trong [ ]",
+            "=E*D hoặc =E2*D2  — gọi cột bằng chữ cột như Excel",
+            "Toán tử: + - * / ^ %  ·  nối chữ &  ·  so sánh = <> < > <= >=",
+        }) sp.Children.Add(new SelectableTextBlock { Text = t, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+        sp.Children.Add(new TextBlock { Text = "Hàm", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 6, 0, 0) });
+        foreach (var (_, help) in CongThuc.Functions) sp.Children.Add(new SelectableTextBlock { Text = help, FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
+        var sv = new ScrollViewer { MaxHeight = 480, Content = sp };
+        return new Button { Content = "Công thức…", Classes = { "ghost" }, Flyout = new Flyout { Content = sv, Placement = PlacementMode.BottomEdgeAlignedRight } };
+    }
+}
+
+/// <summary>Hộp "Cột…" của trang đang mở.</summary>
+internal static class ColumnsDialog
+{
     public static async Task<List<GridColumn>?> Edit(Visual owner, IReadOnlyList<GridColumn> current)
     {
-        var model = new GridModel();
-        model.Load(new[] { new GridColumn("h", "Tên cột", 220), new GridColumn("t", "Kiểu (Chữ / Số / Ngày)", 160), new GridColumn("w", "Rộng", 70, "number"), new GridColumn("k", "Mã", 60) { ReadOnly = true } },
-            current.Select(c => new[] { c.Header, TypeLabel(c.Type), Math.Round(c.Width).ToString(CultureInfo.InvariantCulture), c.Key }));
-        var grid = new SheetGrid(model) { Height = 320, SpareRows = 10 };
+        var model = ColumnTable.Model(current);
+        var grid = ColumnTable.Grid(model); grid.Height = 340;
         List<GridColumn>? result = null;
         var ok = new Button { Content = "Áp dụng", Classes = { "primary" }, IsDefault = false };
         var cancel = new Button { Content = "Thôi" };
         var body = new DockPanel { Margin = new Thickness(18) };
-        var top = new TextBlock
-        {
-            Text = "Mỗi dòng một cột, theo thứ tự từ trái sang phải. Sửa tên / kiểu / độ rộng; thêm dòng = thêm cột; chuột phải › Xóa dòng = bỏ cột; dán được danh sách tên cột từ Excel.",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10),
-        };
-        DockPanel.SetDock(top, Dock.Top); body.Children.Add(top);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
-        buttons.Children.Add(cancel); buttons.Children.Add(ok);
+        buttons.Children.Add(ColumnTable.HelpButton()); buttons.Children.Add(cancel); buttons.Children.Add(ok);
         DockPanel.SetDock(buttons, Dock.Bottom); body.Children.Add(buttons);
         body.Children.Add(grid);
         var w = new Window
         {
-            Title = "Cột của trang", Width = 620, SizeToContent = SizeToContent.Height, CanResize = false,
+            Title = "Cột của trang", Width = 900, SizeToContent = SizeToContent.Height, CanResize = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = body, ShowInTaskbar = false,
         };
-        ok.Click += (_, _) =>
+        ok.Click += async (_, _) =>
         {
-            var cols = new List<GridColumn>();
-            var used = new HashSet<string>(current.Select(c => c.Key));
-            var next = 0;
-            string NewKey() { string k; do k = "c" + next++; while (used.Contains(k)); used.Add(k); return k; }
-            for (var r = 0; r < model.RowCount; r++)
-            {
-                var h = model.Get(r, 0).Trim();
-                if (h.Length == 0) continue;
-                var key = model.Get(r, 3);
-                if (key.Length == 0 || cols.Any(c => c.Key == key)) key = NewKey();
-                var width = double.TryParse(model.Get(r, 2), NumberStyles.Float, CultureInfo.InvariantCulture, out var wd) ? Math.Clamp(wd, 30, 800) : 110;
-                cols.Add(new GridColumn(key, h, width, TypeKey(model.Get(r, 1))));
-            }
-            if (cols.Count == 0) return;
+            var cols = ColumnTable.Read(model, current.Select(c => c.Key), out var err);
+            if (err is not null) { await Ui.Message(w, err); return; }
             result = cols; w.Close();
         };
         cancel.Click += (_, _) => w.Close();

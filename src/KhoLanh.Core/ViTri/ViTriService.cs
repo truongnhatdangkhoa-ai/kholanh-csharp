@@ -41,7 +41,8 @@ public sealed class ViTriService
         public string MaGoc = "", Ma = "", Ten = "", Dvt = "", Lo = "", Vt = "", Dt = "", Hd = "";
         public double Sl, Tl;
         public bool Ghost;                       // dòng dựng tạm khi sửa phiếu mà file mới không còn dòng đó
-        internal string Search = "", SearchNs = "";
+        internal string Search = "", SearchNs = "", Tag = "";
+        internal string[] Cells = Array.Empty<string>();
         public double Net => Sl * Tl;
         public Row Clone() => (Row)MemberwiseClone();
     }
@@ -248,16 +249,52 @@ public sealed class ViTriService
         var g = GopLabel(r);
         r.Search = Norm(string.Join(" ", r.Ma, r.MaGoc, r.Vt, r.Dt, r.Hd, r.Lo, r.Ten, SizeOf(r), g ?? ""));
         r.SearchNs = r.Search.Replace(" ", "");
+        r.Tag = g is null ? "" : Norm(g).Replace(" ", "");
+        r.Cells = new[] { r.Ma, r.MaGoc, r.Ten, r.Vt, r.Lo, SizeOf(r), r.Dt, r.Hd }.Select(Norm).ToArray();
     }
     public static string Norm(string? s) => Regex.Replace(TongHopService.NormSearch(s), @"\s+", " ").Trim();
 
-    /// <summary>Tìm chung: bỏ dấu, mỗi từ tìm riêng (VÀ), hoặc cả cụm bỏ khoảng trắng ("btp50" = "BTP 50").</summary>
-    public static bool Match(Row r, string q)
+    private List<Row>? _tagRows; private int _tagCount = -1;
+    private HashSet<string> _tags = new(), _prefixes = new();
+    /// <summary>
+    /// Ô tìm "thông minh" — CÙNG quy tắc app cũ (js/smart-search.js, dùng ở Tồn theo vị trí / Dữ Liệu / Tìm trong toàn kho / điện thoại):
+    /// bỏ dấu, không tính khoảng trắng; mỗi từ tìm riêng ở mọi cột (VÀ);
+    /// phần đầu là ĐÚNG 1 nhãn Size ("BTP 50 MKS") → chỉ dòng có đúng nhãn đó (không lẫn 41/50, BTP 500…), phần sau lọc tiếp;
+    /// cả ô là dạng nhãn ("BTP 13") → nhãn BẮT ĐẦU bằng BTP13, có dấu cách cuối ("BTP 13 ") → đúng nhãn;
+    /// ô chỉ có 1 con số ("50") → ô nào ĐÚNG BẰNG số đó. Ô trống → null (không lọc).
+    /// </summary>
+    public Func<Row, bool>? Matcher(string? raw)
     {
-        q = Norm(q); if (q.Length == 0) return true;
-        if (r.Search.Contains(q) || r.SearchNs.Contains(q.Replace(" ", ""))) return true;
-        var ws = q.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return ws.Length > 1 && ws.All(w => r.Search.Contains(w));
+        raw ??= "";
+        var qs = Norm(raw).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (qs.Count == 0) return null;
+        if (_tagRows != Rows || _tagCount != Rows.Count)
+        {
+            _tags = new(); _prefixes = new();
+            foreach (var r in Rows)
+                if (r.Tag.Length > 0) { _tags.Add(r.Tag); var m = Regex.Match(r.Tag, "^[a-z]+"); if (m.Success) _prefixes.Add(m.Value); }
+            _tagRows = Rows; _tagCount = Rows.Count;
+        }
+        if (qs.Count == 1 && Regex.IsMatch(raw.Trim(), @"^\d+([.,]\d+)?$"))
+        {
+            var q = qs[0];
+            return r => r.Cells.Contains(q);
+        }
+        for (var k = qs.Count - 1; k >= 1; k--)
+        {
+            var tag = string.Concat(qs.Take(k)); if (!_tags.Contains(tag)) continue;
+            var rest = qs.Skip(k).ToList();
+            return r => r.Tag == tag && WordsHit(r, rest);
+        }
+        var all = string.Concat(qs); var pm = Regex.Match(all, @"^([a-z]+)\d");
+        if (pm.Success && _prefixes.Contains(pm.Groups[1].Value))
+            return Regex.IsMatch(raw, @"\s$") ? r => r.Tag == all : r => r.Tag.Length > 0 && r.Tag.StartsWith(all, StringComparison.Ordinal);
+        return r => WordsHit(r, qs);
+    }
+    private static bool WordsHit(Row r, List<string> qs)
+    {
+        if (qs.Count == 0 || qs.All(w => r.Search.Contains(w, StringComparison.Ordinal))) return true;
+        return r.SearchNs.Contains(string.Concat(qs), StringComparison.Ordinal);
     }
 
     /// <summary>Size của dòng: ký tự 14–17 tra từ điển Size; chưa khai báo → "NN/NNN" trong tên hàng; không có → "".</summary>

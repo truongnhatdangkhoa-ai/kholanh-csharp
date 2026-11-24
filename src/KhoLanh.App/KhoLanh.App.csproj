@@ -12,6 +12,17 @@
     <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
+  <!-- 1.59: biên dịch sẵn (ReadyToRun) khi đóng gói KhoLanh.exe cho Windows → mở app / mở lại sau cập nhật nhanh hơn (bớt JIT lúc khởi động).
+       Bỏ qua các thư viện lớn chỉ dùng khi xuất / đọc Excel, PDF, gửi mail (không chạy lúc mở app) để exe không phình to. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <!-- không gộp "composite" (gộp sẽ biên dịch lại cả .NET → exe to thêm ~36 MB); thư viện .NET vốn đã biên dịch sẵn -->
+    <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <PublishReadyToRunExclude Include="BouncyCastle.Cryptography.dll;ClosedXML.dll;ClosedXML.Parser.dll;DocumentFormat.OpenXml.dll;DocumentFormat.OpenXml.Framework.dll;ExcelDataReader.dll;ExcelNumberFormat.dll;MailKit.dll;MimeKit.dll;RBush.dll;SixLabors.Fonts.dll" />
+    <PublishReadyToRunExclude Include="UglyToad.PdfPig.dll;UglyToad.PdfPig.Core.dll;UglyToad.PdfPig.DocumentLayoutAnalysis.dll;UglyToad.PdfPig.Fonts.dll;UglyToad.PdfPig.Package.dll;UglyToad.PdfPig.Tokenization.dll;UglyToad.PdfPig.Tokens.dll" />
+  </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Screenshots" />
   </ItemGroup>

@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using KhoLanh.Core.Services;
 
 namespace KhoLanh.App;
@@ -180,9 +181,75 @@ public static class Ui
     public static async Task Show(Visual v, Window w)
     {
         ApplyZoom(w);
+        AllowResize(w);
         if (Owner(v) is { } owner) await w.ShowDialog(owner);
         else { var tcs = new TaskCompletionSource(); w.Closed += (_, _) => tcs.TrySetResult(); w.Show(); await tcs.Task; }
     }
+
+    /// <summary>1.62: hộp thoại có bảng dữ liệu (nút ⤢) / ảnh / vùng cuộn thì KHÔNG khóa cỡ: kéo giãn + phóng to được;
+    /// phần nội dung lớn nhất (bảng / vùng cuộn có chiều cao cố định) giãn theo cửa sổ, nút giữ ở đáy.</summary>
+    public static void AllowResize(Window w)
+    {
+        if (w.CanResize || w.Content is not Control) return;
+        w.Opened += (_, _) =>
+        {
+            if (w.Content is not Control root) return;
+            var all = root.GetVisualDescendants().OfType<Control>().ToList();
+            if (!all.Any(c => c is Controls.SheetGrid or DataGrid or Image || c is ScrollViewer { MaxHeight: < double.PositiveInfinity })) return;
+            // phần giãn: bảng có Height cố định, hoặc vùng cuộn có MaxHeight — lấy cái cao nhất
+            Control? grow = all.Where(c => c is Controls.SheetGrid or DataGrid && !double.IsNaN(c.Height))
+                .Concat(all.Where(c => c is ScrollViewer && c.MaxHeight < double.PositiveInfinity))
+                .OrderByDescending(c => c.Bounds.Height).FirstOrDefault();
+            w.CanResize = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var h0 = w.ClientSize.Height; var sc = AppTheme.Scale <= 0 ? 1 : AppTheme.Scale;
+                if (w.SizeToContent != SizeToContent.Manual) { w.Height = h0; w.SizeToContent = SizeToContent.Manual; }
+                if (w.MinHeight <= 0) w.MinHeight = Math.Min(h0, 240);
+                if (w.MinWidth <= 0) w.MinWidth = Math.Min(w.Bounds.Width, 360);
+                if (grow is null) return;
+                var isMax = grow is ScrollViewer; var g0 = isMax ? grow.MaxHeight : grow.Height;
+                w.GetObservable(Window.ClientSizeProperty).Subscribe(new Watch(sz =>
+                {
+                    var v2 = Math.Max(Math.Min(g0, 120), g0 + (sz.Height - h0) / sc);
+                    if (isMax) grow.MaxHeight = v2; else grow.Height = v2;
+                }));
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        };
+    }
+
+    private sealed class Watch(Action<Size> on) : IObserver<Size>
+    {
+        public void OnNext(Size v) => on(v);
+        public void OnError(Exception e) { }
+        public void OnCompleted() { }
+    }
+
+    /// <summary>Ảnh xem trước của RenderTargetBitmap độ nét ×2: chép sang Bitmap thường (ảnh 192 dpi vẽ thẳng bị cắt còn 1/4 góc trên trái
+    /// trên Windows), hiện rộng tối đa <paramref name="maxWidth"/>, co theo cửa sổ.</summary>
+    public static Control ImagePreview(Avalonia.Media.Imaging.Bitmap bmp, double maxWidth = 860, double maxHeight = 560)
+    {
+        Avalonia.Media.Imaging.Bitmap src = bmp;
+        if (bmp is Avalonia.Media.Imaging.RenderTargetBitmap)
+        {
+            using var ms = new MemoryStream(); bmp.Save(ms); ms.Position = 0;
+            src = new Avalonia.Media.Imaging.Bitmap(ms);
+        }
+        var natural = src.PixelSize.Width / 2.0;   // ảnh vẽ ×2 → cỡ thật
+        return new ScrollViewer
+        {
+            MaxHeight = maxHeight, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = new Border
+            {
+                BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center,
+                MaxWidth = Math.Min(natural, maxWidth) + 2,
+                Child = new Image { Source = src, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly },
+            },
+        };
+    }
+
+    /// <summary>Độ rộng hộp thoại vừa ảnh xem trước.</summary>
+    public static double ImageDialogWidth(Avalonia.Media.Imaging.Bitmap bmp, double maxWidth = 860) => Math.Max(420, Math.Min(bmp.PixelSize.Width / 2.0, maxWidth) + 70);
 
     public static async Task<string?> SaveFile(Visual v, string title, string suggestedName, string ext, string typeName)
     {
@@ -232,6 +299,37 @@ public static class Ui
         var ok = await Run(v, () => { try { exportToXlsx(tmp); html = XlsxHtml.WritePage(tmp, title, dir); } finally { try { File.Delete(tmp); } catch { } } });
         if (ok) OpenExternal(html);
         return ok;
+    }
+
+    /// <summary>
+    /// Tab con trong 1 trang (1.57 — màn hình nhỏ): mỗi bảng dữ liệu 1 tab thay vì 2 – 4 bảng chen nhau trên cùng màn hình.
+    /// Nội dung tab được bọc khoảng cách trên 6 px; trả về TabControl để nơi dùng chuyển tab bằng code (vd chọn dòng → mở tab chi tiết).
+    /// </summary>
+    public static TabControl SubTabs(params (string Header, Control Content)[] tabs)
+    {
+        var tc = new TabControl();
+        foreach (var (h, c) in tabs) tc.Items.Add(new TabItem { Header = h, Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = c } });
+        // Không để đổi tab con nổi lên TabControl cha (cha thường vẽ lại cả trang khi đổi tab → mất dòng đang chọn).
+        tc.SelectionChanged += (_, e) => e.Handled = true;
+        return tc;
+    }
+
+    /// <summary>Danh sách + chi tiết thành 2 tab con (màn hình nhỏ không phải xem 2 bảng chồng nhau):
+    /// bấm đúp ở danh sách → mở tab chi tiết; <paramref name="info"/> (nếu có) nằm trên bảng chi tiết.</summary>
+    public static TabControl MasterDetail(string listHeader, Control list, Control listGrid, string detHeader, Control detail, Control? info = null)
+    {
+        Control det = detail;
+        if (info is not null)
+        {
+            var dp = new DockPanel();
+            info.Margin = new Thickness(0, 0, 0, 6);
+            DockPanel.SetDock(info, Dock.Top);
+            dp.Children.Add(info); dp.Children.Add(detail);
+            det = dp;
+        }
+        var tc = SubTabs((listHeader, list), (detHeader, det));
+        listGrid.DoubleTapped += (_, _) => tc.SelectedIndex = 1;
+        return tc;
     }
 
     public static string SafeFileName(string s) =>

@@ -22,7 +22,7 @@ public sealed record ApplyResult(List<string> Imported, int NewCount, List<strin
 /// và Meta nên app điện thoại hiện có (và bản mobile sau này) dùng được ngay. Đọc / ghi THẲNG các sheet dùng chung (cùng định dạng app cũ) qua
 /// <see cref="ISheetSource"/>; sau khi nhận phiếu, các service đang nạp được đọc lại. Giao thức mô tả ở docs/DONG-BO-DIEN-THOAI.md.
 /// </summary>
-public sealed class PhoneSyncService
+public sealed partial class PhoneSyncService
 {
     // ---------------------------------------------------------------- tab (SH_TAB của app cũ)
     public static class Tab
@@ -35,7 +35,7 @@ public sealed class PhoneSyncService
     public static readonly (string Code, string Name, string Perm)[] Tables =
     {
         ("M01", "Tồn kho An An", "m1"), ("M01VT", "Tồn theo vị trí", "m7"), ("M01VTB", "Vị Trí Bột", "m1vtb"), ("M02", "Tồn kho gửi", "m2"),
-        ("M03", "NXT Bột/Sốt", "m3sk"), ("M08", "Tổng hợp (mã hóa, danh sách mã, ánh xạ)", "m3"), ("LX", "Lịch xuất nhập hàng", "lx"), ("C3D", "Container 3D", "m14"),
+        ("M03", "NXT Bột/Sốt", "m3sk"), ("M08", "Tổng hợp (mã hóa, danh sách mã, ánh xạ, kháng sinh)", "m3"), ("LX", "Lịch xuất nhập hàng", "lx"), ("C3D", "Container 3D", "m14"),
     };
     public static readonly string[] SyncTables = Tables.Select(t => t.Code).ToArray();
     public const string DaXuLy = "Đã xử lý", LoiThieuDong = "Lỗi - không có dòng hàng";
@@ -438,6 +438,14 @@ public sealed class PhoneSyncService
             }
             catch (Exception e) { res.Errors.Add($"{t}: {e.Message}"); status[t] = (status.GetValueOrDefault(t) ?? new TableStatus("", false, "", "", "", 0)) with { At = nowS, Error = e.Message }; }
         }
+        // 1.55: báo cáo Excel (+ Phân loại) cho điện thoại tải về; kháng sinh "chỉ phần mới" — lỗi không làm hỏng lần đẩy tồn
+        if (pick.Contains("M01")) await PushReportAsync("M01", meta, res.Errors, ct);
+        if (pick.Contains("M02")) await PushReportAsync("M02", meta, res.Errors, ct);
+        if (pick.Contains("M08") && _s.Session.Can(KhangSinh.KhangSinhService.PermKey, Perm.View))
+        {
+            try { var k = await PushKhangSinhAsync(ct); res.Rows["KS"] = k.Sent; }
+            catch (Exception e) { res.Errors.Add("Kháng sinh: " + e.Message); }
+        }
         // phiếu PC cho điện thoại xem — lỗi không làm hỏng lần đẩy tồn
         if (pick.Any(t => t is "M01" or "M01VT" or "M01VTB" or "M02" or "M03"))
         {
@@ -526,6 +534,13 @@ public sealed class PhoneSyncService
     public async Task<(PullResult Pull, PushResult Push)> SyncAsync(bool pull = true, CancellationToken ct = default)
     {
         var p = pull ? await PullAsync(ct) : new PullResult(0, 0, new(), new(), new());
+        if (pull)
+        {
+            // 1.55: hộp thư yêu cầu lịch xuất từ điện thoại + lưu trữ phiếu cũ (lỗi không chặn phần còn lại)
+            try { var lx = await PullLichXuatRequestsAsync(ct); if (lx.Err > 0) p.Errors.AddRange(lx.Notes.Select(n => "Yêu cầu lịch xuất: " + n)); }
+            catch (Exception e) { p.Errors.Add("Yêu cầu lịch xuất: " + e.Message); }
+            await MaybeArchiveAsync(ct);
+        }
         var push = await PushAsync(Pick.Union(p.Modules), ct);
         return (p, push);
     }

@@ -28,21 +28,27 @@ public sealed class EntryService
     public EntryService(Func<ISheetSource> source, Session session, AuditService audit) { _src = source; _session = session; _audit = audit; }
 
     public record PageInfo(string Id, string Name, string Template, string CreatedAt, string UpdatedAt, string UpdatedBy, int Rows, bool Deleted, List<GridColumn> Columns);
-    public record Template(string Id, string Name, List<GridColumn> Columns, bool BuiltIn);
+    /// <summary>Mẫu cột. <paramref name="Edited"/> = mẫu có sẵn đã được sửa (lưu đè trong sheet "Mau", "Về mặc định" để bỏ).</summary>
+    public record Template(string Id, string Name, List<GridColumn> Columns, bool BuiltIn, bool Edited = false);
+
+    /// <summary>Khóa lưu màu tô ô của một dòng ("c1:y,c3:r" — theo mã cột, xem <see cref="CellColors"/>).</summary>
+    public const string ColorKey = "_bg";
 
     public static readonly Template[] BuiltIn =
     {
         new("trong", "Trống (cột A–J)", Enumerable.Range(0, 10).Select(i => new GridColumn("c" + i, GridModel.ColumnName(i), 110)).ToList(), true),
-        new("nhap-kho", "Nhập kho", Cols(("Ngày", "date", 100), ("Mã hàng", "text", 170), ("Tên hàng", "text", 220), ("Size", "text", 80),
-            ("Số thùng", "number", 90), ("Kg / thùng", "number", 90), ("Tổng kg", "number", 100), ("Vị trí", "text", 90), ("Khách hàng", "text", 130), ("Ghi chú", "text", 200)), true),
-        new("xuat-kho", "Xuất kho", Cols(("Ngày", "date", 100), ("Số phiếu", "text", 110), ("Mã hàng", "text", 170), ("Tên hàng", "text", 220), ("Size", "text", 80),
-            ("Số thùng", "number", 90), ("Tổng kg", "number", 100), ("Vị trí", "text", 90), ("Khách hàng", "text", 130), ("Ghi chú", "text", 200)), true),
-        new("kiem-ke", "Kiểm kê", Cols(("Vị trí", "text", 90), ("Mã hàng", "text", 170), ("Tên hàng", "text", 220), ("Size", "text", 80),
-            ("Số thùng", "number", 90), ("Kg", "number", 100), ("Ngày SX", "date", 100), ("Ghi chú", "text", 200)), true),
+        new("nhap-kho", "Nhập kho", Cols(("Ngày", "date", 100, EntryRules.Today, ""), ("Mã hàng", "text", 190, "", ""), ("Tên hàng", "text", 240, EntryRules.Ten, ""), ("Size", "text", 80, EntryRules.Size, ""),
+            ("Số thùng", "number", 90, "", ""), ("Kg / thùng", "number", 90, EntryRules.Tl, ""), ("Tổng kg", "number", 100, "", "=[Số thùng]*[Kg / thùng]"), ("Vị trí", "text", 90, "", ""), ("Khách hàng", "text", 130, "", ""), ("Ghi chú", "text", 200, "", "")), true),
+        new("xuat-kho", "Xuất kho", Cols(("Ngày", "date", 100, EntryRules.Today, ""), ("Số phiếu", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Tên hàng", "text", 240, EntryRules.Ten, ""), ("Size", "text", 80, EntryRules.Size, ""),
+            ("Số thùng", "number", 90, "", ""), ("Tổng kg", "number", 100, "", ""), ("Vị trí", "text", 90, "", ""), ("Khách hàng", "text", 130, "", ""), ("Ghi chú", "text", 200, "", "")), true),
+        // 1.62: mẫu kiểm kê mới — Size / Trọng lượng theo mã, Net = Số lượng × Trọng lượng, Ngày nhập = ngày tạo dòng (không tự đổi khi sửa)
+        new("kiem-ke", "Kiểm kê", Cols(("Vị trí", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Size", "text", 90, EntryRules.Size, ""),
+            ("Trọng lượng", "number", 100, EntryRules.Tl, ""), ("Số lượng", "number", 90, "", ""), ("Net(kg)", "number", 100, "", "=[Số lượng]*[Trọng lượng]"),
+            ("Ghi chú", "text", 200, "", ""), ("Ngày nhập", "date", 100, EntryRules.Today, "")), true),
     };
 
-    private static List<GridColumn> Cols(params (string h, string t, double w)[] cols) =>
-        cols.Select((c, i) => new GridColumn("c" + i, c.h, c.w, c.t)).ToList();
+    private static List<GridColumn> Cols(params (string h, string t, double w, string auto, string fx)[] cols) =>
+        cols.Select((c, i) => new GridColumn("c" + i, c.h, c.w, c.t) { Auto = c.auto, Formula = c.fx }).ToList();
 
     // ------------------------------------------------------------------ quyền
 
@@ -66,14 +72,21 @@ public sealed class EntryService
         try
         {
             return (JsonNode.Parse(json) as JsonArray ?? new JsonArray()).OfType<JsonObject>()
-                .Select(o => new GridColumn(S(o["k"]), S(o["h"]), double.TryParse(S(o["w"]), NumberStyles.Float, CultureInfo.InvariantCulture, out var w) ? w : 110, S(o["t"]) is { Length: > 0 } t ? t : "text"))
+                .Select(o => new GridColumn(S(o["k"]), S(o["h"]), double.TryParse(S(o["w"]), NumberStyles.Float, CultureInfo.InvariantCulture, out var w) ? w : 110, S(o["t"]) is { Length: > 0 } t ? t : "text")
+                    { Auto = S(o["a"]), Formula = S(o["f"]) })
                 .ToList();
         }
         catch { return new(); }
     }
 
     private static string ColsJson(IEnumerable<GridColumn> cols) =>
-        new JsonArray(cols.Select(c => (JsonNode)new JsonObject { ["k"] = c.Key, ["h"] = c.Header, ["w"] = Math.Round(c.Width), ["t"] = c.Type }).ToArray()).ToJsonString();
+        new JsonArray(cols.Select(c =>
+        {
+            var o = new JsonObject { ["k"] = c.Key, ["h"] = c.Header, ["w"] = Math.Round(c.Width), ["t"] = c.Type };
+            if (c.Auto.Length > 0) o["a"] = c.Auto;          // 1.62: tự điền / công thức (trang cũ không có → cột nhập tay như trước)
+            if (c.Formula.Length > 0) o["f"] = c.Formula;
+            return (JsonNode)o;
+        }).ToArray()).ToJsonString();
 
     private static PageInfo ToInfo(JsonObject o) => new(
         S(o["id"]), S(o["ten"]), S(o["mau"]), S(o["tao"]), S(o["sua"]), S(o["nguoi"]),
@@ -131,7 +144,7 @@ public sealed class EntryService
         return p;
     }
 
-    private static GridColumn Clone(GridColumn c) => new(c.Key, c.Header, c.Width, c.Type);
+    private static GridColumn Clone(GridColumn c) => c.Clone();
 
     public void Rename(string id, string name)
     {
@@ -169,10 +182,28 @@ public sealed class EntryService
         return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
     }
 
-    /// <summary>Lưu dữ liệu + cột của trang (bỏ dòng trống ở cuối). Trang đã bị máy khác sửa → SheetConflictException.</summary>
+    /// <summary>Như <see cref="Load"/> nhưng mỗi dòng thêm 1 phần tử cuối = màu tô ô của dòng (<see cref="ColorKey"/>).</summary>
+    public List<string[]> LoadWithColors(PageInfo p)
+    {
+        Require(Perm.View);
+        var keys = p.Columns.Select(c => c.Key).Append(ColorKey).ToList();
+        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+    }
+
+    /// <summary>
+    /// Lưu dữ liệu + cột của trang (bỏ dòng trống ở cuối; cột công thức được tính lại). Dòng dài hơn số cột 1 phần tử → phần tử cuối là màu ô.
+    /// Trang đã bị máy khác sửa → SheetConflictException.
+    /// </summary>
     public PageInfo Save(PageInfo p, IReadOnlyList<GridColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows)
     {
         Require(Perm.Edit);
+        var fx = EntryRules.RecomputeAll(columns, rows);
+        if (fx.Count > 0)
+        {
+            var copy = rows.Select(r => r.ToArray()).ToList();
+            foreach (var (r, c, v) in fx) if (c < copy[r].Length) copy[r][c] = v;
+            rows = copy;
+        }
         var n = rows.Count;
         while (n > 0 && rows[n - 1].All(string.IsNullOrWhiteSpace)) n--;
         var arr = new JsonArray();
@@ -184,6 +215,7 @@ public sealed class EntryService
                 var v = c < rows[r].Count ? rows[r][c] : "";
                 if (v.Length > 0) o[columns[c].Key] = v;
             }
+            if (rows[r].Count > columns.Count && CellColors.Clean(rows[r][columns.Count], columns) is { Length: > 0 } bg) o[ColorKey] = bg;
             arr.Add(o);
         }
         _src().Write(Db, new Dictionary<string, JsonArray?> { [DataSheet(p.Id)] = arr });
@@ -196,34 +228,53 @@ public sealed class EntryService
 
     public List<Template> Templates()
     {
-        var user = ReadArr(TplSheet).OfType<JsonObject>()
+        var rows = ReadArr(TplSheet).OfType<JsonObject>()
             .Select(o => new Template(S(o["id"]), S(o["ten"]), ParseCols(S(o["cot"])), false))
-            .Where(t => t.Id.Length > 0 && t.Columns.Count > 0);
-        return BuiltIn.Concat(user.OrderBy(t => t.Name, StringComparer.CurrentCulture)).ToList();
+            .Where(t => t.Id.Length > 0 && t.Columns.Count > 0).ToList();
+        var over = rows.Where(t => BuiltIn.Any(b => b.Id == t.Id)).ToDictionary(t => t.Id);
+        var builtIn = BuiltIn.Select(b => over.TryGetValue(b.Id, out var o) ? o with { BuiltIn = true, Edited = true } : b);
+        return builtIn.Concat(rows.Where(t => !over.ContainsKey(t.Id)).OrderBy(t => t.Name, StringComparer.CurrentCulture)).ToList();
     }
 
-    public Template SaveTemplate(string name, IEnumerable<GridColumn> columns)
+    /// <summary>
+    /// Lưu mẫu. Có <paramref name="id"/> → sửa đúng mẫu đó (mẫu có sẵn thì lưu bản sửa đè lên, "Về mặc định" để bỏ);
+    /// không có → mẫu trùng tên thì thay, còn lại thêm mẫu mới.
+    /// </summary>
+    public Template SaveTemplate(string name, IEnumerable<GridColumn> columns, string? id = null)
     {
         Require(Perm.Edit);
         if (string.IsNullOrWhiteSpace(name)) throw new BusinessException("Đặt tên cho mẫu.");
         var cols = columns.Select(Clone).ToList();
         if (cols.Count == 0) throw new BusinessException("Mẫu phải có ít nhất một cột.");
+        var dup = cols.GroupBy(c => c.Header.Trim(), StringComparer.CurrentCultureIgnoreCase).FirstOrDefault(g => g.Count() > 1);
+        if (dup is not null) throw new BusinessException($"Mẫu có 2 cột trùng tên “{dup.Key}”.");
+        foreach (var c in cols.Where(c => c.Formula.Length > 0))
+            if (CongThuc.Check(c.Formula) is { } err) throw new BusinessException($"Cột “{c.Header}”: {err}");
         var arr = ReadArr(TplSheet);
-        var existing = arr.OfType<JsonObject>().FirstOrDefault(o => S(o["ten"]).Equals(name.Trim(), StringComparison.CurrentCultureIgnoreCase));
-        var id = existing is not null ? S(existing["id"]) : "u" + DateTime.Now.ToString("yyMMddHHmmss");
+        var nm = name.Trim();
+        bool Same(JsonObject o) => S(o["ten"]).Equals(nm, StringComparison.CurrentCultureIgnoreCase);
+        var builtIn = id is not null ? BuiltIn.FirstOrDefault(b => b.Id == id) : BuiltIn.FirstOrDefault(b => b.Name.Equals(nm, StringComparison.CurrentCultureIgnoreCase));
+        var existing = builtIn is not null ? arr.OfType<JsonObject>().FirstOrDefault(o => S(o["id"]) == builtIn.Id)
+            : id is not null ? arr.OfType<JsonObject>().FirstOrDefault(o => S(o["id"]) == id)
+            : arr.OfType<JsonObject>().FirstOrDefault(Same);
+        if (id is not null && builtIn is null && arr.OfType<JsonObject>().Any(o => Same(o) && S(o["id"]) != id))
+            throw new BusinessException($"Đã có mẫu khác tên “{nm}”.");
+        var newId = builtIn?.Id ?? (existing is not null ? S(existing["id"]) : "u" + DateTime.Now.ToString("yyMMddHHmmss") + Random.Shared.Next(10, 99));
         if (existing is not null) arr.Remove(existing);
-        arr.Add(new JsonObject { ["id"] = id, ["ten"] = name.Trim(), ["cot"] = ColsJson(cols) });
+        arr.Add(new JsonObject { ["id"] = newId, ["ten"] = name.Trim(), ["cot"] = ColsJson(cols) });
         _src().Write(Db, new Dictionary<string, JsonArray?> { [TplSheet] = arr });
         _audit.Log(_session.Username, "Nhập liệu: lưu mẫu", name.Trim());
-        return new Template(id, name.Trim(), cols, false);
+        return new Template(newId, name.Trim(), cols, builtIn is not null, builtIn is not null);
     }
 
+    /// <summary>Xóa mẫu tự làm; với mẫu có sẵn đã sửa → trở về mặc định.</summary>
     public void DeleteTemplate(string id)
     {
         Require(Perm.Edit);
         var arr = ReadArr(TplSheet);
         foreach (var o in arr.OfType<JsonObject>().Where(o => S(o["id"]) == id).ToList()) arr.Remove(o);
         _src().Write(Db, new Dictionary<string, JsonArray?> { [TplSheet] = arr });
+        _audit.Log(_session.Username, BuiltIn.Any(b => b.Id == id) ? "Nhập liệu: mẫu về mặc định" : "Nhập liệu: xóa mẫu", id);
     }
 
     // ------------------------------------------------------------------ Excel
@@ -274,6 +325,7 @@ public sealed class EntryService
         }
     }
 
+    /// <summary>Xuất Excel (dòng dài hơn số cột 1 phần tử → phần tử cuối là màu ô, tô nền ô tương ứng).</summary>
     public void ExportExcel(string path, string title, IReadOnlyList<GridColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows)
     {
         Require(Perm.Export);
@@ -288,7 +340,7 @@ public sealed class EntryService
             ws.Column(c + 1).Width = Math.Max(6, columns[c].Width / 7.5);
         }
         var n = rows.Count;
-        while (n > 0 && rows[n - 1].All(string.IsNullOrWhiteSpace)) n--;
+        while (n > 0 && rows[n - 1].Take(columns.Count).All(string.IsNullOrWhiteSpace)) n--;
         for (var r = 0; r < n; r++)
             for (var c = 0; c < columns.Count; c++)
             {
@@ -300,6 +352,13 @@ public sealed class EntryService
                 { cell.Value = dt; cell.Style.DateFormat.Format = "dd/MM/yyyy"; }
                 else cell.Value = v;
             }
+        for (var r = 0; r < n; r++)
+            if (rows[r].Count > columns.Count)
+                foreach (var (key, hex) in CellColors.Parse(rows[r][columns.Count]))
+                {
+                    var c = columns.ToList().FindIndex(x => x.Key == key);
+                    if (c >= 0) ws.Cell(r + 2, c + 1).Style.Fill.BackgroundColor = XLColor.FromHtml(hex);
+                }
         var range = ws.Range(1, 1, Math.Max(1, n + 1), Math.Max(1, columns.Count));
         range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;

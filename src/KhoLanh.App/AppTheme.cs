@@ -49,15 +49,66 @@ public static class AppTheme
     // Các màu hay dùng
     public static SolidColorBrush Card => Brush("#FFFFFF");
     public static SolidColorBrush Muted => Brush("#5D6B78");
+    public static SolidColorBrush Accent => Brush("#1F6FD6");
     public static SolidColorBrush Danger => Brush("#B42318");
-    public static SolidColorBrush Text => Brush("#1F2937");
+    public static SolidColorBrush Text => Brush("#1A2433");
 
-    /// <summary>Đổi màu theo giao diện: Sáng = trắng tinh → trắng ngà; Tối = đảo độ sáng, giảm độ rực của nền.</summary>
+    /// <summary>
+    /// Bộ màu "Băng sạch" (1.43): màu chính của bộ Sáng → màu Tối THIẾT KẾ RIÊNG (không đảo tự động). Màu khác ngoài bảng vẫn đổi theo HSL.
+    /// Viết mã màu bộ Sáng trong View; màu nào cần cặp Tối riêng thì thêm vào đây.
+    /// </summary>
+    private static readonly Dictionary<string, string> DesignedDark = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // nền / bề mặt / đường kẻ
+        ["#F4F6F9"] = "#12161C", ["#F3F6F9"] = "#12161C", ["#FFFFFF"] = "#1A2028", ["#F8FAFC"] = "#20272F", ["#F1F4F8"] = "#20272F", ["#F7F9FC"] = "#20272F",
+        ["#E3E8EF"] = "#2B333D", ["#DDE3EA"] = "#333C47", ["#B9C3D0"] = "#4A5563", ["#EDF1F6"] = "#232A33", ["#E3E7ED"] = "#2B333D", ["#E8EEF3"] = "#2B333D", ["#D9E2EA"] = "#39434F", ["#D5DBE3"] = "#39434F", ["#D0D7E2"] = "#39434F", ["#CBD3DD"] = "#39434F", ["#CDD5DF"] = "#39434F",
+        // chữ
+        ["#1A2433"] = "#E5EAF0", ["#1F2937"] = "#E5EAF0", ["#4A5869"] = "#AEB8C4", ["#475569"] = "#AEB8C4", ["#5D6B78"] = "#9AA4AF", ["#7A8797"] = "#808C99",
+        // màu nhấn + vùng chọn
+        ["#1F6FD6"] = "#4C93EA", ["#1F6FD1"] = "#4C93EA", ["#1859AE"] = "#6AA6EF", ["#1F8FD1"] = "#4C93EA", ["#E6F0FC"] = "#1C2E45", ["#E3EEFB"] = "#1C2E45", ["#D9E6F7"] = "#233A57", ["#E3F2FB"] = "#1C2E45",
+        ["#10243D"] = "#0D1117", ["#0B2A45"] = "#0D1117",
+        // trạng thái: nền nhạt + chữ đậm
+        ["#E3F4EA"] = "#173327", ["#1E7B4A"] = "#4CC287", ["#FFF2D6"] = "#3A2C12", ["#9A5B00"] = "#E3A447", ["#FDE8E6"] = "#3E1D1A", ["#B42318"] = "#F07468",
+        ["#EEEBFC"] = "#2A2543", ["#5B4BC4"] = "#A99BF2",
+    };
+
+    /// <summary>
+    /// Quy màu cũ của các View về bộ "Băng sạch" (1.45) — áp cho cả Sáng và Tối, KHÔNG áp khi vẽ ảnh / bản in xuất file (<see cref="Raw"/>):
+    /// tô nền đậm (cam, vàng đậm, tím, xanh lá) → nền nhạt trạng thái; màu thương hiệu cũ → màu mới; xanh / cam / đỏ chữ → màu trạng thái chuẩn.
+    /// Nhờ vậy mọi màn hình cùng một ngôn ngữ màu mà không phải sửa từng View.
+    /// </summary>
+    private static readonly Dictionary<string, string> Unify = BuildUnify();
+    private static Dictionary<string, string> BuildUnify()
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        void To(string target, params string[] src) { foreach (var x in src) d[x] = target; }
+        To("#E3F4EA", "#E2EFDA", "#DCEBDD", "#E6F4EA", "#E2F0D9", "#D9EAD3", "#E8F5E9", "#C6EFCE");                  // nền "khớp / đạt"
+        To("#FFF2D6", "#FFF4CC", "#FFF1C9", "#FFE699", "#FFF2CC", "#FFF2B3", "#FFF1CC", "#FFE2A0", "#FFEB9C", "#FFF3CD"); // nền "cảnh báo"
+        To("#FDE8E6", "#F8CBAD", "#FDE7E7", "#FCE4D6", "#FBE3D6", "#FDE2E1", "#FCE8E6", "#FBD5C8", "#F6B5A8", "#FDF0EC", "#FFC7CE", "#F4CCCC"); // nền "lỗi / lệch"
+        To("#EEEBFC", "#D9C6F0", "#E4DFEC", "#EDE7F6");                                                                  // nền "thông tin"
+        To("#E6F0FC", "#DCE6F0", "#DDEBF7", "#E3F2FB", "#E8F1FB", "#DEEAF6", "#D9E6F7", "#E3EEFB");                     // nền nhấn / đang chọn
+        To("#F1F4F8", "#EDEDED", "#F3F3F3", "#EEF2F7", "#EEF1F5", "#EEF0F3", "#E5E9F0", "#F1F3F5");                     // nền xám phụ
+        To("#F8FAFC", "#F6F9FC", "#F4F7FB", "#F5F8FB", "#F3F6FA", "#F7F9FC");
+        To("#E3E8EF", "#D0D7E2", "#D9E2EA", "#D5DBE3", "#E3E7ED", "#E8EEF3", "#D3D3D3");                                // đường kẻ
+        To("#1A2433", "#0B2A45", "#1F2937");                                                                              // chữ đậm / tiêu đề
+        To("#4A5869", "#134B73");
+        To("#1F6FD6", "#1F8FD1", "#2563EB", "#1F6FD1", "#1877B0");                                                        // màu nhấn
+        To("#1E7B4A", "#2E7D32", "#1E7B34", "#1B5E20", "#1E8E3E", "#2E7D32");                                             // chữ "khớp / đạt"
+        To("#9A5B00", "#8A5A00", "#7A5200", "#B7791F");                                                                   // chữ "cảnh báo"
+        To("#B42318", "#B23B00", "#C0392B", "#C62828", "#D32F2F");                                                        // chữ "lỗi / lệch"
+        return d;
+    }
+    private static Color Unified(Color c) =>
+        c.A == 255 && Unify.TryGetValue($"#{c.R:X2}{c.G:X2}{c.B:X2}", out var u) ? Avalonia.Media.Color.Parse(u) : c;
+
+    /// <summary>Đổi màu theo giao diện: Sáng = trắng tinh → trắng dịu (đỡ chói); Tối = bảng thiết kế riêng, còn lại đảo độ sáng.</summary>
     public static Color Map(Color c, Color? dark)
     {
+        c = Unified(c);
         if (Current == Mode.Light)
-            return c.R >= 252 && c.G >= 252 && c.B >= 252 ? Avalonia.Media.Color.FromArgb(c.A, 0xFB, 0xFA, 0xF6) : c;
+            return c.R >= 252 && c.G >= 252 && c.B >= 252 ? Avalonia.Media.Color.FromArgb(c.A, 0xFB, 0xFC, 0xFD) : c;
         if (dark is { } d) return d;
+        if (c.A == 255 && DesignedDark.TryGetValue($"#{c.R:X2}{c.G:X2}{c.B:X2}", out var dd)) return Avalonia.Media.Color.Parse(dd);
         var (h, s, l) = ToHsl(c);
         if (l >= 0.5) { l = 0.145 + (1 - l) * 0.6; s *= 0.45; }
         else { l = 0.93 - l * 0.75; s = Math.Min(s, 0.75); }
@@ -67,10 +118,14 @@ public static class AppTheme
     // Tài nguyên (App.axaml): mã Sáng → mã Tối riêng nếu cần
     private static readonly (string key, string light, string? dark)[] Res =
     {
-        ("BrandDark", "#0B2A45", null), ("BrandMid", "#134B73", null), ("Accent", "#1F8FD1", "#2C7DB8"), ("AccentSoft", "#E3F2FB", null),
-        ("PageBg", "#F3F6F9", "#181A1E"), ("CardBg", "#FFFFFF", null), ("Border", "#D9E2EA", "#3A3F46"), ("Muted", "#5D6B78", "#9AA4AF"),
-        ("InColor", "#1E8E3E", null), ("OutColor", "#C2410C", null), ("Danger", "#B42318", null),
-        ("NavBg", "#0B2A45", "#101418"), ("GridLine", "#E8EEF3", null), ("GridHead", "#EAF2F8", null),
+        ("BrandDark", "#1A2433", null), ("BrandMid", "#4A5869", null), ("Accent", "#1F6FD6", null), ("AccentStrong", "#1859AE", null), ("AccentSoft", "#E6F0FC", null),
+        ("PageBg", "#F4F6F9", null), ("CardBg", "#FFFFFF", null), ("Surface2", "#F8FAFC", null), ("Border", "#E3E8EF", null), ("BorderStrong", "#B9C3D0", "#4A5563"),
+        ("Text", "#1A2433", null), ("Muted", "#5D6B78", null), ("Faint", "#7A8797", null),
+        ("InColor", "#1E7B4A", null), ("OutColor", "#C2410C", null), ("Danger", "#B42318", null),
+        ("OkSoft", "#E3F4EA", null), ("Ok", "#1E7B4A", null), ("WarnSoft", "#FFF2D6", null), ("Warn", "#9A5B00", null), ("BadSoft", "#FDE8E6", null), ("Bad", "#B42318", null),
+        ("InfoSoft", "#EEEBFC", null), ("Info", "#5B4BC4", null),
+        ("NavBg", "#10243D", null), ("NavFg", "#DCE5F0", "#C2CCD8"), ("NavHover", "#1B3452", "#1A212B"), ("NavMuted", "#8FA0B6", "#7A8797"),
+        ("GridLine", "#E3E8EF", null), ("GridHead", "#F1F4F8", null),
     };
 
     /// <summary>Gắn brush dùng chung vào tài nguyên ứng dụng (gọi 1 lần sau khi nạp App.axaml).</summary>
@@ -78,6 +133,13 @@ public static class AppTheme
     {
         foreach (var (k, l, d) in Res) app.Resources[k] = Brush(l, d);
     }
+
+    /// <summary>Mật độ bảng: "gon" · "vua" · "thoang" (lưu theo tài khoản: ui_density:&lt;tk&gt;).</summary>
+    public static string Density { get; private set; } = "vua";
+    public static double RowHeight => Density switch { "gon" => 22, "thoang" => 32, _ => 26 };
+    public static readonly (string Key, string Label)[] Densities = { ("gon", "Gọn — nhiều dòng nhất"), ("vua", "Vừa (chuẩn)"), ("thoang", "Thoáng — dễ đọc") };
+    public static void SetDensity(string d) { Density = d is "gon" or "thoang" ? d : "vua"; Changed?.Invoke(); }
+    public static string KeyDensity(string user) => "ui_density:" + user.ToLowerInvariant();
 
     public static string KeyTheme(string user) => "ui_theme:" + user.ToLowerInvariant();
     public static string KeyScale(string user) => "ui_scale:" + user.ToLowerInvariant();
@@ -88,6 +150,7 @@ public static class AppTheme
         var st = App.Services.Settings;
         var m = st.Get(KeyTheme(user), "light") == "dark" ? Mode.Dark : Mode.Light;
         var sc = double.TryParse(st.Get(KeyScale(user), "1"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : 1;
+        Density = st.Get(KeyDensity(user), "vua") is var d && d is "gon" or "thoang" ? st.Get(KeyDensity(user), "vua") : "vua";
         Apply(m, sc);
     }
 
@@ -96,6 +159,7 @@ public static class AppTheme
         var st = App.Services.Settings;
         st.Set(KeyTheme(user), Current == Mode.Dark ? "dark" : "light");
         st.Set(KeyScale(user), Scale.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+        st.Set(KeyDensity(user), Density);
     }
 
     public static void Apply(Mode mode, double scale)

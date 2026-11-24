@@ -297,6 +297,11 @@ public sealed class SoDoService
         private static List<KkPage> Copy(List<KkPage> pg) => pg.Select(p => new KkPage { N = p.N, Rows = p.Rows.Select(r => r.Clone()).ToList() }).ToList();
         public IEnumerable<(int Pi, int Ri, KkLine L)> All() { for (var i = 0; i < Pages.Count; i++) for (var j = 0; j < Pages[i].Rows.Count; j++) yield return (i, j, Pages[i].Rows[j]); }
         public int MoveCount => Pages.Sum(p => p.Rows.Count(r => r.Mv.Length > 0));
+        /// <summary>Phiếu "Vị trí có hàng" (so) không hiện / in dòng vị trí trống — các dòng đó vẫn giữ trong phiếu làm đích cho "Chuyển" (chuyển vào thì hiện).</summary>
+        public bool Shown(KkLine l) => !(Mode == "so" && l.Ma == "trống");
+        public IEnumerable<(int Pi, int Ri, KkLine L)> Visible() => All().Where(x => Shown(x.L));
+        /// <summary>Phiếu để ghi tay: "trong" = mọi vị trí, "rong" = chỉ vị trí trống (không có hàng) theo sơ đồ.</summary>
+        public bool Blank => Mode is "trong" or "rong";
     }
     public List<int> DayList(string kho, string khu) { var e = (Config.GetValueOrDefault(kho) ?? new()).FirstOrDefault(x => x.Khu == khu); return e is null ? new() : Enumerable.Range(1, e.D).ToList(); }
     private static string Nf(double v, int d = 2) => v.ToString(d == 3 ? "#,0.###" : "#,0.##", CultureInfo.InvariantCulture);
@@ -312,7 +317,11 @@ public sealed class SoDoService
         foreach (var n in days)
         {
             var pg = new KkPage { N = n };
-            if (mode == "trong")
+            if (mode == "rong")
+            {
+                foreach (var r in KkRows(B.Pos, kho, khu, n)) if (!r.Known) pg.Rows.Add(new KkLine { Code = r.Code, Pos = r.Code, First = true });
+            }
+            else if (mode == "trong")
             {
                 if (e is not null) for (int t = 1, nt = TangOf(e, n); t <= nt; t++) for (var kk = 1; kk <= e.K; kk++) pg.Rows.Add(new KkLine { Code = CodeOf(kho, khu, n, t, kk) });
             }
@@ -401,28 +410,30 @@ public sealed class SoDoService
         var ngay = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
         foreach (var pg in k.Pages)
         {
+            var lines = pg.Rows.Where(k.Shown).ToList();
+            if (lines.Count == 0 && k.Pages.Count > 1) continue;
             var name = "Day " + Two(pg.N); var nm = name; var i = 2; while (!used.Add(nm.ToLowerInvariant())) nm = name + " " + i++;
             var ws = wb.AddWorksheet(nm);
             ws.Style.Font.FontName = "Times New Roman"; ws.Style.Font.FontSize = 15;
             var title = $"PHIẾU IN VỊ TRÍ — {KhoLabel(k.Kho)} · Khu {k.Khu} · Dãy {Two(pg.N)}";
-            var sub = "Ngày: " + ngay + " · " + (k.Mode == "trong" ? "Phiếu trống" : "Theo sổ sách" + (DataDate.Length > 0 ? " (dữ liệu ngày " + DataDate + ")" : ""));
+            var sub = "Ngày: " + ngay + " · " + (k.Mode == "rong" ? "Vị trí trống — ghi tay" : k.Mode == "trong" ? "Phiếu trống" : "Theo sổ sách" + (DataDate.Length > 0 ? " (dữ liệu ngày " + DataDate + ")" : ""));
             ws.Cell(1, 1).Value = title; ws.Range(1, 1, 1, 5).Merge(); ws.Cell(1, 1).Style.Font.Bold = true; ws.Row(1).Height = 24;
             ws.Cell(2, 1).Value = sub; ws.Range(2, 1, 2, 5).Merge(); ws.Row(2).Height = 21;
             var head = new[] { "Vị trí", "Mã hàng", "Trọng lượng", "Số lượng", "Ghi chú" };
             for (var c = 0; c < 5; c++) { var h = ws.Cell(3, c + 1); h.Value = head[c]; h.Style.Font.Bold = true; h.Style.Fill.BackgroundColor = XLColor.FromHtml("#E8E8E8"); h.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center; }
             ws.Row(3).Height = 24;
             var r = 4;
-            foreach (var x in pg.Rows)
+            foreach (var x in lines)
             {
                 ws.Cell(r, 1).SetValue(x.Code); ws.Cell(r, 2).SetValue(x.Ma == "trống" ? "" : x.Ma); ws.Cell(r, 3).SetValue(x.Tl); ws.Cell(r, 4).SetValue(x.Sl); ws.Cell(r, 5).SetValue(x.Ghi);
-                ws.Row(r).Height = k.Mode == "trong" ? 30 : 21; r++;
+                ws.Row(r).Height = k.Blank ? 30 : 21; r++;
             }
             var last = Math.Max(3, r - 1);
             var tbl = ws.Range(3, 1, last, 5);
             tbl.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; tbl.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
             ws.Range(4, 3, last, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
             ws.Range(4, 1, last, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            if (k.Mode == "trong") { ws.Column(1).Width = 20; for (var c = 2; c <= 5; c++) ws.Column(c).Width = 19; }
+            if (k.Blank) { ws.Column(1).Width = 20; for (var c = 2; c <= 5; c++) ws.Column(c).Width = 19; }
             else { ws.Columns(1, 5).AdjustToContents(3, last); foreach (var col in ws.Columns(1, 5)) col.Width = Math.Max(col.Width * 1.1, 10); ws.Column(5).Width = Math.Max(ws.Column(5).Width, 16); }
             ws.SheetView.FreezeRows(3);
             ws.PageSetup.PaperSize = XLPaperSize.A4Paper; ws.PageSetup.PageOrientation = XLPageOrientation.Portrait; ws.PageSetup.FitToPages(1, 0);
@@ -430,7 +441,7 @@ public sealed class SoDoService
             ws.PageSetup.Footer.Center.AddText("Trang ").SetFontName("Times New Roman"); ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.PageNumber); ws.PageSetup.Footer.Center.AddText(" / "); ws.PageSetup.Footer.Center.AddText(XLHFPredefinedText.NumberOfPages);
             ws.PageSetup.SetRowsToRepeatAtTop(3, 3);
         }
-        if (k.Pages.Count == 0) wb.AddWorksheet("Trong");
+        if (wb.Worksheets.Count == 0) wb.AddWorksheet("Trong");
         wb.SaveAs(path);
         k.Out = true;
         Log("xuất phiếu in vị trí", Path.GetFileName(path));
@@ -450,11 +461,25 @@ public sealed class SoDoService
         var tpl = EntryService.BuiltIn.First(t => t.Id == "kiem-ke");
         var name = NlName(kho, khu, n) + " " + DateTime.Today.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture);
         var page = _entry.Create(name, tpl);
-        var data = rows.Select(r => (IReadOnlyList<string>)new[]
+        // 1.62: điền theo TÊN cột (mẫu Kiểm kê mới: Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg), Ghi chú, Ngày nhập; mẫu cũ: Tên hàng, Số thùng, Kg)
+        var hs = page.Columns.Select(c => KhoLanh.Core.Grid.GridFilter.Fold(c.Header).Trim()).ToList();
+        int H(params string[] names) => hs.FindIndex(h => names.Contains(h));
+        int cVt = H("vi tri"), cMa = H("ma hang"), cTen = H("ten hang"), cSz = H("size"), cSl = H("so luong", "so thung"), cTl = H("trong luong", "kg"), cGc = H("ghi chu"), cNg = H("ngay nhap");
+        var today = EntryRules.TodayText(DateTime.Today);
+        var data = rows.Select(r =>
         {
-            r.Code, r.Known ? r.Ma : "", r.Known ? r.Ten : "", r.Known ? SizeParts(r.Ma, r.Ten).Size : "",
-            r.Known ? r.Sl0.ToString("R", CultureInfo.InvariantCulture) : "", r.Known && r.Tl != 0 ? r.Tl.ToString("R", CultureInfo.InvariantCulture) : "", "",
-            r.Known && r.Lo.Length > 0 ? "lô " + r.Lo : "",
+            var a = new string[page.Columns.Count]; Array.Fill(a, "");
+            void Put(int c, string v) { if (c >= 0) a[c] = v; }
+            Put(cVt, r.Code);
+            if (r.Known)
+            {
+                Put(cMa, r.Ma); Put(cTen, r.Ten); Put(cSz, SizeParts(r.Ma, r.Ten).Size);
+                Put(cSl, r.Sl0.ToString("R", CultureInfo.InvariantCulture));
+                if (r.Tl != 0) Put(cTl, r.Tl.ToString("R", CultureInfo.InvariantCulture));
+                if (r.Lo.Length > 0) Put(cGc, "lô " + r.Lo);
+            }
+            Put(cNg, today);
+            return (IReadOnlyList<string>)a;
         }).ToList();
         page = _entry.Save(page, page.Columns, data);
         Log("tạo trang Nhập liệu kiểm kê", name);
@@ -471,8 +496,8 @@ public sealed class SoDoService
             ?? throw new BusinessException($"Chưa có trang Nhập liệu tên bắt đầu bằng “{pre}”. Bấm “Chuyển sang Nhập liệu” trước, nhập số thực rồi quay lại.");
         var cols = page.Columns.Select(c => c.Header).ToList();
         int Col(string h) => cols.FindIndex(x => string.Equals(x, h, StringComparison.OrdinalIgnoreCase));
-        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số thùng"), cKg = Col("Kg"), cGc = Col("Ghi chú");
-        if (cVt < 0 || cMa < 0 || cSl < 0) throw new BusinessException($"Trang “{page.Name}” không có đủ cột Vị trí, Mã hàng, Số thùng.");
+        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số lượng") is >= 0 and var sl ? sl : Col("Số thùng"), cKg = Col("Trọng lượng") is >= 0 and var tl ? tl : Col("Kg"), cGc = Col("Ghi chú");
+        if (cVt < 0 || cMa < 0 || cSl < 0) throw new BusinessException($"Trang “{page.Name}” không có đủ cột Vị trí, Mã hàng, Số lượng.");
         var dat = _entry.Load(page);
         var bas = KkRows(B.Pos, kho, khu, n); var idx = new Dictionary<string, KkRow>();
         foreach (var r in bas) { r.Sl = null; idx.TryAdd(r.Code + "|" + (r.Known ? KeyMa(r.Ma) : "") + "|" + (r.Known ? r.Lo : ""), r); }

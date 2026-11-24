@@ -659,7 +659,7 @@ public sealed class RaDongService
             n = Num(value);
             if (n is null) throw new BusinessException($"\"{value}\" không phải số.");
         }
-        PushUndo("Sửa số liệu Bảng 2");
+        PushUndo("Sửa số liệu bảng gộp");
         var e = Bang1.Edits.TryGetValue(key, out var ex) ? ex : Bang1.Edits[key] = new Edit();
         switch (col)
         {
@@ -917,7 +917,7 @@ public sealed class RaDongService
             Files.Insert(0, new FileSeen(fileHash, fileName, fileSize, now, nDays));
         }
         try { SaveExtra(); } catch { /* chỉ mất cảnh báo nạp trùng / nút hoàn tác */ }
-        Log("Lưu Bảng 3", $"{fileName}: {nDays} ngày, +{nNew} dòng, ~{nChg} dòng đổi số");
+        Log("Lưu số liệu theo ngày", $"{fileName}: {nDays} ngày, +{nNew} dòng, ~{nChg} dòng đổi số");
         return new ApplyResult(nDays, nNew, nChg, false);
     }
 

@@ -12,6 +12,8 @@ public partial class LoginWindow : Window
     public bool Succeeded { get; private set; }
     /// <summary>Mở lại sau khi bấm Đăng xuất: không tự đăng nhập, không hỏi cập nhật.</summary>
     public bool AfterLogout { get; init; }
+    /// <summary>Kết quả đăng nhập (kèm lượt tải danh sách còn chạy ngầm, nếu có) — App kiểm lại tài khoản khi lượt đó xong.</summary>
+    public LoginFlow.Result? Result { get; private set; }
     private TaskCompletionSource? _skip;
 
     public LoginWindow()
@@ -20,7 +22,10 @@ public partial class LoginWindow : Window
         var s = App.Services;
         _firstRun = !s.Auth.HasAnyUser();
         VersionText.Text = $"Phiên bản {typeof(LoginWindow).Assembly.GetName().Version?.ToString(3)}";
-        DataPathText.Text = "Dữ liệu: " + s.Db.FilePath;
+        // Ghi chú chỉ hiện khi có nội dung cần báo (lần đầu, lỗi, cảnh báo đồng bộ tài khoản) — bản gọn 1.46
+        foreach (var tb in new[] { SubHeading, ErrorText, DataPathText })
+            tb.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) tb.IsVisible = !string.IsNullOrWhiteSpace(tb.Text); };
+        ToolTip.SetTip(VersionText, "Dữ liệu: " + s.Db.FilePath);
         if (_firstRun)
         {
             Heading.Text = "Thiết lập lần đầu";
@@ -33,8 +38,8 @@ public partial class LoginWindow : Window
         }
         else
         {
-            if (s.Accounts.Enabled)
-                SubHeading.Text = "Tài khoản dùng chung cho mọi máy (Google Sheet). Nhập tài khoản được cấp để vào phần mềm.";
+            // Tải danh sách tài khoản NGẦM ngay khi mở cửa sổ (song song kiểm tra cập nhật / gõ mật khẩu) — 1.59.
+            if (s.Accounts.Enabled) _ = s.Accounts.PrefetchAsync();
             var m = s.Remember;
             UserBox.Text = m.Username;
             if (m.Remember) { PassBox.Text = m.Password; RememberBox.IsChecked = true; AutoBox.IsChecked = m.Auto; }
@@ -72,6 +77,8 @@ public partial class LoginWindow : Window
     private async Task<bool> UpdateBeforeLogin()
     {
         if (AppUpdater.ExePath is null || !OperatingSystem.IsWindows() || !App.Services.Updates.Auto) return false;
+        // Vừa cập nhật xong (bản mới tự mở lại): khỏi hỏi GitHub lần nữa trước khi đăng nhập — hỏi ngầm sau 20 giây như thường.
+        if (Array.IndexOf(Program.Args, "--da-cap-nhat") >= 0) return false;
         UpdatePanel.IsVisible = true;
         UpdText.Text = "Đang kiểm tra bản cập nhật…";
         LoginButton.IsEnabled = false;
@@ -131,16 +138,6 @@ public partial class LoginWindow : Window
     {
         ErrorText.Text = "";
         var s = App.Services;
-        if (!_firstRun && s.Accounts.Enabled)
-        {
-            // Lấy danh sách tài khoản + quyền mới nhất; mất mạng thì dùng bản lưu trong máy.
-            LoginButton.IsEnabled = false;
-            LoginButton.Content = "Đang lấy danh sách tài khoản…";
-            try { await s.Accounts.PullAsync(); }
-            catch (BusinessException ex) { DataPathText.Text = "Không lấy được danh sách mới (" + ex.Message.TrimEnd('.') + ") — dùng bản lưu trong máy."; }
-            catch (Exception ex) { DataPathText.Text = "Không lấy được danh sách mới (" + ex.Message + ") — dùng bản lưu trong máy."; }
-            finally { LoginButton.IsEnabled = true; LoginButton.Content = "Đăng nhập"; }
-        }
         try
         {
             var user = UserBox.Text ?? "";
@@ -149,8 +146,17 @@ public partial class LoginWindow : Window
             {
                 if (pass != (Pass2Box.Text ?? "")) throw new BusinessException("Hai lần nhập mật khẩu không khớp.");
                 s.Auth.CreateFirstAdmin(user, FullNameBox.Text ?? "", pass);
+                s.Auth.Login(user, pass);
             }
-            s.Auth.Login(user, pass);
+            else
+            {
+                // Danh sách tài khoản đã tải ngầm từ lúc mở cửa sổ; chưa xong thì chỉ chờ thêm ~1,5 giây rồi dùng bản lưu trong máy.
+                LoginButton.IsEnabled = false;
+                LoginButton.Content = "Đang đăng nhập…";
+                try { Result = await LoginFlow.LoginAsync(s.Auth, s.Accounts, user, pass); }
+                finally { LoginButton.IsEnabled = true; LoginButton.Content = "Đăng nhập"; }
+                if (Result.Note.Length > 0) DataPathText.Text = Result.Note;
+            }
             try { App.LanNote = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s) ?? ""; } catch (Exception ex) { App.LanNote = "Không tự đổi vai LAN được: " + ex.Message; }
             try { var dn = KhoLanh.Core.Lan.DrivePlanSync.ApplyAtLogin(s); if (!string.IsNullOrEmpty(dn)) App.LanNote = (App.LanNote.Length > 0 ? App.LanNote + "\n" : "") + dn; } catch (Exception ex) { App.LanNote += (App.LanNote.Length > 0 ? "\n" : "") + "Không tự nhận vai Drive được: " + ex.Message; }
             s.Remember.Save(user, pass, RememberBox.IsChecked == true, AutoBox.IsChecked == true);

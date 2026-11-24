@@ -170,6 +170,8 @@ public class LanTests : IDisposable
         cli.Lan.Write(Db, One("S", Rows("a", "b")));
         cli.Lan.Write(Db, One("U", Rows("u1", "u2")));
         cli.Lan.Write(Db, One("W", Rows("w1", "w2")));
+        // tiền đề của kịch bản: dữ liệu ban đầu đã lên máy chủ (máy chậm có thể đang nằm trong sổ chờ) — bản gốc chung để gộp sau này
+        Until(() => cli.Lan.PendingCount() == 0 && Local(srv, "S") == "a,b" && Local(srv, "U") == "u1,u2" && Local(srv, "W") == "w1,w2", "dữ liệu ban đầu lên máy chủ");
         Stop(srv);
 
         // máy chủ tắt: máy con làm trên database riêng + sổ chờ
@@ -246,6 +248,26 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Client_learns_standby_from_a_write_before_its_next_pull()
+    {
+        // 1.50: máy con biết máy dự phòng ngay từ câu trả lời lượt ghi — trước đây chỉ biết ở lượt "changes" (mỗi 15 s),
+        // máy chủ tắt ngay sau khi máy dự phòng vừa nối thì máy con không tìm được máy chủ mới (CI đỏ ở Standby_takes_over…).
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var code = srv.Lan.ConnectionCode();
+        var cli = Boot(Setup("con", LanService.RoleClient, code));
+        Until(() => cli.Lan.Online, "máy con nối");
+        cli.Lan.TickMs = 600_000;          // máy con thôi tự kéo "changes"
+        Thread.Sleep(300);                 // chờ vòng đang chạy dở kết thúc
+        var sb = Boot(Setup("duphong", LanService.RoleStandby, code));
+        Until(() => sb.Lan.Online, "máy dự phòng nối");
+        Assert.DoesNotContain("duphong", cli.Settings.Get("lan_nodes", "[]"));
+        cli.Lan.Write(Db, One("S", Rows("a")));
+        Assert.Contains("duphong", cli.Settings.Get("lan_nodes", "[]"));
+    }
+
+    [Fact]
     public void Standby_takes_over_and_hands_back_to_the_main_server()
     {
         var ms = Setup("chu", LanService.RoleServer, null);
@@ -307,5 +329,38 @@ public class LanTests : IDisposable
         Assert.Equal("a1", Local(win, "A"));
         Assert.Equal("b1", Local(win, "B"));
         Assert.Equal("a", Local(win, "S"));
+    }
+
+    /// <summary>
+    /// Lỗi chập chờn CI 24/11 ("a,b,c,a,b"): máy con gửi sổ chờ, máy chủ áp xong nhưng câu trả lời bị mất (máy chủ tắt đúng lúc) →
+    /// máy con sửa tiếp bảng đó → mục chờ mới vẫn mang bản gốc cũ → máy chủ gộp 3 bên sai, nhân đôi dòng.
+    /// Nay sổ chờ nhớ lần gửi trước (đã đánh dấu gửi); máy chủ thấy lần đó đã áp thì lấy nội dung lần đó làm bản gốc.
+    /// </summary>
+    [Fact]
+    public void Resent_pending_after_lost_reply_is_not_duplicated()
+    {
+        var (srv, cli, _, _) = Pair();
+        Stop(srv);
+        cli.Lan.Write(Db, One("S", Rows("a", "b")));                 // máy chủ tắt → vào sổ chờ (bản gốc: chưa có bảng)
+        Until(() => !cli.Lan.Online || cli.Lan.PendingCount() > 0, "vào sổ chờ");
+        var first = Assert.Single(cli.Lan.PendingItems());           // "gửi" lần 1 (đánh dấu đã gửi)
+        Assert.Null(first["prev"]);
+        var ms2 = Setup("chu2", LanService.RoleServer, null);
+        var srv2 = Boot(ms2);
+        Until(() => srv2.Lan.Serving, "máy chủ 2 lên");
+        first["u"] = "admin";
+        Assert.Equal("ok", srv2.Lan.ApplyExternal(new[] { first }, "may-con").Single()["st"]!.ToString());   // máy chủ áp xong, máy con không biết
+        Assert.Equal("a,b", Local(srv2, "S"));
+
+        cli.Lan.Write(Db, One("S", Rows("a", "b", "c")));            // người dùng sửa tiếp khi chưa có trả lời
+        var second = Assert.Single(cli.Lan.PendingItems());
+        Assert.Equal(first["op"]!.ToString(), second["prev"]![0]!["op"]!.ToString());
+        second["u"] = "admin";
+        srv2.Lan.ApplyExternal(new[] { second }, "may-con");
+        Assert.Equal("a,b,c", Local(srv2, "S"));                      // trước đây: "a,b,c,a,b"
+
+        // gửi lại đúng mục đã áp → bỏ qua (không áp 2 lần)
+        Assert.Equal("trung", srv2.Lan.ApplyExternal(new[] { second }, "may-con").Single()["st"]!.ToString());
+        Assert.Equal("a,b,c", Local(srv2, "S"));
     }
 }

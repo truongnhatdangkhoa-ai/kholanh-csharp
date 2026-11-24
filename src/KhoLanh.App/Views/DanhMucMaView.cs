@@ -66,7 +66,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         };
         var top = new StackPanel(); top.Children.Add(bar); top.Children.Add(help);
         var p1 = new DockPanel(); DockPanel.SetDock(top, Dock.Top); p1.Children.Add(top);
-        p1.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Margin = new Thickness(0, 6, 0, 0), Child = _g });
+        p1.Children.Add(new DetailPane(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _g }, _g, "Chi tiết mã") { Margin = new Thickness(0, 6, 0, 0) });   // 1.53
         _tabs.Items.Add(new TabItem { Header = "Mã hàng", Content = p1 });
 
         _mg = new SheetGrid(_mm) { SpareRows = 0 }; _ng = new SheetGrid(_nm) { SpareRows = 0 }; _dg = new SheetGrid(_dm) { SpareRows = 0 };
@@ -189,23 +189,32 @@ public sealed class DanhMucMaView : UserControl, IPage
 
     private Control BuildXl()
     {
-        var s = new StackPanel { Spacing = 6, Margin = new Thickness(0, 8) };
-        var mb = new WrapPanel { ItemSpacing = 8 };
+        // 1.57: 3 bảng xếp chồng (cuộn cả trang) → 3 tab con, mỗi bảng cao hết phần còn lại.
+        static Control Pane(Control head, Control grid)
+        {
+            var d = new DockPanel(); var h = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) }; h.Children.Add(head);
+            DockPanel.SetDock(h, Dock.Top); d.Children.Add(h); d.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = grid }); return d;
+        }
+        var mb = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
         if (Svc.CanEdit)
         {
             mb.Children.Add(Btn("Thêm tất cả vào danh mục", () => AddMissing(_xl.Missing), primary: true));
             mb.Children.Add(Btn("Thêm các dòng đang chọn", () => { var sel = _mg.Selection; return AddMissing(Enumerable.Range(sel.R1, sel.Rows).Where(r => r < _xl.Missing.Count).Select(r => _xl.Missing[r]).ToList()); }));
         }
         mb.Children.Add(new TextBlock { Text = "Diễn giải tự dựng từ Mã hóa sản phẩm (sửa lại được trên lưới).", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Classes = { "muted" } });
-        s.Children.Add(_mh); s.Children.Add(mb); s.Children.Add(Box(_mg, 230));
-        var db = new WrapPanel { ItemSpacing = 8 }; db.Children.Add(_dh); db.Children.Add(Btn("Mở mã đang chọn trên lưới", () => Pick(_dg, _xl.Dups.Select(d => d.Code).ToList())));
-        s.Children.Add(db); s.Children.Add(Box(_dg, 150));
-        var nb = new WrapPanel { ItemSpacing = 8 }; nb.Children.Add(_nh); nb.Children.Add(Btn("Mở mã đang chọn trên lưới", () => Pick(_ng, _xl.Near.Select(d => d.Code).ToList())));
-        s.Children.Add(nb); s.Children.Add(Box(_ng, 200));
-        var sb = new WrapPanel { ItemSpacing = 8 }; sb.Children.Add(_sh); sb.Children.Add(Btn("Lọc trên lưới", () => { _q.Text = ""; _f.SelectedIndex = 3; Draw(); _tabs.SelectedIndex = 0; }));
-        s.Children.Add(sb);
-        return new ScrollViewer { Content = s };
+        var mh = new StackPanel { Spacing = 6 }; mh.Children.Add(_mh); mh.Children.Add(mb);
+        var db = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 }; db.Children.Add(_dh); db.Children.Add(Btn("Mở mã đang chọn trên lưới", () => Pick(_dg, _xl.Dups.Select(d => d.Code).ToList())));
+        var nb = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 }; nb.Children.Add(_nh); nb.Children.Add(Btn("Mở mã đang chọn trên lưới", () => Pick(_ng, _xl.Near.Select(d => d.Code).ToList())));
+        _dg.DoubleTapped += (_, _) => Pick(_dg, _xl.Dups.Select(d => d.Code).ToList());
+        _ng.DoubleTapped += (_, _) => Pick(_ng, _xl.Near.Select(d => d.Code).ToList());
+        var sb = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 0) }; sb.Children.Add(_sh); sb.Children.Add(Btn("Lọc trên lưới", () => { _q.Text = ""; _f.SelectedIndex = 3; Draw(); _tabs.SelectedIndex = 0; }));
+        _xlSub = Ui.SubTabs(("Chưa có trong danh mục", Pane(mh, _mg)), ("Mã trùng", Pane(db, _dg)), ("Nghi gõ sai", Pane(nb, _ng)));
+        var root = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+        DockPanel.SetDock(sb, Dock.Bottom); root.Children.Add(sb); root.Children.Add(_xlSub);
+        return root;
     }
+    private TabControl? _xlSub;
+    private void XlHead(int i, string t, int n) { if (_xlSub?.Items[i] is TabItem ti) ti.Header = n > 0 ? $"{t} ({n:#,0})" : t; }
     private static Border Box(Control c, double h) => new() { BorderBrush = Line_, BorderThickness = new Thickness(1), Height = h, Child = c };
     private void Pick(SheetGrid g, List<string> codes) { var r = g.Row; if (r >= 0 && r < codes.Count) Go(codes[r]); }
 
@@ -224,6 +233,7 @@ public sealed class DanhMucMaView : UserControl, IPage
             _xl.Near.Take(2000).Select(p => new[] { p.Code, Svc.UseOf(p.Code), p.Other, Svc.UseOf(p.Other) }));
         _sh.Text = $"{_xl.Miss.Count} mã có đoạn chưa khai báo trong Mã hóa sản phẩm (khai báo ở module Tổng hợp › Mã hóa sản phẩm).";
         _mg.Refresh(); _dg.Refresh(); _ng.Refresh();
+        XlHead(0, "Chưa có trong danh mục", _xl.Missing.Count); XlHead(1, "Mã trùng", _xl.Dups.Count); XlHead(2, "Nghi gõ sai", _xl.Near.Count);
         _xlTab.Header = _xl.Count > 0 ? $"Cần xử lý ({_xl.Count})" : "Cần xử lý";
     }
 

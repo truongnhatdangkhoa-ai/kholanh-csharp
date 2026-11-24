@@ -15,7 +15,7 @@ namespace KhoLanh.App.Views;
 
 /// <summary>
 /// Module Tồn kho gửi viết lại bằng C# (thay bản WebView2 ton-kho-gui.html) — cùng nghiệp vụ, dùng chung database "ton-kho-gui" với app cũ.
-/// Tab: Load Data · Dữ Liệu · Phiếu Xuất · Phân Loại (6 nhóm + Điều kiện lọc) · Đặc Tính · Báo Cáo · Đối Soát.
+/// Tab: Load Data (nạp file + bảng dữ liệu đang lưu, như Tồn kho An An) · Phiếu Xuất · Phân Loại (6 nhóm + Điều kiện lọc) · Đặc Tính · Báo Cáo · Đối Soát.
 /// </summary>
 public sealed class GuiView : UserControl, IPage
 {
@@ -42,13 +42,12 @@ public sealed class GuiView : UserControl, IPage
     public GuiView()
     {
         _edit = Svc.CanEdit; _export = Svc.CanExport;
-        _dl = new RowsPanel(this, () => D.Rows, "Du lieu", "du-lieu.xlsx", true);
+        _dl = new RowsPanel(this, () => D.Rows, "Du lieu", "du-lieu.xlsx", true, BuildLoadBar());
         _tabs = new TabControl
         {
             Items =
             {
-                new TabItem { Header = "Load Data", Content = BuildLoad() },
-                new TabItem { Header = "Dữ Liệu", Content = _dl.Root },
+                new TabItem { Header = "Load Data", Content = _dl.Root },   // 1.62: bảng dữ liệu nằm ngay trong Load Data (bỏ tab Dữ Liệu riêng)
                 new TabItem { Header = "Phiếu Xuất", Content = BuildPx() },
                 new TabItem { Header = "Phân Loại", Content = BuildPl() },
                 new TabItem { Header = "Đặc Tính", Content = BuildDt() },
@@ -131,15 +130,15 @@ public sealed class GuiView : UserControl, IPage
         {
             switch (_tabs.SelectedIndex)
             {
-                case 0: RenderLoad(); break; case 1: _dl.Render(); break; case 2: RenderPx(); break; case 3: RenderPl(); break;
-                case 4: RenderDt(); break; case 5: RenderBc(); break; case 6: RenderDs(); break;
+                case 0: RenderLoad(); _dl.Render(); break; case 1: RenderPx(); break; case 2: RenderPl(); break;
+                case 3: RenderDt(); break; case 4: RenderBc(); break; case 5: RenderDs(); break;
             }
         }
         finally { _loading = false; }
     }
 
     // =====================================================================================
-    // Bảng dòng tồn dùng chung (Dữ Liệu + 6 nhóm Phân Loại)
+    // Bảng dòng tồn dùng chung (Load Data + 6 nhóm Phân Loại)
     // =====================================================================================
     private sealed class RowsPanel
     {
@@ -147,7 +146,7 @@ public sealed class GuiView : UserControl, IPage
         private readonly GridModel _m = new() { ReadOnly = true }; private readonly SheetGrid _g; private readonly TextBox _q = new() { Watermark = "Tìm trong mọi cột…", Width = 260 };
         private readonly TextBlock _info = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) };
         private List<GuiRow> _cur = new();
-        public RowsPanel(GuiView v, Func<List<GuiRow>> src, string sheet, string file, bool clearable)
+        public RowsPanel(GuiView v, Func<List<GuiRow>> src, string sheet, string file, bool clearable, Control? top = null)
         {
             _v = v; _src = src; _sheet = sheet; _file = file;
             _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _cur.Count && _cur[r].PxDaXuat ? WarnBg : null };
@@ -155,12 +154,12 @@ public sealed class GuiView : UserControl, IPage
             if (v._export) bar.Children.Add(Btn("⬇ Xuất Excel", async () => await v.SaveXlsx(GuiExport.Rows(D, _cur, sheet), file)));
             if (clearable && v._edit) bar.Children.Add(Btn("Xóa dữ liệu đã lưu", async () =>
             {
-                if (!await Ui.Confirm(v, "Xóa toàn bộ dữ liệu đã nạp ở “Dữ Liệu”?\n\nPhiếu xuất, Đặc Tính và điều kiện lọc vẫn giữ nguyên.", "Xóa dữ liệu", "Xóa")) return;
+                if (!await Ui.Confirm(v, "Xóa toàn bộ dữ liệu đã nạp ở Load Data?\n\nPhiếu xuất, Đặc Tính và điều kiện lọc vẫn giữ nguyên.", "Xóa dữ liệu", "Xóa")) return;
                 await v.Act(Svc.ClearRows, "Đã xóa dữ liệu");
             }, danger: true));
             _q.TextChanged += (_, _) => { if (!v._loading) Render(); };
-            var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_info);
-            Root = Page(head, Framed(_g));
+            var head = new StackPanel(); if (top is not null) head.Children.Add(top); head.Children.Add(bar); head.Children.Add(_info);
+            Root = Page(head, new DetailPane(Framed(_g), _g, "Chi tiết dòng"));
         }
         public void Render()
         {
@@ -178,21 +177,17 @@ public sealed class GuiView : UserControl, IPage
     // Load Data
     // =====================================================================================
     private readonly TextBox _ldDate = new() { Watermark = "dd/mm/yyyy", Width = 110 };
-    private readonly TextBlock _ldStats = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 6) };
+    private readonly TextBlock _ldStats = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 0) };
 
-    private Control BuildLoad()
+    private Control BuildLoadBar()
     {
         var bar = Bar();
-        if (_edit) bar.Children.Add(Btn("📂 Nạp file Excel…", async () => await PickAndImport(), primary: true, tip: "Chọn file → kiểm tra → xem trước → nạp. Dữ liệu cũ được chụp lại để hoàn tác."));
+        if (_edit) bar.Children.Add(Btn("📂 Nạp file Excel…", async () => await PickAndImport(), primary: true, tip: "Chọn file → kiểm tra → xem trước → nạp. Dữ liệu cũ được chụp lại để hoàn tác. File báo cáo NXT của kho: dòng tiêu đề có “Mã hàng”, “Tên hàng”, “Số lô”, “Size”, “Quy cách”; lấy nhóm Số kiện / Trọng lượng TỒN CUỐI KỲ (hoặc cặp cuối cùng)."));
         bar.Children.Add(Btn("⟲ Lịch sử nạp", async () => await ShowHistory(), tip: "Các đợt nạp (ai · máy nào · file nào); hoàn tác đợt mới nhất."));
         bar.Children.Add(Label("Ngày số liệu")); bar.Children.Add(_ldDate);
         if (_edit) bar.Children.Add(Btn("Lưu ngày", async () => await Act(() => Svc.SetDataDate(_ldDate.Text ?? ""), "Đã lưu ngày số liệu"))); else _ldDate.IsReadOnly = true;
         _ldDate.KeyDown += async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter && _edit) await Act(() => Svc.SetDataDate(_ldDate.Text ?? ""), "Đã lưu ngày số liệu"); };
-        var help = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
-        help.Children.Add(Muted("File báo cáo NXT của kho: dòng tiêu đề có “Mã hàng”, “Tên hàng”, “Số lô”, “Size”, “Quy cách”; các nhóm “Số kiện / Trọng lượng” lặp lại — lấy nhóm TỒN CUỐI KỲ (hoặc cặp cuối cùng)."));
-        help.Children.Add(Muted("Nạp xong dữ liệu nằm ở tab “Dữ Liệu” và mọi tab khác (Phiếu Xuất, Phân Loại, Đặc Tính, Báo Cáo, Đối Soát) cập nhật theo. Phiếu xuất của đợt cũ bị khóa."));
-        var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_ldStats); head.Children.Add(help);
-        return new ScrollViewer { Content = head };
+        return bar;
     }
 
     private void RenderLoad()
@@ -360,8 +355,10 @@ public sealed class GuiView : UserControl, IPage
         };
         _pxm.ReadOnly = !_edit;
         _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "" }));
+        _pxg.CheckCol = _pxQtyCol;   // 1.50: tích ô đầu dòng = xuất hết (số kiện; dòng chỉ có kg thì số kg)
+        _pxg.CheckFill = r => r < _pxRows.Count ? (_pxRows[r].SoKien > 0 ? Raw(_pxRows[r].SoKien) : Raw(_pxRows[r].TrongLuong)) : "";
         _pxSnap = _pxm.Snapshot(); _pxg.Refresh();
-        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
+        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
     }
 
     private void OnPxEdited()
@@ -378,8 +375,8 @@ public sealed class GuiView : UserControl, IPage
 
     private async Task CreateSlip()
     {
-        if (_pxSel.Count == 0) { await Ui.Message(this, "Gõ số lượng xuất vào cột “SL xuất ✎” trước."); return; }
-        if (!await Ui.Confirm(this, $"Tạo phiếu xuất mới với {_pxSel.Count} dòng hàng đã chọn?\n\nSố kiện / Trọng lượng sẽ được TRỪ ngay khỏi “Dữ Liệu”.", "Xác nhận tạo phiếu xuất", "Tạo phiếu")) return;
+        if (_pxSel.Count == 0) { await Ui.Message(this, "Tích chọn dòng (ô đầu dòng) hoặc gõ số lượng vào cột “SL xuất ✎” trước."); return; }
+        if (!await Ui.Confirm(this, $"Tạo phiếu xuất mới với {_pxSel.Count} dòng hàng đã chọn?\n\nSố kiện / Trọng lượng sẽ được TRỪ ngay khỏi dữ liệu Load Data.", "Xác nhận tạo phiếu xuất", "Tạo phiếu")) return;
         var picks = _pxSel.Select(kv => (D.Rows.IndexOf(kv.Key), kv.Value)).Where(p => p.Item1 >= 0).ToList();
         GuiStore.Slip? s = null;
         if (await Act(() => s = Svc.CreateSlip(picks, _pxMa.Text), null) && s is not null)
@@ -409,7 +406,7 @@ public sealed class GuiView : UserControl, IPage
     {
         if (CurSlip() is not { } p) { await Ui.Message(this, "Chọn một phiếu trước."); return; }
         var act = Svc.IsActive(p);
-        if (!await Ui.Confirm(this, act ? $"Xóa phiếu xuất “{p.MaPhieu}”? Số kiện / Trọng lượng đã trừ sẽ được HOÀN LẠI vào “Dữ Liệu”. Không thể hoàn tác." : $"Xóa phiếu xuất “{p.MaPhieu}” khỏi danh sách?\nPhiếu này đã bị khóa nên KHÔNG hoàn lại tồn.", "Xóa phiếu xuất", "Xóa phiếu")) return;
+        if (!await Ui.Confirm(this, act ? $"Xóa phiếu xuất “{p.MaPhieu}”? Số kiện / Trọng lượng đã trừ sẽ được HOÀN LẠI vào dữ liệu Load Data. Không thể hoàn tác." : $"Xóa phiếu xuất “{p.MaPhieu}” khỏi danh sách?\nPhiếu này đã bị khóa nên KHÔNG hoàn lại tồn.", "Xóa phiếu xuất", "Xóa phiếu")) return;
         await Act(() => Svc.DeleteSlip(p.Id), "Đã xóa phiếu " + p.MaPhieu);
     }
     private async Task ExportSlip()
@@ -583,16 +580,15 @@ public sealed class GuiView : UserControl, IPage
         }
         if (_export) { gbar.Children.Add(Btn("⬇ Xuất đặc tính", async () => await SaveXlsx(GuiExport.DacTinhList(D), "dac-tinh.xlsx"))); gbar.Children.Add(Btn("⬇ Xuất gộp", async () => await SaveXlsx(GuiExport.DacTinhGroups(D), "gop-dac-tinh.xlsx"))); }
         var left = Page(new StackPanel { Children = { gbar, _dtInfo } }, Framed(_dtg));
-        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,12,*") };
-        split.Children.Add(left); var right = Framed(_dgg); Grid.SetColumn(right, 2); split.Children.Add(right);
-        _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = split }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
+        // 1.57: bảng danh sách nhóm (trước nằm bên phải) thành tab riêng — màn hình nhỏ bảng gộp rộng hết trang
+        _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = left }, new TabItem { Header = "Nhóm đặc tính", Content = new Border { Padding = new Thickness(0, 8, 0, 0), Child = Framed(_dgg) } }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
         _dtTabs.SelectionChanged += (_, _) => { if (!_loading) RenderDt(); };
         return _dtTabs;
     }
 
     private void RenderDt()
     {
-        if (_dtTabs.SelectedIndex == 1)
+        if (_dtTabs.SelectedIndex == 2)
         {
             _dmm.Load(new[] { new GridColumn("a", "Diễn giải đặc tính", 360), new GridColumn("b", "Đặc tính", 200) }, D.DtManual.Select(r => new[] { r.MaHang, r.DacTinh })); _dmg.Refresh(); return;
         }
@@ -841,8 +837,8 @@ public sealed class GuiView : UserControl, IPage
         var ds = _ds = D.ComputeDoiSoat(); var px = Svc.PxDeducted(); _dsPx = (px.TotalQty, px.Count, px.List); var pivot = D.ComputePivot();
         var rows = new List<string[]>();
         void Add(string key, string label, string val, string note) { _dsKeys.Add(key); rows.Add(new[] { label, key.StartsWith("!") ? "chi tiết ▸" : "", val, note }); }
-        Add("t", "Tổng trọng lượng “Dữ Liệu”", Kg(ds.LoadTotal) + " kg", $"{N(D.Rows.Count)} dòng");
-        Add("m", "Tổng 6 nhóm Phân Loại (cộng lại)", Kg(ds.ModuleTotal) + " kg", "Bằng tổng Dữ Liệu + phần đếm trùng");
+        Add("t", "Tổng trọng lượng Load Data", Kg(ds.LoadTotal) + " kg", $"{N(D.Rows.Count)} dòng");
+        Add("m", "Tổng 6 nhóm Phân Loại (cộng lại)", Kg(ds.ModuleTotal) + " kg", "Bằng tổng Load Data + phần đếm trùng");
         Add("!dup", "Đếm trùng ở nhiều nhóm", Kg(ds.DupSum) + " kg", $"{N(ds.DupCount)} dòng");
         Add("!ndt", "Không suy ra được đặc tính", Kg(ds.NoDtSum) + " kg", $"{N(ds.NoDtCount)} dòng — không vào Bảng Tổng Hợp");
         Add("!ung", "Có đặc tính nhưng CHƯA GỘP nhóm", Kg(ds.UngroupedSum) + " kg", $"{N(ds.UngroupedCount)} dòng — không vào Bảng Tổng Hợp");

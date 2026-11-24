@@ -212,15 +212,8 @@ public sealed class ChungTuView : UserControl, IPage
             tools.Children.Add(Btn("Xuất Excel phiếu chọn", async () => await ExcelSel(false)));
             tools.Children.Add(Btn("Xuất Excel tất cả", async () => await ExcelSel(true)));
         }
-        var left = new DockPanel { Margin = new Thickness(0, 0, 0, 0) };
-        left.Children.Add(Framed(_gg));
-        var right = new DockPanel { Margin = new Thickness(8, 0, 0, 0) };
-        _gInfo.Margin = new Thickness(0, 0, 0, 4);
-        DockPanel.SetDock(_gInfo, Dock.Top); right.Children.Add(_gInfo); right.Children.Add(Framed(_ig));
-        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,8,3*") };
-        g.Children.Add(left);
-        var sp = new GridSplitter { Background = Brushes.Transparent }; Grid.SetColumn(sp, 1); g.Children.Add(sp);
-        Grid.SetColumn(right, 2); g.Children.Add(right);
+        // 1.57: danh sách phiếu / dòng của phiếu thành 2 tab con (bấm đúp phiếu → mở chi tiết).
+        var g = Ui.MasterDetail("Danh sách phiếu", Framed(_gg), _gg, "Dòng của phiếu đang chọn", Framed(_ig), _gInfo);
         var all = new DockPanel();
         DockPanel.SetDock(tools, Dock.Top); all.Children.Add(tools); all.Children.Add(g);
         return all;

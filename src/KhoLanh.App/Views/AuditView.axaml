@@ -2,17 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.AuditView">
   <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="card" Margin="0,0,0,14">
-      <StackPanel Orientation="Horizontal" Spacing="10">
-        <TextBox x:Name="SearchBox" Width="320" Watermark="Tìm theo người dùng, thao tác, nội dung..."/>
-        <Button Content="Tìm" Classes="primary" Click="OnSearch"/>
-      </StackPanel>
-    </Border>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,10">
+      <TextBox x:Name="SearchBox" Width="360" Watermark="Tìm theo người dùng, thao tác, nội dung… (Enter)"/>
+      <Button Content="Tìm" Classes="primary" Click="OnSearch"/>
+      <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Tag="keep"/>
+    </StackPanel>
     <DataGrid x:Name="Grid">
       <DataGrid.Columns>
         <DataGridTextColumn Header="Thời gian" Binding="{Binding At, StringFormat='dd/MM/yyyy HH:mm:ss'}" Width="160"/>
         <DataGridTextColumn Header="Người dùng" Binding="{Binding Username}" Width="130"/>
-        <DataGridTextColumn Header="Thao tác" Binding="{Binding Action}" Width="200"/>
+        <DataGridTextColumn Header="Thao tác" Binding="{Binding Action}" Width="260"/>
         <DataGridTextColumn Header="Nội dung" Binding="{Binding Detail}" Width="*"/>
       </DataGrid.Columns>
     </DataGrid>

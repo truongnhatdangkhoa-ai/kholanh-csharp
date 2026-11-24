@@ -7,7 +7,7 @@ namespace KhoLanh.App.Views;
 public partial class AuditView : UserControl, IPage
 {
     public string Title => "Nhật ký thao tác";
-    public string Subtitle => "500 thao tác gần nhất: đăng nhập, tài khoản, phân quyền, sao lưu, cập nhật...";
+    public string Subtitle => "500 thao tác gần nhất trên mọi module.";
 
     public AuditView()
     {
@@ -16,6 +16,11 @@ public partial class AuditView : UserControl, IPage
         Load();
     }
 
-    private void Load() => Grid.ItemsSource = App.Services.Audit.Recent(500, SearchBox.Text);
+    private void Load()
+    {
+        var l = App.Services.Audit.Recent(500, SearchBox.Text);
+        Grid.ItemsSource = l;
+        CountText.Text = $"{l.Count():#,0} thao tác" + (string.IsNullOrWhiteSpace(SearchBox.Text) ? " gần nhất" : " khớp");
+    }
     private void OnSearch(object? sender, RoutedEventArgs e) => Load();
 }

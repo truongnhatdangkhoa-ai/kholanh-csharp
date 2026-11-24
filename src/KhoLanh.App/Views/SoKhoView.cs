@@ -100,7 +100,7 @@ public sealed class SoKhoView : UserControl, IPage
         private Dictionary<string, (string H, double W, string T)> _def = new(ColDef);
         private string _tplSig = "";
         /// <summary>Cột của lưới phiếu theo mẫu cột (SoKhoMau) của loại phiếu: thứ tự, tên, ẩn, cột phụ x_….</summary>
-        private void ApplyTemplate()
+        private void ApplyMau()
         {
             var t = Svc.TemplateFor(_loai);
             var cols = t.Columns.Where(c => !c.Hidden || c.Key == "maHang").ToList();
@@ -122,7 +122,7 @@ public sealed class SoKhoView : UserControl, IPage
                 "xuat" => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
                 _ => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
             };
-            ApplyTemplate();
+            ApplyMau();
             _g = new SheetGrid(_m) { SpareRows = 12 };
             _tg = new SheetGrid(_tm) { SpareRows = 0 };
             _list.SelectionChanged += (_, _) => { if (_list.SelectedIndex >= 0 && _list.SelectedIndex < Shown.Count) Open(Shown[_list.SelectedIndex]); };
@@ -141,24 +141,29 @@ public sealed class SoKhoView : UserControl, IPage
             acts.Children.Add(Btn("🖨 In phiếu", Print, "Mở phiếu A4 trong trình duyệt để In / Lưu PDF"));
             acts.Children.Add(Btn("Kiểm tra", () => { Check(); }, "Kiểm tra lỗi từng dòng, định mức LSX, lô chỉ định"));
             var top = new StackPanel { Spacing = 6 }; top.Children.Add(_head); top.Children.Add(bar); top.Children.Add(acts);
-            var editor = new Grid { RowDefinitions = new RowDefinitions(loai == "nhap" ? "Auto,*,Auto" : "Auto,3*,Auto,Auto,2*") };
+            // 1.57: phiếu và bảng tồn theo lô thành 2 tab con (màn hình nhỏ không phải xem 2 bảng chồng nhau).
+            var editor = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
             editor.Children.Add(top);
-            var gf = Framed(_g); gf.Margin = new Thickness(0, 6); Grid.SetRow(gf, 1); editor.Children.Add(gf);
+            var gf = Framed(_g);
             var ms = new ScrollViewer { Content = _msg, MaxHeight = 120 }; Grid.SetRow(ms, 2); editor.Children.Add(ms);
+            Control body = gf;
             if (loai != "nhap")
             {
-                var th = new DockPanel { Margin = new Thickness(0, 6, 0, 4) };
-                var add = Btn("⬆ Thêm lô đang chọn vào phiếu", AddLot, "Điền Vị trí / Mã / Size / Hạn dùng / Ngày nhập của lô vào dòng trống đầu tiên của phiếu");
+                var th = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+                var add = Btn("⬆ Thêm lô đang chọn vào phiếu", () => { AddLot(); _sub!.SelectedIndex = 0; }, "Điền Vị trí / Mã / Size / Hạn dùng / Ngày nhập của lô vào dòng trống đầu tiên của phiếu");
                 DockPanel.SetDock(add, Dock.Right); th.Children.Add(add);
-                th.Children.Add(new TextBlock { Text = "Tồn hiện tại theo lô (để chọn đúng lô; để trống Hạn dùng / Ngày nhập = trừ FIFO)", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-                Grid.SetRow(th, 3); editor.Children.Add(th);
-                var tf = Framed(_tg); Grid.SetRow(tf, 4); editor.Children.Add(tf);
+                th.Children.Add(new TextBlock { Text = "Để trống Hạn dùng / Ngày nhập ở phiếu = trừ FIFO; chọn lô rồi bấm thêm để xuất đúng lô.", Tag = "keep", Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+                var lots = new DockPanel(); DockPanel.SetDock(th, Dock.Top); lots.Children.Add(th); lots.Children.Add(Framed(_tg));
+                _tg.DoubleTapped += (_, _) => { AddLot(); _sub!.SelectedIndex = 0; };
+                body = _sub = Ui.SubTabs(("Dòng phiếu", gf), ("Tồn hiện tại theo lô", lots));
             }
+            body.Margin = new Thickness(0, 6); Grid.SetRow(body, 1); editor.Children.Add(body);
             var root = new DockPanel();
             DockPanel.SetDock(left, Dock.Left); root.Children.Add(left);
             root.Children.Add(new Border { Padding = new Thickness(10, 0, 0, 0), Child = editor });
             Content = root;
         }
+        private TabControl? _sub;
         private string Ten => _loai switch { "nhap" => "nhập", "xuat" => "xuất", _ => "chuyển" };
         private List<PGroup> Shown = new();
 
@@ -171,7 +176,7 @@ public sealed class SoKhoView : UserControl, IPage
 
         public void Reload()
         {
-            var sig = _tplSig; ApplyTemplate(); var tplChanged = sig != _tplSig;
+            var sig = _tplSig; ApplyMau(); var tplChanged = sig != _tplSig;
             _groups = Groups(Svc.Lines, _loai);
             FillList();
             _lots = Compute(Svc.Lines).Lots.Where(l => l.Sl > Eps || l.Net > Eps).OrderBy(l => l.MaHang).ThenBy(l => l.ViTri).ThenBy(l => l.NgayNhap).ToList();
@@ -327,7 +332,7 @@ public sealed class SoKhoView : UserControl, IPage
             if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
             if (Svc.CanEdit) bar.Children.Add(Btn("📱 Đưa lên Vị Trí Bột…", PushVtb, "Thay dữ liệu Vị Trí Bột (điện thoại xem / xuất) bằng tồn theo vị trí đến ngày đang chọn"));
             var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar); top.Children.Add(_sum);
-            var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(Framed(_g));
+            var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(new DetailPane(Framed(_g), _g, "Chi tiết dòng"));   // 1.53
             Content = root;
         }
 
@@ -412,6 +417,7 @@ public sealed class SoKhoView : UserControl, IPage
         private readonly GridModel _rm = new() { ReadOnly = true }; private readonly SheetGrid _rg;
         private readonly TextBlock _msg = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
         private List<SkLine> _adj = new(); private List<KkRow> _res = new();
+        private readonly TabControl _sub;
 
         public KiemKePanel()
         {
@@ -425,11 +431,11 @@ public sealed class SoKhoView : UserControl, IPage
             bar.Children.Add(Btn("Tải lại tồn sổ", Paint));
             var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar);
             top.Children.Add(new TextBlock { Text = "Gõ / dán SỐ ĐẾM thực tế vào cột cuối (để trống = chưa đếm, bỏ qua). Thêm dòng cho hàng có ngoài sổ. Net điều chỉnh tính theo tỷ lệ kg / bao của tồn sổ.", FontSize = 12, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
-            var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,3*,Auto,2*") };
+            var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
             grid.Children.Add(top);
-            var a = Framed(_g); Grid.SetRow(a, 1); grid.Children.Add(a);
-            Grid.SetRow(_msg, 2); _msg.Margin = new Thickness(0, 6); grid.Children.Add(_msg);
-            var b = Framed(_rg); Grid.SetRow(b, 3); grid.Children.Add(b);
+            Grid.SetRow(_msg, 1); _msg.Margin = new Thickness(0, 0, 0, 6); grid.Children.Add(_msg);
+            _sub = Ui.SubTabs(("Số đếm thực tế", Framed(_g)), ("Kết quả chênh lệch", Framed(_rg)));
+            Grid.SetRow(_sub, 2); grid.Children.Add(_sub);
             Content = grid;
         }
         public void Paint()
@@ -450,6 +456,7 @@ public sealed class SoKhoView : UserControl, IPage
                 new GridColumn("ch", "Chênh (bao)", 90, "number"), new GridColumn("net", "Chênh (kg)", 90, "number"), new GridColumn("kq", "Kết quả", 160) },
                 _res.Select(r => new[] { r.MaHang, r.Size, r.ViTri, F(r.So), F(r.Dem), F(r.Chenh), F(r.Net), r.Kind switch { "khop" => "Khớp", "thua" => "Thừa", "moi" => r.ThieuNet ? "Có ngoài sổ — thiếu Net" : "Có ngoài sổ", _ => "Thiếu" } }));
             _rg.Refresh();
+            if (counts.Count > 0) _sub.SelectedIndex = 1;
             _msg.Text = counts.Count == 0 ? "Chưa có số đếm nào." : $"{k.NKhop} khớp · {k.NLech} lệch (thừa {F(k.Thua)} bao, thiếu {F(-k.Thieu)} bao). " + (k.NLech > 0 ? "Bấm «Ghi điều chỉnh vào sổ» để cập nhật tồn." : "");
         }
         private async Task Apply()
@@ -474,22 +481,23 @@ public sealed class SoKhoView : UserControl, IPage
             _ng = new SheetGrid(_nm) { SpareRows = 8 }; _og = new SheetGrid(_om) { SpareRows = 8 }; _mg = new SheetGrid(_mm) { SpareRows = 0 };
             _rg = new SheetGrid(_rm) { SpareRows = 0, CellBackground = (r, _) => r < _rows.Count ? _rows[r].Status switch { "vuot" => Red, "chuY" => Yellow, "dat" or "tietkiem" => Green, _ => null } : null };
             _from.SelectedDateChanged += (_, _) => Report(); _to.SelectedDateChanged += (_, _) => Report();
-            var edit = new Grid { ColumnDefinitions = new ColumnDefinitions("*,10,*"), RowDefinitions = new RowDefinitions("Auto,*,Auto") };
-            void Add(Control c, int r, int col) { Grid.SetRow(c, r); Grid.SetColumn(c, col); edit.Children.Add(c); }
-            Add(new TextBlock { Text = "Định mức (LSX để trống = áp cho mọi LSX). Đơn vị: " + string.Join(" · ", DmUnits.Select(u => u.Key)), FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, 0, 0);
-            Add(new TextBlock { Text = "Sản lượng thành phẩm theo LSX (kg)", FontWeight = FontWeight.SemiBold }, 0, 2);
-            Add(Framed(_ng), 1, 0); Add(Framed(_og), 1, 2);
-            if (Svc.CanEdit) { Add(Btn("💾 Lưu định mức", SaveNorms), 2, 0); Add(Btn("💾 Lưu sản lượng", SaveOutputs), 2, 2); }
-            var rbar = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 8, 0, 4) };
-            rbar.Children.Add(new TextBlock { Text = "Báo cáo định mức — thực xuất bột / sốt theo LSX so với dự kiến", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            // 1.57: 4 bảng thành 4 tab con (trước xếp chồng 2 × 2 — màn hình nhỏ mỗi bảng chỉ vài dòng).
+            Control Page(string note, Control grid, Control? act)
+            {
+                var dp = new DockPanel();
+                var head = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+                if (act is not null) head.Children.Add(act);
+                head.Children.Add(new TextBlock { Text = note, Tag = "keep", Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+                DockPanel.SetDock(head, Dock.Top); dp.Children.Add(head); dp.Children.Add(Framed(grid));
+                return dp;
+            }
+            var rbar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
             rbar.Children.Add(Lb("Từ")); rbar.Children.Add(_from); rbar.Children.Add(Lb("đến")); rbar.Children.Add(_to);
-            var root = new Grid { RowDefinitions = new RowDefinitions("2*,Auto,3*,Auto,*") };
-            root.Children.Add(edit);
-            Grid.SetRow(rbar, 1); root.Children.Add(rbar);
-            var rf = Framed(_rg); Grid.SetRow(rf, 2); root.Children.Add(rf);
-            var mh = new TextBlock { Text = "LSX có xuất nhưng chưa có định mức cho mã đó", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 4) }; Grid.SetRow(mh, 3); root.Children.Add(mh);
-            var mf = Framed(_mg); Grid.SetRow(mf, 4); root.Children.Add(mf);
-            Content = root;
+            Content = Ui.SubTabs(
+                ("Báo cáo định mức", Page("Thực xuất bột / sốt theo LSX so với dự kiến", _rg, rbar)),
+                ("Định mức", Page("LSX để trống = áp cho mọi LSX. Đơn vị: " + string.Join(" · ", DmUnits.Select(u => u.Key)), _ng, Svc.CanEdit ? Btn("💾 Lưu định mức", SaveNorms, primary: true) : null)),
+                ("Sản lượng theo LSX", Page("Sản lượng thành phẩm theo LSX (kg)", _og, Svc.CanEdit ? Btn("💾 Lưu sản lượng", SaveOutputs, primary: true) : null)),
+                ("LSX chưa có định mức", Page("LSX có xuất nhưng chưa có định mức cho mã đó", _mg, null)));
         }
         public void Paint()
         {
@@ -541,14 +549,14 @@ public sealed class SoKhoView : UserControl, IPage
             if (Svc.CanEdit) { bar.Children.Add(Btn("Xóa dòng đang chọn", DelSel)); bar.Children.Add(Btn("📥 Nạp từ Excel…", Import, "File có dòng tiêu đề: Ngày · Loại · Vị trí · Mã hàng · Size · Số lượng · Net · Hợp đồng · Hạn dùng · Ngày nhập · Ghi chú")); }
             if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, $"SoCai_BotSot_{IsoOf(_from)}_{IsoOf(_to)}"); if (p is not null) await Ui.Run(this, () => Svc.ExportLedger(_shown, p)); }));
             var hb = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 8, 0, 4) };
-            hb.Children.Add(new TextBlock { Text = $"Lịch sử thao tác ({HistDays} ngày gần nhất) — hoàn tác chỉ khi các dòng chưa bị sửa tiếp", FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+            hb.Children.Add(new TextBlock { Text = "Hoàn tác chỉ khi các dòng chưa bị sửa tiếp", Tag = "keep", Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
             if (Svc.CanEdit) hb.Children.Add(Btn("↶ Hoàn tác thao tác đang chọn", Undo));
-            var root = new Grid { RowDefinitions = new RowDefinitions("Auto,3*,Auto,2*") };
-            bar.Margin = new Thickness(0, 6); root.Children.Add(bar);
-            var a = Framed(_g); Grid.SetRow(a, 1); root.Children.Add(a);
-            Grid.SetRow(hb, 2); root.Children.Add(hb);
-            var b = Framed(_hg); Grid.SetRow(b, 3); root.Children.Add(b);
-            Content = root;
+            // 1.57: sổ cái và lịch sử thao tác thành 2 tab con.
+            var ledger = new DockPanel(); bar.Margin = new Thickness(0, 0, 0, 6); DockPanel.SetDock(bar, Dock.Top);
+            ledger.Children.Add(bar); ledger.Children.Add(new DetailPane(Framed(_g), _g, "Chi tiết dòng sổ"));   // 1.53
+            var hist = new DockPanel(); hb.Margin = new Thickness(0, 0, 0, 6); DockPanel.SetDock(hb, Dock.Top);
+            hist.Children.Add(hb); hist.Children.Add(Framed(_hg));
+            Content = Ui.SubTabs(("Sổ cái", ledger), ($"Lịch sử thao tác ({HistDays} ngày)", hist));
         }
         public void Paint()
         {

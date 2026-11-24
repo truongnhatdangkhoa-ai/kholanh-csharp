@@ -21,7 +21,12 @@ public sealed class GridColumn
     /// <summary>"text" | "number" | "date"</summary>
     public string Type { get; set; } = "text";
     public bool ReadOnly { get; set; }
+    /// <summary>Nhập liệu (1.62): tự điền theo mã hàng / ngày tạo dòng ("ten" | "size" | "tl" | "today"; rỗng = không).</summary>
+    public string Auto { get; set; } = "";
+    /// <summary>Nhập liệu (1.62): công thức kiểu Excel cho cả cột (vd "=[Số lượng]*[Trọng lượng]"); rỗng = cột nhập tay.</summary>
+    public string Formula { get; set; } = "";
     public GridColumn() { }
+    public GridColumn Clone() => new(Key, Header, Width, Type) { ReadOnly = ReadOnly, Auto = Auto, Formula = Formula };
     public GridColumn(string key, string header, double width = 110, string type = "text") { Key = key; Header = header; Width = width; Type = type; }
 }
 
@@ -41,6 +46,8 @@ public sealed class GridModel
     public int RowCount => _rows.Count;
     public int ColCount => Columns.Count;
     public int Version { get; private set; }
+    /// <summary>Tăng mỗi lần <see cref="Load"/> (lưới dựa vào đây để lọc lại khi nạp dữ liệu mới).</summary>
+    public int Loads { get; private set; }
 
     /// <summary>Một thao tác: danh sách thay đổi ô + thay đổi số dòng / cột (để hoàn tác).</summary>
     private sealed class Edit
@@ -63,6 +70,7 @@ public sealed class GridModel
         _rows.Clear();
         foreach (var r in rows) _rows.Add(Fit(r.Select(x => x ?? "").ToArray()));
         _undo.Clear(); _redo.Clear();
+        Loads++;
         Bump();
     }
 
@@ -84,13 +92,13 @@ public sealed class GridModel
     // -------------------------------------------------------------- sửa ô
 
     /// <summary>Ghi giá trị cho nhiều ô (tự thêm dòng nếu cần). Trả về vùng đã đổi.</summary>
-    public void SetCells(IEnumerable<(int r, int c, string v)> cells)
+    public void SetCells(IEnumerable<(int r, int c, string v)> cells, bool force = false)
     {
         if (ReadOnly) return;
         var e = new Edit { RowsBefore = _rows.Count, ColsBefore = Columns.Count };
         foreach (var (r, c, v0) in cells)
         {
-            if (r < 0 || c < 0 || c >= Columns.Count || Columns[c].ReadOnly) continue;
+            if (r < 0 || c < 0 || c >= Columns.Count || (Columns[c].ReadOnly && !force)) continue;
             while (_rows.Count <= r) _rows.Add(new string[Columns.Count].Select(_ => "").ToArray());
             var before = _rows[r][c] ?? "";
             var v = v0 ?? "";
@@ -104,8 +112,28 @@ public sealed class GridModel
 
     public void Set(int r, int c, string v) => SetCells(new[] { (r, c, v) });
 
+    /// <summary>
+    /// Ô tự tính (1.62): sau mỗi lần sửa / dán / điền, gọi với danh sách ô vừa đổi (dòng, cột, trước, sau) → trả các ô cần ghi thêm
+    /// (cột tự điền theo mã hàng, công thức…). Ghi chung một lần hoàn tác, ghi được cả cột chỉ đọc.
+    /// </summary>
+    public Func<IReadOnlyList<(int r, int c, string before, string after)>, IEnumerable<(int r, int c, string v)>>? Derive { get; set; }
+
     private void Push(Edit e)
     {
+        if (Derive is not null && e.Cells.Count > 0)
+        {
+            var extra = Derive(e.Cells.ToList());
+            foreach (var (r, c, v0) in extra)
+            {
+                if (r < 0 || c < 0 || c >= Columns.Count) continue;
+                while (_rows.Count <= r) _rows.Add(Enumerable.Repeat("", Columns.Count).ToArray());
+                var before = _rows[r][c] ?? ""; var v = v0 ?? "";
+                if (before == v) continue;
+                _rows[r][c] = v;
+                e.Cells.Add((r, c, before, v));
+            }
+            e.RowsAfter = _rows.Count;
+        }
         if (e.Cells.Count == 0 && e.RowsBefore == e.RowsAfter && e.ColsBefore == e.ColsAfter && e.RemovedRows is null && e.InsertedRows is null) return;
         _undo.Push(e); _redo.Clear();
         if (_undo.Count > 200) { var keep = _undo.Take(200).Reverse().ToList(); _undo.Clear(); foreach (var k in keep) _undo.Push(k); }
@@ -184,9 +212,11 @@ public sealed class GridModel
     public string CopyText(CellRange sel)
     {
         var sb = new StringBuilder();
+        var c2 = sel.C2;
+        while (c2 > sel.C1 && c2 < Columns.Count && Columns[c2].Width < 4) c2--;   // bỏ cột ẩn ở cuối (mã dòng, màu ô…)
         for (var r = sel.R1; r <= sel.R2; r++)
         {
-            for (var c = sel.C1; c <= sel.C2; c++)
+            for (var c = sel.C1; c <= c2; c++)
             {
                 if (c > sel.C1) sb.Append('\t');
                 var v = Get(r, c);

@@ -26,6 +26,55 @@ App.InitServices(data);
 var s = App.Services;
 
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
+void SnapFlyout(Window w, Button anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pres = ((MenuFlyout)anchor.Flyout!).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<MenuFlyoutPresenter>().First();
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(pres);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(pt.X, pt.Y + 2, ps.Width, ps.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
+void SnapPopup(Window w, Control child, Control anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(child.Bounds.Right), (int)Math.Ceiling(child.Bounds.Bottom));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(child);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(child.Bounds.X, child.Bounds.Y, child.Bounds.Width, child.Bounds.Height), new Rect(pt.X, pt.Y, child.Bounds.Width, child.Bounds.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
+/// <summary>Nhập liệu: gõ vào cột Mã hàng → ô gợi ý (popup ghép vào ảnh).</summary>
+void SnapSuggest(Window w, string name)
+{
+    var g = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    for (var i = 0; i < 60 && typeof(EntryView).GetField("_sugs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) { Thread.Sleep(50); Pump(); }
+    var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
+    g.Select(3, mc); g.BeginEdit("VRHO"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    if (pop.IsOpen && pop.Child is Control ch) SnapPopup(w, ch, ed, name); else { Console.WriteLine("  (không mở được gợi ý)"); Snap(w, name); }
+    var esc = new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent };
+    ed.RaiseEvent(esc); ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); Pump();
+}
+
 void Snap(Window w, string name)
 {
     Pump();
@@ -280,7 +329,8 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
         if (idx % 97 == 5) sl -= 3; else if (idx % 131 == 11) sl += 2;
         if (!typoDone && ma == typoMa) { ma = typoTo; typoDone = true; }
         if (ma == stock[10].Ma && idx % 2 == 0) tl += 0.5;
-        return new[] { x.Vt, ma, x.Ten, "", sl.ToString(), tl.ToString(ic), "10/2026", "lô " + x.Lo };
+        // mẫu Kiểm kê 1.62: Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg), Ghi chú, Ngày nhập
+        return new[] { x.Vt, ma, "", tl.ToString(ic), sl.ToString(), "", "lô " + x.Lo, DateTime.Today.ToString("dd/MM/yyyy") };
     }
     var all = vtDemo.Select((x, i) => (x, i)).ToList();
     bool Part1(string vt) => vt.StartsWith("TG1.A.") || vt.StartsWith("TG1.B.");
@@ -288,7 +338,7 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     var kp1 = s.Entry.Create($"Kiểm kê TG1 khu A-B {DateTime.Today.AddDays(-1):dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp1, kp1.Columns, all.Where(t => Part1(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList());
     var rest = all.Where(t => !Part1(t.x.Vt) && !Skip(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList();
-    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "Tôm PD BTP 60/70", "60/70", "18", "10", "10/2026", "hàng lạ, chưa có mã" });
+    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "60/70", "10", "18", "", "hàng lạ, chưa có mã", DateTime.Today.ToString("dd/MM/yyyy") });
     var kp2 = s.Entry.Create($"Kiểm kê TG1 C-D, TG2 {DateTime.Today:dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp2, kp2.Columns, rest);
 
@@ -442,12 +492,191 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Báo cáo") == true);
-    gb.Flyout!.ShowAt(gb); Pump();
-    Snap(small, "03d-menu-nhom");
+    // menu ngang: mở nhóm "Tồn kho" (popup vẽ riêng rồi ghép vào ảnh cửa sổ)
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Tồn kho"));
+    gb.Flyout!.ShowAt(gb); for (var i = 0; i < 10; i++) Pump();
+    SnapFlyout(small, gb, "03d-menu-tha-xuong");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
+{
+    // rà màn hình nhỏ: mỗi module × mỗi tab cấp 1 (và tab cấp 2 trong tab đang mở)
+    var sw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; sw.Show();
+    var keys = new[] { "lx", "m6", "m13", "m1", "m2", "m7", "m3sk", "m1vtb", "m8", "m4", "m5", "m9", "m7ck", "m3", "m3dm", "m10", "m12", "m11", "m14", "m15", "m21", "m22" };
+    foreach (var k in keys)
+    {
+        try
+        {
+            sw.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+            var tc = sw.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault();
+            var n = tc?.ItemCount ?? 1;
+            for (var t = 0; t < n; t++)
+            {
+                if (tc is not null) { tc.SelectedIndex = t; for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); } }
+                Snap(sw, $"s-{k}-{t}");
+                var inner = sw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tc && x.IsEffectivelyVisible).FirstOrDefault();
+                if (inner is not null)
+                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(sw, $"s-{k}-{t}-{u}"); }
+            }
+        }
+        catch (Exception e) { Console.WriteLine($"  [{k}] lỗi: {e.Message}"); }
+    }
+    sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
+}
+// Lưu trữ cá nhân (1.60): SHOTS_ONLY=lt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")
+{
+    void WaitLt(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var lt = s.LuuTru.Store;
+    var tmpDir = Path.Combine(Path.GetTempPath(), "kl-lt-demo"); Directory.CreateDirectory(tmpDir);
+    var ngHd = lt.AddNgan("Hợp đồng & báo giá"); var ngSl = lt.AddNgan("Số liệu kho"); var ngCn = lt.AddNgan("Cá nhân");
+    lt.AddNote(ngSl.Id, "Tồn cuối tháng 10 — đối chiếu kế toán", "HLSO 31/40: 1.240 kiện\nPD 41/50: 860 kiện\nChênh lệch: 12 kiện (đã báo kế toán 02/11)", new[] { "tồn kho", "tháng 10" });
+    lt.AddNote(ngSl.Id, "Nhiệt độ kho mát tuần 47", "Kho 1: -18,5 °C · Kho 2: -19,2 °C · Kho 3: -20,1 °C\nĐã kiểm máy nén kho 2.", new[] { "nhiệt độ" });
+    var pin = lt.AddNote(LtStoreDefault(), "Số tài khoản nhận tiền cước xe", "Vietcombank 0071 000 123 456 — CN Cần Thơ", new[] { "quan trọng" });
+    lt.Edit(pin.Id, new KhoLanh.Core.LuuTru.LtStore.Patch(Pinned: true));
+    lt.AddNote(ngHd.Id, "Bảng giá cước lạnh 2026", "Bảng giá mới: https://example.com/bang-gia-cuoc-lanh-2026", new[] { "báo giá" });
+    var img = Path.Combine(tmpDir, "anh-pallet-kho-2.png");
+    using (var bmp = new SkiaSharp.SKBitmap(640, 420))
+    {
+        using var cnv = new SkiaSharp.SKCanvas(bmp); cnv.Clear(new SkiaSharp.SKColor(214, 226, 238));
+        using var p1 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(31, 111, 214) }; using var p2 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(150, 110, 70) };
+        for (var i = 0; i < 4; i++) { cnv.DrawRect(40 + i * 150, 120, 120, 200, p1); cnv.DrawRect(30 + i * 150, 320, 140, 22, p2); }
+        using var im = SkiaSharp.SKImage.FromBitmap(bmp); using var d = im.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90); File.WriteAllBytes(img, d.ToArray());
+    }
+    var pdf = Path.Combine(tmpDir, "Hop dong thue kho 2026.pdf"); File.WriteAllBytes(pdf, new byte[183_000]);
+    var xls = Path.Combine(tmpDir, "Bao gia cuoc thang 11.xlsx"); File.WriteAllBytes(xls, new byte[42_000]);
+    lt.AddFile(ngHd.Id, pdf); lt.AddFile(ngHd.Id, xls);
+    var imgRec = lt.AddFile(ngSl.Id, img, "Pallet kho 2 sau khi xếp lại");
+    lt.AddNote(ngCn.Id, "Việc cần nhớ", "- Gia hạn bảo hiểm xe nâng trước 30/11\n- Hẹn thợ kiểm tra cửa kho 3", new[] { "việc" });
+    var cfg = s.LuuTru.Config; cfg.Email = "kholanh.anan@gmail.com"; cfg.Refresh = KhoLanh.Core.Services.Secret.Protect("demo"); cfg.LastOk = DateTime.Now.AddMinutes(-25);
+    cfg.LastSeq = lt.D.Seq - 2;
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Google", "Đăng nhập kholanh.anan@gmail.com");
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Sao lưu", "Sao lưu: tải lên 3 tệp (225 KB)");
+    cfg.AddRun(DateTime.Now.AddMinutes(-25), true, "Sao lưu", "Tự sao lưu: danh sách mục");
+    s.LuuTru.SaveConfig(cfg);
+    s.LuuTru.ClientOverride = new("123-demo.apps.googleusercontent.com", "demo");
+    main.Navigate("m19"); WaitLt(800); Snap(main, "60-luu-tru-kho");
+    var ltv = main.PageHost.GetVisualDescendants().OfType<LuuTruView>().First();
+    var g = ltv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    var rows = lt.Query();
+    g.Select(rows.FindIndex(r => r.Id == imgRec.Id), 2); WaitLt(500); Snap(main, "60b-luu-tru-anh");
+    var tcl = ltv.GetVisualDescendants().OfType<TabControl>().First();
+    tcl.SelectedIndex = 1; WaitLt(600); Snap(main, "60c-luu-tru-sao-luu");
+    s.Lan.Dispose(); Console.WriteLine("Xong (lt): " + outDir); return;
+}
+static string LtStoreDefault() => KhoLanh.Core.LuuTru.LtStore.DefaultNgan;
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
+{
+    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
+    {
+        main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k is "users" or "lan")
+        {
+            var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+            if (k == "users") main.PageHost.GetVisualDescendants().OfType<DataGrid>().First().SelectedIndex = 1;
+            tc.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, n + "-2");
+        }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (he): " + outDir); return;
+}
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
+{
+    foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })
+    {
+        main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k == "m6") SnapSuggest(main, "ui-nhap-lieu-goi-y");
+        if (k == "m7" && main.PageHost.Content is ViTriView vv)
+        {
+            _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+            var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+            g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
+            for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(pw, "ui-vi-tri-chon");
+            pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "ui-vi-tri-phieu");
+        }
+        foreach (var sg in main.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>())
+        {
+            var tb = typeof(KhoLanh.App.Controls.SheetGrid).GetField("_totals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg) as Control;
+            var sa = (double?[])typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sumAll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg)!;
+            Console.WriteLine($"   [{n}] grid h={sg.Bounds.Height:0} cols={sg.Model.ColCount} totals vis={tb!.IsVisible} h={tb.Bounds.Height:0} sums={string.Join(",", sa.Select(x => x?.ToString() ?? "-"))}");
+        }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
+// Nhập liệu 1.62: SHOTS_ONLY=nl — mẫu Kiểm kê mới (dán mã → tự điền), tô màu ô, tab Mẫu, hộp Cột…
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
+{
+    void WaitNl(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var codes = s.ViTri.Rows.Select(r => r.Ma).Where(m => m.Length > 0).Distinct().Take(6).ToList();
+    var pg = s.Entry.Create("Kiểm kê kho 1 " + DateTime.Today.ToString("dd/MM/yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    main.Navigate("m6"); WaitNl(600);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    for (var i = 0; i < 100 && typeof(EntryView).GetField("_lookup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) WaitNl(60);
+    var combo = ev.GetVisualDescendants().OfType<ComboBox>().First();
+    combo.SelectedItem = combo.Items.Cast<object>().First(o => o.ToString() == pg.Name); WaitNl(400);
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var m = g.Model;
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 1, 0, 1), string.Join("\r\n", codes));          // dán cột Mã hàng → Size / Trọng lượng / Ngày nhập tự điền
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 0, 0, 0), string.Join("\r\n", codes.Select((_, i) => $"TG1.A.0{i + 1}.1.1")));
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 4, 0, 4), string.Join("\r\n", codes.Select((_, i) => (12 + i * 7).ToString())));
+    g.Select(1, 0); g.Select(2, 5, extend: true);
+    var paint = typeof(EntryView).GetMethod("PaintSelection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+    paint.Invoke(ev, new object[] { "y" });
+    g.Select(4, 4); g.Select(4, 5, extend: true); paint.Invoke(ev, new object[] { "r" });
+    g.Select(0, 1); WaitNl(300);
+    Snap(main, "20-nhap-lieu");
+    Console.WriteLine("   dòng 1: " + string.Join(" | ", m.Row(0)));
+    var tabs = ev.GetVisualDescendants().OfType<TabControl>().First();
+    tabs.SelectedIndex = 2; WaitNl(500);
+    var ml = ev.GetVisualDescendants().OfType<ListBox>().First(l => l.IsEffectivelyVisible);
+    ml.SelectedIndex = 3; WaitNl(400);
+    Snap(main, "20d-nhap-lieu-mau");
+    s.Lan.Dispose(); Console.WriteLine("Xong (nl): " + outDir); return;
+}
+// Tồn theo vị trí — tìm đúng nhãn size + lọc vị trí đang chọn; Sơ đồ kho — Phiếu In 2 tab (1.63): SHOTS_ONLY=vt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m7"); W(900);
+    var vv = (ViTriView)main.PageHost.Content!;
+    _ = vv.OpenPickerForTest(); W(600);
+    var pw = vv.PickerWindow!;
+    var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+    // vị trí có ≥ 2 mã, lấy nhãn size của 1 mã trong đó
+    var vtRows = s.ViTri.Rows;
+    var multi = vtRows.Where(r => r.Vt.Length > 0 && r.Sl > 0 && s.ViTri.GopLabel(r) is not null).GroupBy(r => r.Vt).First(gr => gr.Select(r => r.Ma).Distinct().Count() >= 2);
+    var label = s.ViTri.GopLabel(multi.First())!;
+    var q = pw.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm: BTP") == true);
+    q.Text = label; W(400);
+    var r0 = Enumerable.Range(0, g.Model.RowCount).First(i => g.Model.Row(i)[0] == multi.Key);
+    g.Model.SetCells(new[] { (r0, 7, "x") }); W(300); g.Select(r0, 7);
+    Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[2]).Distinct())}");
+    Snap(pw, "24b1-vi-tri-tim-dung-size");
+    var pos = pw.GetVisualDescendants().OfType<CheckBox>().First(c => c.Content as string == "Lọc vị trí đang chọn");
+    pos.IsChecked = true; W(400);
+    Snap(pw, "24b2-vi-tri-loc-vi-tri-dang-chon");
+    pw.Close(); W(300);
+    main.Navigate("m8"); W(900);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    tc.SelectedIndex = 4; W(600);
+    Snap(main, "25f-so-do-phieu-in");
+    var sub = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t != tc && t.Items.Count == 2 && t.IsEffectivelyVisible);
+    sub.SelectedIndex = 1; W(600);
+    Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
+    s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
+}
+// Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
+{
+    main.Navigate("m13"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); }
+    PxScene(); s.Lan.Dispose(); Console.WriteLine("Xong (px): " + outDir); return;
+}
+// 1.62: popup kéo giãn / phóng to, Tồn kho gửi 1 tab Load Data, Báo cáo rã đông tích ngày gộp ảnh: SHOTS_ONLY=bt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bt")
+{
+    BtScene(); s.Lan.Dispose(); Console.WriteLine("Xong (bt): " + outDir); return;
+}
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
 // Số liệu cuối kỳ (dữ liệu mẫu = bộ test đối chiếu lõi JS)
@@ -528,11 +757,11 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan
     var scan = main.PageHost.GetVisualDescendants().OfType<ScanView>().First();
     var t = scan.AddFiles(new List<string> { photo, photo }); for (var i = 0; i < 300 && !t.IsCompleted; i++) { Thread.Sleep(30); Pump(); }
     Wait(2500); Snap(main, "51-scan-ket-qua");
-    var cropBtn = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Chỉnh khung cắt");
+    var cropBtn = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Chỉnh khung cắt");
     cropBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(800); Snap(main, "51-scan-khung-cat");
-    var modeBtn = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Màu");
+    var modeBtn = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Màu");
     modeBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(300);
-    var done = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "✔ Xong chỉnh khung");
+    var done = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Xong chỉnh khung");
     done.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(2500); Snap(main, "51-scan-mau");
     if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "tools") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ công cụ): " + outDir); return; }
 }
@@ -543,6 +772,8 @@ Snap(main, "16-tro-ly-he-thong");
 
 foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
+    // SHOTS_KEYS=m8,m13 → chỉ chụp các module đó (kiểm nhanh một màn hình)
+    if (Environment.GetEnvironmentVariable("SHOTS_KEYS") is { Length: > 0 } onlyKeys && !onlyKeys.Split(',').Contains(key)) continue;
     main.Navigate(key);
     Snap(main, name);
     if (key == "lan")
@@ -582,7 +813,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var days = s.RaDong.SavedRows.Select(x => x.Date).Distinct().OrderBy(x => x).TakeLast(2).Select(d => (d, s.RaDong.SavedRows.Where(x => x.Date == d).ToList())).ToList();
         KhoLanh.App.Views.DayImageRenderer.Render(days).Save(Path.Combine(outDir, "22c-ra-dong-anh-ngay.png"));
         tc.SelectedIndex = 0;
-        var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => (t.Content as string)?.StartsWith("Bảng chưa gộp") == true);
+        var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => KhoLanh.App.Controls.Icon.TextOf(t.Content)?.StartsWith("Bảng chưa gộp") == true);
         tg.IsChecked = true; Snap(main, "22d-ra-dong-chua-gop"); tg.IsChecked = false;
     }
     if (key == "m5")
@@ -597,9 +828,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     if (key == "m7")
     {
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
-        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        var vtv = (ViTriView)main.PageHost.Content!;
+        _ = vtv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+        var pw = vtv.PickerWindow!;
+        var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
         g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
-        Pump(); g.Select(2, 7); Snap(main, "24-vi-tri");
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 7); Snap(pw, "24b0-vi-tri-chon-hang");
+        pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var dg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        dg.Select(0, 7); Snap(main, "24-vi-tri");
         tc.SelectedIndex = 1; Pump();
         var sg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
         sg.Select(0, 0); Snap(main, "24b-vi-tri-phieu");
@@ -659,6 +896,16 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         s.KiemKe.MoChot("demo");
     }
     if (key == "m10")
+    {   // 1.51: ghi chú dài thu vào nút Hướng dẫn
+        var kt = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        kt.SelectedIndex = 4; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var hints = KhoLanh.App.Controls.HintTrim.Collect(main.PageHost);
+        Console.WriteLine($"[Ghi chú] Kết quả kháng sinh › Nạp PDF: {hints.Count} ghi chú thu gọn");
+        var hf = main.ShowHelp(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "27z-huong-dan");
+        hf.Hide(); kt.SelectedIndex = 0; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+    }
+    if (key == "m10")
     {
         for (var i = 0; i < 20; i++) { Thread.Sleep(40); Pump(); }
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
@@ -671,7 +918,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tc.SelectedIndex = 1; Pump();
         var ins = main.PageHost.GetVisualDescendants().OfType<TextBox>().Where(t => t.IsEffectivelyVisible && t.Watermark == "ND").ToList();
         ins[1].Text = "4.83"; ins[2].Text = "10";
-        main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tra cứu kết quả").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tra cứu kết quả").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Pump(); Snap(main, "27c-khang-sinh-tra-cuu");
         tc.SelectedIndex = 2; Pump();
         var bg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
@@ -717,26 +964,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "23b-xuat-kiem");
         tcx.SelectedIndex = 0; Pump();
     }
-    if (key == "m13")
-    {
-        var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        lb.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "30-phieu-xuat-kho");
-        var tcPk = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        tcPk.SelectedIndex = 1; Pump(); Snap(main, "30b-phieu-xuat-kho-email");
-        tcPk.SelectedIndex = 0; Pump();
-        // tab Cargo list
-        var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        top.SelectedIndex = 2; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        var clb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        clb.SelectedIndex = 0; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31-cargo-nhap");
-        var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible && x != top).First();
-        inner.SelectedIndex = 1; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31b-cargo-phieu-xem-truoc");
-        inner.SelectedIndex = 2; Pump(); Snap(main, "31c-cargo-danh-muc");
-        top.SelectedIndex = 0; Pump();
-    }
+    if (key == "m13") PxScene();
     if (key == "m1")
     {
         // Tồn kho An An (C#): duyệt 6 tab, rồi thử thao tác tạo phiếu xuất + ghi chú Theo Dõi Tồn bằng giao diện thật.
@@ -766,7 +994,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("2"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "40-an-an-xuat-hang-go-SL");
-        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        {   // 1.50: tích ô đầu dòng = chọn xuất hết tồn cuối
+            var tonCol = Enumerable.Range(0, xg.Model.ColCount).First(c => xg.Model.Columns[c].Header == "Tồn cuối");
+            xg.SetChecked(new[] { 1, 2 }, true); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+            Console.WriteLine($"[AN-AN] tích chọn 2 dòng: SL = {xg.Model.Get(1, qtyCol)} / {xg.Model.Get(2, qtyCol)} (tồn {xg.Model.Get(1, tonCol)} / {xg.Model.Get(2, tonCol)}) · đúng={xg.Model.Get(1, qtyCol) == xg.Model.Get(1, tonCol) && xg.IsChecked(2)}");
+            Snap(main, "40-an-an-xuat-hang-tich-chon");
+            xg.SetChecked(new[] { 1, 2 }, false); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+            Console.WriteLine($"[AN-AN] bỏ tích: SL dòng 2 = \"{xg.Model.Get(1, qtyCol)}\" · ô tiêu đề = {xg.MasterState()}");
+        }
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Console.WriteLine($"[AN-AN] tạo phiếu xuất: {before} -> {s.AnAn.Slips.Count} phiếu");
         Snap(main, "40-an-an-sau-tao-phieu");
@@ -821,7 +1057,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
             s.AnAn.Commit(pv2);
             var bt = main.PageHost.GetVisualDescendants().OfType<Button>().ToList();
             tabs.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-            Button B(string pre) => main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string)?.Contains(pre) == true);
+            Button B(string pre) => main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content)?.Contains(pre) == true);
             Dlg("40-an-an-lich-su-nap", () => { B("Lịch sử nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
             Dlg("40-an-an-so-sanh", () => { B("So sánh 2 lần nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
             Console.WriteLine($"[AN-AN] lịch sử nạp: {s.AnAn.History().Count} mục · hoàn tác được: {s.AnAn.CanUndo}");
@@ -860,17 +1096,21 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("4"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "41-gui-px-go-SL");
-        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        pg.SetChecked(new[] { 2 }, true); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Console.WriteLine($"[GUI] tích chọn dòng 3: SL = {pg.Model.Get(2, pg.Model.ColCount - 1)} (số kiện {pg.Model.Get(2, 6)})");
+        Snap(main, "41-gui-px-tich-chon");
+        pg.SetChecked(new[] { 2 }, false); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); }
         var dlgW = main.OwnedWindows.FirstOrDefault();
-        if (dlgW is not null) { Snap(dlgW, "41-gui-px-xac-nhan"); var okb = dlgW.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string) == "Tạo phiếu"); okb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } }
+        if (dlgW is not null) { Snap(dlgW, "41-gui-px-xac-nhan"); var okb = dlgW.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu"); okb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } }
         Console.WriteLine($"[GUI] tạo phiếu: {before} -> {s.Gui.Slips.Count} phiếu · số kiện dòng 1: {kien0} -> {s.Gui.D.Rows[0].SoKien} · hộp xác nhận mở: {(dlgW is not null)}");
         Snap(main, "41-gui-px-ds");
         // Đặc tính: bôi đen dòng chưa gộp rồi gộp
         gtabs.SelectedIndex = 4; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var dgrid = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         Console.WriteLine($"[GUI] đặc tính: {dgrid.Model.RowCount} dòng");
-        var gb = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && (b.Content as string) == "Gộp dòng chọn");
+        var gb = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Gộp dòng chọn");
         var nGroupedBefore = s.Gui.D.DtGroupMap.Count;
         if (gb is not null && dgrid.Model.RowCount > 0)
         {
@@ -887,6 +1127,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
         g.Select(3, 4); g.Select(9, 6, extend: true);
         Snap(main, "20b-nhap-lieu-chon-vung");
+        SnapSuggest(main, "20c-nhap-lieu-goi-y");
     }
 }
 // Kiểm tra nhanh thao tác bàn phím trên lưới (gõ, Enter, Tab, F2, Delete, Ctrl+Z, Ctrl+D)
@@ -1099,6 +1340,34 @@ DmScene();
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 
+void PxScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    TabControl Sub() => main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top);
+    KhoLanh.App.Controls.SheetGrid Grid() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    // Phiếu xuất khẩu: tab Danh sách → bấm đúp phiếu → tab Nhập liệu (Soạn phiếu / Nội dung email)
+    top.SelectedIndex = 0; W(10);
+    var sub = Sub(); sub.SelectedIndex = 0; W(8);
+    var g = Grid(); g.Select(0, 0); W(4); Snap(main, "30-phieu-xuat-khau-danh-sach");
+    g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(12);
+    Console.WriteLine($"[PX] xuất khẩu: tab con sau bấm đúp = {sub.SelectedIndex}");
+    Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
+    var em = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub);
+    em.SelectedIndex = 1; W(4); Snap(main, "30c-phieu-xuat-khau-email"); em.SelectedIndex = 0; W(2);
+    // Phiếu xuất nội địa: tab Danh sách cont → bấm đúp → Nhập liệu (Nhập Cargo / Phiếu xem trước) · Danh mục
+    top.SelectedIndex = 2; W(14);
+    var sub2 = Sub(); sub2.SelectedIndex = 0; W(8);
+    var g2 = Grid(); g2.Select(0, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");
+    g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
+    Console.WriteLine($"[PX] nội địa: tab con sau bấm đúp = {sub2.SelectedIndex}");
+    Snap(main, "31b-phieu-noi-dia-nhap-lieu");
+    var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
+    pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
+    sub2.SelectedIndex = 2; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");
+    top.SelectedIndex = 0; Pump();
+}
+
 void DmScene()
 {
     s.TongHop.Load();
@@ -1120,6 +1389,43 @@ void DmScene()
     var dcb = dv.GetVisualDescendants().OfType<ComboBox>().First(); dcb.SelectedIndex = 1; dcb.SelectedIndex = 0;
     for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44-danh-muc-ma-hang");
     var dt = dv.GetVisualDescendants().OfType<TabControl>().First(); dt.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44b-danh-muc-can-xu-ly");
+    dt.SelectedIndex = 0; dq.Text = ""; for (var i = 0; i < 120; i++) { Thread.Sleep(30); Pump(); }
+    FilterScene();
+}
+
+// Lọc theo cột (1.49): dòng tìm kiếm riêng từng cột + danh sách lọc phân tầng ở nút ▾ tiêu đề — kiểm trên bảng thật (Danh mục mã hàng).
+void FilterScene()
+{
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).OrderByDescending(x => x.Model.RowCount).First();
+    var total = g.Model.RowCount;
+    var tc = Enumerable.Range(0, g.Model.ColCount).FirstOrDefault(c => g.Model.Columns[c].Type != "number" && Enumerable.Range(0, Math.Min(total, 50)).Count(r => g.Model.Get(r, c).Length > 3) > 10);
+    var word = Enumerable.Range(0, total).Select(r => g.Model.Get(r, tc)).Where(v => v.Length > 3).Select(v => v.Split(' ')[0]).GroupBy(v => v).OrderByDescending(x => x.Count()).First().Key;
+    g.SetFilter(tc, word[..Math.Min(4, word.Length)].ToLowerInvariant());
+    for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    var shown = g.ShownRows.Count;
+    var okRows = g.ShownRows.All(r => KhoLanh.Core.Grid.GridFilter.MatchText(g.CellText(r, tc), word[..Math.Min(4, word.Length)]));
+    g.Select(g.ShownRows.Count > 1 ? g.ShownRows[1] : 0, tc);
+    var selOk = g.Row == (g.ShownRows.Count > 1 ? g.ShownRows[1] : 0);
+    Console.WriteLine($"  [Lọc] cột \"{g.Model.Columns[tc].Header}\" chứa \"{word[..Math.Min(4, word.Length)]}\": {shown}/{total} dòng · đúng={okRows} · chọn dòng dữ liệu={selOk}");
+    Snap(main, "45-loc-theo-cot");
+    var lc = Enumerable.Range(0, g.Model.ColCount).Where(c => c != tc && g.Model.Columns[c].Width >= 46)
+        .OrderBy(c => g.ShownRows.Select(r => g.CellText(r, c)).Distinct().Count() is var n && n > 1 ? n : 9999).First();
+    g.Col = lc; g.OpenFilterMenu(lc);
+    for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    Snap(main, "45b-loc-danh-sach-phan-tang");
+    foreach (var w in Avalonia.Controls.Primitives.OverlayLayer.GetOverlayLayer(main)?.GetVisualDescendants().OfType<Button>() ?? Enumerable.Empty<Button>())
+        if (KhoLanh.App.Controls.Icon.TextOf(w.Content) == "Hủy") { w.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); break; }
+    g.ClearFilters(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    Console.WriteLine($"  [Lọc] bỏ lọc: {g.ShownRows.Count}/{total} dòng");
+    // 1.52: ⤢ mở bảng ra cửa sổ lớn (cùng dữ liệu)
+    _ = g.OpenLarge(); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    if (KhoLanh.App.Controls.SheetGrid.LastLarge is { } big)
+    {
+        var bg = big.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        Console.WriteLine($"  [Cửa sổ lớn] {big.Width:0}×{big.Height:0} · {bg.Model.RowCount} dòng · cùng dữ liệu={ReferenceEquals(bg.Model, g.Model)}");
+        Snap(big, "45c-bang-cua-so-lon");
+        big.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    }
 }
 
 static string FindRepo()
@@ -1127,4 +1433,36 @@ static string FindRepo()
     var d = new DirectoryInfo(AppContext.BaseDirectory);
     while (d is not null && !File.Exists(Path.Combine(d.FullName, "Directory.Build.props"))) d = d.Parent;
     return d?.FullName ?? Directory.GetCurrentDirectory();
+}
+
+void BtScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    Window Dlg() { for (var i = 0; i < 60 && main.OwnedWindows.Count == 0; i++) W(1); return main.OwnedWindows.Last(); }
+    object? Call(object o, string m) => o.GetType().GetMethod(m, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(o, null);
+    main.Navigate("m2"); W(40); Snap(main, "41-ton-kho-gui");
+    {   // hộp thoại có bảng (cùng khuôn "Lịch sử nạp Excel"): dựng bằng Ui.Dialog + Ui.Show như các màn hình
+        var gm = new KhoLanh.Core.Grid.GridModel { ReadOnly = true };
+        gm.Load(new[] { new KhoLanh.Core.Grid.GridColumn("t", "Lúc nạp", 140), new KhoLanh.Core.Grid.GridColumn("f", "File", 260), new KhoLanh.Core.Grid.GridColumn("r", "Dòng", 80, "number") },
+            Enumerable.Range(1, 30).Select(i => new[] { $"{i:00}/11/2026 08:00", $"TON KHO {i:00}.11.xlsx", (3000 + i * 17).ToString() }));
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray, Child = new KhoLanh.App.Controls.SheetGrid(gm) { SpareRows = 0, Height = 340 } });
+        var cl = new Button { Content = "Đóng" }; body.Children.Add(Ui.Buttons(cl));
+        _ = Ui.Show(main, Ui.Dialog("Lịch sử nạp Excel · Tồn kho An An", body, 1000));
+    }
+    var h = Dlg(); W(10);
+    Console.WriteLine($"[BT] lịch sử nạp: CanResize={h.CanResize} {h.Bounds.Width:0}x{h.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap");
+    h.Width = 1300; h.Height = 760; W(10);
+    var hg = h.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    Console.WriteLine($"[BT] sau kéo giãn: {h.Bounds.Width:0}x{h.Bounds.Height:0} bảng cao {hg.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap-gian"); h.Close(); W(4);
+    main.Navigate("m4"); W(40);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 1; W(10);
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var heads = Enumerable.Range(0, g.Model.RowCount).Where(r => g.Model.Get(r, 0).StartsWith("▾")).Take(2).ToList();
+    g.SetChecked(heads, true); W(10); Snap(main, "22c-ra-dong-tich-ngay");
+    _ = Call(main.PageHost.Content!, "DayImage"); var d = Dlg(); W(10);
+    Console.WriteLine($"[BT] ảnh gộp: {d.Title} CanResize={d.CanResize} {d.Bounds.Width:0}x{d.Bounds.Height:0}");
+    Snap(d, "22d-ra-dong-anh-gop"); d.Close(); W(4);
 }

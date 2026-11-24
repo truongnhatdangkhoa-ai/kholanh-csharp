@@ -20,7 +20,7 @@ namespace KhoLanh.App.Views;
 public sealed class ViTriView : UserControl, IPage
 {
     public string Title => "Tồn kho theo vị trí";
-    public string Subtitle => "Tồn theo từng ô vị trí; gõ SL xuất ngay trên bảng để lập phiếu (trừ tồn ngay), gộp theo Size, lưu trữ theo ngày — dùng chung dữ liệu với app cũ.";
+    public string Subtitle => "Lập phiếu xuất: chọn hàng từ tồn theo ô vị trí, sửa SL ngay trên phiếu (trừ tồn khi lưu), gộp theo Size, lưu trữ theo ngày — dùng chung dữ liệu với app cũ.";
 
     private static ViTriService Svc => App.Services.ViTri;
     private static readonly IBrush PickBg = AppTheme.Brush("#FFF1C9");
@@ -41,10 +41,15 @@ public sealed class ViTriView : UserControl, IPage
     private readonly TabControl _tabs;
 
     // ---------- tab Tồn theo vị trí
-    private readonly TextBox _q = new() { Watermark = "Tìm mã, vị trí, đặc tính, size… (VD: 31/40 A.02)", Width = 330 };
+    private readonly TextBox _q = new() { Watermark = "Tìm: BTP 50 MKS Nau, mã, vị trí, lô… (gõ “BTP 50” chỉ ra đúng size BTP 50)", Width = 330 };
     private readonly ComboBox _zone = new() { MinWidth = 110 };
     private readonly CheckBox _onlyStock = new() { Content = "Chỉ ô còn tồn", IsChecked = true, FontSize = 12.5 };
     private readonly CheckBox _onlyPick = new() { Content = "Chỉ dòng đang xuất", FontSize = 12.5 };
+    private readonly CheckBox _onlyPos = new()
+    {
+        Content = "Lọc vị trí đang chọn", FontSize = 12.5,
+        [ToolTip.TipProperty] = "Hiện mọi mã hàng còn tồn ở các vị trí đã có dòng đang xuất (kể cả mã chưa chọn) — bỏ qua ô tìm và Khu.",
+    };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _gm = new();
     private readonly SheetGrid _grid;
@@ -73,6 +78,21 @@ public sealed class ViTriView : UserControl, IPage
     private readonly TextBlock _draftSum = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _draftWarn = new() { FontSize = 12, Foreground = AppTheme.Brush("#B23B00"), TextWrapping = TextWrapping.Wrap };
     private readonly Button _save, _cancelEdit;
+    // 1.54: bảng phiếu đang soạn (mặc định của tab) + cửa sổ "Chọn hàng từ tồn" chứa bảng tồn
+    private readonly GridModel _dm = new();
+    private readonly SheetGrid _dg;
+    private List<int> _dRows = new();           // dòng bảng phiếu → chỉ số dòng tồn
+    private List<string[]> _dSnap = new();
+    private bool _dLoading;
+    private Control? _stockPanel;
+    private const int DColX = 7;                // cột SL xuất của bảng phiếu
+    private static readonly GridColumn[] DraftCols =
+    {
+        new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
+        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 110) { ReadOnly = true }, new("lo", "Lô", 90) { ReadOnly = true },
+        new("sl", "SL tồn", 70, "number") { ReadOnly = true }, new("x", "SL xuất ✎", 85, "number"),
+        new("tl", "T.Lượng", 65, "number") { ReadOnly = true }, new("net", "Net xuất (kg)", 95, "number") { ReadOnly = true },
+    };
 
     // ---------- tab Phiếu xuất
     private readonly GridModel _sm = new() { ReadOnly = true };
@@ -101,9 +121,18 @@ public sealed class ViTriView : UserControl, IPage
     public ViTriView()
     {
         _edit = Svc.CanEdit; _export = Svc.CanExport;
-        _grid = new SheetGrid(_gm) { SpareRows = 0, CellBackground = StockBg };
+        _grid = new SheetGrid(_gm) { SpareRows = 0, CellBackground = StockBg, CheckCol = ColX };
+        _grid.CheckFill = r =>   // 1.50: tích ô đầu dòng = lấy hết phần chưa làm phiếu (như gõ "x")
+        {
+            if (!Ui.TryParseNumber(_gm.Get(r, ColX - 1), out var sl)) return "x";
+            var done = Ui.TryParseNumber(_gm.Get(r, ColX + 1), out var d) ? d : 0;
+            var left = sl - done;
+            return left > 0 ? left.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) : "x";
+        };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
         _pv = new SheetGrid(_pvm) { SpareRows = 0 };
+        _dg = new SheetGrid(_dm) { SpareRows = 0, CellBackground = DraftBg, EmptyText = "Phiếu chưa có dòng nào — bấm “Chọn hàng từ tồn…” để chọn mã hàng cần xuất.", LargeTitle = "Phiếu đang soạn" };
+        _dm.Changed += () => { if (!_dLoading) OnDraftChanged(); };
         _sg = new SheetGrid(_sm) { SpareRows = 0, CellBackground = SlipBg };
         _sg.SelectionChanged += ShowSlipDetail;
         _sd = new SheetGrid(_sdm) { SpareRows = 0 };
@@ -116,7 +145,7 @@ public sealed class ViTriView : UserControl, IPage
         {
             Items =
             {
-                new TabItem { Header = "Tồn theo vị trí", Content = BuildStock() },
+                new TabItem { Header = _edit ? "Lập phiếu xuất" : "Tồn theo vị trí", Content = BuildStock() },
                 new TabItem { Header = "Phiếu xuất", Content = BuildSlips() },
                 new TabItem { Header = "Lưu trữ theo ngày", Content = BuildArchive() },
                 new TabItem { Header = "Thống kê Size", Content = BuildStats() },
@@ -229,15 +258,16 @@ public sealed class ViTriView : UserControl, IPage
     {
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_q); bar.Children.Add(Label("Khu:")); bar.Children.Add(_zone);
-        bar.Children.Add(_onlyStock); bar.Children.Add(_onlyPick); bar.Children.Add(_gridInfo);
+        bar.Children.Add(_onlyStock); bar.Children.Add(_onlyPick); bar.Children.Add(_onlyPos); bar.Children.Add(_gridInfo);
         _q.TextChanged += (_, _) => { if (!_loading) RenderStock(); };
         _zone.SelectionChanged += (_, _) => { if (!_loading) RenderStock(); };
         _onlyStock.IsCheckedChanged += (_, _) => { if (!_loading) RenderStock(); };
-        _onlyPick.IsCheckedChanged += (_, _) => { if (!_loading) RenderStock(); };
+        _onlyPick.IsCheckedChanged += (_, _) => { if (_loading) return; if (_onlyPick.IsChecked == true) { _loading = true; _onlyPos.IsChecked = false; _loading = false; } RenderStock(); };
+        _onlyPos.IsCheckedChanged += (_, _) => { if (_loading) return; if (_onlyPos.IsChecked == true) { _loading = true; _onlyPick.IsChecked = false; _loading = false; } RenderStock(); };
         var hint = new TextBlock
         {
             Text = _edit
-                ? "Gõ số vào cột “SL xuất ✎” (gõ x = lấy hết ô đó), dán cả cột từ Excel cũng được. Dòng đang xuất tô vàng, vượt tồn tô đỏ. Phiếu đang soạn hiện ngay bên phải."
+                ? "Tích ô đầu dòng (lấy hết) hoặc gõ số vào cột “SL xuất ✎” (x = lấy hết), dán cả cột từ Excel cũng được. Dòng đang xuất tô vàng, vượt tồn tô đỏ. Bấm “Xong” để về phiếu."
                 : "Chỉ xem: tài khoản không có quyền lập phiếu xuất.",
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
@@ -246,26 +276,66 @@ public sealed class ViTriView : UserControl, IPage
         DockPanel.SetDock(head, Dock.Top);
         left.Children.Add(head); left.Children.Add(Framed(_grid));
         if (!_edit) return left;
-
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,10,360") };
-        grid.Children.Add(left);
-        var panel = BuildDraftPanel(); Grid.SetColumn(panel, 2);
-        grid.Children.Add(panel);
-        return grid;
+        _stockPanel = left;   // tài khoản lập phiếu: bảng tồn nằm trong cửa sổ "Chọn hàng từ tồn…"
+        return BuildDraftPanel();
     }
+
+    /// <summary>Cửa sổ lớn chứa bảng tồn: lọc / tìm, tích ô đầu dòng hoặc gõ SL xuất → dòng vào phiếu đang soạn ngay.</summary>
+    private async Task OpenPicker()
+    {
+        if (_stockPanel is null || TopLevel.GetTopLevel(this) is not Window owner) return;
+        RenderStock();
+        var info = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        void Info() => info.Text = _draft.Count == 0 ? "Chưa chọn dòng nào." : $"Đang chọn {_draft.Count} ô · SL {Q(_draft.Values.Sum())} · Net ≈ {Kg(_draft.Sum(kv => kv.Value * Svc.Rows[kv.Key].Tl))} kg";
+        var done = new Button { Content = "Xong — đưa vào phiếu", Classes = { "primary" }, IsDefault = false, MinWidth = 170, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var bar = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
+        DockPanel.SetDock(done, Dock.Right); bar.Children.Add(done); bar.Children.Add(info);
+        var root = new DockPanel();
+        DockPanel.SetDock(bar, Dock.Bottom); root.Children.Add(bar); root.Children.Add(_stockPanel);
+        var scr = owner.Screens.ScreenFromWindow(owner)?.WorkingArea; var sc = owner.RenderScaling <= 0 ? 1 : owner.RenderScaling;
+        var w = new Window
+        {
+            Title = "Chọn hàng từ tồn — tích ô đầu dòng (lấy hết) hoặc gõ SL xuất",
+            Width = Math.Max(900, (scr?.Width ?? 1400) / sc * 0.92), Height = Math.Max(560, (scr?.Height ?? 860) / sc * 0.88),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = AppTheme.Card, MinWidth = 700, MinHeight = 420,
+            Content = new Border { Padding = new Thickness(14, 12), Child = root },
+        };
+        PickerWindow = w;
+        void Changed() => Info();
+        _draftChanged += Changed; Info();
+        done.Click += (_, _) => w.Close();
+        w.Closed += (_, _) => { _draftChanged -= Changed; root.Children.Remove(_stockPanel); PickerWindow = null; };
+        w.Opened += (_, _) => _grid.Focus();
+        await Ui.Show(this, w);
+        RenderDraft();
+    }
+    /// <summary>Cửa sổ chọn hàng đang mở (công cụ chụp màn hình dùng).</summary>
+    internal Window? PickerWindow { get; private set; }
+    internal Task OpenPickerForTest() => OpenPicker();
+    private event Action? _draftChanged;
 
     private Control BuildDraftPanel()
     {
         _loai.SelectionChanged += (_, _) => { if (!_loading) RenderDraft(); };
         _ngay.SelectedDateChanged += (_, _) => { if (!_loading) RenderDraft(); };
         _gop.IsCheckedChanged += (_, _) => { if (!_loading) RenderDraft(); };
-        _title.TextChanged += (_, _) => { };
         _pvm.Load(new[] { new GridColumn("vt", "Vị trí", 62), new GridColumn("ma", "Mã hàng", 162), new GridColumn("x", "SL", 50, "number"), new GridColumn("dt", "Đặc tính", 80) }, Array.Empty<string[]>());
-        var form = new Grid { ColumnDefinitions = new ColumnDefinitions("80,*"), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), Margin = new Thickness(0, 6, 0, 0) };
-        void Row(int r, string label, Control c) { var l = Label(label); l.Margin = new Thickness(0, 3); Grid.SetRow(l, r); Grid.SetRow(c, r); Grid.SetColumn(c, 1); c.Margin = new Thickness(0, 3); form.Children.Add(l); form.Children.Add(c); }
-        Row(0, "Loại phiếu", _loai); Row(1, "Ngày", _ngay); Row(2, "Tiêu đề", _title);
+        _loai.MinWidth = 210; _loai.HorizontalAlignment = HorizontalAlignment.Left;
+        _ngay.Width = 150; _ngay.HorizontalAlignment = HorizontalAlignment.Left;
+        _title.Width = 260;
 
-        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+        // hàng 1: đầu phiếu
+        var form = new WrapPanel { ItemSpacing = 10, LineSpacing = 6 };
+        StackPanel Field(string label, Control c) { var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 }; sp.Children.Add(Label(label)); sp.Children.Add(c); return sp; }
+        _draftHead.VerticalAlignment = VerticalAlignment.Center;
+        form.Children.Add(_draftHead);
+        form.Children.Add(Field("Loại phiếu", _loai)); form.Children.Add(Field("Ngày", _ngay)); form.Children.Add(Field("Tiêu đề", _title));
+        _gop.VerticalAlignment = VerticalAlignment.Center; form.Children.Add(_gop);
+
+        // hàng 2: nút
+        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 0) };
+        btns.Children.Add(Btn("➕ Chọn hàng từ tồn…", async () => await OpenPicker(), primary: true, tip: "Mở bảng tồn theo vị trí (cửa sổ lớn): lọc / tìm, tích ô đầu dòng hoặc gõ SL xuất."));
+        _save.Classes.Remove("primary");
         btns.Children.Add(_save);
         if (_export)
         {
@@ -276,19 +346,59 @@ public sealed class ViTriView : UserControl, IPage
         btns.Children.Add(Btn("Bỏ chọn hết", ClearDraft));
         btns.Children.Add(_cancelEdit);
 
-        var top = new StackPanel { Spacing = 2 };
-        top.Children.Add(_draftHead); top.Children.Add(form); top.Children.Add(_gop); top.Children.Add(_draftSum);
-        var bottom = new StackPanel { Spacing = 4 };
-        bottom.Children.Add(_draftWarn); bottom.Children.Add(btns);
+        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 6) };
+        top.Children.Add(new Border { Classes = { "card" }, Padding = new Thickness(12, 10), Child = new StackPanel { Children = { form, btns } } });
+        _draftSum.Margin = new Thickness(2, 4, 0, 0);
+        top.Children.Add(_draftSum); top.Children.Add(_draftWarn);
         var dock = new DockPanel();
-        DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(bottom, Dock.Bottom);
-        dock.Children.Add(top); dock.Children.Add(bottom);
-        dock.Children.Add(new Border { BorderBrush = Line, BorderThickness = new Thickness(1), Margin = new Thickness(0, 6), Child = _pv });
-        return new Border
+        DockPanel.SetDock(top, Dock.Top);
+        dock.Children.Add(top);
+        dock.Children.Add(Framed(_dg));
+        return dock;
+    }
+
+    private IBrush? DraftBg(int r, int c)
+    {
+        if (r >= _dRows.Count) return null;
+        var i = _dRows[r];
+        return _draft.TryGetValue(i, out var x) && x > Avail(i) + 1e-9 ? OverBg : c == DColX ? PickBg : null;
+    }
+
+    /// <summary>Bảng phiếu đang soạn: mỗi ô vị trí đã chọn 1 dòng (thứ tự vị trí), sửa được cột SL xuất (xóa = bỏ dòng).</summary>
+    private void RenderDraftGrid()
+    {
+        _dLoading = true;
+        try
         {
-            Background = AppTheme.Brush("#F6F9FC"), BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6),
-            Padding = new Thickness(12), Margin = new Thickness(0, 8, 0, 0), Child = dock,
-        };
+            _dRows = _draft.Keys.Where(i => i >= 0 && i < Svc.Rows.Count)
+                .OrderBy(i => Svc.Rows[i], Comparer<Row>.Create((a, b) => CmpViTri(a.Vt, b.Vt) is var c && c != 0 ? c : string.Compare(a.Ma, b.Ma, StringComparison.Ordinal))).ToList();
+            _dm.Load(DraftCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly }), _dRows.Select(i =>
+            {
+                var r = Svc.Rows[i]; var x = _draft[i];
+                return new[] { r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, r.Lo, Raw(Avail(i)), Raw(x), Raw(r.Tl), Raw(Round(x * r.Tl)) };
+            }).ToList());
+            _dSnap = _dm.Snapshot();
+        }
+        finally { _dLoading = false; }
+        _dg.Refresh();
+    }
+
+    /// <summary>Sửa SL xuất ngay trên bảng phiếu (gõ "x" = lấy hết; xóa / 0 = bỏ dòng khỏi phiếu).</summary>
+    private void OnDraftChanged()
+    {
+        var now = _dm.Snapshot(); var changed = false;
+        for (var r = 0; r < Math.Min(now.Count, _dRows.Count); r++)
+        {
+            var before = r < _dSnap.Count ? _dSnap[r][DColX] : ""; var t = (now[r][DColX] ?? "").Trim();
+            if (before == t) continue;
+            var i = _dRows[r]; changed = true;
+            if (t.Length == 0 || t == "0") { _draft.Remove(i); continue; }
+            if (t is "x" or "X" or "*") { _draft[i] = Round(Avail(i)); continue; }
+            if (Ui.TryParseNumber(t, out var v) && v > 0) _draft[i] = Round(v);
+            else _status.Text = $"Bỏ qua ô không phải số: “{t}”";
+        }
+        if (!changed) return;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => { RenderStock(); RenderDraft(); });
     }
 
     private double Avail(int i) => Svc.Rows[i].Sl + (_editing?.Bonus.GetValueOrDefault(i) ?? 0);
@@ -303,14 +413,22 @@ public sealed class ViTriView : UserControl, IPage
             var cur = _zone.SelectedItem as string;
             if (_zone.ItemsSource is not List<string> old || !old.SequenceEqual(items)) { _zone.ItemsSource = items; _zone.SelectedIndex = Math.Max(0, cur is null ? 0 : items.IndexOf(cur)); }
             var zone = _zone.SelectedIndex > 0 ? _zone.SelectedItem as string : null;
-            var q = _q.Text ?? "";
+            var hit = Svc.Matcher(_q.Text);
+            var pos = _onlyPos.IsChecked == true ? _draft.Keys.Select(i => Svc.Rows[i].Vt).Where(v => v.Length > 0).ToHashSet() : null;
             _done = Svc.DoneMap();
             _rowIdx = Enumerable.Range(0, Svc.Rows.Count).Where(i =>
             {
                 var r = Svc.Rows[i];
                 if (_onlyPick.IsChecked == true) return _draft.ContainsKey(i);
-                if (zone is not null && ZoneOf(r.Vt) != zone) return false;
-                if (!Match(r, q)) return false;
+                if (pos is not null)
+                {
+                    if (!pos.Contains(r.Vt)) return false;
+                }
+                else
+                {
+                    if (zone is not null && ZoneOf(r.Vt) != zone) return false;
+                    if (hit is not null && !hit(r)) return false;
+                }
                 if (_draft.ContainsKey(i)) return true;
                 return _onlyStock.IsChecked != true || r.Sl > 1e-9 || (_editing?.Bonus.ContainsKey(i) ?? false);
             }).OrderBy(i => Svc.Rows[i], Comparer<Row>.Create((a, b) => CmpViTri(a.Vt, b.Vt) is var c && c != 0 ? c : string.Compare(a.Ma, b.Ma, StringComparison.Ordinal))).ToList();
@@ -385,11 +503,11 @@ public sealed class ViTriView : UserControl, IPage
         _cancelEdit.IsVisible = _editing is not null;
         _save.Content = _editing is null ? "💾 Lưu phiếu (trừ tồn)" : "💾 Lưu thay đổi phiếu";
         var view = DraftView();
-        _pvm.Load(_pvm.Columns.ToList(), view.Select(v => new[] { v.Vt, v.Ma, Raw(v.X), v.Dt }).ToList());
-        _pv.Refresh();
+        RenderDraftGrid();
+        _draftChanged?.Invoke();
         var over = _draft.Where(kv => kv.Value > Avail(kv.Key) + 1e-9).ToList();
         _draftSum.Text = _draft.Count == 0
-            ? "Chưa chọn dòng nào. Gõ SL xuất ở bảng bên trái."
+            ? "Phiếu chưa có dòng nào. Bấm “Chọn hàng từ tồn…” để chọn mã hàng cần xuất."
             : $"{_draft.Count} ô · {view.Count} dòng phiếu · Tổng SL {Q(_draft.Values.Sum())} · Net ≈ {Kg(_draft.Sum(kv => kv.Value * Svc.Rows[kv.Key].Tl))} kg";
         _draftWarn.Text = over.Count > 0
             ? $"⚠ {over.Count} ô vượt tồn (tô đỏ): " + string.Join("; ", over.Take(3).Select(kv => $"{Svc.Rows[kv.Key].Ma} @ {Svc.Rows[kv.Key].Vt} còn {Q(Avail(kv.Key))}"))
@@ -452,13 +570,9 @@ public sealed class ViTriView : UserControl, IPage
         var save = new Button { Content = "Lưu ảnh PNG…", Classes = { "primary" }, IsDefault = true };
         var close = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
-        body.Children.Add(new ScrollViewer
-        {
-            MaxHeight = 560, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = new Border { BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
-        });
+        body.Children.Add(Ui.ImagePreview(bmp, 900));
         body.Children.Add(Ui.Buttons(close, save));
-        var w = Ui.Dialog("Ảnh phiếu xuất", body, Math.Min(960, bmp.Size.Width / 2 + 80));
+        var w = Ui.Dialog("Ảnh phiếu xuất", body, Ui.ImageDialogWidth(bmp, 900));
         close.Click += (_, _) => w.Close();
         save.Click += async (_, _) =>
         {
@@ -500,10 +614,7 @@ public sealed class ViTriView : UserControl, IPage
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
         var head = new StackPanel(); head.Children.Add(act); head.Children.Add(hint);
-        var split = new Grid { RowDefinitions = new RowDefinitions("*,Auto,220") };
-        split.Children.Add(Framed(_sg));
-        var info = _slipInfo; info.Margin = new Thickness(0, 6, 0, 4); Grid.SetRow(info, 1); split.Children.Add(info);
-        var det = Framed(_sd); Grid.SetRow(det, 2); split.Children.Add(det);
+        var split = Ui.MasterDetail("Danh sách phiếu", Framed(_sg), _sg, "Chi tiết phiếu", Framed(_sd), _slipInfo);
         var dock = new DockPanel();
         DockPanel.SetDock(head, Dock.Top);
         dock.Children.Add(head); dock.Children.Add(split);
@@ -698,10 +809,7 @@ public sealed class ViTriView : UserControl, IPage
             act.Children.Add(Btn("Ảnh PNG…", async () => { if (CurArc() is { } g) await ShowImage(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day), g.Loai); }));
         }
         act.Children.Add(Label("Mỗi ngày + mỗi loại phiếu tự gộp thành 1 phiếu (gộp theo Size).", size: 12));
-        var split = new Grid { RowDefinitions = new RowDefinitions("*,Auto,260") };
-        split.Children.Add(Framed(_ag));
-        var info = _arcInfo; info.Margin = new Thickness(0, 6, 0, 4); Grid.SetRow(info, 1); split.Children.Add(info);
-        var det = Framed(new SheetGrid(_adm) { SpareRows = 0 }); Grid.SetRow(det, 2); split.Children.Add(det);
+        var split = Ui.MasterDetail("Danh sách theo ngày", Framed(_ag), _ag, "Chi tiết ngày", Framed(new SheetGrid(_adm) { SpareRows = 0 }), _arcInfo);
         var dock = new DockPanel();
         DockPanel.SetDock(act, Dock.Top);
         dock.Children.Add(act); dock.Children.Add(split);

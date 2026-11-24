@@ -491,6 +491,16 @@ public sealed partial class LanService : ISheetSource, IDisposable
         }
         if (!Serving || (_frozen && op is "write" or "sync"))
             return new JsonObject { ["ok"] = false, ["notServing"] = true, ["error"] = "Máy này không làm máy chủ lúc này." };
+        var res = HandleData(op, req, from, fromRole);
+        // Lệnh dữ liệu của máy con (read / list / write / sync) kèm danh sách máy có thể làm chủ: máy con chỉ ghi, chưa tới lượt
+        // "changes" vẫn biết máy dự phòng (1.50 — trước đây máy chủ tắt ngay sau khi máy dự phòng vừa nối thì máy con
+        // không tìm được máy chủ mới; CI đỏ ở Standby_takes_over…).
+        if (op is "read" or "list" or "write" or "sync" && res["ok"]?.GetValue<bool>() == true && res["nodes"] is null) res["nodes"] = NodesInfo();
+        return res;
+    }
+
+    private JsonObject HandleData(string op, JsonObject req, string from, string fromRole)
+    {
         var user = req["u"]?.ToString() ?? "";
         switch (op)
         {
@@ -530,8 +540,11 @@ public sealed partial class LanService : ISheetSource, IDisposable
             case "changes":
             {
                 var since = req["since"]?.GetValue<long>() ?? 0;
-                var items = _store.ChangesSince(since);
+                // Đọc số thứ tự TRƯỚC rồi mới lấy danh sách thay đổi: nếu có lần ghi chen giữa thì nó nằm trong danh sách (lượt sau đọc lại cũng vô hại).
+                // Làm ngược lại (lỗi trước 1.46) thì máy nhận ghi "đã đọc tới seq mới" mà thiếu đúng lần ghi đó → bỏ lỡ vĩnh viễn
+                // (test Standby_takes_over… thỉnh thoảng đỏ: máy dự phòng không chép lại sau khi trả vai).
                 var seq = _store.CurrentSeq();
+                var items = _store.ChangesSince(since);
                 var res = new JsonObject
                 {
                     ["ok"] = true, ["seq"] = seq, ["epoch"] = Epoch, ["epochStart"] = _epochStart,
@@ -633,6 +646,10 @@ public sealed partial class LanService : ISheetSource, IDisposable
         lock (_dataLock)
         {
             if (opId.Length > 0 && Applied(opId)) return R("trung");
+            // Lần gửi trước của chính mục này đã được áp (máy con không nhận được trả lời) → bản gốc đúng là nội dung lần đó.
+            if (it["prev"] is JsonArray prev)
+                foreach (var po in prev.OfType<JsonObject>().Reverse())
+                    if (po["op"]?.ToString() is { Length: > 0 } pid && Applied(pid)) { bd = po["d"]?.ToString(); bv = -1; break; }
             var (curJson, curV) = _store.ReadVersioned(db, sheet);
             string? cur = Exists(db, sheet) ? curJson : null;
             JsonObject res;
@@ -729,6 +746,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
         {
             var r = Task.Run(() => CallNode(n, req, timeout ?? TimeSpan.FromSeconds(30), CancellationToken.None)).GetAwaiter().GetResult();
             if (r["notServing"]?.GetValue<bool>() == true) { GoOffline(); throw new LanUnreachableException("Máy chủ vừa đổi."); }
+            Learn(r["nodes"] as JsonArray);
             return r;
         }
         catch (LanUnreachableException) { GoOffline(); throw; }
@@ -794,6 +812,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
         if (r["ok"]?.GetValue<bool>() != true) { if (r["notServing"]?.GetValue<bool>() == true) GoOffline(); return; }
         Learn(r["nodes"] as JsonArray);
         if (TestAfterPullResponse is { } hook) await hook();
+        var seq = r["seq"]!.GetValue<long>();
         lock (_dataLock)
         {
             var pending = PendingKeys();
@@ -807,13 +826,14 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 if (Keep(db + "/" + sheet)) continue;
                 _store.SetExact(db, sheet, it["data"]?.ToString(), it["v"]!.GetValue<long>());
             }
+            // Tải lại toàn bộ: bảng cục bộ không có trên máy chủ thì xóa — TRỪ bảng có phiên bản mới hơn mốc máy chủ vừa báo
+            // (vừa ghi xong sau khi máy chủ lập câu trả lời; xóa nhầm thì lần sửa kế tiếp lúc mất máy chủ mất bản gốc → gộp nhân đôi dòng).
             if (since == 0)
-                foreach (var (db, sheet, _) in _store.AllVersions())
-                    if (!got.Contains(db + "/" + sheet) && !Keep(db + "/" + sheet))
+                foreach (var (db, sheet, ver) in _store.AllVersions())
+                    if (!got.Contains(db + "/" + sheet) && !Keep(db + "/" + sheet) && ver <= seq)
                         _store.SetExact(db, sheet, null, 0);
         }
         Interlocked.Increment(ref _pullsApplied);
-        var seq = r["seq"]!.GetValue<long>();
         var ep = r["epoch"]?.GetValue<long>() ?? 0;
         if (ep != _serverEpoch) { _serverEpoch = ep; _settings.Set("lan_sync_epoch", ""); return; } // đổi nhiệm kỳ giữa chừng: lượt sau tải lại
         _settings.Set("lan_last_seq", seq.ToString());
@@ -938,7 +958,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 c.Execute("""
                     INSERT INTO lan_pending(db_key, sheet, op_id, data, base_version, base_data, username, created_at)
                     VALUES(@db, @sheet, @op, @data, @bv, @bd, @user, @now)
-                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data
+                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data, sent=0,
+                        prev_ops=CASE WHEN lan_pending.sent=1 THEN json_insert(lan_pending.prev_ops, '$[#]', json_object('op', lan_pending.op_id, 'd', lan_pending.data)) ELSE lan_pending.prev_ops END
                     """, new { q.db, q.sheet, op = Guid.NewGuid().ToString("N"), q.data, q.bv, q.bd, user = "", now });
             SetEpoch(epoch, winnerStart);
             _settings.Set("lan_last_seq", "0");
@@ -969,11 +990,29 @@ public sealed partial class LanService : ISheetSource, IDisposable
         return c.ExecuteScalar<long>("SELECT COUNT(*) FROM lan_pending WHERE db_key=@db AND sheet=@sheet", new { db, sheet }) > 0;
     }
 
-    private List<(string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username)> PendingRows()
+    private List<(string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username, string prev_ops)> PendingRows()
     {
         using var c = _db.Open();
-        return c.Query<(string, string, string, string?, long, string?, string)>(
-            "SELECT db_key, sheet, op_id, data, base_version, base_data, username FROM lan_pending ORDER BY created_at").ToList();
+        return c.Query<(string, string, string, string?, long, string?, string, string)>(
+            "SELECT db_key, sheet, op_id, data, base_version, base_data, username, prev_ops FROM lan_pending ORDER BY created_at").ToList();
+    }
+
+    /// <summary>Đánh dấu các mục sổ chờ sắp gửi đi (máy chủ có thể áp xong mà câu trả lời không về được).</summary>
+    private void MarkSent(IEnumerable<string> opIds)
+    {
+        lock (_dataLock)
+        {
+            using var c = _db.Open();
+            foreach (var op in opIds) c.Execute("UPDATE lan_pending SET sent=1 WHERE op_id=@op", new { op });
+        }
+    }
+
+    /// <summary>1 mục sổ chờ dạng gửi lên máy chủ / máy chính (kèm các lần gửi trước chưa được xác nhận).</summary>
+    private static JsonObject ItemOf((string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username, string prev_ops) p)
+    {
+        var o = new JsonObject { ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username };
+        try { if (JsonNode.Parse(p.prev_ops) is JsonArray pa && pa.Count > 0) o["prev"] = pa; } catch { /* hỏng thì bỏ */ }
+        return o;
     }
 
     private void WritePending(string db, IDictionary<string, string?> sheets)
@@ -989,7 +1028,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 c.Execute("""
                     INSERT INTO lan_pending(db_key, sheet, op_id, data, base_version, base_data, username, created_at)
                     VALUES(@db, @sheet, @op, @data, @bv, @bd, @user, @now)
-                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data
+                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data, sent=0,
+                        prev_ops=CASE WHEN lan_pending.sent=1 THEN json_insert(lan_pending.prev_ops, '$[#]', json_object('op', lan_pending.op_id, 'd', lan_pending.data)) ELSE lan_pending.prev_ops END
                     """, new { db, sheet, op = Guid.NewGuid().ToString("N"), data, bv = curV, bd = exists ? curJson : null, user = _session.Username, now });
                 // database riêng của máy: ghi thẳng, giữ số phiên bản cũ (= bản gốc)
                 _store.SetExact(db, sheet, data, curV);
@@ -1005,14 +1045,13 @@ public sealed partial class LanService : ISheetSource, IDisposable
         var rows = PendingRows();
         if (rows.Count == 0) return;
         var req = Req("sync");
-        req["items"] = new JsonArray(rows.Select(p => (JsonNode)new JsonObject
-        {
-            ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username,
-        }).ToArray());
+        req["items"] = new JsonArray(rows.Select(p => (JsonNode)ItemOf(p)).ToArray());
+        MarkSent(rows.Select(p => p.op_id));
         JsonObject r;
         try { r = await CallNode(n, req, TimeSpan.FromSeconds(120), ct); }
         catch (LanUnreachableException) { GoOffline(); return; }
         if (r["ok"]?.GetValue<bool>() != true) { if (r["notServing"]?.GetValue<bool>() == true) GoOffline(); else LastSync = "Gửi sổ chờ lỗi: " + r["error"]; Raise(); return; }
+        Learn(r["nodes"] as JsonArray);
         int ok = 0, merged = 0, conflict = 0, err = 0;
         var errors = new List<string>();
         foreach (var it in (r["results"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
@@ -1021,7 +1060,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
             if (st == "loi") { err++; errors.Add($"{it["sheet"]}: {it["note"]}"); continue; } // giữ trong sổ chờ
             if (st == "gop") merged++; else if (st == "xungdot") conflict++; else ok++;
             using (var c = _db.Open()) c.Execute("DELETE FROM lan_pending WHERE op_id=@op", new { op = it["op"]!.ToString() });
-            // tải bản trên máy chủ về (đã gộp / bản chính khi xung đột)
+            // tải bản trên máy chủ về (đã gộp / bản chính khi xung đột) — trừ khi người dùng vừa sửa tiếp bảng này (còn mục chờ mới hơn)
+            if (HasPending(it["db"]!.ToString(), it["sheet"]!.ToString())) continue;
             try
             {
                 var rq = Req("read"); rq["db"] = it["db"]!.ToString(); rq["sheet"] = it["sheet"]!.ToString();
