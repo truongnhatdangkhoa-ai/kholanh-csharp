@@ -1071,6 +1071,11 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     sw.SetQuery("26.11"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41c-tim-nhanh-phieu");
     sw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
 }
+// ---------------- Đồng bộ điện thoại ----------------
+{
+    s.PhoneSync.Pick = new HashSet<string> { "M01", "M01VT", "M01VTB", "M02", "M03" };
+    main.Navigate("phone"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, "42-dong-bo-dien-thoai");
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

@@ -38,6 +38,7 @@ public static class Perm
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
+        new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
         new("drivepush", "Gửi dữ liệu từ máy ở nhà (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy ở nhà / máy ngoài công ty chỉ xem, không sửa được"),
     };
 
@@ -63,7 +64,7 @@ public static class Perm
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         if (role == Roles.Staff)
         {
-            d["backup"] = None; d["audit"] = None; d["lxmail"] = None;
+            d["backup"] = None; d["audit"] = None; d["lxmail"] = None; d["phone"] = None;
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
             d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m7ck"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }

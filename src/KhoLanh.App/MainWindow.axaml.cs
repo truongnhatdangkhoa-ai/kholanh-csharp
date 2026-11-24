@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         var s = App.Services;
         var u = s.Session.CurrentUser!;
         AppTheme.LoadFor(u.Username);
+        Views.PhoneAutoSync.Start();
         var root = (Control)Content!; Content = null;
         Content = _zoom = new LayoutTransformControl { Child = root };
         ApplyZoom();
@@ -99,6 +100,7 @@ public partial class MainWindow : Window
                 new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
                 new NavItem("lan", "Mạng LAN", () => new LanView()),
                 new NavItem("drive", "Đồng bộ Google Drive", () => new DriveSyncView()),
+                new NavItem("phone", "Đồng bộ điện thoại", () => new PhoneSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
             }),

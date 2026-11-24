@@ -56,6 +56,8 @@ public class AppServices
     public KhoLanh.Core.SoKho.VtbService Vtb { get; }
     /// <summary>Kết nối điện thoại (Google Sheet qua Apps Script Web App của app điện thoại).</summary>
     public PhoneWebApp Phone { get; }
+    /// <summary>Đồng bộ điện thoại cho mọi module (đẩy tồn + nhận phiếu).</summary>
+    public PhoneSync.PhoneSyncService PhoneSync { get; }
 
     public AppServices(string dbPath)
     {
@@ -98,6 +100,7 @@ public class AppServices
         CuoiKy = new KhoLanh.Core.CuoiKy.CkService(() => Lan, Session, Settings);
         Vtb = new KhoLanh.Core.SoKho.VtbService(() => Lan, Session, Audit);
         Phone = new PhoneWebApp(Settings);
+        PhoneSync = new PhoneSync.PhoneSyncService(this);
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }

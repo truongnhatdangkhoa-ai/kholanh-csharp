@@ -241,6 +241,17 @@ public sealed class AnhXa
         return new() { ["AnhXaTen"] = ten, ["AnhXaCauHinh"] = new JsonArray(new JsonObject { ["data"] = "__JSON__" + cfg.ToJsonString() }) };
     }
 
+    /// <summary>Bảng đẩy lên điện thoại (tab M08_AnhXa: pv | ma | full | short — giống toTable của m8-anhxa.js): dòng SEG (loại quy tắc), quy tắc, CB, rồi CFG (tuỳ chọn tách).</summary>
+    public List<(string Pv, string Ma, string Full, string Short)> ToPhoneTable()
+    {
+        var o = new List<(string, string, string, string)>();
+        foreach (var s in Segs) o.Add(("SEG", s.Id, s.Label, $"{s.From}-{s.To}"));
+        foreach (var r in Rows) o.Add((r.Pv, r.Ma, r.Full, r.Short));
+        foreach (var c in Combos) o.Add(("CB", CondKey(c.When, Segs), c.Full, c.Short));
+        foreach (var k in new[] { "ratd", "tk" }) if (Opts.TryGetValue(k, out var d)) foreach (var (f, v) in d) o.Add(("CFG", k + "." + f, v ? "1" : "0", ""));
+        return o;
+    }
+
     private static string S(JsonNode? n) => n switch { null => "", JsonValue v when v.TryGetValue<string>(out var s) => s, _ => n.ToString() };
     private static int I(JsonNode? n) => int.TryParse(S(n), out var i) ? i : 0;
 
