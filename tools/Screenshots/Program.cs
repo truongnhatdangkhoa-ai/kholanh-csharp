@@ -544,6 +544,8 @@ Snap(main, "16-tro-ly-he-thong");
 
 foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sao-luu"), ("lan", "15-mang-lan"), ("audit", "14-nhat-ky"), ("m3", "21-tong-hop"), ("m4", "22-ra-dong"), ("m5", "23-doi-chieu"), ("m6", "20-nhap-lieu"), ("m7", "24-vi-tri"), ("m8", "25-so-do-kho"), ("m9", "26-doi-chieu-kiem-ke"), ("m10", "27-khang-sinh"), ("m11", "28-phieu-xuat-he-thong"), ("m12", "29-in-chung-tu-kho"), ("m13", "30-phieu-xuat-kho"), ("m1", "40-ton-kho-an-an"), ("m2", "41-ton-kho-gui") })
 {
+    // SHOTS_KEYS=m8,m13 → chỉ chụp các module đó (kiểm nhanh một màn hình)
+    if (Environment.GetEnvironmentVariable("SHOTS_KEYS") is { Length: > 0 } onlyKeys && !onlyKeys.Split(',').Contains(key)) continue;
     main.Navigate(key);
     Snap(main, name);
     if (key == "lan")
@@ -767,6 +769,14 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("2"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "40-an-an-xuat-hang-go-SL");
+        {   // 1.50: tích ô đầu dòng = chọn xuất hết tồn cuối
+            var tonCol = Enumerable.Range(0, xg.Model.ColCount).First(c => xg.Model.Columns[c].Header == "Tồn cuối");
+            xg.SetChecked(new[] { 1, 2 }, true); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+            Console.WriteLine($"[AN-AN] tích chọn 2 dòng: SL = {xg.Model.Get(1, qtyCol)} / {xg.Model.Get(2, qtyCol)} (tồn {xg.Model.Get(1, tonCol)} / {xg.Model.Get(2, tonCol)}) · đúng={xg.Model.Get(1, qtyCol) == xg.Model.Get(1, tonCol) && xg.IsChecked(2)}");
+            Snap(main, "40-an-an-xuat-hang-tich-chon");
+            xg.SetChecked(new[] { 1, 2 }, false); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+            Console.WriteLine($"[AN-AN] bỏ tích: SL dòng 2 = \"{xg.Model.Get(1, qtyCol)}\" · ô tiêu đề = {xg.MasterState()}");
+        }
         var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Console.WriteLine($"[AN-AN] tạo phiếu xuất: {before} -> {s.AnAn.Slips.Count} phiếu");
@@ -861,6 +871,10 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("4"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "41-gui-px-go-SL");
+        pg.SetChecked(new[] { 2 }, true); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Console.WriteLine($"[GUI] tích chọn dòng 3: SL = {pg.Model.Get(2, pg.Model.ColCount - 1)} (số kiện {pg.Model.Get(2, 6)})");
+        Snap(main, "41-gui-px-tich-chon");
+        pg.SetChecked(new[] { 2 }, false); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); }
         var dlgW = main.OwnedWindows.FirstOrDefault();

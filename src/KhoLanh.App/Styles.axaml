@@ -312,4 +312,20 @@
     <Setter Property="FontSize" Value="12.5"/>
     <Setter Property="CornerRadius" Value="6"/>
   </Style>
+  <!-- 1.50: thanh cuộn luôn hiện cỡ lớn (Fluent mặc định thu thành vạch mảnh, phải rê / bấm mới to → cuộn chậm) -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="AllowAutoHide" Value="False"/>
+  </Style>
+  <Style Selector="ScrollBar">
+    <Setter Property="AllowAutoHide" Value="False"/>
+  </Style>
+  <Style Selector="ScrollBar:vertical">
+    <Setter Property="MinWidth" Value="14"/>
+  </Style>
+  <Style Selector="ScrollBar:horizontal">
+    <Setter Property="MinHeight" Value="14"/>
+  </Style>
+  <Style Selector="ScrollBar /template/ Thumb">
+    <Setter Property="Background" Value="{DynamicResource BorderStrong}"/>
+  </Style>
 </Styles>

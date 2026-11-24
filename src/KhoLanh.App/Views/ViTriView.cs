@@ -101,7 +101,14 @@ public sealed class ViTriView : UserControl, IPage
     public ViTriView()
     {
         _edit = Svc.CanEdit; _export = Svc.CanExport;
-        _grid = new SheetGrid(_gm) { SpareRows = 0, CellBackground = StockBg };
+        _grid = new SheetGrid(_gm) { SpareRows = 0, CellBackground = StockBg, CheckCol = ColX };
+        _grid.CheckFill = r =>   // 1.50: tích ô đầu dòng = lấy hết phần chưa làm phiếu (như gõ "x")
+        {
+            if (!Ui.TryParseNumber(_gm.Get(r, ColX - 1), out var sl)) return "x";
+            var done = Ui.TryParseNumber(_gm.Get(r, ColX + 1), out var d) ? d : 0;
+            var left = sl - done;
+            return left > 0 ? left.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) : "x";
+        };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
         _pv = new SheetGrid(_pvm) { SpareRows = 0 };
         _sg = new SheetGrid(_sm) { SpareRows = 0, CellBackground = SlipBg };

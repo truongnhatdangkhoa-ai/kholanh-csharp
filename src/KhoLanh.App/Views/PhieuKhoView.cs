@@ -18,7 +18,7 @@ namespace KhoLanh.App.Views;
 public sealed class PhieuKhoView : UserControl, IPage
 {
     public string Title => "Phiếu xuất kho";
-    public string Subtitle => "Phiếu xuất khẩu theo LSX (List sản xuất, email thông tin xe, xuất .xlsm) và Cargo list cho Thuận Phước · Gia công · Gửi kho (tra kháng sinh, phiếu theo thị trường, xuất Excel).";
+    public string Subtitle => "Phiếu xuất khẩu theo LSX (List sản xuất, email thông tin xe, xuất .xlsm) và Phiếu xuất nội địa (Cargo list) cho Thuận Phước · Gia công · Gửi kho (tra kháng sinh, phiếu theo thị trường, xuất Excel).";
 
     private static PhieuKhoService Svc => App.Services.PhieuKho;
     private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
@@ -81,7 +81,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_edit) leftTop.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
         if (_export) leftTop.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
         leftTop.Children.Add(_search);
-        leftTop.Children.Add(new TextBlock { Text = "Phiếu xuất khẩu theo LSX. Thuận Phước · Gia công · Gửi kho làm ở tab “Cargo list”.", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
+        leftTop.Children.Add(new TextBlock { Text = "Phiếu xuất khẩu theo LSX. Thuận Phước · Gia công · Gửi kho làm ở tab “Phiếu xuất nội địa”.", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
         var left = new DockPanel { Width = 300 };
         DockPanel.SetDock(leftTop, Dock.Top); left.Children.Add(leftTop); left.Children.Add(Framed(_list));
 
@@ -102,7 +102,7 @@ public sealed class PhieuKhoView : UserControl, IPage
             {
                 new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = root },
                 new TabItem { Header = "List sản xuất", Content = _lsxView },
-                new TabItem { Header = "Cargo list: Thuận Phước · Gia công · Gửi kho", Content = new CargoView() },
+                new TabItem { Header = "Phiếu xuất nội địa", Content = new CargoView() },
                 _autoTab,
             },
             SelectedIndex = Math.Clamp(tab, 0, 3),

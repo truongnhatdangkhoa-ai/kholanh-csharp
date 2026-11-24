@@ -61,7 +61,43 @@ public sealed class SheetGrid : UserControl
     internal const double FilterH = 26;
     /// <summary>Tổng chiều cao phần đầu bảng (tiêu đề + dòng tìm kiếm nếu có).</summary>
     internal double TopH => HeadH + (_filterable ? FilterH : 0);
-    internal double RowHeadW => Math.Max(44, (Math.Max(Model.RowCount + SpareRows, 1).ToString().Length) * 8 + 18);
+    internal double NumW => Math.Max(44, (Math.Max(Model.RowCount + SpareRows, 1).ToString().Length) * 8 + 18);
+    internal double RowHeadW => NumW + (HasCheck ? CheckW : 0);
+
+    // ------------------------------------------------------------------ ô chọn đầu dòng (1.50 — chọn hàng xuất thay vì gõ số)
+    internal const double CheckW = 26;
+    /// <summary>Cột số lượng gắn với ô chọn ☐ đầu dòng: tích = điền <see cref="CheckFill"/> (thường là tồn còn xuất được), bỏ tích = xóa;
+    /// ô có số &gt; 0 thì hiện đã tích. Tích ô tiêu đề = chọn / bỏ mọi dòng ĐANG HIỆN (sau lọc). Phím cách = tích các dòng đang chọn. -1 = không có.</summary>
+    public int CheckCol { get => _checkCol; set { _checkCol = value; UpdateScroll(); Redraw(); } }
+    private int _checkCol = -1;
+    /// <summary>Giá trị điền vào cột <see cref="CheckCol"/> khi tích dòng (dòng dữ liệu → chữ).</summary>
+    public Func<int, string>? CheckFill { get; set; }
+    internal bool HasCheck => _checkCol >= 0 && _checkCol < Model.ColCount && !Model.ReadOnly && !Model.Columns[_checkCol].ReadOnly;
+    internal bool IsChecked(int m)
+    {
+        if (m < 0 || m >= Model.RowCount) return false;
+        var v = Model.Get(m, _checkCol).Trim();
+        return v.Length > 0 && v != "0" && !(GridFilter.TryNumber(v, out var n) && n <= 0);
+    }
+    /// <summary>Tích / bỏ tích các dòng dữ liệu (1 lần hoàn tác).</summary>
+    public void SetChecked(IEnumerable<int> rows, bool on)
+    {
+        if (!HasCheck) return;
+        Model.SetCells(rows.Where(m => m >= 0 && m < Model.RowCount && IsChecked(m) != on)
+            .Select(m => (m, _checkCol, on ? (CheckFill?.Invoke(m) ?? "1") : "")).ToList());
+    }
+    internal void ToggleRows(IReadOnlyCollection<int> rows)
+    {
+        if (rows.Count == 0) return;
+        SetChecked(rows, !rows.All(IsChecked));
+    }
+    /// <summary>Trạng thái ô tích tiêu đề: true = mọi dòng đang hiện đã tích, null = một phần, false = chưa dòng nào.</summary>
+    internal bool? MasterState()
+    {
+        var cnt = VCount; if (cnt == 0) return false;
+        var n = 0; for (var v = 0; v < cnt; v++) if (IsChecked(ToModel(v))) n++;   // không cấp phát — gọi mỗi lần vẽ
+        return n == 0 ? false : n == cnt ? true : null;
+    }
     internal int TopRow;          // dòng đầu đang thấy
     internal double OffsetX;      // cuộn ngang (px)
     private bool _editing, _typedEdit;
@@ -354,6 +390,7 @@ public sealed class SheetGrid : UserControl
             case Key.Tab: Move((VR, Col + (shift ? -1 : 1)), false); break;
             case Key.Enter: Move((VR + (shift ? -1 : 1), Col), false); break;
             case Key.F2: BeginEdit(null); break;
+            case Key.Space when HasCheck && !ctrl: ToggleRows(SelModelRows().Where(m => m < Model.RowCount).ToList()); break;
             case Key.Delete: ClearSelection(); break;
             case Key.Back: BeginEdit(""); break;
             case Key.A when ctrl: VA = 0; AnchorCol = 0; VR = Math.Max(0, VCount - 1); Col = Model.ColCount - 1; Redraw(); SelectionChanged?.Invoke(); break;
@@ -419,6 +456,7 @@ public sealed class SheetGrid : UserControl
     internal void OnText(string text)
     {
         if (string.IsNullOrEmpty(text) || char.IsControl(text[0])) return;
+        if (text == " " && HasCheck) return;   // phím cách = tích dòng
         BeginEdit(text);
     }
 
@@ -729,8 +767,10 @@ public sealed class SheetGrid : UserControl
                 {
                     var y = top + (r - _g.TopRow) * rh;
                     if (r >= sel.R1 && r <= sel.R2) dc.FillRectangle(HeadSelBg, new Rect(0, y, rhw, rh));
-                    var ft = new FormattedText((_g.ToModel(r) + 1).ToString(), CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 11.5, filtered ? Accent : HeadText);
-                    dc.DrawText(ft, new Point(rhw - ft.Width - 6, y + (rh - ft.Height) / 2));
+                    var mr = _g.ToModel(r);
+                    var ft = new FormattedText((mr + 1).ToString(), CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 11.5, filtered ? Accent : HeadText);
+                    dc.DrawText(ft, new Point(_g.NumW - ft.Width - 6, y + (rh - ft.Height) / 2));
+                    if (_g.HasCheck && mr < m.RowCount) DrawCheck(dc, new Point(_g.NumW + 5, y + (rh - 15) / 2), _g.IsChecked(mr));
                     dc.DrawLine(HeadLine, new Point(0, y + rh - 0.5), new Point(rhw, y + rh - 0.5));
                 }
             if (_g.Filterable)
@@ -742,7 +782,28 @@ public sealed class SheetGrid : UserControl
                 else dc.DrawGeometry(null, new Pen(Muted, 1), fun);
                 dc.DrawLine(HeadLine, new Point(0, top - 0.5), new Point(rhw, top - 0.5));
             }
+            if (_g.HasCheck)
+            {   // ô tích tiêu đề = chọn / bỏ mọi dòng đang hiện
+                dc.FillRectangle(HeadBg, new Rect(_g.NumW, 0, SheetGrid.CheckW, hh - 1));
+                DrawCheck(dc, new Point(_g.NumW + 5, (hh - 15) / 2), _g.MasterState());
+            }
             dc.DrawLine(HeadLine, new Point(rhw - 0.5, 0), new Point(rhw - 0.5, b.Height));
+        }
+
+        private static readonly IPen CheckPen = new Pen(AppTheme.Brush("#5D6B78"), 1.3);
+        private static readonly IPen TickPen = new Pen(Brushes.White, 2) { LineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round };
+        private static void DrawCheck(DrawingContext dc, Point at, bool? on)
+        {
+            var box = new Rect(at.X, at.Y, 15, 15);
+            if (on == false) { dc.DrawRectangle(AppTheme.Card, CheckPen, box, 3, 3); return; }
+            dc.DrawRectangle(Accent, null, box, 3, 3);
+            if (on == true)
+            {
+                var g = new StreamGeometry();
+                using (var c = g.Open()) { c.BeginFigure(new Point(at.X + 3.5, at.Y + 7.8), false); c.LineTo(new Point(at.X + 6.4, at.Y + 10.6)); c.LineTo(new Point(at.X + 11.6, at.Y + 4.6)); c.EndFigure(false); }
+                dc.DrawGeometry(null, TickPen, g);
+            }
+            else dc.DrawLine(TickPen, new Point(at.X + 4, at.Y + 7.5), new Point(at.X + 11, at.Y + 7.5));
         }
 
         private static bool LooksNumber(string s) =>
@@ -782,6 +843,11 @@ public sealed class SheetGrid : UserControl
             {   // dòng tìm kiếm: ô góc = bỏ mọi bộ lọc; ô cột = gõ chữ tìm
                 if (c < 0) _g.ClearFilters(); else _g.ShowFilterEditor(c);
                 e.Handled = true; return;
+            }
+            if (_g.HasCheck && c < 0 && p.X >= _g.NumW)
+            {
+                if (r < 0 && p.Y < SheetGrid.HeadH) { var all = _g.ShownRows; _g.SetChecked(all, _g.MasterState() != true); e.Handled = true; return; }
+                if (r >= 0) { var m = _g.ToModel(r); if (m < _g.Model.RowCount) { _g.SelectV(r, _g.Col); _g.ToggleRows(new[] { m }); } e.Handled = true; return; }
             }
             if (r < 0 && c < 0) { _g.SelectRangeV(new CellRange(0, 0, Math.Max(0, _g.VCount - 1), _g.Model.ColCount - 1)); return; }
             if (r < 0) // tiêu đề cột
