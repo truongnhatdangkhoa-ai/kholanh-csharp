@@ -48,10 +48,10 @@ public sealed class GuiView : UserControl, IPage
             Items =
             {
                 new TabItem { Header = "Load Data", Content = _dl.Root },   // 1.62: bảng dữ liệu nằm ngay trong Load Data (bỏ tab Dữ Liệu riêng)
+                new TabItem { Header = "Báo Cáo", Content = BuildBc() },   // 1.69: Báo Cáo ngay sau Load Data
                 new TabItem { Header = "Phiếu Xuất", Content = BuildPx() },
                 new TabItem { Header = "Phân Loại", Content = BuildPl() },
                 new TabItem { Header = "Đặc Tính", Content = BuildDt() },
-                new TabItem { Header = "Báo Cáo", Content = BuildBc() },
                 new TabItem { Header = "Đối Soát", Content = BuildDs() },
             },
         };
@@ -130,8 +130,8 @@ public sealed class GuiView : UserControl, IPage
         {
             switch (_tabs.SelectedIndex)
             {
-                case 0: RenderLoad(); _dl.Render(); break; case 1: RenderPx(); break; case 2: RenderPl(); break;
-                case 3: RenderDt(); break; case 4: RenderBc(); break; case 5: RenderDs(); break;
+                case 0: RenderLoad(); _dl.Render(); break; case 1: RenderBc(); break; case 2: RenderPx(); break;
+                case 3: RenderPl(); break; case 4: RenderDt(); break; case 5: RenderDs(); break;
             }
         }
         finally { _loading = false; }
@@ -822,18 +822,26 @@ public sealed class GuiView : UserControl, IPage
     // =====================================================================================
     private readonly GridModel _dsm = new() { ReadOnly = true }; private SheetGrid _dsg = null!; private GuiData.DoiSoat? _ds; private (double Tot, int N, List<(GuiStore.Slip Slip, GuiStore.SlipItem Item)> List) _dsPx;
     private readonly List<string> _dsKeys = new();
+    private readonly ContentControl _dsAlert = new();
+    private Dictionary<string, bool> _dsLech = new();   // khóa dòng lệch → true = lỗi (đỏ), false = cần kiểm tra (vàng)
+    private static readonly IBrush DsBadBg = AppTheme.Brush("#FDE8E6"), DsWarnBg = AppTheme.Brush("#FFF2D6");
 
     private Control BuildDs()
     {
-        _dsg = new SheetGrid(_dsm) { SpareRows = 0, CellBackground = (r, c) => c == 2 && r < _dsKeys.Count && _dsKeys[r].StartsWith("!") ? LowBg : null };
+        _dsg = new SheetGrid(_dsm)
+        {
+            SpareRows = 0,
+            CellBackground = (r, c) => r < _dsKeys.Count && _dsLech.TryGetValue(_dsKeys[r], out var loi) ? (loi ? DsBadBg : DsWarnBg) : c == 2 && r < _dsKeys.Count && _dsKeys[r].StartsWith("!") ? LowBg : null,
+        };
         var bar = Bar(); bar.Children.Add(Btn("🔍 Xem chi tiết dòng chọn", async () => await DsDetail(), primary: true));
-        return Page(new StackPanel { Children = { bar, Muted("Đối soát tổng trọng lượng đã nạp với 6 nhóm Phân Loại và với Bảng Tổng Hợp: chênh lệch = dòng bị đếm trùng, không thuộc nhóm nào, thiếu đặc tính, hoặc đặc tính chưa gộp.") } }, Framed(_dsg));
+        // 1.69: lệch giữa tổng và Phân Loại / Bảng Tổng Hợp → khung cảnh báo nổi bật trên bảng + tô dòng lệch
+        return Page(new StackPanel { Children = { bar, Muted("Đối soát tổng trọng lượng đã nạp với 6 nhóm Phân Loại và với Bảng Tổng Hợp: chênh lệch = dòng bị đếm trùng, không thuộc nhóm nào, thiếu đặc tính, hoặc đặc tính chưa gộp."), _dsAlert } }, Framed(_dsg));
     }
 
     private void RenderDs()
     {
         _dsKeys.Clear();
-        if (!D.HasData) { _ds = null; _dsm.Load(new[] { new GridColumn("x", "Chưa có dữ liệu — hãy nạp file ở tab Load Data trước.", 500) }, Array.Empty<string[]>()); _dsg.Refresh(); return; }
+        if (!D.HasData) { _ds = null; _dsLech = new(); _dsAlert.Content = null; _dsm.Load(new[] { new GridColumn("x", "Chưa có dữ liệu — hãy nạp file ở tab Load Data trước.", 500) }, Array.Empty<string[]>()); _dsg.Refresh(); return; }
         var ds = _ds = D.ComputeDoiSoat(); var px = Svc.PxDeducted(); _dsPx = (px.TotalQty, px.Count, px.List); var pivot = D.ComputePivot();
         var rows = new List<string[]>();
         void Add(string key, string label, string val, string note) { _dsKeys.Add(key); rows.Add(new[] { label, key.StartsWith("!") ? "chi tiết ▸" : "", val, note }); }
@@ -843,7 +851,10 @@ public sealed class GuiView : UserControl, IPage
         Add("!ndt", "Không suy ra được đặc tính", Kg(ds.NoDtSum) + " kg", $"{N(ds.NoDtCount)} dòng — không vào Bảng Tổng Hợp");
         Add("!ung", "Có đặc tính nhưng CHƯA GỘP nhóm", Kg(ds.UngroupedSum) + " kg", $"{N(ds.UngroupedCount)} dòng — không vào Bảng Tổng Hợp");
         Add("b", "Tổng trong Bảng Tổng Hợp", Kg(pivot.Grand.Tong) + " kg", "Chỉ dòng có đặc tính đã gộp");
-        var diff = ds.ModuleTotal - ds.DupSum - ds.NoDtSum - ds.UngroupedSum - pivot.Grand.Tong;
+        var diff = BaoCaoTongTon.GuiUnexplained(ds, pivot.Grand.Tong);
+        var warns = BaoCaoTongTon.GuiCanhBao(ds, pivot.Grand.Tong);
+        _dsLech = warns.GroupBy(w => w.Key).ToDictionary(g => g.Key, g => g.Any(w => w.Loi));
+        _dsAlert.Content = Ui.CanhBaoBox(warns, "Đối soát khớp: tổng Load Data = 6 nhóm Phân Loại = Bảng Tổng Hợp.");
         Add("c", "Chênh lệch chưa giải thích được", Kg(diff) + " kg", Math.Abs(diff) < 0.005 ? "✓ Khớp" : "⚠ Kiểm tra lại");
         Add("!px", "Đã trừ theo phiếu xuất (đang trừ)", N(px.TotalQty) + " kiện", $"{N(px.Count)} dòng phiếu");
         _dsm.Load(new[] { new GridColumn("l", "Nội dung", 360), new GridColumn("d", "", 90), new GridColumn("v", "Số liệu", 170, "number"), new GridColumn("n", "Ghi chú", 360) }, rows); _dsg.Refresh();
