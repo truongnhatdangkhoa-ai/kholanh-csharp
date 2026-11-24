@@ -17,7 +17,7 @@ namespace KhoLanh.App.Views;
 /// Module Đối chiếu kiểm kê (C#, nghiệp vụ theo "Số liệu kiểm kê" của app cũ — không dùng WebView2).
 /// Số liệu kiểm kê = các trang Nhập liệu (mẫu Kiểm kê); đối chiếu với Tồn kho An An theo mã, với Kế toán theo kg, với Tồn theo vị trí trên sơ đồ; lệnh đếm; chốt kỳ.
 /// </summary>
-public sealed class KiemKeView : UserControl, IPage
+public sealed partial class KiemKeView : UserControl, IPage
 {
     public string Title => "Đối chiếu kiểm kê";
     public string Subtitle => "Số liệu kiểm kê (trang Nhập liệu) ↔ Tồn kho An An, Kế toán và Tồn theo vị trí; gợi ý nguyên nhân lệch, lệnh đếm theo dãy, chốt kỳ kiểm kê.";
@@ -138,6 +138,7 @@ public sealed class KiemKeView : UserControl, IPage
         {
             Items =
             {
+                new TabItem { Header = "⚡ Kiểm kê nhanh", Content = BuildNhanh() },
                 new TabItem { Header = "Đối chiếu An An", Content = BuildAn() },
                 new TabItem { Header = "Số liệu kiểm kê", Content = BuildPages() },
                 new TabItem { Header = "Đối chiếu kế toán", Content = BuildKt() },
@@ -218,7 +219,6 @@ public sealed class KiemKeView : UserControl, IPage
         var khos = Svc.SoDo.Loaded ? Svc.SoDo.KhoList() : new List<string>();
         if (!khos.Contains(_kho)) _kho = khos.FirstOrDefault() ?? "TG1";
         RenderAll();
-        if (Svc.Chosen.Count == 0 && _tabs.SelectedIndex == 0) _tabs.SelectedIndex = 1;
     }
     private static void Combo(ComboBox c, IEnumerable<string> items, int sel = 0) { var l = items.ToList(); c.ItemsSource = l; c.SelectedIndex = l.Count == 0 ? -1 : Math.Clamp(sel, 0, l.Count - 1); }
 
@@ -263,13 +263,14 @@ public sealed class KiemKeView : UserControl, IPage
     {
         switch (_tabs.SelectedIndex)
         {
-            case 0: RenderAn(); break;
-            case 1: RenderPages(); break;
-            case 2: RenderKt(); break;
-            case 3: RenderGui(); break;
-            case 4: RenderVt(); break;
-            case 5: RenderOrders(); break;
-            case 6: RenderChot(); break;
+            case 0: RenderNhanh(); break;
+            case 1: RenderAn(); break;
+            case 2: RenderPages(); break;
+            case 3: RenderKt(); break;
+            case 4: RenderGui(); break;
+            case 5: RenderVt(); break;
+            case 6: RenderOrders(); break;
+            case 7: RenderChot(); break;
         }
     }
 
@@ -398,12 +399,12 @@ public sealed class KiemKeView : UserControl, IPage
     private void RenderTodo()
     {
         _todo.Children.Clear(); var s = Svc.Summary;
-        if (Svc.Lines.Count == 0) { _todo.Children.Add(Label("📝 Chưa có số liệu kiểm kê — chọn trang ở tab “Số liệu kiểm kê”.", fg: Warn)); _todo.Children.Add(Btn("Mở Số liệu kiểm kê", () => _tabs.SelectedIndex = 1)); }
+        if (Svc.Lines.Count == 0) { _todo.Children.Add(Label("📝 Chưa có số liệu kiểm kê — chọn trang ở tab “Số liệu kiểm kê”.", fg: Warn)); _todo.Children.Add(Btn("Mở Số liệu kiểm kê", () => _tabs.SelectedIndex = 2)); }
         if (Svc.Stock.Count == 0) _todo.Children.Add(Label("📦 Chưa có Tồn kho An An — nạp file ở module Tồn kho An An.", fg: Warn));
         if (s.Auto > 0 && _edit && !Svc.Locked)
             _todo.Children.Add(Btn($"🪄 Sửa {s.Auto} mã kiểm kê gõ sai theo mã An An", async () => await FixAll(), tip: "Cặp mã chỉ khác 1–2 ký tự và cùng số kg — đổi mã ở trang Nhập liệu nguồn"));
         if (Svc.Adj.NReview > 0) _todo.Children.Add(Label($"⚠ {Svc.Adj.NReview} phát sinh nhập / xuất cần rà (ngày trống / trước ngày đếm / xuất quá số có) — chọn mã để xem.", fg: Warn));
-        if (Svc.Recounts.Count > 0 && !Svc.LatestOnly) _todo.Children.Add(Btn($"⚠ {Svc.Recounts.Count} nhóm đếm ở 2 ngày — xem", () => _tabs.SelectedIndex = 1));
+        if (Svc.Recounts.Count > 0 && !Svc.LatestOnly) _todo.Children.Add(Btn($"⚠ {Svc.Recounts.Count} nhóm đếm ở 2 ngày — xem", () => _tabs.SelectedIndex = 2));
     }
     private List<Row> AnFiltered()
     {

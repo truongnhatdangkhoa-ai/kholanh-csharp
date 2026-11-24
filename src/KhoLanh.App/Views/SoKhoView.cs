@@ -100,7 +100,7 @@ public sealed class SoKhoView : UserControl, IPage
         private Dictionary<string, (string H, double W, string T)> _def = new(ColDef);
         private string _tplSig = "";
         /// <summary>Cột của lưới phiếu theo mẫu cột (SoKhoMau) của loại phiếu: thứ tự, tên, ẩn, cột phụ x_….</summary>
-        private void ApplyTemplate()
+        private void ApplyMau()
         {
             var t = Svc.TemplateFor(_loai);
             var cols = t.Columns.Where(c => !c.Hidden || c.Key == "maHang").ToList();
@@ -122,7 +122,7 @@ public sealed class SoKhoView : UserControl, IPage
                 "xuat" => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
                 _ => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
             };
-            ApplyTemplate();
+            ApplyMau();
             _g = new SheetGrid(_m) { SpareRows = 12 };
             _tg = new SheetGrid(_tm) { SpareRows = 0 };
             _list.SelectionChanged += (_, _) => { if (_list.SelectedIndex >= 0 && _list.SelectedIndex < Shown.Count) Open(Shown[_list.SelectedIndex]); };
@@ -171,7 +171,7 @@ public sealed class SoKhoView : UserControl, IPage
 
         public void Reload()
         {
-            var sig = _tplSig; ApplyTemplate(); var tplChanged = sig != _tplSig;
+            var sig = _tplSig; ApplyMau(); var tplChanged = sig != _tplSig;
             _groups = Groups(Svc.Lines, _loai);
             FillList();
             _lots = Compute(Svc.Lines).Lots.Where(l => l.Sl > Eps || l.Net > Eps).OrderBy(l => l.MaHang).ThenBy(l => l.ViTri).ThenBy(l => l.NgayNhap).ToList();
@@ -327,7 +327,7 @@ public sealed class SoKhoView : UserControl, IPage
             if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
             if (Svc.CanEdit) bar.Children.Add(Btn("📱 Đưa lên Vị Trí Bột…", PushVtb, "Thay dữ liệu Vị Trí Bột (điện thoại xem / xuất) bằng tồn theo vị trí đến ngày đang chọn"));
             var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar); top.Children.Add(_sum);
-            var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(Framed(_g));
+            var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(new DetailPane(Framed(_g), _g, "Chi tiết dòng"));   // 1.53
             Content = root;
         }
 
@@ -545,7 +545,7 @@ public sealed class SoKhoView : UserControl, IPage
             if (Svc.CanEdit) hb.Children.Add(Btn("↶ Hoàn tác thao tác đang chọn", Undo));
             var root = new Grid { RowDefinitions = new RowDefinitions("Auto,3*,Auto,2*") };
             bar.Margin = new Thickness(0, 6); root.Children.Add(bar);
-            var a = Framed(_g); Grid.SetRow(a, 1); root.Children.Add(a);
+            var a = new DetailPane(Framed(_g), _g, "Chi tiết dòng sổ"); Grid.SetRow(a, 1); root.Children.Add(a);   // 1.53
             Grid.SetRow(hb, 2); root.Children.Add(hb);
             var b = Framed(_hg); Grid.SetRow(b, 3); root.Children.Add(b);
             Content = root;

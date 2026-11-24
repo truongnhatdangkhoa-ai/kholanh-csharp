@@ -131,7 +131,7 @@ public static class AppUpdater
     {
         if (StagedVersion is null || ExePath is null) return false;
         if (!CanWriteHere()) throw new BusinessException("Không ghi được vào thư mục chứa KhoLanh.exe — chép KhoLanh.exe ra thư mục thường (VD Desktop\\KhoLanh) rồi mở lại.");
-        RunHelper(ExePath, rollback: false);
+        StartHelper(rollback: false);
         return true;
     }
 
@@ -139,7 +139,7 @@ public static class AppUpdater
     public static bool RollbackAndRestart()
     {
         if (!HasPrevious) return false;
-        RunHelper(ExePath!, rollback: true);
+        StartHelper(rollback: true);
         return true;
     }
 
@@ -150,39 +150,52 @@ public static class AppUpdater
         _ = Task.Delay(5000).ContinueWith(_ => Environment.Exit(0));
     }
 
-    internal static string HelperScript(string exe, int pid, bool rollback, string log)
+    internal static string HelperScript(string exe, int pid, bool rollback, string log) => UpdateScript.Build(exe, pid, rollback, log);
+
+    /// <summary>
+    /// Gọi lúc mở app (exe còn nguyên): nạp sẵn System.Diagnostics.Process và biên dịch sẵn RunHelper. Bản một-file chỉ nạp thư viện
+    /// từ chính file exe khi cần lần đầu — nếu đến lúc bấm Cập nhật file exe đã bị cửa sổ khác thay thì sẽ lỗi FileNotFoundException.
+    /// </summary>
+    public static void Warmup()
     {
-        static string Q(string x) => "'" + x.Replace("'", "''") + "'";
-        var swap = rollback
-            ? """
-              Retry { Move-Item -LiteralPath $exe -Destination $doi -Force }
-              try { Retry { Move-Item -LiteralPath $cu -Destination $exe -Force } } catch { Move-Item -LiteralPath $doi -Destination $exe -Force; throw }
-              Retry { Move-Item -LiteralPath $doi -Destination $cu -Force }
-              Remove-Item -LiteralPath $moi, ($moi + '.json') -Force -ErrorAction SilentlyContinue
-              $arg = '--da-quay-lai'
-              """
-            : """
-              Retry { if (Test-Path -LiteralPath $cu) { Remove-Item -LiteralPath $cu -Force } }
-              Retry { Move-Item -LiteralPath $exe -Destination $cu -Force }
-              try { Retry { Move-Item -LiteralPath $moi -Destination $exe -Force } } catch { Move-Item -LiteralPath $cu -Destination $exe -Force; throw }
-              Remove-Item -LiteralPath ($moi + '.json') -Force -ErrorAction SilentlyContinue
-              $arg = '--da-cap-nhat'
-              """;
-        return $$"""
-            $ErrorActionPreference = 'Stop'
-            $exe = {{Q(exe)}}; $moi = $exe + '.moi'; $cu = $exe + '.cu'; $doi = $exe + '.doi'; $log = {{Q(log)}}
-            function Retry([scriptblock]$b) { for ($i = 0; $i -lt 30; $i++) { try { & $b; return } catch { Start-Sleep -Milliseconds 500 } }; & $b }
-            try {
-              $p = Get-Process -Id {{pid}} -ErrorAction SilentlyContinue
-              if ($p) { if (-not $p.WaitForExit(60000)) { throw 'KhoLanh.exe chưa thoát sau 60 giây' } }
-              Start-Sleep -Milliseconds 700
-            {{swap}}
-              Start-Process -FilePath $exe -ArgumentList $arg -WorkingDirectory (Split-Path -LiteralPath $exe)
-            } catch {
-              Add-Content -LiteralPath $log -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $_.ToString())
-              if (Test-Path -LiteralPath $exe) { Start-Process -FilePath $exe -WorkingDirectory (Split-Path -LiteralPath $exe) }
+        try
+        {
+            _ = Process.GetCurrentProcess().Id;
+            _ = OtherInstances();
+            var m = typeof(AppUpdater).GetMethod(nameof(RunHelper), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (m is not null) System.Runtime.CompilerServices.RuntimeHelpers.PrepareMethod(m.MethodHandle);
+        }
+        catch { /* chỉ là chuẩn bị trước, lỗi thì bỏ qua */ }
+    }
+
+    /// <summary>Số cửa sổ KhoLanh KHÁC đang chạy cùng file exe (không đọc được đường dẫn — VD tài khoản Windows khác — vẫn tính, cho chắc).</summary>
+    public static int OtherInstances()
+    {
+        if (ExePath is not { } exe) return 0;
+        var me = Environment.ProcessId; var n = 0;
+        foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(exe)))
+        {
+            using (p)
+            {
+                if (p.Id == me) continue;
+                string? path = null;
+                try { path = p.MainModule?.FileName; } catch { /* không có quyền đọc */ }
+                if (path is null || string.Equals(Path.GetFullPath(path), Path.GetFullPath(exe), StringComparison.OrdinalIgnoreCase)) n++;
             }
-            """;
+        }
+        return n;
+    }
+
+    /// <summary>Kiểm tra cửa sổ khác rồi giao việc cho tiến trình phụ; lỗi nạp thư viện (exe vừa bị thay khi app đang mở) → báo dễ hiểu.</summary>
+    private static void StartHelper(bool rollback)
+    {
+        var others = OtherInstances();
+        if (others > 0) throw new BusinessException($"Còn {others} cửa sổ KhoLanh khác đang mở trên máy này (có thể ở tài khoản Windows khác). Đóng hết các cửa sổ đó rồi bấm Cập nhật lại — thay file khi cửa sổ khác còn chạy sẽ làm cửa sổ đó lỗi.");
+        try { RunHelper(ExePath!, rollback); }
+        catch (Exception e) when (e is FileNotFoundException or FileLoadException)
+        {
+            throw new BusinessException("File KhoLanh.exe vừa bị thay (thường do một cửa sổ KhoLanh khác đã cập nhật) trong khi cửa sổ này còn mở. Hãy đóng cửa sổ này rồi mở lại app — bản mới sẽ được dùng.");
+        }
     }
 
     private static void RunHelper(string exe, bool rollback)

@@ -4,47 +4,47 @@
         Title="Kho Lạnh" Width="1360" Height="820" MinWidth="1024" MinHeight="640"
         WindowStartupLocation="CenterScreen" WindowState="Maximized" Icon="/Assets/app.ico"
         Background="{DynamicResource PageBg}">
+  <!-- Khung "Băng sạch" (1.44): thanh bên trái (thu gọn được: Ctrl + B, rê chuột hiện tên ngay) + thanh đầu trang (tiêu đề + nút) + nội dung. -->
   <DockPanel>
-    <!-- Tầng 1: logo · ô tìm nhanh · trạng thái · tài khoản -->
-    <Border DockPanel.Dock="Top" Background="{DynamicResource NavBg}" Padding="16,0">
-      <Grid ColumnDefinitions="Auto,*,Auto" Height="52">
-        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="0,0,16,0">
-          <Image Source="/Assets/logo.png" Width="32" Height="32"/>
-          <StackPanel VerticalAlignment="Center">
-            <TextBlock Text="KHO LẠNH" Foreground="White" FontWeight="Bold" FontSize="16"/>
-            <TextBlock x:Name="WarehouseText" Foreground="#7FA3C0" FontSize="10.5"/>
+    <Border x:Name="Side" DockPanel.Dock="Left" Width="232" Background="{DynamicResource NavBg}">
+      <DockPanel>
+        <Grid x:Name="LogoRow" DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Margin="14,14,10,10">
+          <Image Source="/Assets/logo.png" Width="30" Height="30" VerticalAlignment="Center"/>
+          <StackPanel x:Name="LogoText" Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="KHO LẠNH" Foreground="White" FontWeight="Bold" FontSize="14.5"/>
+            <TextBlock x:Name="WarehouseText" Foreground="{DynamicResource NavFg}" FontSize="11" TextTrimming="CharacterEllipsis"/>
           </StackPanel>
-        </StackPanel>
-        <Button Grid.Column="1" x:Name="SearchButton" Classes="searchbox" Width="460" HorizontalAlignment="Center" Click="OnSearchClick"
-                ToolTip.Tip="Tìm mã hàng / size / vị trí / hợp đồng / phiếu trong mọi module, hoặc tên module (Ctrl + K)">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="🔍  Tìm mã hàng, LSX, phiếu, vị trí hoặc module…" FontSize="13" VerticalAlignment="Center"/>
-            <Border Grid.Column="1" Background="#0B2A45" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-              <TextBlock Text="Ctrl K" FontSize="11" Foreground="#8FB0CA"/>
-            </Border>
-          </Grid>
-        </Button>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
-          <Button x:Name="LanPill" Classes="topnav" IsVisible="False" Click="OnLanPill">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <Ellipse x:Name="LanDot" Width="9" Height="9" Fill="#3FB950"/>
-              <TextBlock x:Name="LanText" VerticalAlignment="Center" FontSize="12"/>
-            </StackPanel>
+        </Grid>
+        <StackPanel DockPanel.Dock="Bottom" Margin="8,6,8,10" Spacing="2">
+          <Button x:Name="LanPill" Classes="side" IsVisible="False" Click="OnLanPill">
+            <Grid ColumnDefinitions="22,*">
+              <Ellipse x:Name="LanDot" Width="9" Height="9" Fill="#3FB950" HorizontalAlignment="Center"/>
+              <TextBlock x:Name="LanText" Grid.Column="1" Classes="sidelbl" FontSize="12" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"/>
+            </Grid>
           </Button>
-          <Button x:Name="AutoButton" Classes="topnav" IsVisible="False" FontSize="13" Foreground="#FFD866" Click="OnAutoClick"/>
-          <Button x:Name="TroLyButton" Classes="topnav" IsVisible="False" FontSize="13" Foreground="#FFB4A8" Click="OnTroLyClick"/>
-          <Button x:Name="UpdateButton" Classes="primary" IsVisible="False" Padding="10,6" Click="OnUpdateClick"/>
-          <Button x:Name="UserButton" Classes="topnav" Padding="6,4">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Border Width="30" Height="30" CornerRadius="15" Background="{DynamicResource Accent}">
-                <TextBlock x:Name="UserInitial" Foreground="White" FontWeight="Bold" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-              </Border>
-              <StackPanel VerticalAlignment="Center">
-                <TextBlock x:Name="UserName" Foreground="White" FontSize="12.5" FontWeight="SemiBold"/>
-                <TextBlock x:Name="UserRole" Foreground="#7FA3C0" FontSize="10.5"/>
-              </StackPanel>
-              <TextBlock Text="▾" Foreground="#7FA3C0" VerticalAlignment="Center"/>
-            </StackPanel>
+          <Button x:Name="CollapseButton" Classes="side" Click="OnCollapseClick"/>
+        </StackPanel>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="NavPanel" Margin="8,0,8,8" Spacing="1"/>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Thanh đầu trang: tiêu đề + mô tả, bên phải là tìm nhanh / thông báo / cập nhật / tài khoản -->
+    <Border DockPanel.Dock="Top" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="20,0,14,0" Height="56">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock x:Name="PageTitle" FontSize="17" FontWeight="SemiBold"/>
+        </StackPanel>
+        <TextBlock Grid.Column="1" x:Name="PageSubtitle" Classes="muted" VerticalAlignment="Center" Margin="14,2,12,0" TextTrimming="CharacterEllipsis"/>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+          <Button x:Name="HelpButton" Classes="ghost" Click="OnHelpClick" ToolTip.Tip="Hướng dẫn màn hình này (các ghi chú đã thu gọn để bảng có thêm chỗ)"/>
+          <Button x:Name="SearchButton" Classes="ghost" Click="OnSearchClick" ToolTip.Tip="Tìm mã hàng / size / vị trí / hợp đồng / phiếu / LSX / cont trong mọi module (Ctrl + K)"/>
+          <Button x:Name="AutoButton" Classes="ghost" IsVisible="False" Foreground="{DynamicResource Warn}" Click="OnAutoClick"/>
+          <Button x:Name="TroLyButton" Classes="ghost" IsVisible="False" Foreground="{DynamicResource Danger}" Click="OnTroLyClick"/>
+          <Button x:Name="UpdateButton" Classes="primary" IsVisible="False" Click="OnUpdateClick"/>
+          <TextBlock x:Name="VersionText" Classes="muted" FontSize="11" VerticalAlignment="Center" Margin="4,0"/>
+          <Button x:Name="UserButton" Classes="ghost">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedRight">
                 <MenuItem x:Name="UserInfo" IsEnabled="False"/>
@@ -61,26 +61,8 @@
       </Grid>
     </Border>
 
-    <!-- Tầng 2: menu ngang theo nhóm (tab gạch chân, bấm nhóm → danh sách module có mô tả) -->
-    <Border DockPanel.Dock="Top" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1" Padding="10,0">
-      <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
-        <StackPanel x:Name="NavPanel" Orientation="Horizontal" Spacing="0"/>
-      </ScrollViewer>
-    </Border>
-
-    <!-- Tiêu đề trang: Nhóm › Module · mô tả · phiên bản -->
-    <Border DockPanel.Dock="Top" Padding="20,12,20,0">
-      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-        <TextBlock x:Name="PageGroup" Classes="muted" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
-        <TextBlock Grid.Column="1" x:Name="PageTitle" Classes="title" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
-        <TextBlock Grid.Column="2" x:Name="PageSubtitle" Classes="muted" FontSize="12.5" VerticalAlignment="Center" Margin="14,3,0,0" TextTrimming="CharacterEllipsis"/>
-        <TextBlock Grid.Column="3" x:Name="VersionText" Classes="muted" FontSize="11" VerticalAlignment="Center"/>
-      </Grid>
-    </Border>
-
     <Panel>
-      <ContentControl x:Name="PageHost" Margin="16,10,16,16"/>
-      <!-- 2 module gốc (WebView2) giữ sống suốt phiên, chỉ ẩn / hiện khi chuyển menu -->
+      <ContentControl x:Name="PageHost" Margin="16"/>
     </Panel>
   </DockPanel>
 </Window>

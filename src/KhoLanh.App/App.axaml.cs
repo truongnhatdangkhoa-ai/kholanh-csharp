@@ -12,10 +12,19 @@ public partial class App : Application
     public static AppServices Services { get; private set; } = null!;
     public static string DataFolder { get; private set; } = "";
 
-    public override void Initialize() { AvaloniaXamlLoader.Load(this); AppTheme.Install(this); }
+    public override void Initialize() { AvaloniaXamlLoader.Load(this); AppTheme.Install(this); Controls.Icon.InstallEmojiSwap(); Controls.HintTrim.Install(); }
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // Lỗi xảy ra trong thao tác giao diện (nút bấm, hộp thoại…) KHÔNG làm sập app: ghi logs/loi.log rồi báo người dùng.
+        Avalonia.Threading.Dispatcher.UIThread.UnhandledException += (_, e) =>
+        {
+            e.Handled = true;
+            try { if (DataFolder.Length > 0) KhoLanh.Core.TroLy.TroLyService.LogUnhandled(DataFolder, e.Exception, "Lỗi giao diện"); } catch { /* ghi log lỗi thì bỏ qua */ }
+            var top = (ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            if (top is not null)
+                _ = Ui.Message(top, "Thao tác vừa rồi gặp lỗi nên chưa hoàn tất (app vẫn chạy bình thường, lỗi đã ghi vào nhật ký):\n\n" + Ui.Describe(e.Exception), "Có lỗi");
+        };
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Máy mới cài lần đầu → chọn nơi lưu database trước khi đăng nhập.
@@ -42,6 +51,7 @@ public partial class App : Application
                 InitServices(dataFolder);
                 // Bản mới đã tải ngầm từ lần trước → áp dụng ngay trước khi hiện cửa sổ (không cần cài lại).
                 AppUpdater.Cleanup();
+                AppUpdater.Warmup();
                 if (Array.IndexOf(Program.Args, "--da-cap-nhat") >= 0 && Environment.GetEnvironmentVariable("KHOLANH_TU_KIEM_THOAT") == "1")
                 {
                     // Chỉ dùng cho kiểm thử tự động: xác nhận bản mới đã được mở lại sau khi thay exe.

@@ -43,7 +43,7 @@ public sealed class SoDoView : UserControl, IPage
     private readonly WrapPanel _khuBar = new() { ItemSpacing = 6, LineSpacing = 6 };
     private readonly CheckBox _rut = new() { Content = "Mã rút gọn", IsChecked = true, FontSize = 12.5 };
     private readonly Border _lockBar = new() { Background = AppTheme.Brush("#FFF4CC"), BorderBrush = AppTheme.Brush("#E8C766"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0) };
-    private readonly WrapPanel _kpi = new() { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 4) };
+    private readonly WrapPanel _kpi = new() { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 2, 0, 0) };
     private readonly TabControl _tabs;
 
     // ---------- tab Sơ đồ
@@ -133,11 +133,21 @@ public sealed class SoDoView : UserControl, IPage
         if (_export) tools.Children.Add(Btn("🖨 In", async () => await PrintList(), tip: "Mở trang in A4 danh sách vị trí đang lọc (In hoặc Lưu PDF)"));
         if (_export) tools.Children.Add(Btn("Xuất Excel", async () => await ExportList(), tip: "Xuất danh sách vị trí đang lọc ra Excel"));
 
+        // 1.50: gọn phần đầu để bảng / sơ đồ có thêm chỗ — Kho + Khu chung 1 dòng (công cụ bên phải), thẻ số 1 dòng thấp
         var row1 = new DockPanel();
-        DockPanel.SetDock(tools, Dock.Right); row1.Children.Add(tools); row1.Children.Add(_khoBar);
-        var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 2) };
-        var infoRow = new DockPanel(); DockPanel.SetDock(_status, Dock.Right); infoRow.Children.Add(_status); infoRow.Children.Add(_info);
-        top.Children.Add(infoRow); top.Children.Add(row1); top.Children.Add(_khuBar); top.Children.Add(_lockBar); top.Children.Add(_kpi);
+        var chips = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        chips.Children.Add(_khoBar);
+        chips.Children.Add(new Border { Width = 1, Height = 22, Background = Line, Margin = new Thickness(4, 0), VerticalAlignment = VerticalAlignment.Center });
+        chips.Children.Add(_khuBar);
+        row1.Children.Add(chips);
+        var top = new StackPanel { Spacing = 5, Margin = new Thickness(0, 0, 0, 0) };
+        // dòng đầu: thông tin file (trái) + công cụ (phải) — Kho + Khu có trọn 1 dòng bên dưới
+        var infoLeft = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+        infoLeft.Children.Add(_info); infoLeft.Children.Add(_status);
+        _status.IsVisible = false;
+        _status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) _status.IsVisible = !string.IsNullOrEmpty(_status.Text); };
+        var infoRow = new DockPanel(); DockPanel.SetDock(tools, Dock.Right); infoRow.Children.Add(tools); infoRow.Children.Add(infoLeft);
+        top.Children.Add(infoRow); top.Children.Add(row1); top.Children.Add(_lockBar); top.Children.Add(_kpi);
         var root = new DockPanel();
         DockPanel.SetDock(top, Dock.Top);
         root.Children.Add(top); root.Children.Add(_tabs);
@@ -304,10 +314,11 @@ public sealed class SoDoView : UserControl, IPage
 
     private Border Kpi(string label, string value, IBrush? fg = null, string? tip = null)
     {
-        var s = new StackPanel { Spacing = 0 };
-        s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
-        s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        var b = new Border { Background = AppTheme.Card, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 100, Child = s };
+        // thẻ số 1 dòng (số đậm + nhãn) — thấp hơn thẻ 2 dòng cũ để bảng có thêm chỗ
+        var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        s.Children.Add(new TextBlock { Text = value, FontSize = 14.5, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark, VerticalAlignment = VerticalAlignment.Center });
+        s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center });
+        var b = new Border { Background = AppTheme.Card, BorderBrush = Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(9, 3), Child = s };
         if (tip is not null) ToolTip.SetTip(b, tip);
         return b;
     }
@@ -782,13 +793,13 @@ public sealed class SoDoView : UserControl, IPage
 
     private Control BuildKk()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 4) };
+        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 4) };
         Combo(_kMode, new[] { "Theo sổ sách", "Phiếu trống (để ghi tay)" });
         bar.Children.Add(Label("Khu")); bar.Children.Add(_kKhu); bar.Children.Add(Label("Dãy")); bar.Children.Add(_kDay); bar.Children.Add(_kMode);
         bar.Children.Add(Btn("Tạo lại phiếu", async () => { if (await KkCanLeave()) { _k = null; await KkEnsure(); } }));
         foreach (var c in new[] { _kKhu, _kDay, _kMode })
             c.SelectionChanged += async (_, _) => { if (!_loading) await KkSelChanged(); };
-        var b2 = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 4) };
+        var b2 = bar;   // 1.50: chung 1 thanh (tự xuống dòng khi hẹp) thay vì 2 dòng + dòng ghi chú
         b2.Children.Add(_bMerge); b2.Children.Add(_bMove); b2.Children.Add(_bMoveAll); b2.Children.Add(_bUndo);
         b2.Children.Add(Btn("+ Thêm dòng", KkAddRow, tip: "Thêm 1 dòng cùng vị trí ngay dưới dòng đang chọn"));
         b2.Children.Add(Btn("− Xóa dòng", KkDelRows, danger: true));
@@ -796,9 +807,10 @@ public sealed class SoDoView : UserControl, IPage
         if (_export) b2.Children.Add(Btn("Xuất Excel (A4)", async () => await KkExport(), primary: true, tip: "Mỗi dãy 1 sheet, Times New Roman 15, khổ A4 đứng — mở Excel để in"));
         b2.Children.Add(Btn("Chuyển sang Nhập liệu", async () => await KkToNhapLieu(), tip: "Tạo trang Nhập liệu (mẫu Kiểm kê) cho 1 dãy, số lượng điền sẵn theo sổ để nhập số thực"));
         b2.Children.Add(Btn("Rà soát chênh lệch", async () => await KkReview(), tip: "So trang Nhập liệu kiểm kê mới nhất của dãy với sổ sách"));
-        var hint = Muted("Phiếu sửa thẳng trên bảng (chỉ trên phiếu, không đổi tồn). Dòng vàng có đề xuất chuyển (ô lẫn nhiều size) sang ô trống cùng tầng; dòng xanh là dòng đã chuyển. Xuất Excel để in.");
-        var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(b2); head.Children.Add(hint); head.Children.Add(_kInfo);
-        _kInfo.Margin = new Thickness(0, 4, 0, 6);
+        const string hint = "Phiếu sửa thẳng trên bảng (chỉ trên phiếu, không đổi tồn). Dòng vàng có đề xuất chuyển (ô lẫn nhiều size) sang ô trống cùng tầng; dòng xanh là dòng đã chuyển. Xuất Excel để in.";
+        ToolTip.SetTip(_kInfo, hint);
+        var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_kInfo);
+        _kInfo.Margin = new Thickness(0, 0, 0, 4);
         var p = new DockPanel();
         DockPanel.SetDock(head, Dock.Top);
         p.Children.Add(head); p.Children.Add(Framed(_kg));

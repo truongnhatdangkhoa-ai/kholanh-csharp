@@ -1,51 +1,46 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="KhoLanh.App.LoginWindow"
-        Title="Kho Lạnh - Đăng nhập" Width="820" Height="600" CanResize="False"
-        WindowStartupLocation="CenterScreen" Icon="/Assets/app.ico">
-  <Grid ColumnDefinitions="340,*">
-    <Border Background="{DynamicResource BrandDark}">
-      <StackPanel VerticalAlignment="Center" Margin="36" Spacing="14">
-        <Image Source="/Assets/logo.png" Width="96" Height="96" HorizontalAlignment="Left"/>
-        <TextBlock Text="KHO LẠNH" FontSize="30" FontWeight="Bold" Foreground="White"/>
-        <TextBlock Text="Quản lý nhập, xuất, tồn kho lạnh theo mã hàng, size, lô và vị trí."
-                   Foreground="#B9D3E8" TextWrapping="Wrap" FontSize="14"/>
-        <TextBlock x:Name="VersionText" Foreground="#7FA3C0" FontSize="12" Margin="0,24,0,0"/>
+        Title="Kho Lạnh - Đăng nhập" Width="420" SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterScreen" Icon="/Assets/app.ico"
+        Background="{DynamicResource CardBg}">
+  <!-- Đăng nhập gọn (1.46): 1 cột, không nền / bảng bên cạnh, chỉ giữ chữ cần thiết (ghi chú chỉ hiện khi có việc cần báo). -->
+  <StackPanel Margin="36,28,36,26" Spacing="6">
+    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,14">
+      <Image Source="/Assets/logo.png" Width="44" Height="44" VerticalAlignment="Center"/>
+      <StackPanel VerticalAlignment="Center">
+        <TextBlock Text="KHO LẠNH" FontSize="19" FontWeight="Bold"/>
+        <TextBlock x:Name="VersionText" Classes="muted" FontSize="11.5"/>
       </StackPanel>
-    </Border>
-    <Border Grid.Column="1" Background="White" Padding="48,0">
-      <StackPanel VerticalAlignment="Center" Spacing="6">
-        <TextBlock x:Name="Heading" Text="Đăng nhập" Classes="title"/>
-        <TextBlock x:Name="SubHeading" Classes="muted" TextWrapping="Wrap" Margin="0,0,0,16"
-                   Text="Nhập tài khoản được cấp để vào phần mềm."/>
-        <StackPanel x:Name="FullNamePanel" IsVisible="False" Spacing="3">
-          <TextBlock Text="Họ tên" Classes="label"/>
-          <TextBox x:Name="FullNameBox" Watermark="Ví dụ: Nguyễn Văn A"/>
-        </StackPanel>
-        <TextBlock Text="Tên đăng nhập" Classes="label" Margin="0,6,0,3"/>
-        <TextBox x:Name="UserBox" Watermark="admin"/>
-        <TextBlock Text="Mật khẩu" Classes="label" Margin="0,6,0,3"/>
-        <TextBox x:Name="PassBox" PasswordChar="•"/>
-        <StackPanel x:Name="ConfirmPanel" IsVisible="False">
-          <TextBlock Text="Nhập lại mật khẩu" Classes="label" Margin="0,6,0,3"/>
-          <TextBox x:Name="Pass2Box" PasswordChar="•"/>
-        </StackPanel>
-        <StackPanel x:Name="RememberPanel" Orientation="Horizontal" Spacing="18" Margin="0,8,0,0">
-          <CheckBox x:Name="RememberBox" Content="Nhớ mật khẩu" IsCheckedChanged="OnRememberChanged"/>
-          <CheckBox x:Name="AutoBox" Content="Tự động đăng nhập" IsCheckedChanged="OnAutoChanged"/>
-        </StackPanel>
-        <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-        <Button x:Name="LoginButton" Content="Đăng nhập" Classes="primary" IsDefault="True"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,10,0,0" Click="OnLogin"/>
-        <Button x:Name="JoinButton" Content="Dùng chung tài khoản với máy khác…" IsVisible="False"
-                Margin="0,6,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnJoin"/>
-        <StackPanel x:Name="UpdatePanel" IsVisible="False" Spacing="4" Margin="0,8,0,0">
-          <TextBlock x:Name="UpdText" Classes="muted" TextWrapping="Wrap"/>
-          <ProgressBar x:Name="UpdBar" Minimum="0" Maximum="100" Height="6" IsIndeterminate="True"/>
-          <Button x:Name="SkipButton" Content="Bỏ qua, vào luôn (bản mới tải ngầm)" IsVisible="False" HorizontalAlignment="Right" Click="OnSkipUpdate"/>
-        </StackPanel>
-        <TextBlock x:Name="DataPathText" Classes="muted" FontSize="11" TextWrapping="Wrap" Margin="0,14,0,0"/>
-      </StackPanel>
-    </Border>
-  </Grid>
+    </StackPanel>
+    <TextBlock x:Name="Heading" Text="Đăng nhập" FontSize="16" FontWeight="SemiBold"/>
+    <TextBlock x:Name="SubHeading" Classes="muted" TextWrapping="Wrap" IsVisible="False"/>
+    <StackPanel x:Name="FullNamePanel" IsVisible="False" Spacing="3" Margin="0,6,0,0">
+      <TextBlock Text="Họ tên" Classes="label"/>
+      <TextBox x:Name="FullNameBox" Watermark="Ví dụ: Nguyễn Văn A"/>
+    </StackPanel>
+    <TextBlock Text="Tên đăng nhập" Classes="label" Margin="0,8,0,0"/>
+    <TextBox x:Name="UserBox"/>
+    <TextBlock Text="Mật khẩu" Classes="label" Margin="0,6,0,0"/>
+    <TextBox x:Name="PassBox" PasswordChar="•"/>
+    <StackPanel x:Name="ConfirmPanel" IsVisible="False">
+      <TextBlock Text="Nhập lại mật khẩu" Classes="label" Margin="0,6,0,3"/>
+      <TextBox x:Name="Pass2Box" PasswordChar="•"/>
+    </StackPanel>
+    <StackPanel x:Name="RememberPanel" Orientation="Horizontal" Spacing="18" Margin="0,6,0,0">
+      <CheckBox x:Name="RememberBox" Content="Nhớ mật khẩu" IsCheckedChanged="OnRememberChanged"/>
+      <CheckBox x:Name="AutoBox" Content="Tự động đăng nhập" IsCheckedChanged="OnAutoChanged"/>
+    </StackPanel>
+    <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" IsVisible="False"/>
+    <Button x:Name="LoginButton" Content="Đăng nhập" Classes="primary" IsDefault="True" MinHeight="36"
+            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,8,0,0" Click="OnLogin"/>
+    <Button x:Name="JoinButton" Content="Dùng chung tài khoản với máy khác…" IsVisible="False"
+            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnJoin"/>
+    <StackPanel x:Name="UpdatePanel" IsVisible="False" Spacing="4" Margin="0,6,0,0">
+      <TextBlock x:Name="UpdText" Classes="muted" TextWrapping="Wrap"/>
+      <ProgressBar x:Name="UpdBar" Minimum="0" Maximum="100" Height="5" IsIndeterminate="True"/>
+      <Button x:Name="SkipButton" Content="Bỏ qua, vào luôn" IsVisible="False" Classes="ghost" HorizontalAlignment="Right" Click="OnSkipUpdate"/>
+    </StackPanel>
+    <TextBlock x:Name="DataPathText" Classes="muted" FontSize="11" TextWrapping="Wrap" IsVisible="False"/>
+  </StackPanel>
 </Window>
