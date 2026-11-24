@@ -1173,6 +1173,15 @@ void FilterScene()
         if (KhoLanh.App.Controls.Icon.TextOf(w.Content) == "Hủy") { w.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); break; }
     g.ClearFilters(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
     Console.WriteLine($"  [Lọc] bỏ lọc: {g.ShownRows.Count}/{total} dòng");
+    // 1.52: ⤢ mở bảng ra cửa sổ lớn (cùng dữ liệu)
+    _ = g.OpenLarge(); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    if (KhoLanh.App.Controls.SheetGrid.LastLarge is { } big)
+    {
+        var bg = big.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        Console.WriteLine($"  [Cửa sổ lớn] {big.Width:0}×{big.Height:0} · {bg.Model.RowCount} dòng · cùng dữ liệu={ReferenceEquals(bg.Model, g.Model)}");
+        Snap(big, "45c-bang-cua-so-lon");
+        big.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    }
 }
 
 static string FindRepo()

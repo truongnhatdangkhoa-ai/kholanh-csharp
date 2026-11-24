@@ -16,8 +16,8 @@ namespace KhoLanh.App.Views;
 /// • Lịch xuất trong ngày (lùi / tới ngày): mỗi container 1 thẻ — LSX, khách, công ty, việc cần làm, số cont, số xe, tấn, trạng thái;
 ///   nút Tạo List / Tạo phiếu xuất (hoặc "Đã có" → mở thẳng), ✉ Cont (dán email Thông tin xe), Sửa. Bấm thẻ → chi tiết lịch.
 /// • + Thêm lịch · ⚡ Nhập nhanh (dán kế hoạch "Ngày dd/mm: … LSX …") · ✉ Email (duyệt thư cập nhật lịch, tự quét Gmail).
-/// • Lịch xuất gần đây / dự kiến (lọc An An / Thuận Phước, tìm), Việc cần làm (việc đến hạn, chuẩn bị còn thiếu, việc cho LSX chưa có lịch),
-///   Thao tác nhanh (tùy chọn theo tài khoản). Tab Lịch tháng (danh sách theo ngày) và Thống kê (theo tháng trong năm).
+/// • Việc cần làm (tab 2 của khung Lịch xuất trong ngày: việc đến hạn, chuẩn bị còn thiếu, việc cho LSX chưa có lịch),
+///   Lịch xuất gần đây / dự kiến (lọc An An / Thuận Phước, tìm). Tab Lịch tháng (danh sách theo ngày) và Thống kê (theo tháng trong năm).
 /// </summary>
 public sealed partial class TongQuanView : UserControl, IPage
 {
@@ -50,7 +50,8 @@ public sealed partial class TongQuanView : UserControl, IPage
     private readonly TextBox _rq = new() { Watermark = "Tìm LSX, khách, cont…", Width = 190, FontSize = 12.5 };
     private readonly WrapPanel _rSeg = new() { ItemSpacing = 4 }, _rCoBar = new() { ItemSpacing = 4 };
     private readonly StackPanel _todo = new() { Spacing = 6 };
-    private readonly WrapPanel _quick = new() { ItemSpacing = 8, LineSpacing = 8 };
+    private readonly WrapPanel _quick = new() { ItemSpacing = 8, LineSpacing = 8 };   // không còn hiện (1.52) — giữ để không đổi lưu thiết lập cũ
+    private readonly TabItem _todoTab = new();
     private readonly Button _email;
     private readonly CalendarDatePicker _pick = new() { Width = 120, SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy" };
     private readonly StackPanel _monthBody = new() { Spacing = 4 };
@@ -123,7 +124,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         acts.Children.Add(Btn("Hôm nay", () => { _dayOff = 0; PaintDay(); return Task.CompletedTask; }));
         acts.Children.Add(Btn("›", () => { _dayOff++; PaintDay(); return Task.CompletedTask; }));
         acts.Children.Add(_pick);
-        var tl = new StackPanel { Spacing = 2 }; tl.Children.Add(H2("Lịch xuất trong ngày"));
+        var tl = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         var sub = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 }; sub.Children.Add(_dayLb); sub.Children.Add(_dayCnt); tl.Children.Add(sub);
         dayHead.Children.Add(tl); dayHead.Children.Add(acts);
         var dayBox = new StackPanel(); dayBox.Children.Add(dayHead); dayBox.Children.Add(_day);
@@ -137,21 +138,16 @@ public sealed partial class TongQuanView : UserControl, IPage
         rHead.Children.Add(_rSeg); rHead.Children.Add(_rCoBar); rHead.Children.Add(_rq);
         var recentBox = new StackPanel(); recentBox.Children.Add(rHead); recentBox.Children.Add(_recentNote); recentBox.Children.Add(_recent);
 
-        var left = new StackPanel { Spacing = 12 };
-        left.Children.Add(Card(dayBox)); left.Children.Add(Card(recentBox));
-
-        var qHead = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
-        var qEdit = Btn("✎", async () => await QuickEdit(), "Chọn các ô thao tác nhanh của tài khoản này"); DockPanel.SetDock(qEdit, Dock.Right); qHead.Children.Add(qEdit);
-        qHead.Children.Add(H2("Thao tác nhanh"));
-        var qBox = new StackPanel(); qBox.Children.Add(qHead); qBox.Children.Add(_quick);
-        var tdBox = new StackPanel(); tdBox.Children.Add(H2("Việc cần làm").Also(t => t.Margin = new Thickness(0, 0, 0, 8))); tdBox.Children.Add(_todo);
-        var right = new StackPanel { Spacing = 12 };
-        right.Children.Add(Card(qBox)); right.Children.Add(Card(tdBox));
-
-        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,12,360") };
-        cols.Children.Add(left); Grid.SetColumn(right, 2); cols.Children.Add(right);
+        // 1.52: bỏ khung "Thao tác nhanh" (đã có menu bên trái); "Việc cần làm" thành tab 2 của khung Lịch xuất trong ngày;
+        // hai khung còn lại rộng hết trang.
+        _todoTab.Header = "Việc cần làm";
+        _todoTab.Content = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Children = { _todo } };
+        var dayTabs = new TabControl
+        {
+            Items = { new TabItem { Header = "Lịch xuất trong ngày", Content = new StackPanel { Margin = new Thickness(0, 8, 0, 0), Children = { dayBox } } }, _todoTab },
+        };
         var root = new StackPanel { Spacing = 12 };
-        root.Children.Add(_kpi); root.Children.Add(_warn); root.Children.Add(cols);
+        root.Children.Add(_kpi); root.Children.Add(_warn); root.Children.Add(Card(dayTabs)); root.Children.Add(Card(recentBox));
         return root;
     }
 
@@ -360,6 +356,8 @@ public sealed partial class TongQuanView : UserControl, IPage
             .GroupBy(x => string.Join(",", x.Ids)).Select(g => g.First())
             .Select(x => (x, thieu: new[] { x.HasList ? "" : "List", x.HasPhieu ? "" : "Phiếu xuất kho", x.Cont.Length > 0 && !x.Cont.StartsWith("ghép") ? "" : "Số cont" }.Where(s => s.Length > 0).ToList()))
             .Where(x => x.thieu.Count > 0).ToList();
+        var nTodo = hot.Count + prep.Count + Svc.Pending.Select(p => Sq(p.Lsx)).Distinct().Count();
+        _todoTab.Header = nTodo > 0 ? $"Việc cần làm ({nTodo})" : "Việc cần làm";
         if (hot.Count == 0 && prep.Count == 0 && Svc.Pending.Count == 0)
             _todo.Children.Add(new TextBlock { Text = "✓ Không có việc đến hạn.", Foreground = B("#1E7B34"), FontSize = 12.5 });
         foreach (var (r, s) in hot)
