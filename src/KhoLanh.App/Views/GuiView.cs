@@ -360,8 +360,10 @@ public sealed class GuiView : UserControl, IPage
         };
         _pxm.ReadOnly = !_edit;
         _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "" }));
+        _pxg.CheckCol = _pxQtyCol;   // 1.50: tích ô đầu dòng = xuất hết (số kiện; dòng chỉ có kg thì số kg)
+        _pxg.CheckFill = r => r < _pxRows.Count ? (_pxRows[r].SoKien > 0 ? Raw(_pxRows[r].SoKien) : Raw(_pxRows[r].TrongLuong)) : "";
         _pxSnap = _pxm.Snapshot(); _pxg.Refresh();
-        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
+        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
     }
 
     private void OnPxEdited()
@@ -378,7 +380,7 @@ public sealed class GuiView : UserControl, IPage
 
     private async Task CreateSlip()
     {
-        if (_pxSel.Count == 0) { await Ui.Message(this, "Gõ số lượng xuất vào cột “SL xuất ✎” trước."); return; }
+        if (_pxSel.Count == 0) { await Ui.Message(this, "Tích chọn dòng (ô đầu dòng) hoặc gõ số lượng vào cột “SL xuất ✎” trước."); return; }
         if (!await Ui.Confirm(this, $"Tạo phiếu xuất mới với {_pxSel.Count} dòng hàng đã chọn?\n\nSố kiện / Trọng lượng sẽ được TRỪ ngay khỏi “Dữ Liệu”.", "Xác nhận tạo phiếu xuất", "Tạo phiếu")) return;
         var picks = _pxSel.Select(kv => (D.Rows.IndexOf(kv.Key), kv.Value)).Where(p => p.Item1 >= 0).ToList();
         GuiStore.Slip? s = null;

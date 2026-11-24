@@ -481,6 +481,16 @@ public sealed partial class LanService : ISheetSource, IDisposable
         }
         if (!Serving || (_frozen && op is "write" or "sync"))
             return new JsonObject { ["ok"] = false, ["notServing"] = true, ["error"] = "Máy này không làm máy chủ lúc này." };
+        var res = HandleData(op, req, from, fromRole);
+        // Lệnh dữ liệu của máy con (read / list / write / sync) kèm danh sách máy có thể làm chủ: máy con chỉ ghi, chưa tới lượt
+        // "changes" vẫn biết máy dự phòng (1.50 — trước đây máy chủ tắt ngay sau khi máy dự phòng vừa nối thì máy con
+        // không tìm được máy chủ mới; CI đỏ ở Standby_takes_over…).
+        if (op is "read" or "list" or "write" or "sync" && res["ok"]?.GetValue<bool>() == true && res["nodes"] is null) res["nodes"] = NodesInfo();
+        return res;
+    }
+
+    private JsonObject HandleData(string op, JsonObject req, string from, string fromRole)
+    {
         var user = req["u"]?.ToString() ?? "";
         switch (op)
         {
@@ -726,6 +736,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
         {
             var r = Task.Run(() => CallNode(n, req, timeout ?? TimeSpan.FromSeconds(30), CancellationToken.None)).GetAwaiter().GetResult();
             if (r["notServing"]?.GetValue<bool>() == true) { GoOffline(); throw new LanUnreachableException("Máy chủ vừa đổi."); }
+            Learn(r["nodes"] as JsonArray);
             return r;
         }
         catch (LanUnreachableException) { GoOffline(); throw; }
@@ -1022,6 +1033,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
         try { r = await CallNode(n, req, TimeSpan.FromSeconds(120), ct); }
         catch (LanUnreachableException) { GoOffline(); return; }
         if (r["ok"]?.GetValue<bool>() != true) { if (r["notServing"]?.GetValue<bool>() == true) GoOffline(); else LastSync = "Gửi sổ chờ lỗi: " + r["error"]; Raise(); return; }
+        Learn(r["nodes"] as JsonArray);
         int ok = 0, merged = 0, conflict = 0, err = 0;
         var errors = new List<string>();
         foreach (var it in (r["results"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())

@@ -424,7 +424,7 @@ public sealed partial class TongQuanView : UserControl, IPage
     private static readonly Quick[] Quicks =
     {
         new("anan", "📦", "Tồn kho An An", "m1", -1), new("gui", "🏬", "Tồn kho gửi", "m2", -1), new("xk", "🚢", "Phiếu xuất khẩu", "m13", 0),
-        new("lsx", "📋", "List sản xuất", "m13", 1), new("cargo", "🚚", "Cargo list (TP · GC · GK)", "m13", 2), new("vt", "📍", "Tồn kho theo vị trí", "m7", -1),
+        new("lsx", "📋", "List sản xuất", "m13", 1), new("cargo", "🚚", "Phiếu xuất nội địa", "m13", 2), new("vt", "📍", "Tồn kho theo vị trí", "m7", -1),
         new("sodo", "🗺", "Sơ đồ kho", "m8", -1), new("dc", "⚖", "Đối chiếu hàng ngày", "m5", -1), new("kk", "🧮", "Đối chiếu kiểm kê", "m9", -1),
         new("ks", "🧪", "Kết quả kháng sinh", "m10", -1), new("nl", "✏", "Nhập liệu", "m6", -1), new("c3d", "🧊", "Container 3D", "m14", -1), new("scan", "📷", "Scan tài liệu", "m15", -1),
     };

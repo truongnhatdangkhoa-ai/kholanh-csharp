@@ -870,7 +870,7 @@ public sealed class AnAnView : UserControl, IPage
         {
             bar.Children.Add(Btn("Tạo phiếu xuất", async () =>
             {
-                if (_xhSel.Count == 0) { await Ui.Message(this, "Gõ số lượng xuất vào cột “SL xuất ✎” trước."); return; }
+                if (_xhSel.Count == 0) { await Ui.Message(this, "Tích chọn dòng (ô đầu dòng) hoặc gõ số lượng vào cột “SL xuất ✎” trước."); return; }
                 var id = XhSources[Math.Max(0, _xhMod.SelectedIndex)];
                 JsonObject? s = null;
                 if (await Act(() => s = Svc.CreateSlip(id, _xhSel)) && s is not null) { _xhSel.Clear(); _status.Text = $"Đã tạo phiếu {AnAnService.SlipId(s)} — chưa trừ tồn (bấm “Trừ tồn kho” ở danh sách phiếu)."; RenderTh(); }
@@ -961,12 +961,16 @@ public sealed class AnAnView : UserControl, IPage
         _xhRows = q.Length == 0 ? all : all.Where(i => _xhSel.ContainsKey(i) || JsText.Fuzzy(string.Join(" ", cols.Select(c => D.Cell(i, c.Ci)))).Contains(q, StringComparison.Ordinal)).ToList();
         var gc = cols.Select(c => new GridColumn("c" + c.Ci, c.Label, AnAnData.IsNumericCol(c.Label) ? 85 : c.Label is "Mã hàng" ? 190 : c.Label is "Tên hàng" ? 260 : 100, AnAnData.IsNumericCol(c.Label) ? "number" : "text") { ReadOnly = true }).ToList();
         _xhQtyCol = gc.Count;
+        var tonCol = cols.FindIndex(c => c.Label == "Tồn cuối");
+        // 1.50: ô chọn đầu dòng — tích = xuất hết tồn cuối của dòng (sửa lại số được)
+        _xhg.CheckCol = _xhQtyCol;
+        _xhg.CheckFill = r => tonCol >= 0 ? _xhm.Get(r, tonCol) : "1";
         gc.Add(new GridColumn("x", _edit ? "SL xuất ✎" : "SL xuất", 85, "number") { ReadOnly = !_edit });
         _xhm.ReadOnly = !_edit;
         _xhm.Load(gc, _xhRows.Select(i => cols.Select(c => D.Cell(i, c.Ci)).Append(_xhSel.TryGetValue(i, out var v) ? Raw(v) : "")));
         _xhSnap = _xhm.Snapshot();
         _xhg.Refresh();
-        _xhInfo.Text = $"{AnAnData.LabelOf(id)}: {N(all.Count)} dòng · đang chọn {N(_xhSel.Count)} dòng, tổng SL {N(_xhSel.Values.Sum())}. Phiếu chỉ GHI NHẬN — trừ tồn khi bấm “Trừ tồn kho”.";
+        _xhInfo.Text = $"{AnAnData.LabelOf(id)}: {N(all.Count)} dòng · đang chọn {N(_xhSel.Count)} dòng, tổng SL {N(_xhSel.Values.Sum())}. Tích ô đầu dòng để chọn (lấy hết tồn) hoặc gõ SL. Phiếu chỉ GHI NHẬN — trừ tồn khi bấm “Trừ tồn kho”.";
     }
 
     private void OnXhEdited()
