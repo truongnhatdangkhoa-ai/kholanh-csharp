@@ -23,7 +23,7 @@ public sealed class SheetGrid : UserControl
     private readonly ScrollBar _hbar = new() { Orientation = Orientation.Horizontal, SmallChange = 40, LargeChange = 400 };
     private readonly TextBox _editor = new()
     {
-        IsVisible = false, BorderThickness = new Thickness(2), BorderBrush = AppTheme.Brush("#1F6FD1"),
+        IsVisible = false, BorderThickness = new Thickness(2), BorderBrush = AppTheme.Brush("#1F6FD6"),
         Padding = new Thickness(4, 2), MinHeight = 0, CornerRadius = new CornerRadius(0), AcceptsReturn = false, FontSize = 13,
         VerticalContentAlignment = VerticalAlignment.Center,
     };
@@ -63,7 +63,7 @@ public sealed class SheetGrid : UserControl
         g.Children.Add(host);
         Grid.SetColumn(_vbar, 1); g.Children.Add(_vbar);
         Grid.SetRow(_hbar, 1); g.Children.Add(_hbar);
-        Content = new Border { BorderBrush = AppTheme.Brush("#D5DBE3"), BorderThickness = new Thickness(1), Background = AppTheme.Card, Child = g };
+        Content = new Border { BorderBrush = AppTheme.Brush("#E3E8EF"), BorderThickness = new Thickness(1), Background = AppTheme.Card, Child = g };
         _vbar.Scroll += (_, _) => { TopRow = (int)Math.Round(_vbar.Value); Redraw(); };
         _hbar.Scroll += (_, _) => { OffsetX = _hbar.Value; Redraw(); };
         _vbar.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty) { TopRow = (int)Math.Round(_vbar.Value); Redraw(); } };
@@ -343,14 +343,14 @@ public sealed class SheetGrid : UserControl
     private sealed class GridSurface : Control
     {
         private readonly SheetGrid _g;
-        private static readonly IBrush HeadBg = AppTheme.Brush("#F1F4F8");
-        private static readonly IBrush HeadSelBg = AppTheme.Brush("#D9E6F7");
-        private static readonly IBrush SelBg = AppTheme.Brush("#E3EEFB");
-        private static readonly IPen Line = new Pen(AppTheme.Brush("#E3E7ED"), 1);
-        private static readonly IPen HeadLine = new Pen(AppTheme.Brush("#CBD3DD"), 1);
-        private static readonly IPen SelPen = new Pen(AppTheme.Brush("#1F6FD1"), 2);
-        private static readonly IBrush Text = AppTheme.Brush("#1F2937");
-        private static readonly IBrush HeadText = AppTheme.Brush("#475569");
+        private static readonly IBrush HeadBg = AppTheme.Brush("#F8FAFC");
+        private static readonly IBrush HeadSelBg = AppTheme.Brush("#E6F0FC");
+        private static readonly IBrush SelBg = AppTheme.Brush("#E6F0FC");
+        private static readonly IPen Line = new Pen(AppTheme.Brush("#E3E8EF"), 1);
+        private static readonly IPen HeadLine = new Pen(AppTheme.Brush("#CDD5DF"), 1);
+        private static readonly IPen SelPen = new Pen(AppTheme.Brush("#1F6FD6"), 2);
+        private static readonly IBrush Text = AppTheme.Brush("#1A2433");
+        private static readonly IBrush HeadText = AppTheme.Brush("#5D6B78");
         private static readonly Typeface Face = new(FontFamily.Default);
         private static readonly Typeface Bold = new(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold);
         private enum Drag { None, Cells, Rows, Cols, Resize }
