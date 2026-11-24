@@ -13,6 +13,7 @@ public class UpdateScriptTests
         Assert.Contains(@"$exe = 'C:\Kho Lanh''s\KhoLanh.exe'", s);                       // dấu ' trong đường dẫn được nhân đôi
         Assert.Contains("$_.Id -ne 4321", s);                                              // đếm cửa sổ KHÁC cùng file exe
         Assert.Contains("$_.Path -eq $exe", s);
+        Assert.Contains("Get-Process -Name 'KhoLanh'", s);                                  // chỉ quét tiến trình cùng tên (nhanh, 1.59)
         Assert.Contains("$p.WaitForExit(60000)", s);
         var wait = s.IndexOf("while ((Others).Count -gt 0)", StringComparison.Ordinal);
         var move = s.IndexOf("Move-Item -LiteralPath $exe -Destination $cu", StringComparison.Ordinal);
