@@ -228,7 +228,7 @@ public class SoDoTests : IDisposable
         var rows = _s.Entry.Load(page);
         Assert.Equal(8, rows.Count);
         var cols = page.Columns.Select(c => c.Header).ToList();
-        int cVt = cols.IndexOf("Vị trí"), cMa = cols.IndexOf("Mã hàng"), cSl = cols.IndexOf("Số thùng"), cGc = cols.IndexOf("Ghi chú");
+        int cVt = cols.IndexOf("Vị trí"), cMa = cols.IndexOf("Mã hàng"), cSl = cols.IndexOf("Số lượng"), cGc = cols.IndexOf("Ghi chú");
         Assert.Equal("lô L1", rows[0][cGc]);
         Assert.Equal("50", rows[0][cSl]);
 
