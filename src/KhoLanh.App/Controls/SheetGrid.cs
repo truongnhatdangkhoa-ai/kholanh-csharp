@@ -78,7 +78,7 @@ public sealed class SheetGrid : UserControl
     internal const double CheckW = 26;
     /// <summary>Cột số lượng gắn với ô chọn ☐ đầu dòng: tích = điền <see cref="CheckFill"/> (thường là tồn còn xuất được), bỏ tích = xóa;
     /// ô có số &gt; 0 thì hiện đã tích. Tích ô tiêu đề = chọn / bỏ mọi dòng ĐANG HIỆN (sau lọc). Phím cách = tích các dòng đang chọn. -1 = không có.</summary>
-    public int CheckCol { get => _checkCol; set { _checkCol = value; UpdateScroll(); Redraw(); } }
+    public int CheckCol { get => _checkCol; set { _checkCol = value; _sumDirty = true; UpdateScroll(); Redraw(); } }
     private int _checkCol = -1;
     /// <summary>Giá trị điền vào cột <see cref="CheckCol"/> khi tích dòng (dòng dữ liệu → chữ).</summary>
     public Func<int, string>? CheckFill { get; set; }
@@ -150,6 +150,7 @@ public sealed class SheetGrid : UserControl
     /// <summary>Lọc lại theo bộ lọc hiện có (gọi sau khi đổi bộ lọc hoặc nạp dữ liệu mới).</summary>
     public void ApplyFilter()
     {
+        _sumDirty = true;
         var keepRow = Row; var keepAnchor = AnchorRow;
         var act = FilterByIndex();
         _map = act.Count == 0 ? null : GridFilter.Rows(Model.RowCount, CellText, act);
@@ -182,6 +183,7 @@ public sealed class SheetGrid : UserControl
 
     private void OnModelChanged()
     {
+        _sumDirty = true;
         // Nạp dữ liệu mới / đổi số dòng → lọc lại (giữ bộ lọc của cột còn tồn tại); sửa ô thì giữ nguyên các dòng đang hiện như Excel.
         if (Model.Loads != _seenLoads || Model.RowCount != _seenRows)
         {
@@ -255,7 +257,7 @@ public sealed class SheetGrid : UserControl
     {
         Model = model;
         _surface = new GridSurface(this) { Focusable = true, ClipToBounds = true };
-        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("*,Auto") };
+        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("*,Auto,Auto") };
         var host = new Panel { ClipToBounds = true };
         host.Children.Add(_surface);
         host.Children.Add(_overlay);
@@ -263,7 +265,9 @@ public sealed class SheetGrid : UserControl
         _overlay.Children.Add(_fEditor);
         g.Children.Add(host);
         Grid.SetColumn(_vbar, 1); g.Children.Add(_vbar);
-        Grid.SetRow(_hbar, 1); g.Children.Add(_hbar);
+        _totals = new TotalsBar(this) { IsVisible = false };
+        Grid.SetRow(_totals, 1); g.Children.Add(_totals);
+        Grid.SetRow(_hbar, 2); g.Children.Add(_hbar);
         Content = new Border { BorderBrush = AppTheme.Brush("#B9C3D0"), BorderThickness = new Thickness(1), Background = AppTheme.Card, Child = g };
         _vbar.Scroll += (_, _) => { TopRow = (int)Math.Round(_vbar.Value); Redraw(); };
         _hbar.Scroll += (_, _) => { OffsetX = _hbar.Value; Redraw(); };
@@ -339,7 +343,7 @@ public sealed class SheetGrid : UserControl
         Redraw();
     }
 
-    internal void Redraw() { _surface.InvalidateVisual(); if (_editing) PlaceEditor(); if (_fEditor.IsVisible) PlaceFilterEditor(); }
+    internal void Redraw() { _totals.Update(); _surface.InvalidateVisual(); if (_editing) PlaceEditor(); if (_fEditor.IsVisible) PlaceFilterEditor(); }
 
     /// <summary>Gọi sau khi đổi cột / nạp dữ liệu.</summary>
     public void Refresh()
@@ -660,6 +664,9 @@ public sealed class SheetGrid : UserControl
         var fMenu = Item("Lọc cột này…", () => OpenFilterMenu(Col), "Alt+Down");
         var fClear = Item("Bỏ mọi bộ lọc", ClearFilters);
         menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, new Separator());
+        var sumItem = new MenuItem { ToggleType = MenuItemToggleType.CheckBox };
+        sumItem.Click += (_, _) => { if (Col >= 0 && Col < Model.ColCount) { ToggleSum(Model.Columns[Col].Header); } };
+        menu.Items.Insert(5, sumItem); menu.Items.Insert(6, new Separator());
         menu.Opening += (_, _) =>
         {
             big.IsVisible = CanEnlarge; ((Separator)menu.Items[1]!).IsVisible = CanEnlarge;
@@ -667,8 +674,135 @@ public sealed class SheetGrid : UserControl
             fClear.IsEnabled = _map is not null;
             fClear.Header = _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
             ((Separator)menu.Items[2]!).IsVisible = _filterable;
+            var okc = ShowTotals && Col >= 0 && Col < Model.ColCount;
+            sumItem.IsVisible = okc; ((Separator)menu.Items[6]!).IsVisible = okc;
+            if (okc) { sumItem.Header = $"Cộng cột “{Model.Columns[Col].Header}” ở dòng Tổng"; sumItem.IsChecked = SumCol(Col); }
         };
         _surface.ContextMenu = menu;
+    }
+
+    // ------------------------------------------------------------------ dòng tổng (1.54)
+
+    private readonly TotalsBar _totals;
+    private bool _sumDirty = true;
+    private double?[] _sumAll = Array.Empty<double?>(), _sumChk = Array.Empty<double?>();
+    private int _chkCount;
+    /// <summary>Có dòng "Tổng" cố định ở đáy bảng (cộng các dòng đang hiện; bảng có ô tích thêm dòng "Đã chọn"). Mặc định bật; tự ẩn khi không có cột nào để cộng hoặc bảng quá thấp.</summary>
+    public bool ShowTotals { get; set; } = true;
+    private static HashSet<string>? _sumOn, _sumOff;
+    private const string KeyOn = "ui_sum_on", KeyOff = "ui_sum_off";
+    private static void LoadSumPrefs()
+    {
+        if (_sumOn is not null) return;
+        HashSet<string> Read(string k) { try { return App.Services.Settings.Get(k).Split('\n', StringSplitOptions.RemoveEmptyEntries).ToHashSet(); } catch { return new(); } }
+        _sumOn = Read(KeyOn); _sumOff = Read(KeyOff);
+    }
+    /// <summary>Cột c có được cộng ở dòng Tổng không (người dùng bật / tắt theo tên cột, còn lại theo <see cref="GridTotals.DefaultSum"/>).</summary>
+    internal bool SumCol(int c)
+    {
+        if (c < 0 || c >= Model.ColCount || Model.Columns[c].Width < 4) return false;
+        LoadSumPrefs();
+        var k = GridTotals.Key(Model.Columns[c].Header);
+        return _sumOn!.Contains(k) || (!_sumOff!.Contains(k) && GridTotals.DefaultSum(Model.Columns[c].Header));
+    }
+    private void ToggleSum(string header)
+    {
+        LoadSumPrefs();
+        var k = GridTotals.Key(header); var on = !SumCol(Model.Columns.ToList().FindIndex(x => x.Header == header));
+        _sumOn!.Remove(k); _sumOff!.Remove(k);
+        if (on != GridTotals.DefaultSum(header)) (on ? _sumOn : _sumOff).Add(k);
+        try { App.Services.Settings.Set(KeyOn, string.Join("\n", _sumOn)); App.Services.Settings.Set(KeyOff, string.Join("\n", _sumOff)); } catch { /* chỉ là tuỳ chọn hiển thị */ }
+        _sumDirty = true; Redraw();
+    }
+    private void ComputeSums()
+    {
+        if (!_sumDirty) return;
+        _sumDirty = false;
+        var rows = ShownRows;
+        _sumAll = GridTotals.Sum(Model, rows, SumCol);
+        _chkCount = 0;
+        if (HasCheck)
+        {
+            _chkCount = rows.Count(IsChecked);
+            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, IsChecked) : Array.Empty<double?>();
+        }
+        else _sumChk = Array.Empty<double?>();
+    }
+
+    /// <summary>Dòng "Tổng" (và "Đã chọn") vẽ thẳng hàng với các cột của bảng, cuộn ngang theo bảng.</summary>
+    private sealed class TotalsBar : Control
+    {
+        private readonly SheetGrid _g;
+        private static readonly IBrush Bg = AppTheme.Brush("#F3F6FA");
+        private static readonly IBrush ChkBg = AppTheme.Brush("#E6F0FC");
+        private static readonly IPen Top = new Pen(AppTheme.Brush("#B9C3D0"), 1);
+        private static readonly IPen Sep = new Pen(AppTheme.Brush("#DDE3EA"), 1);
+        private static readonly IBrush Fg = AppTheme.Brush("#1A2433");
+        private static readonly IBrush Mut = AppTheme.Brush("#5D6B78");
+        private static readonly IBrush AccentFg = AppTheme.Brush("#1859AE");
+        private static readonly Typeface Bold = new(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);
+        private static readonly Typeface Norm = new(FontFamily.Default);
+        public TotalsBar(SheetGrid g) { _g = g; ClipToBounds = true; }
+
+        public void Update()
+        {
+            var g = _g;
+            var show = g.ShowTotals && g.Model.ColCount > 0 && (g.Bounds.Height <= 0 || g.Bounds.Height >= HeadH + RowH * 5 + 30);
+            if (show)
+            {
+                g.ComputeSums();
+                show = g._sumAll.Any(x => x.HasValue);
+            }
+            var h = show ? RowH * (g._chkCount > 0 ? 2 : 1) + 1 : 0;
+            if (IsVisible != show) IsVisible = show;
+            if (Math.Abs(Height - h) > 0.5) Height = h;
+            InvalidateVisual();
+        }
+
+        public override void Render(DrawingContext dc)
+        {
+            var g = _g; var b = Bounds; if (b.Width <= 0 || b.Height <= 0) return;
+            var rh = RowH; var rhw = g.RowHeadW;
+            var lines = new List<(string Label, double?[] Sums, IBrush Bg, string Count)>
+            {
+                ("Tổng", g._sumAll, Bg, $"{g.VCount:#,0} dòng"),
+            };
+            if (g._chkCount > 0) lines.Add(("Đã chọn", g._sumChk, ChkBg, $"{g._chkCount:#,0} dòng"));
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var (label, sums, bg, cnt) = lines[i];
+                var y = 1 + i * rh;
+                dc.FillRectangle(bg, new Rect(0, y, b.Width, rh));
+                Text(dc, label, Bold, i == 0 ? Fg : AccentFg, new Rect(6, y, rhw - 8, rh), left: true);
+                using (dc.PushClip(new Rect(rhw, y, Math.Max(0, b.Width - rhw), rh)))
+                {
+                    var x = rhw - g.OffsetX; var cntDone = false;
+                    for (var c = 0; c < g.Model.ColCount; c++)
+                    {
+                        var w = g.Model.Columns[c].Width;
+                        if (x + w > rhw && x < b.Width)
+                        {
+                            if (c < sums.Length && sums[c] is { } v)
+                                Text(dc, v.ToString("#,0.###", Ui.Vi), Bold, i == 0 ? Fg : AccentFg, new Rect(x + 4, y, w - 8, rh), left: false);
+                            else if (!cntDone && w >= 60 && !(c < sums.Length && g.SumCol(c)))
+                            { Text(dc, cnt, Norm, Mut, new Rect(x + 6, y, w - 10, rh), left: true); cntDone = true; }
+                        }
+                        else if (x + w <= rhw) { /* cột đã cuộn khuất bên trái */ }
+                        x += w;
+                        if (x < b.Width) dc.DrawLine(Sep, new Point(x, y), new Point(x, y + rh));
+                    }
+                }
+            }
+            dc.DrawLine(Top, new Point(0, 0.5), new Point(b.Width, 0.5));
+        }
+
+        private static void Text(DrawingContext dc, string s, Typeface tf, IBrush fg, Rect r, bool left)
+        {
+            if (r.Width <= 4) return;
+            var ft = new FormattedText(s, System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, tf, 12.5, fg) { MaxTextWidth = r.Width, MaxLineCount = 1, Trimming = TextTrimming.CharacterEllipsis };
+            var x = left ? r.X : r.Right - ft.Width;
+            dc.DrawText(ft, new Point(x, r.Y + (r.Height - ft.Height) / 2));
+        }
     }
 
     // ------------------------------------------------------------------ bề mặt vẽ

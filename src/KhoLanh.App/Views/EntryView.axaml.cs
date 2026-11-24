@@ -32,6 +32,7 @@ public partial class EntryView : UserControl, IPage
     {
         public string Name => Page.Name;
         public string Line => $"{Page.Rows:#,0} dòng · {Short(Page.UpdatedAt)}" + (Page.UpdatedBy.Length > 0 ? " · " + Page.UpdatedBy : "");
+        public override string ToString() => Name;
         private static string Short(string at) => DateTime.TryParse(at, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd/MM HH:mm") : at;
     }
 
@@ -58,6 +59,7 @@ public partial class EntryView : UserControl, IPage
         DetachedFromVisualTree += async (_, _) => { if (_dirty) await SaveAsync(quiet: true); };
         var edit = Svc.CanEdit;
         NewButton.IsEnabled = RenameButton.IsEnabled = DeleteButton.IsEnabled = RestoreButton.IsEnabled = edit;
+        Tabs.SelectionChanged += (_, e) => { if (e.Source == Tabs && Tabs.SelectedIndex == 1) Dispatcher.UIThread.Post(() => PageList.ScrollIntoView(PageList.SelectedItem ?? new object())); };
         SaveButton.IsVisible = ImportButton.IsVisible = ColumnsButton.IsVisible = TemplateButton.IsVisible = edit;
         ExportButton.IsVisible = Svc.CanExport;
         _model.ReadOnly = !edit;
@@ -84,9 +86,37 @@ public partial class EntryView : UserControl, IPage
         DeleteButton.Content = trash ? "Xóa hẳn" : "Xóa";
         var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash ? shown.FirstOrDefault() : null);
         if (target is not null) PageList.SelectedItem = target;
+        SyncCombo();
         EmptyText.IsVisible = _page is null;
         EmptyText.Text = trash ? "Chọn một trang trong thùng rác để xem hoặc khôi phục." : "Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống).";
     }
+
+    private bool _syncing;
+    /// <summary>Ô chọn trang trên đầu bảng: các trang đang dùng (không gồm thùng rác), chọn đúng trang đang mở.</summary>
+    private void SyncCombo()
+    {
+        _syncing = true;
+        try
+        {
+            var trash = TrashToggle.IsChecked == true;
+            var list = trash ? new List<Item>() : _items;
+            PageCombo.ItemsSource = list;
+            PageCombo.SelectedItem = list.FirstOrDefault(i => i.Page.Id == _page?.Id);
+            PageCombo.PlaceholderText = trash ? "(đang xem thùng rác)" : list.Count == 0 ? "(chưa có trang)" : "Chọn trang…";
+        }
+        finally { _syncing = false; }
+    }
+
+    private async void OnComboSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || PageCombo.SelectedItem is not Item it || it.Page.Id == _page?.Id) return;
+        if (_dirty && !await SaveAsync(quiet: true)) { SyncCombo(); return; }
+        PageList.SelectedItem = _items.FirstOrDefault(i => i.Page.Id == it.Page.Id);
+        if (_page?.Id != it.Page.Id) Open(it.Page);
+    }
+
+    private void OnOpenPage(object? sender, RoutedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
+    private void OnListDoubleTapped(object? sender, TappedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
 
     private async void OnPageSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -109,7 +139,7 @@ public partial class EntryView : UserControl, IPage
         _grid.IsVisible = true; EmptyText.IsVisible = false;
         _grid.Refresh();
         _grid.Select(0, 0);
-        PageTitle.Text = p.Name;
+        SyncCombo();
         SaveState.Text = p.Deleted ? "Trong thùng rác (chỉ xem)" : $"Đã lưu {p.UpdatedAt}";
         UpdateStatus();
         Dispatcher.UIThread.Post(() => _grid.Focus());
@@ -117,7 +147,7 @@ public partial class EntryView : UserControl, IPage
 
     private void OnTrashToggle(object? sender, RoutedEventArgs e)
     {
-        _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -133,6 +163,7 @@ public partial class EntryView : UserControl, IPage
         if (TrashToggle.IsChecked == true) TrashToggle.IsChecked = false;
         ReloadList(p!.Id);
         Open(p);
+        Tabs.SelectedIndex = 0;
     }
 
     private async void OnRename(object? sender, RoutedEventArgs e)
@@ -142,7 +173,6 @@ public partial class EntryView : UserControl, IPage
         if (string.IsNullOrWhiteSpace(name)) return;
         if (!await Ui.Run(this, () => Svc.Rename(_page.Id, name))) return;
         _page = _page with { Name = name.Trim() };
-        PageTitle.Text = _page.Name;
         ReloadList(_page.Id);
     }
 
@@ -154,7 +184,7 @@ public partial class EntryView : UserControl, IPage
         if (!await Ui.Confirm(this, msg, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
         if (!forever && _dirty) await SaveAsync(quiet: true);
         if (!await Ui.Run(this, () => Svc.Delete(_page.Id, forever))) return;
-        _dirty = false; _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -259,6 +289,7 @@ public partial class EntryView : UserControl, IPage
             TrashToggle.IsChecked = false;
             ReloadList(page!.Id);
             Open(page);
+            Tabs.SelectedIndex = 0;
             return;
         }
         // thêm vào cuối, khớp tên cột (không phân biệt hoa thường); cột không khớp bỏ qua
