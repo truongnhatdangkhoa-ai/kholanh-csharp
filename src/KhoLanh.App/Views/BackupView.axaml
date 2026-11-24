@@ -1,102 +1,112 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.BackupView">
-  <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+  <!-- 1.56: gọn lại — bỏ Thông tin công ty (giữ Tên kho), ghi chú dài chuyển thành gợi ý khi rê chuột. Trái: cài đặt máy · Phải: sao lưu. -->
+  <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
     <ScrollViewer>
-    <StackPanel Spacing="16" Margin="0,0,6,0">
-      <Border Classes="card">
-        <StackPanel Spacing="4">
-          <TextBlock Text="Thông tin công ty" Classes="section"/>
-          <TextBlock Text="Tên công ty" Classes="label"/><TextBox x:Name="CompanyBox"/>
-          <TextBlock Text="Địa chỉ" Classes="label"/><TextBox x:Name="AddressBox"/>
-          <TextBlock Text="Tên kho" Classes="label"/><TextBox x:Name="WarehouseBox" Watermark="VD: Kho lạnh số 1"/>
-          <Button Content="Lưu thông tin" Classes="primary" Click="OnSaveSettings" Margin="0,10,0,0"/>
-        </StackPanel>
-      </Border>
-      <Border Classes="card">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Dữ liệu" Classes="section"/>
-          <TextBlock x:Name="PathText" TextWrapping="Wrap"/>
-          <TextBlock Classes="muted" TextWrapping="Wrap"
-                     Text="Dữ liệu của phần mềm này nằm riêng, không dùng chung và không ảnh hưởng tới phần mềm kho cũ."/>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Mở thư mục dữ liệu" Click="OnOpenFolder"/>
-            <Button Content="Đổi nơi lưu dữ liệu…" Click="OnChangeFolder"/>
+      <StackPanel Spacing="12" Margin="0,0,6,0">
+        <!-- Máy này: tên kho + nơi lưu dữ liệu -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Máy này" Classes="section"/>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+              <TextBlock Text="Tên kho" VerticalAlignment="Center" Width="80"/>
+              <TextBox Grid.Column="1" x:Name="WarehouseBox" Watermark="VD: Kho lạnh số 1" ToolTip.Tip="Hiện dưới chữ KHO LẠNH trên thanh menu"/>
+              <Button Grid.Column="2" Content="Lưu" Click="OnSaveSettings"/>
+            </Grid>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+              <TextBlock Text="Dữ liệu" VerticalAlignment="Center" Width="80"/>
+              <TextBlock Grid.Column="1" x:Name="PathText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Tag="keep"/>
+            </Grid>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="88,0,0,0">
+              <Button Content="Mở thư mục dữ liệu" Click="OnOpenFolder"/>
+              <Button Content="Đổi nơi lưu dữ liệu…" Click="OnChangeFolder"/>
+            </StackPanel>
           </StackPanel>
-        </StackPanel>
-      </Border>
-      <Border Classes="card">
-        <StackPanel x:Name="BootPanel" Spacing="6"/>
-      </Border>
-      <Border Classes="card">
-        <StackPanel Spacing="6">
-          <TextBlock Text="Cập nhật phần mềm (online)" Classes="section"/>
-          <TextBlock x:Name="UpdVersionText" TextWrapping="Wrap"/>
-          <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
-                     Text="Phần mềm tự hỏi GitHub lúc mở và mỗi 30 phút, tải ngầm bản mới; bấm nút Cập nhật trên thanh menu (hoặc mở lại phần mềm) là dùng bản mới. Không cần cài lại, dữ liệu giữ nguyên, giữ bản trước để quay lại."/>
-          <StackPanel x:Name="UpdConfigPanel" Spacing="4">
-            <TextBlock Text="Kho GitHub" Classes="label"/><TextBox x:Name="UpdRepoBox"/>
-            <TextBlock Text="Mã truy cập GitHub (token chỉ-đọc, cần khi kho riêng tư)" Classes="label"/>
-            <TextBox x:Name="UpdTokenBox" PasswordChar="•" Watermark="Để trống = giữ mã đã lưu"/>
-            <CheckBox x:Name="UpdAutoBox" Content="Tự động kiểm tra và tải bản mới"/>
+        </Border>
+        <!-- Khởi động cùng Windows -->
+        <Border Classes="card">
+          <StackPanel x:Name="BootPanel" Spacing="6"/>
+        </Border>
+        <!-- Cập nhật -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Cập nhật phần mềm" Classes="section" VerticalAlignment="Center"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="UpdRollbackButton" Content="Quay lại bản trước" Click="OnUpdRollback"/>
+                <Button Content="Kiểm tra cập nhật" Classes="primary" Click="OnUpdCheck"
+                        ToolTip.Tip="Phần mềm tự hỏi GitHub lúc mở và mỗi 30 phút, tải ngầm bản mới; dữ liệu giữ nguyên."/>
+              </StackPanel>
+            </Grid>
+            <TextBlock x:Name="UpdVersionText" TextWrapping="Wrap" Tag="keep"/>
+            <StackPanel x:Name="UpdConfigPanel" Spacing="6">
+              <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
+                <TextBlock Text="Kho GitHub" VerticalAlignment="Center"/>
+                <TextBox Grid.Column="1" x:Name="UpdRepoBox"/>
+                <TextBlock Grid.Column="2" Text="Mã truy cập" VerticalAlignment="Center" Margin="8,0,0,0" ToolTip.Tip="Token chỉ-đọc, cần khi kho riêng tư"/>
+                <TextBox Grid.Column="3" x:Name="UpdTokenBox" PasswordChar="•" Watermark="Để trống = giữ mã đã lưu"/>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <CheckBox x:Name="UpdAutoBox" Content="Tự động kiểm tra và tải bản mới"/>
+                <Button x:Name="UpdSaveButton" Content="Lưu" Click="OnUpdSave"/>
+              </StackPanel>
+            </StackPanel>
+            <TextBlock x:Name="UpdStatus" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
-            <Button x:Name="UpdSaveButton" Content="Lưu" Click="OnUpdSave"/>
-            <Button Content="Kiểm tra cập nhật" Classes="primary" Click="OnUpdCheck"/>
-            <Button x:Name="UpdRollbackButton" Content="Quay lại bản trước" Click="OnUpdRollback"/>
+        </Border>
+        <!-- Tài khoản dùng chung -->
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="Tài khoản dùng chung (Google Sheet)" Classes="section"/>
+            <TextBlock x:Name="AcctStatus" TextWrapping="Wrap" Tag="keep"/>
+            <StackPanel x:Name="AcctSetupPanel" Spacing="6">
+              <Expander Header="Hướng dẫn kết nối lần đầu" HorizontalAlignment="Stretch">
+                <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
+                           Text="Máy quản trị: (1) bấm Tạo mã Apps Script (mã được chép sẵn); (2) tạo Google Sheet trống › Tiện ích mở rộng › Apps Script, xóa hết, dán, Lưu; (3) Triển khai › Tùy chọn triển khai mới › Ứng dụng web, Thực thi: Tôi, Ai có quyền truy cập: Bất kỳ ai › Triển khai, chép đường dẫn …/exec; (4) dán vào ô dưới, bấm Kết nối. Máy khác: dán mã kết nối KLTK1-… rồi bấm Kết nối."/>
+              </Expander>
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBox x:Name="AcctInput" Watermark="Đường dẫn Web App (…/exec) hoặc mã kết nối KLTK1-…"/>
+                <Button Grid.Column="1" x:Name="AcctScriptButton" Content="Tạo mã Apps Script" Click="OnAcctScript" ToolTip.Tip="Tự chép vào bộ nhớ"/>
+                <Button Grid.Column="2" Content="Kết nối" Classes="primary" Click="OnAcctConnect"/>
+              </Grid>
+            </StackPanel>
+            <WrapPanel x:Name="AcctOnPanel" ItemSpacing="8" LineSpacing="8">
+              <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
+              <Button Content="Tạo bộ cài cho máy mới…" Click="OnAcctBundle"/>
+              <Button Content="Chép mã máy nhân viên" Click="OnAcctCodeStaff"/>
+              <Button x:Name="AcctCodeAdminButton" Content="Chép mã máy quản trị" Click="OnAcctCodeAdmin"/>
+              <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
+            </WrapPanel>
+            <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
-          <TextBlock x:Name="UpdStatus" Classes="muted" TextWrapping="Wrap"/>
-        </StackPanel>
-      </Border>
-      <Border Classes="card">
-        <StackPanel Spacing="6">
-          <TextBlock Text="Tài khoản dùng chung cho mọi máy (Google Sheet)" Classes="section"/>
-          <TextBlock x:Name="AcctStatus" TextWrapping="Wrap"/>
-          <StackPanel x:Name="AcctSetupPanel" Spacing="6">
-            <TextBlock Classes="muted" TextWrapping="Wrap" FontSize="12"
-                       Text="Máy quản trị, lần đầu: (1) bấm Tạo mã Apps Script, mã được chép sẵn; (2) tạo một Google Sheet trống › Tiện ích mở rộng › Apps Script, xóa hết, dán (Ctrl+V), bấm Lưu; (3) Triển khai › Tùy chọn triển khai mới › loại Ứng dụng web, Thực thi với tư cách: Tôi, Ai có quyền truy cập: Bất kỳ ai › Triển khai, cho phép quyền, chép đường dẫn kết thúc bằng /exec; (4) dán vào ô dưới và bấm Kết nối. Máy khác: dán mã kết nối KLTK1-… rồi bấm Kết nối."/>
-            <Button x:Name="AcctScriptButton" Content="Tạo mã Apps Script (tự chép vào bộ nhớ)" Click="OnAcctScript"/>
-            <TextBlock Text="Đường dẫn Web App (…/exec) hoặc mã kết nối KLTK1-…" Classes="label"/>
-            <TextBox x:Name="AcctInput"/>
-            <Button Content="Kết nối" Classes="primary" Click="OnAcctConnect"/>
-          </StackPanel>
-          <WrapPanel x:Name="AcctOnPanel" ItemSpacing="8" LineSpacing="8">
-            <Button Content="Tạo bộ cài cho máy mới…" Classes="primary" Click="OnAcctBundle"/>
-            <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
-            <Button Content="Chép mã cho máy nhân viên" Click="OnAcctCodeStaff"/>
-            <Button x:Name="AcctCodeAdminButton" Content="Chép mã cho máy quản trị" Click="OnAcctCodeAdmin"/>
-            <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
-          </WrapPanel>
-          <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap"/>
-        </StackPanel>
-      </Border>
-      <Border Classes="card">
-        <StackPanel Spacing="8">
-          <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section"/>
-          <TextBlock Classes="muted" TextWrapping="Wrap"
-                     Text="Chép dữ liệu của các module dùng chung từ file database app cũ (thư mục app cũ › app › database › engine › khokhanh.db): Tồn kho An An, Tồn kho gửi, Tổng hợp (mã hóa, ánh xạ tên), Báo cáo rã đông, Tồn kho theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê, Kết quả kháng sinh. Chỉ ĐỌC file cũ, không sửa gì bên app cũ. Dữ liệu các bảng đó trong app mới sẽ được thay bằng bản chép."/>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Chọn khokhanh.db và chép..." Click="OnImportLegacy"/>
-          </StackPanel>
-        </StackPanel>
-      </Border>
-    </StackPanel>
+        </Border>
+        <!-- Chép từ app cũ -->
+        <Border Classes="card">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
+                    ToolTip.Tip="Chép Tồn kho An An, Tồn kho gửi, Tổng hợp, Báo cáo rã đông, Tồn theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê, Kết quả kháng sinh từ app cũ (app › database › engine › khokhanh.db). Chỉ đọc file cũ; dữ liệu các bảng đó ở app mới được thay bằng bản chép."/>
+          </Grid>
+        </Border>
+      </StackPanel>
     </ScrollViewer>
+
+    <!-- Sao lưu và khôi phục -->
     <Border Grid.Column="1" Classes="card">
       <DockPanel>
-        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,10">
-          <TextBlock Text="Sao lưu và khôi phục" Classes="section"/>
-          <TextBlock Classes="muted" TextWrapping="Wrap"
-                     Text="Mỗi ngày, lần mở phần mềm đầu tiên sẽ tự sao lưu (giữ 30 bản gần nhất). Nên chép thêm bản sao lưu ra USB hoặc Google Drive định kỳ."/>
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <Button Content="Sao lưu ra file..." Classes="primary" Click="OnBackup"/>
-            <Button x:Name="RestoreFileButton" Content="Khôi phục từ file..." Classes="danger" Click="OnRestoreFile"/>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+          <TextBlock Text="Sao lưu và khôi phục" Classes="section" VerticalAlignment="Center"
+                     ToolTip.Tip="Mỗi ngày, lần mở đầu tiên tự sao lưu (giữ 30 bản). Nên chép thêm ra USB / Google Drive định kỳ."/>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button x:Name="RestoreFileButton" Content="Khôi phục từ file…" Classes="danger" Click="OnRestoreFile"/>
+            <Button Content="Sao lưu ra file…" Classes="primary" Click="OnBackup"/>
           </StackPanel>
-          <TextBlock Text="Các bản sao lưu tự động" Classes="label" Margin="0,8,0,0"/>
-        </StackPanel>
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
-          <Button x:Name="RestoreSelButton" Content="Khôi phục bản đang chọn" Classes="danger" Click="OnRestoreSelected"/>
-        </StackPanel>
+        </Grid>
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+          <TextBlock Text="Bản sao lưu tự động — giữ 30 bản gần nhất" Classes="muted" FontSize="12" VerticalAlignment="Center" Tag="keep"/>
+          <Button Grid.Column="1" x:Name="RestoreSelButton" Content="Khôi phục bản đang chọn" Classes="danger" Click="OnRestoreSelected"/>
+        </Grid>
         <DataGrid x:Name="Grid">
           <DataGrid.Columns>
             <DataGridTextColumn Header="Tên file" Binding="{Binding Name}" Width="*"/>

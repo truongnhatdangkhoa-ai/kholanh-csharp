@@ -7,7 +7,7 @@ public static class BootSettings
 {
     // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------
 
-    public static StackPanel Build(Control owner)
+    public static StackPanel Build(Control owner, bool compact = false)
     {
         var BootPanel = new StackPanel { Spacing = 6 };
         var s = App.Services; var user = s.Session.Username;
@@ -16,13 +16,15 @@ public static class BootSettings
         var msg = new TextBlock { Classes = { "muted" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12 };
         var save = new Button { Content = "Lưu", Classes = { "primary" } };
         BootPanel.Children.Add(new TextBlock { Text = "Khởi động cùng Windows", Classes = { "section" } });
-        BootPanel.Children.Add(new TextBlock
+        ToolTip.SetTip(boot, "Cài riêng cho máy này và tài khoản Windows đang dùng — hợp cho máy chủ LAN.");
+        ToolTip.SetTip(auto, "Mật khẩu được mã hóa theo tài khoản Windows của máy này. Máy chủ không cần gõ mật khẩu Windows: Win + R › netplwiz, tắt chế độ ngủ.");
+        if (!compact) BootPanel.Children.Add(new TextBlock
         {
             Text = "Cài riêng cho máy này và tài khoản Windows đang dùng. Bật cả hai thì bật máy là phần mềm tự mở và vào thẳng — hợp cho máy chủ (máy chủ LAN tự phục vụ các máy con, tự đồng bộ Drive, tự sao lưu). Mật khẩu được mã hóa theo tài khoản Windows của máy này.",
             Classes = { "muted" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap,
         });
         BootPanel.Children.Add(boot); BootPanel.Children.Add(auto);
-        BootPanel.Children.Add(new TextBlock
+        if (!compact) BootPanel.Children.Add(new TextBlock
         {
             Text = "Máy chủ muốn bật máy là chạy mà không cần ai gõ mật khẩu Windows: bật tự đăng nhập Windows (Win + R › netplwiz) và tắt chế độ ngủ (Cài đặt › Nguồn › Không bao giờ).",
             Classes = { "muted" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12,

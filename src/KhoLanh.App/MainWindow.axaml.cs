@@ -61,6 +61,10 @@ public partial class MainWindow : Window
             {
                 new NavItem("m6", "Nhập liệu", () => new EntryView()),
             }),
+            ("PHIẾU XUẤT KHO", new[]
+            {
+                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
+            }),
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
@@ -69,7 +73,6 @@ public partial class MainWindow : Window
                 new NavItem("m3sk", "NXT Bột/Sốt", () => new SoKhoView()),
                 new NavItem("m1vtb", "Vị Trí Bột", () => new VtbView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
-                new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
             }),
             ("CHỨC NĂNG", new[]
             {

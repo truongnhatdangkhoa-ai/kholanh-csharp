@@ -9,7 +9,7 @@ namespace KhoLanh.App.Views;
 public partial class BackupView : UserControl, IPage
 {
     public string Title => "Sao lưu và cài đặt";
-    public string Subtitle => "Thông tin công ty, cập nhật phần mềm, tài khoản dùng chung, sao lưu và khôi phục dữ liệu.";
+    public string Subtitle => "Cài đặt máy này, cập nhật phần mềm, tài khoản dùng chung, sao lưu và khôi phục.";
 
     private record BackupRow(string Name, string FullName, DateTime LastWriteTime, long Kb);
 
@@ -17,10 +17,8 @@ public partial class BackupView : UserControl, IPage
     {
         InitializeComponent();
         var s = App.Services;
-        CompanyBox.Text = s.Settings.Get(SettingsService.CompanyName);
-        AddressBox.Text = s.Settings.Get(SettingsService.CompanyAddress);
         WarehouseBox.Text = s.Settings.Get(SettingsService.WarehouseName);
-        PathText.Text = "File dữ liệu: " + s.Db.FilePath;
+        PathText.Text = s.Db.FilePath; ToolTip.SetTip(PathText, s.Db.FilePath);
         var admin = Roles.IsAdmin(s.Session.Role);
         RestoreFileButton.IsVisible = RestoreSelButton.IsVisible = admin;
         LoadBackups();
@@ -190,11 +188,9 @@ public partial class BackupView : UserControl, IPage
         if (await Ui.Run(this, () =>
             {
                 s.Session.Require("backup");
-                s.Settings.Set(SettingsService.CompanyName, (CompanyBox.Text ?? "").Trim());
-                s.Settings.Set(SettingsService.CompanyAddress, (AddressBox.Text ?? "").Trim());
                 s.Settings.Set(SettingsService.WarehouseName, (WarehouseBox.Text ?? "").Trim());
             }))
-            MainWindow.Of(this)?.SetSubtitle("Đã lưu thông tin công ty.");
+            MainWindow.Of(this)?.SetSubtitle("Đã lưu tên kho — mở lại phần mềm để thấy trên thanh menu.");
     }
 
     private void OnOpenFolder(object? sender, RoutedEventArgs e) => Ui.OpenExternal(App.DataFolder);
@@ -275,5 +271,5 @@ public partial class BackupView : UserControl, IPage
     }
 
     // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------
-    private void BuildBoot() => BootPanel.Children.Add(BootSettings.Build(this));
+    private void BuildBoot() => BootPanel.Children.Add(BootSettings.Build(this, compact: true));
 }

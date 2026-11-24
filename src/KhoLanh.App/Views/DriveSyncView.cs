@@ -14,7 +14,7 @@ namespace KhoLanh.App.Views;
 public sealed class DriveSyncView : UserControl, IPage
 {
     public string Title => "Đồng bộ qua Google Drive";
-    public string Subtitle => "Máy chính đưa dữ liệu lên thư mục Google Drive; máy ở mạng khác tải về xem và gửi thay đổi ngược lại. Tệp được mã hóa.";
+    public string Subtitle => "Máy ở mạng khác dùng chung dữ liệu qua thư mục Google Drive (tệp mã hóa).";
 
     private static DriveSyncService Svc => App.Services.Drive;
     private readonly RadioButton _off = new() { GroupName = "drv", Content = "Tắt (không dùng đồng bộ Drive)" };
@@ -40,54 +40,67 @@ public sealed class DriveSyncView : UserControl, IPage
 
     public DriveSyncView()
     {
-        var s = new StackPanel { Spacing = 12, Margin = new Thickness(0, 6, 0, 0), MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
-        s.Children.Add(Card("Trạng thái", _status, _detail));
-        s.Children.Add(Card("Cách dùng",
-            Note("1) Cài Google Drive for Desktop trên cả hai máy, cùng đăng nhập một tài khoản Google (hoặc chia sẻ thư mục cho nhau)."),
-            Note("2) Máy chính (máy đang giữ dữ liệu): chọn vai Máy chính + thư mục Drive → Lưu → chép “mã đồng bộ”."),
-            Note("3) Máy ở mạng khác: chọn vai Máy xem từ xa + thư mục Drive (thư mục đã đồng bộ về máy) + dán mã đồng bộ → Lưu."),
-            Note("Dữ liệu cập nhật theo chu kỳ (khoảng 1 phút + thời gian Google Drive đồng bộ), không tức thời. Máy xa mất mạng vẫn làm việc với bản đã tải, nối lại sẽ tự gửi thay đổi."),
-            Note("Máy xem từ xa cần tài khoản đăng nhập trùng tên với tài khoản trên máy chính (dùng Tài khoản dùng chung qua Google Sheet).")));
-        var dirRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        dirRow.Children.Add(_dir); dirRow.Children.Add(Btn("Chọn thư mục…", async () => { var p = await Ui.OpenFolder(this, "Chọn thư mục Google Drive"); if (p is not null) _dir.Text = p; }));
+        // 1.56: trạng thái + hướng dẫn (thu gọn) trên cùng; trái = vai máy (cài tay / theo tài khoản); phải = máy ở nhà + sao lưu trên Drive. Ghi chú dài → gợi ý khi rê chuột.
+        var guide = new Expander
+        {
+            Header = "Hướng dẫn cài đặt", HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = new StackPanel { Spacing = 4, Children =
+            {
+                Note("1) Cài Google Drive for Desktop trên cả hai máy, cùng đăng nhập một tài khoản Google (hoặc chia sẻ thư mục cho nhau)."),
+                Note("2) Máy chính (máy đang giữ dữ liệu): chọn vai Máy chính + thư mục Drive → Lưu → chép “mã đồng bộ”."),
+                Note("3) Máy ở mạng khác: chọn vai Máy xem từ xa + thư mục Drive + dán mã đồng bộ → Lưu."),
+                Note("Dữ liệu cập nhật theo chu kỳ (≈ 1 phút + thời gian Google Drive đồng bộ). Máy xa mất mạng vẫn làm việc, nối lại tự gửi. Tài khoản máy xa phải trùng tên trên máy chính (Tài khoản dùng chung)."),
+            } },
+        };
+        var dirRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
+        _dir.MinWidth = 0;
+        dirRow.Children.Add(_dir); dirRow.Children.Add(Btn("Chọn thư mục…", async () => { var p = await Ui.OpenFolder(this, "Chọn thư mục Google Drive"); if (p is not null) _dir.Text = p; }).Also(x => Grid.SetColumn(x, 1)));
         _codePanel.Children.Add(new TextBlock { Text = "Mã đồng bộ (KLDRV1-…) chép từ máy chính", FontSize = 12.5 }); _codePanel.Children.Add(_code);
-        _mainPanel.Children.Add(new TextBlock { Text = "Mã đồng bộ cho máy xem từ xa (chứa khóa bí mật — đừng gửi nơi công khai):", FontSize = 12.5, TextWrapping = TextWrapping.Wrap });
-        _mainPanel.Children.Add(Btn("Chép mã đồng bộ", async () =>
+        var copyCode = Btn("Chép mã đồng bộ", async () =>
         {
             if (!Svc.Enabled) { _msg.Text = "Bấm “Lưu” để bật vai Máy chính trước."; return; }
             if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) await cb.SetTextAsync(Svc.Code());
             _msg.Text = "Đã chép mã đồng bộ. Dán vào máy xem từ xa.";
-        }));
+        });
+        ToolTip.SetTip(copyCode, "Mã chứa khóa bí mật — đừng gửi nơi công khai.");
+        _mainPanel.Children.Add(copyCode);
         var buttons = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         buttons.Children.Add(Btn("Lưu", async () => await Save(), primary: true));
         buttons.Children.Add(Btn("Đồng bộ ngay", async () => await SyncNow()));
         // ----- phân vai theo tài khoản
-        _planOn = new CheckBox { Content = "Bật: vai Drive theo TÀI KHOẢN đăng nhập (tài khoản “máy chính” đăng nhập ở máy nào, máy đó là máy chính)" };
+        _planOn = new CheckBox { Content = "Bật: vai Drive theo tài khoản đăng nhập" };
+        ToolTip.SetTip(_planOn, "Tài khoản “máy chính” đăng nhập ở máy nào trước thì máy đó là máy chính; máy khác là máy xem từ xa. Máy chính thoát thì nhả quyền; treo / mất điện thì quyền hết hạn sau 15 phút hoặc bấm Chiếm quyền.");
         _planBox = new StackPanel { Spacing = 2 };
         var planBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         planBtns.Children.Add(Btn("Lưu phân vai", async () => await SavePlan(), primary: true));
-        planBtns.Children.Add(Btn("Chỉ lưu thư mục trên máy này", async () => { if (await Ui.Run(this, () => Svc.SetFolder((_dir.Text ?? "").Trim()))) _msg.Text = "Đã lưu thư mục Drive của máy này."; await Task.CompletedTask; }));
-        planBtns.Children.Add(Btn("Chiếm quyền máy chính (khi máy kia treo)", async () => await Force()));
-        // ----- máy ở nhà · chu kỳ · sao lưu trên Drive
-        var homeBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
-        homeBtns.Children.Add(Btn("Lưu cài đặt máy này", async () => await SaveHome(), primary: true));
-        s.Children.Add(Card("Máy ở nhà & chu kỳ đồng bộ",
-            Note("Ban ngày dùng LAN ở công ty; ban đêm các máy ở nhà đồng bộ qua Drive và làm việc độc lập. Việc làm ở nhà được gửi lên Drive và máy chủ công ty tự gộp khi mở lại (trùng dòng → Quản trị chọn ở Xung đột). Tắt app thì app gửi nốt thay đổi còn chờ."),
-            _home, new TextBlock { Text = "Đồng bộ mỗi", FontSize = 12.5 }, _every, homeBtns));
+        planBtns.Children.Add(Btn("Chỉ lưu thư mục máy này", async () => { if (await Ui.Run(this, () => Svc.SetFolder((_dir.Text ?? "").Trim()))) _msg.Text = "Đã lưu thư mục Drive của máy này."; await Task.CompletedTask; }));
+        planBtns.Children.Add(Btn("Chiếm quyền máy chính", async () => await Force()).Also(x => ToolTip.SetTip(x, "Chỉ dùng khi máy chính cũ đã tắt / treo.")));
+        // ----- máy ở nhà · chu kỳ
+        _home.Content = "Máy này ở NHÀ — luôn là máy xem từ xa";
+        ToolTip.SetTip(_home, "Ban ngày dùng LAN ở công ty; ban đêm máy ở nhà đồng bộ qua Drive. Việc làm ở nhà được máy chủ công ty tự gộp khi mở lại (trùng dòng → Quản trị chọn ở Mạng LAN).");
+        _every.MinWidth = 200;
+        var everyRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "Đồng bộ mỗi", VerticalAlignment = VerticalAlignment.Center }, _every, Btn("Lưu", async () => await SaveHome(), primary: true) } };
+        // ----- sao lưu trên Drive
         _bkNow = Btn("☁ Sao lưu lên Drive ngay", async () => await BackupNow());
         var bkDl = Btn("⬇ Tải bản đã chọn về file .db…", async () => await DownloadSel());
-        _bkRestore = Btn("⏪ Khôi phục máy này từ bản đã chọn", async () => await RestoreSel());
+        ToolTip.SetTip(bkDl, "Máy công ty: tải về rồi khôi phục ở Sao lưu và cài đặt (Quản trị).");
+        _bkRestore = Btn("⏪ Khôi phục máy này", async () => await RestoreSel());
+        ToolTip.SetTip(_bkRestore, "Máy ở nhà: chỉ ảnh hưởng máy này.");
         var bkBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
-        bkBtns.Children.Add(_bkNow); bkBtns.Children.Add(bkDl); bkBtns.Children.Add(_bkRestore); bkBtns.Children.Add(Btn("Tải lại danh sách", () => { LoadBackups(); return Task.CompletedTask; }));
-        s.Children.Add(Card("Sao lưu trên Google Drive",
-            Note("Máy chính tự sao lưu toàn bộ dữ liệu lên Drive mỗi ngày (mã hóa bằng mã đồng bộ); giữ 14 ngày gần nhất + 1 bản mỗi tháng trong 12 tháng."),
-            Note("Máy công ty (LAN): khôi phục ở Sao lưu và cài đặt — tải bản đã chọn về file .db rồi khôi phục (Quản trị). Máy ở nhà: khôi phục thẳng tại đây; chỉ ảnh hưởng máy này, những gì sửa sau khi khôi phục mới được gửi lên."),
-            _bk, bkBtns, _bkMsg));
-        s.Children.Add(Card("Phân vai theo tài khoản (khuyên dùng)",
-            Note("Quản trị chọn các tài khoản “máy chính”. Máy nào đăng nhập tài khoản đó trước thì là MÁY CHÍNH; máy đăng nhập sau (kể cả cùng tài khoản) và mọi tài khoản khác là MÁY XEM TỪ XA — nên không có hai máy chính cùng ghi đè nhau."),
-            Note("Máy chính thoát phần mềm thì đưa bản cuối lên Drive và nhả quyền; máy kia đăng nhập lại là thành máy chính, giữ nguyên việc đã sửa ở máy xa. Nếu máy chính treo / mất điện, quyền hết hạn sau 15 phút hoặc bấm “Chiếm quyền”. Mỗi máy chỉ cần chọn thư mục Drive một lần."),
-            _planOn, _planBox, planBtns));
-        s.Children.Add(Card("Vai của máy này (cài tay)", _off, _main, _remote, new TextBlock { Text = "Thư mục Google Drive", FontSize = 12.5 }, dirRow, _mainPanel, _codePanel, buttons, _msg));
+        bkBtns.Children.Add(_bkNow); bkBtns.Children.Add(bkDl); bkBtns.Children.Add(_bkRestore); bkBtns.Children.Add(Btn("Tải lại", () => { LoadBackups(); return Task.CompletedTask; }));
+        _bk.Height = 220;
+
+        var left = new StackPanel { Spacing = 12 };
+        left.Children.Add(Card("Vai của máy này", null, _off, _main, _remote, new TextBlock { Text = "Thư mục Google Drive", FontSize = 12.5 }, dirRow, _mainPanel, _codePanel, buttons, _msg));
+        left.Children.Add(Card("Phân vai theo tài khoản", "Khuyên dùng: không bao giờ có hai máy chính cùng ghi đè nhau.", _planOn, _planBox, planBtns));
+        var right = new StackPanel { Spacing = 12 };
+        right.Children.Add(Card("Máy ở nhà & chu kỳ đồng bộ", null, _home, everyRow));
+        right.Children.Add(Card("Sao lưu trên Google Drive", "Máy chính tự sao lưu lên Drive mỗi ngày (mã hóa); giữ 14 ngày gần nhất + 1 bản mỗi tháng trong 12 tháng.", _bk, bkBtns, _bkMsg));
+        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 14 };
+        cols.Children.Add(left); Grid.SetColumn(right, 1); cols.Children.Add(right);
+        var s = new StackPanel { Spacing = 12, Margin = new Thickness(0, 6, 6, 0) };
+        s.Children.Add(Card("Trạng thái", null, _status, _detail, guide));
+        s.Children.Add(cols);
         Content = new ScrollViewer { Content = s };
         foreach (var r in new[] { _off, _main, _remote }) r.IsCheckedChanged += (_, _) => ShowPanels();
         _timer.Tick += (_, _) => Refresh();
@@ -227,12 +240,14 @@ public sealed class DriveSyncView : UserControl, IPage
     // ----- dựng giao diện
     private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
     private static TextBlock Note(string t) => new() { Text = t, FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
-    private static Border Card(string title, params Control[] kids)
+    private static Border Card(string title, string? tip, params Control[] kids)
     {
-        var p = new StackPanel { Spacing = 6 };
-        p.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.Bold, FontSize = 14 });
+        var p = new StackPanel { Spacing = 8 };
+        var t = new TextBlock { Text = title, Classes = { "section" } };
+        if (tip is not null) ToolTip.SetTip(t, tip);
+        p.Children.Add(t);
         foreach (var k in kids) p.Children.Add(k);
-        return new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(14), Child = p };
+        return new Border { Classes = { "card" }, VerticalAlignment = VerticalAlignment.Top, Child = p };
     }
     private static Button Btn(string text, Func<Task> click, bool primary = false)
     {

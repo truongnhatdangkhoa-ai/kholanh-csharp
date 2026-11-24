@@ -498,6 +498,12 @@ Snap(small, "03c-man-hinh-1366");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
+{
+    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
+    { main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n); }
+    s.Lan.Dispose(); Console.WriteLine("Xong (he): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
 {
     foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })

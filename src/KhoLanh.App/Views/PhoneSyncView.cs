@@ -15,7 +15,7 @@ namespace KhoLanh.App.Views;
 public sealed class PhoneSyncView : UserControl, IPage
 {
     public string Title => "Đồng bộ điện thoại";
-    public string Subtitle => "Đẩy tồn các module lên Google Sheet cho điện thoại xem / xuất, nhận phiếu xuất điện thoại tạo về đúng module.";
+    public string Subtitle => "Đẩy tồn lên Google Sheet cho điện thoại, nhận phiếu điện thoại về đúng module.";
 
     private static PhoneSyncService Svc => App.Services.PhoneSync;
     private static IBrush B(string c) => AppTheme.Brush(c);
@@ -27,28 +27,34 @@ public sealed class PhoneSyncView : UserControl, IPage
 
     public PhoneSyncView()
     {
-        var top = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        top.Children.Add(_conn);
-        top.Children.Add(Btn("Kết nối điện thoại…", async () => { await PhoneConnect.ShowAsync(this); Paint(); }));
-        top.Children.Add(Btn("Kiểm tra kết nối", async () => await Run("Đang kiểm tra…", async () => { var (t, sh) = await App.Services.Phone.PingAsync(); return $"✔ Kết nối được Google Sheet \"{t}\" ({sh.Count} tab)."; })));
+        // 1.56: 1 thẻ trên cùng (kết nối + nút chạy + tự đồng bộ); dưới chia 2 cột: bảng đẩy lên điện thoại | kết quả lần chạy. Ghi chú dài → gợi ý khi rê chuột.
+        var conn = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
+        conn.Children.Add(_conn);
+        conn.Children.Add(Btn("Kiểm tra kết nối", async () => await Run("Đang kiểm tra…", async () => { var (t, sh) = await App.Services.Phone.PingAsync(); return $"✔ Kết nối được Google Sheet \"{t}\" ({sh.Count} tab)."; })).Also(x => Grid.SetColumn(x, 1)));
+        conn.Children.Add(Btn("Kết nối điện thoại…", async () => { await PhoneConnect.ShowAsync(this); Paint(); }).Also(x => Grid.SetColumn(x, 2)));
 
-        var acts = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 10, 0, 0) };
-        acts.Children.Add(Act("⇅ Đồng bộ ngay", "Nhận phiếu điện thoại về các module rồi đẩy tồn các bảng đã chọn (và bảng vừa nhận phiếu)", true, async () =>
+        var acts = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+        acts.Children.Add(Act("⇅ Đồng bộ ngay", "Nhận phiếu điện thoại + yêu cầu lịch xuất về, lưu trữ phiếu cũ (1 lần / ngày), rồi đẩy tồn các bảng đã chọn (và bảng vừa nhận phiếu)", true, async () =>
         { var (p, push) = await Svc.SyncAsync(); return PullText(p) + "\n" + PushText(push); }));
         acts.Children.Add(Act("⬆ Chỉ đẩy tồn", "Đẩy tồn các bảng đã chọn lên Google Sheet", false, async () => PushText(await Svc.PushAsync())));
         acts.Children.Add(Act("⬇ Chỉ nhận phiếu", "Kéo phiếu xuất điện thoại tạo (chưa xử lý) về đúng module, trừ tồn, đánh dấu Đã xử lý", false, async () => PullText(await Svc.PullAsync())));
         _auto.SelectionChanged += (_, _) => { if (_auto.SelectedIndex >= 0) PhoneAutoSync.Minutes = PhoneAutoSync.Choices[_auto.SelectedIndex].Min; };
-        var autoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
-        autoRow.Children.Add(new TextBlock { Text = "Tự đồng bộ trên máy này:", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 }); autoRow.Children.Add(_auto);
-        autoRow.Children.Add(new TextBlock { Text = "(chỉ chạy khi app đang mở và đã đăng nhập)", Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center });
+        var autoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 0, 0) };
+        var autoLbl = new TextBlock { Text = "Tự đồng bộ:", VerticalAlignment = VerticalAlignment.Center };
+        ToolTip.SetTip(autoLbl, "Chỉ chạy khi app đang mở và đã đăng nhập trên máy này.");
+        autoRow.Children.Add(autoLbl); autoRow.Children.Add(_auto);
+        acts.Children.Add(autoRow);
 
-        var body = new StackPanel { Spacing = 6, MaxWidth = 980, HorizontalAlignment = HorizontalAlignment.Left };
-        body.Children.Add(top); body.Children.Add(acts); body.Children.Add(autoRow);
-        body.Children.Add(new TextBlock { Text = "Bảng đẩy lên điện thoại", FontWeight = FontWeight.Bold, FontSize = 14, Margin = new Thickness(0, 12, 0, 2) });
-        body.Children.Add(new TextBlock { Text = "Tick bảng cần đẩy khi bấm Đẩy tồn / Đồng bộ ngay. Chỉ hiện bảng của module tài khoản được xem. Phiếu xuất tạo trên PC được đẩy kèm (điện thoại chỉ xem). Kèm theo: Tồn kho An An / Tồn kho gửi đẩy luôn báo cáo Excel + Phân loại để tải trên điện thoại; Tổng hợp đẩy Kết quả kháng sinh (chỉ phần mới). Đồng bộ ngay còn nhận yêu cầu thêm / chuyển lịch xuất từ điện thoại và lưu trữ phiếu đã xong quá 90 ngày (1 lần / ngày).", Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap });
-        body.Children.Add(new Border { BorderBrush = B("#D0D7E2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 8), Child = _tables });
-        body.Children.Add(new TextBlock { Text = "Kết quả lần chạy", FontWeight = FontWeight.Bold, FontSize = 14, Margin = new Thickness(0, 12, 0, 2) });
-        body.Children.Add(new Border { Background = AppTheme.Card, BorderBrush = B("#D0D7E2"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 8), Child = _log });
+        var topCard = new Border { Classes = { "card" }, Child = new StackPanel { Spacing = 10, Children = { conn, acts } } };
+        var tTitle = new TextBlock { Text = "Bảng đẩy lên điện thoại", Classes = { "section" } };
+        ToolTip.SetTip(tTitle, "Tick bảng cần đẩy. Chỉ hiện bảng của module tài khoản được xem. Kèm theo: phiếu xuất tạo trên PC; Tồn kho An An / Tồn kho gửi đẩy luôn báo cáo Excel + Phân loại; Tổng hợp đẩy Kết quả kháng sinh (chỉ phần mới).");
+        var left = new Border { Classes = { "card" }, VerticalAlignment = VerticalAlignment.Top, Child = new StackPanel { Spacing = 8, Children = { tTitle, _tables } } };
+        var right = new Border { Classes = { "card" }, VerticalAlignment = VerticalAlignment.Top, Child = new StackPanel { Spacing = 8, Children = { new TextBlock { Text = "Kết quả lần chạy", Classes = { "section" } }, _log } } };
+        _log.Tag = "keep";
+        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("3*,2*"), ColumnSpacing = 14 };
+        cols.Children.Add(left); Grid.SetColumn(right, 1); cols.Children.Add(right);
+        var body = new StackPanel { Spacing = 12, Margin = new Thickness(0, 0, 6, 0) };
+        body.Children.Add(topCard); body.Children.Add(cols);
         Content = new ScrollViewer { Content = body };
         PhoneAutoSync.Ran += OnAutoRan;
         DetachedFromVisualTree += (_, _) => PhoneAutoSync.Ran -= OnAutoRan;
@@ -86,7 +92,7 @@ public sealed class PhoneSyncView : UserControl, IPage
     private void Paint()
     {
         var ph = App.Services.Phone;
-        _conn.Text = ph.Enabled ? $"📱 Đã kết nối: {Short(ph.Url)}" : "📱 Chưa kết nối — bấm \"Kết nối điện thoại…\" và nhập đường dẫn Web App + mã PC_TOKEN (giống app cũ: Cài Đặt › Điện Thoại).";
+        _conn.Text = ph.Enabled ? $"📱 Đã kết nối: {Short(ph.Url)}" : "📱 Chưa kết nối — bấm \"Kết nối điện thoại…\" (đường dẫn Web App + mã PC_TOKEN).";
         _conn.Foreground = ph.Enabled ? B("#1B5E20") : B("#8A5300");
         var i = Array.FindIndex(PhoneAutoSync.Choices, c => c.Min == PhoneAutoSync.Minutes); _auto.SelectedIndex = Math.Max(0, i);
         _tables.Children.Clear();
@@ -97,7 +103,7 @@ public sealed class PhoneSyncView : UserControl, IPage
         {
             if (!Svc.CanTable(code)) continue;
             g.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var cb = new CheckBox { Content = name, IsChecked = pick.Contains(code), MinWidth = 300, Margin = new Thickness(0, 1) };
+            var cb = new CheckBox { Content = name, IsChecked = pick.Contains(code), MinWidth = 280, Margin = new Thickness(0, 1) };
             var c = code; cb.IsCheckedChanged += (_, _) => { var p = Svc.Pick; if (cb.IsChecked == true) p.Add(c); else p.Remove(c); Svc.Pick = p; };
             Grid.SetRow(cb, row); g.Children.Add(cb);
             var tag = new TextBlock { Text = code, FontSize = 11, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 12, 0) }; Grid.SetRow(tag, row); Grid.SetColumn(tag, 1); g.Children.Add(tag);
