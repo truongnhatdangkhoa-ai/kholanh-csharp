@@ -807,7 +807,7 @@ public sealed partial class KiemKeView : UserControl, IPage
     private async Task DoChot()
     {
         var s = Svc.Summary;
-        var why = await Ui.Prompt(this, (s.Open > 0 ? $"Còn {s.Open} mã lệch ({s.KgLech:#,0.##} kg) — bản chốt sẽ ghi rõ “chốt còn chênh”.\n\n" : "") + "Nhập lý do chốt:", "Chốt kỳ kiểm kê");
+        var why = await Ui.Prompt(this, (s.Open > 0 ? $"Còn {s.Open} mã lệch ({s.KgLech:#,0.00} kg) — bản chốt sẽ ghi rõ “chốt còn chênh”.\n\n" : "") + "Nhập lý do chốt:", "Chốt kỳ kiểm kê");
         if (why is null) return;
         if (why.Trim().Length == 0) { await Ui.Message(this, "Cần nhập lý do chốt."); return; }
         await Act(() => Svc.DoChot(why), "Đã chốt kỳ kiểm kê");

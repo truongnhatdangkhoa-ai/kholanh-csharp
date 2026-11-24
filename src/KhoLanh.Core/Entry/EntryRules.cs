@@ -13,11 +13,11 @@ namespace KhoLanh.Core.Entry;
 /// </summary>
 public static class EntryRules
 {
-    public const string Ten = "ten", Size = "size", Tl = "tl", Today = "today";
+    public const string Ten = "ten", Size = "size", Tl = "tl", Today = "today", NgayXuat = "ngayxuat";
 
     public static readonly (string Key, string Label)[] AutoKinds =
     {
-        ("", "Không"), (Ten, "Tên hàng theo mã"), (Size, "Size theo mã"), (Tl, "Trọng lượng theo mã"), (Today, "Ngày tạo dòng"),
+        ("", "Không"), (Ten, "Tên hàng theo mã"), (Size, "Size theo mã"), (Tl, "Trọng lượng theo mã"), (Today, "Ngày tạo dòng"), (NgayXuat, "Ngày khi gõ SL xuất"),
     };
     public static string AutoLabel(string? key) => AutoKinds.FirstOrDefault(a => a.Key == (key ?? "")).Label ?? "Không";
     /// <summary>Chữ người dùng gõ / chọn ở ô "Tự điền" → khóa.</summary>
@@ -25,6 +25,7 @@ public static class EntryRules
     {
         var f = GridFilter.Fold(label ?? "").Trim();
         if (f.Length == 0 || f.StartsWith("khong")) return "";
+        if (f == NgayXuat || (f.StartsWith("ngay") && f.Contains("xuat"))) return NgayXuat;
         if (f.StartsWith("ngay") || f.Contains("hom nay") || f == Today) return Today;
         if (f.StartsWith("ten") || f == Ten) return Ten;
         if (f.StartsWith("size") || f.StartsWith("co")) return Size;
@@ -56,6 +57,14 @@ public static class EntryRules
         };
     }
 
+    /// <summary>Cột số lượng xuất (Số lượng xuất / SL xuất / Số kiện xuất).</summary>
+    public static int XuatQtyCol(IReadOnlyList<GridColumn> cols)
+    {
+        for (var i = 0; i < cols.Count; i++)
+            if (GridFilter.Fold(cols[i].Header).Trim() is "so luong xuat" or "sl xuat" or "so kien xuat" or "so thung xuat") return i;
+        return -1;
+    }
+
     private static string Field(Info? i, string kind) => i is null ? "" : kind switch { Ten => i.Ten, Size => i.Size, Tl => i.Tl, _ => "" };
 
     /// <summary>Ô "tự động" (không tính là phần người dùng nhập khi xét dòng trống).</summary>
@@ -75,6 +84,7 @@ public static class EntryRules
         var code = CodeCol(cols);
         var hasFx = cols.Any(c => c.Formula.Length > 0);
         var hasToday = cols.Any(c => c.Auto == Today);
+        var hasXuatDay = cols.Any(c => c.Auto == NgayXuat);
         foreach (var g in byRow)
         {
             var r = g.Key;
@@ -119,6 +129,15 @@ public static class EntryRules
                 if (wasEmpty)
                     for (var c = 0; c < cols.Count; c++)
                         if (cols[c].Auto == Today && !userChanged.Contains(c) && Get(c).Trim().Length == 0) Set(c, TodayText(today));
+            }
+
+            // 3b. (1.71) ngày xuất: vừa gõ số lượng xuất (ô trước đó trống) mà ô ngày xuất còn trống → hôm nay
+            if (hasXuatDay)
+            {
+                var xs = XuatQtyCol(cols);
+                if (xs >= 0 && userChanged.Contains(xs) && Get(xs).Trim().Length > 0 && (before.TryGetValue(xs, out var bx) ? bx : "").Trim().Length == 0)
+                    for (var c = 0; c < cols.Count; c++)
+                        if (cols[c].Auto == NgayXuat && !userChanged.Contains(c) && Get(c).Trim().Length == 0) Set(c, TodayText(today));
             }
 
             // 4. công thức

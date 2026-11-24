@@ -21,7 +21,8 @@ internal static class Program
             if (App.DataFolder.Length > 0) KhoLanh.Core.TroLy.TroLyService.LogUnhandled(App.DataFolder, e.Exception, "Tác vụ nền lỗi");
             e.SetObserved();
         };
-        var vi = CultureInfo.GetCultureInfo("vi-VN");
+        // 1.71: văn hóa vi-VN nhưng SỐ theo 1 kiểu duy nhất 1,500.00 (dấu phẩy ngăn nghìn, dấu chấm thập phân) — người dùng chốt.
+        var vi = KhoLanh.Core.Grid.NumFmt.Culture;
         CultureInfo.DefaultThreadCurrentCulture = vi;
         CultureInfo.DefaultThreadCurrentUICulture = vi;
         CultureInfo.CurrentCulture = vi;

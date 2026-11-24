@@ -130,9 +130,9 @@ public sealed class RaDongService
     /// <summary>1479.6 → "1,479.60" (giống toLocaleString en-US 2 số lẻ của app cũ).</summary>
     public static string Fmt2(double n) => n.ToString("#,##0.00", CultureInfo.InvariantCulture);
     public static string FmtNum(double n) => Math.Round(n, 2).ToString("#,##0.##", CultureInfo.InvariantCulture);
-    /// <summary>Kiểu Việt cho ảnh: 1479.6 → "1.479,60".</summary>
-    public static string FmtNetVn(double n) => Math.Round(n, 2).ToString("#,##0.00", CultureInfo.InvariantCulture).Replace(",", "\u0001").Replace(".", ",").Replace("\u0001", ".");
-    public static string FmtSlVn(double? n) => n is null ? "" : Math.Round(n.Value, 2).ToString("#,##0.##", CultureInfo.InvariantCulture).Replace(",", "\u0001").Replace(".", ",").Replace("\u0001", ".");
+    /// <summary>Số cho ảnh / hiển thị: 1479.6 → "1,479.60" (1.71: 1 kiểu duy nhất cho toàn app — trước là kiểu Việt "1.479,60").</summary>
+    public static string FmtNetVn(double n) => Math.Round(n, 2).ToString("#,##0.00", CultureInfo.InvariantCulture);
+    public static string FmtSlVn(double? n) => n is null ? "" : Math.Round(n.Value, 2).ToString("#,##0.##", CultureInfo.InvariantCulture);
 
     private static readonly CompareInfo Vi = CultureInfo.GetCultureInfo("vi-VN").CompareInfo;
     /// <summary>So sánh kiểu Intl.Collator('vi', {numeric:true, sensitivity:'base'}).</summary>

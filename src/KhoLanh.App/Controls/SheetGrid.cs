@@ -128,7 +128,24 @@ public sealed class SheetGrid : UserControl
     private int _fCol = -1;
     private readonly DispatcherTimer _fTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
 
-    public bool IsFiltered => _map is not null;
+    // ------------------------------------------------------------------ sắp xếp (1.71): bấm tiêu đề cột → A→Z, bấm lại → Z→A (chỉ đổi thứ tự hiện)
+    private string? _sortKey; private bool _sortDesc;
+    private int[]? _inv;                           // dòng dữ liệu → vị trí đang hiện (khi sắp xếp; -1 = đang ẩn)
+    public bool Sortable { get; set; } = true;
+    internal int SortCol { get { if (_sortKey is null) return -1; for (var c = 0; c < Model.ColCount; c++) if (FKey(Model.Columns[c], c) == _sortKey) return c; return -1; } }
+    internal bool SortDesc => _sortDesc;
+    /// <summary>Bấm tiêu đề cột: lần đầu A→Z, các lần sau đảo A→Z ↔ Z→A.</summary>
+    public void ToggleSort(int c)
+    {
+        if (!Sortable || c < 0 || c >= Model.ColCount) return;
+        if (_editing) Commit(0, 0);
+        var k = FKey(Model.Columns[c], c);
+        if (_sortKey == k) _sortDesc = !_sortDesc; else { _sortKey = k; _sortDesc = false; }
+        ApplyFilter();
+    }
+    public void ClearSort() { if (_sortKey is null) return; _sortKey = null; _sortDesc = false; ApplyFilter(); }
+    private bool _filterOn;
+    public bool IsFiltered => _filterOn;
     /// <summary>Các dòng dữ liệu đang hiện (khi không lọc: mọi dòng).</summary>
     public IReadOnlyList<int> ShownRows => _map ?? (IReadOnlyList<int>)Enumerable.Range(0, Model.RowCount).ToList();
     internal int VCount => _map?.Count ?? Model.RowCount;
@@ -137,12 +154,38 @@ public sealed class SheetGrid : UserControl
     {
         if (_map is null) return m;
         if (m >= Model.RowCount) return _map.Count + (m - Model.RowCount);
+        if (_inv is not null) { var v = m >= 0 && m < _inv.Length ? _inv[m] : -1; return v >= 0 ? v : Math.Max(0, Math.Min(m, _map.Count - 1)); }
         var i = _map.BinarySearch(m);
         return i >= 0 ? i : Math.Min(~i, Math.Max(0, _map.Count - 1));
     }
     private static string FKey(GridColumn col, int c) => string.IsNullOrEmpty(col.Key) ? "#" + c : col.Key;
     internal ColumnFilter? FilterOf(int c) => c >= 0 && c < Model.ColCount && _filters.TryGetValue(FKey(Model.Columns[c], c), out var f) && f.Active ? f : null;
-    internal string CellText(int m, int c) { var raw = Model.Get(m, c); return Display?.Invoke(m, c, raw) ?? raw; }
+    internal string CellText(int m, int c) { var raw = Model.Get(m, c); return ShowText(m, c, raw); }
+
+    // ------------------------------------------------------------------ định dạng số thống nhất (1.71): 1,500.00 kg · 1,500 kiện
+    /// <summary>Tự viết lại số theo loại cột (trọng lượng / net 2 số lẻ, kiện / bao số nguyên). Tắt cho bảng tự lo định dạng riêng.</summary>
+    public bool AutoNumberFormat { get; set; } = true;
+    private NumFmt.Cls[] _fmtCls = Array.Empty<NumFmt.Cls>();
+    private bool[] _fmtVi = Array.Empty<bool>();
+    private (int, int, int, int) _fmtVer = (-1, -1, -1, -1);
+    private void EnsureFmt()
+    {
+        var ver = (Model.Loads, Model.ColCount, Model.RowCount, Model.ReadOnly ? 1 : 0);
+        if (ver == _fmtVer && _fmtCls.Length == Model.ColCount) return;
+        _fmtVer = ver;
+        _fmtCls = Model.Columns.Select(col => NumFmt.ClassOf(col.Header)).ToArray();
+        // dữ liệu CŨ kiểu Việt (1.234,5) chỉ nhận ra ở bảng chỉ đọc (số do module / file cũ đưa vào); bảng gõ tay luôn đọc theo kiểu mới
+        _fmtVi = Enumerable.Range(0, Model.ColCount).Select(c => Model.ReadOnly && GridTotals.IsViFormat(Enumerable.Range(0, Math.Min(Model.RowCount, 400)).Select(r => Model.Get(r, c)))).ToArray();
+    }
+    /// <summary>Chữ hiển thị của ô (Display riêng của bảng + định dạng số thống nhất).</summary>
+    public string ShowText(int m, int c, string raw)
+    {
+        var shown = Display?.Invoke(m, c, raw) ?? raw;
+        if (!AutoNumberFormat || shown.Length == 0 || c < 0 || c >= Model.ColCount) return shown;
+        EnsureFmt();
+        return NumFmt.Show(shown, _fmtCls[c], _fmtVi[c]);
+    }
+    internal NumFmt.Cls FmtClass(int c) { EnsureFmt(); return c >= 0 && c < _fmtCls.Length ? _fmtCls[c] : NumFmt.Cls.None; }
 
     private Dictionary<int, ColumnFilter> FilterByIndex()
     {
@@ -157,7 +200,18 @@ public sealed class SheetGrid : UserControl
         _sumDirty = true;
         var keepRow = Row; var keepAnchor = AnchorRow;
         var act = FilterByIndex();
+        _filterOn = act.Count > 0;
         _map = act.Count == 0 ? null : GridFilter.Rows(Model.RowCount, CellText, act);
+        _inv = null;
+        var sc = SortCol;
+        if (sc >= 0)
+        {
+            _map = GridSort.Order(_map ?? (IEnumerable<int>)Enumerable.Range(0, Model.UsedRows()), r => CellText(r, sc), _sortDesc);
+            if (!_filterOn) for (var r = Model.UsedRows(); r < Model.RowCount; r++) _map.Add(r);   // dòng trống cuối bảng giữ ở cuối
+            _inv = new int[Model.RowCount]; Array.Fill(_inv, -1);
+            for (var i = 0; i < _map.Count; i++) if (_map[i] >= 0 && _map[i] < _inv.Length) _inv[_map[i]] = i;
+        }
+        else if (_sortKey is not null) _sortKey = null;   // cột đã không còn
         _seenLoads = Model.Loads; _seenRows = Model.RowCount;
         VR = Math.Clamp(ToVisual(keepRow), 0, Math.Max(0, TotalRows - 1));
         VA = Math.Clamp(ToVisual(keepAnchor), 0, Math.Max(0, TotalRows - 1));
@@ -180,7 +234,7 @@ public sealed class SheetGrid : UserControl
 
     public void ClearFilters()
     {
-        if (_filters.Count == 0 && _map is null) return;
+        if (_filters.Count == 0 && !_filterOn) return;
         _filters.Clear(); HideFilterEditor(false);
         if (Model is not null) ApplyFilter();
     }
@@ -197,7 +251,14 @@ public sealed class SheetGrid : UserControl
                 foreach (var k in _filters.Keys.Where(k => !keys.Contains(k)).ToList()) _filters.Remove(k);
             }
             _seenLoads = Model.Loads; _seenRows = Model.RowCount;
-            if (_filters.Count > 0 || _map is not null) { ApplyFilter(); return; }
+            if (_sortKey is not null && _filters.Count == 0 && Model.Loads == _seenLoads && _map is not null && Model.RowCount > _seenRows)
+            {   // đang sắp xếp, chỉ thêm dòng mới (gõ tiếp cuối bảng): giữ nguyên thứ tự đang hiện, dòng mới nằm cuối — như Excel
+                for (var r = _seenRows; r < Model.RowCount; r++) _map.Add(r);
+                _inv = new int[Model.RowCount]; Array.Fill(_inv, -1);
+                for (var i = 0; i < _map.Count; i++) if (_map[i] >= 0 && _map[i] < _inv.Length) _inv[_map[i]] = i;
+                _seenRows = Model.RowCount; UpdateScroll(); Redraw(); return;
+            }
+            if (_filters.Count > 0 || _map is not null || _sortKey is not null) { ApplyFilter(); return; }
         }
         UpdateScroll(); Redraw();
     }
@@ -320,7 +381,7 @@ public sealed class SheetGrid : UserControl
         if (_editing) Commit(0, 0);
         var g = new SheetGrid(Model)
         {
-            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
+            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, AutoNumberFormat = AutoNumberFormat, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
             CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
@@ -361,7 +422,7 @@ public sealed class SheetGrid : UserControl
         UpdateScroll(); Redraw();
     }
 
-    internal int TotalRows => VCount + (Model.ReadOnly || _map is not null ? 0 : SpareRows);
+    internal int TotalRows => VCount + (Model.ReadOnly || _filterOn ? 0 : SpareRows);
     internal double TotalWidth => Model.Columns.Sum(c => c.Width);
     internal int VisibleRows => Math.Max(1, (int)((_surface.Bounds.Height - TopH) / RowH));
 
@@ -761,8 +822,8 @@ public sealed class SheetGrid : UserControl
         {
             big.IsVisible = sepBig.IsVisible = CanEnlarge;
             fMenu.IsVisible = fClear.IsVisible = sepFilter.IsVisible = _filterable;
-            fClear.IsEnabled = _map is not null;
-            fClear.Header = _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
+            fClear.IsEnabled = _filterOn;
+            fClear.Header = !_filterOn || _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
             var okc = ShowTotals && Col >= 0 && Col < Model.ColCount;
             sumItem.IsVisible = sepSum.IsVisible = okc;
             if (okc) { sumItem.Header = $"Cộng cột “{Model.Columns[Col].Header}” ở dòng Tổng"; sumItem.IsChecked = SumCol(Col); }
@@ -874,7 +935,7 @@ public sealed class SheetGrid : UserControl
                         if (x + w > rhw && x < b.Width)
                         {
                             if (c < sums.Length && sums[c] is { } v)
-                                Text(dc, v.ToString("#,0.###", Ui.Vi), Bold, i == 0 ? Fg : AccentFg, new Rect(x + 4, y, w - 8, rh), left: false);
+                                Text(dc, NumFmt.Of(v, g.FmtClass(c)), Bold, i == 0 ? Fg : AccentFg, new Rect(x + 4, y, w - 8, rh), left: false);
                             else if (!cntDone && w >= 60 && !(c < sums.Length && g.SumCol(c)))
                             { Text(dc, cnt, Norm, Mut, new Rect(x + 6, y, w - 10, rh), left: true); cntDone = true; }
                         }
@@ -914,6 +975,7 @@ public sealed class SheetGrid : UserControl
         private static readonly Typeface HeadFace = new(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);   // tiêu đề cột đậm, sẫm — dễ đọc (1.49)
         private enum Drag { None, Cells, Rows, Cols, Resize }
         private Drag _drag;
+        private int _headDown = -1; private bool _headMoved;   // bấm tiêu đề không kéo sang cột khác = sắp xếp (1.71)
         private int _resizeCol; private double _resizeStartX, _resizeStartW;
 
         public GridSurface(SheetGrid g) { _g = g; Cursor = Cursor.Default; }
@@ -960,7 +1022,7 @@ public sealed class SheetGrid : UserControl
                         else if (bg is not null) dc.FillRectangle(bg, rect);
                         var raw = m.Get(mr, c);
                         if (raw.Length == 0 && _g.Display is null) continue;
-                        var shown = _g.Display?.Invoke(mr, c, raw) ?? raw;
+                        var shown = _g.ShowText(mr, c, raw);
                         if (shown.Length == 0) continue;
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
@@ -996,7 +1058,9 @@ public sealed class SheetGrid : UserControl
                     var drop = _g.Filterable && cw >= 46;
                     if (c >= sel.C1 && c <= sel.C2) dc.FillRectangle(HeadSelBg, new Rect(cx, 0, cw, hh));
                     var avail = cw - (drop ? DropW : 0);
-                    var ft = new FormattedText(m.Columns[c].Header, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HeadFace, 13, f is not null ? Accent : HeadText);
+                    var sorted = c == _g.SortCol;
+                    var head = sorted ? m.Columns[c].Header + (_g.SortDesc ? " ▼" : " ▲") : m.Columns[c].Header;
+                    var ft = new FormattedText(head, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, HeadFace, 13, f is not null || sorted ? Accent : HeadText);
                     using (dc.PushClip(new Rect(cx + 2, 0, Math.Max(0, avail - 4), hh)))
                         dc.DrawText(ft, new Point(cx + Math.Max(4, (avail - ft.Width) / 2), (hh - ft.Height) / 2));
                     if (drop)
@@ -1156,6 +1220,7 @@ public sealed class SheetGrid : UserControl
                 if (_g.Filterable && c >= 0 && _g.Model.Columns[c].Width >= 46 && p.X >= _g.ColX(c) + _g.Model.Columns[c].Width - DropW)
                 { _g.OpenFilterMenu(c); e.Handled = true; return; }
                 _drag = Drag.Cols;
+                _headDown = shift ? -1 : c; _headMoved = false;
                 if (!shift) { _g.AnchorCol = c; }
                 _g.VA = 0; _g.Col = c; _g.VR = Math.Max(0, _g.VCount - 1);
                 _g.Redraw(); e.Pointer.Capture(this); return;
@@ -1199,7 +1264,7 @@ public sealed class SheetGrid : UserControl
             switch (_drag)
             {
                 case Drag.Cells: _g.VR = Math.Max(0, r); _g.Col = Math.Max(0, c); break;
-                case Drag.Cols: _g.Col = Math.Max(0, c); break;
+                case Drag.Cols: if (c != _headDown) _headMoved = true; _g.Col = Math.Max(0, c); break;
                 case Drag.Rows: _g.VR = Math.Max(0, r); break;
             }
             _g.UpdateScrollPublic();
@@ -1209,7 +1274,10 @@ public sealed class SheetGrid : UserControl
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             base.OnPointerReleased(e);
+            var sortCol = _drag == Drag.Cols && !_headMoved && _headDown >= 0 && e.InitialPressMouseButton == MouseButton.Left ? _headDown : -1;
+            _headDown = -1;
             if (_drag is Drag.Cells or Drag.Rows or Drag.Cols) _g.SelectionChanged?.Invoke();
+            if (sortCol >= 0) { _drag = Drag.None; e.Pointer.Capture(null); _g.ToggleSort(sortCol); return; }
             _drag = Drag.None;
             e.Pointer.Capture(null);
         }

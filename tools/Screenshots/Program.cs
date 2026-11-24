@@ -968,6 +968,12 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tc.SelectedIndex = 4; Pump();
         var kg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 7);
         kg.Select(1, 2); Snap(main, "25f-so-do-phieu-in");
+        var ksub = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t != tc && t.Items.Count == 2 && t.IsEffectivelyVisible);
+        ksub.SelectedIndex = 1; for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+        var kg2 = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 7);
+        Console.WriteLine($"[SĐ] Vị trí trống (ghi tay): {kg2.Model.RowCount} dòng (mọi vị trí theo sơ đồ)");
+        Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
+        ksub.SelectedIndex = 0; Pump();
         tc.SelectedIndex = 0;
     }
     if (key == "m9")
@@ -1469,7 +1475,7 @@ void PxScene()
     Snap(main, "31b-phieu-noi-dia-nhap-lieu");
     {   // 1.67: lưới mục hàng Cargo hiện ≥ 10 dòng, gõ vào dòng trống thì thêm dòng (vẫn còn ≥ 3 dòng trống, lưới cao thêm)
         var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
-        var cgg = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12);
+        var cgg = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12 && x.Model.Columns[0].Header != "");
         int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Height;
         var rowsFit = (int)((cgg.Bounds.Height - KhoLanh.App.Controls.SheetGrid.HeadH) / KhoLanh.App.Controls.SheetGrid.RowH);
         cgg.Model.Set(t0 - 1, 2, "01.08 L9"); W(4);   // gõ vào dòng trống cuối cùng
@@ -1477,6 +1483,13 @@ void PxScene()
         if (t0 < KhoLanh.App.Views.CargoView.MinRows || cgg.TotalRows < cgg.Model.RowCount + KhoLanh.App.Views.CargoView.MinSpare) { Console.WriteLine("[CARGO] LỖI: thiếu dòng trống"); Environment.Exit(1); }
         Snap(main, "31b2-phieu-noi-dia-them-dong");
         cgg.Model.Undo(); W(2);
+        // 1.71: hàng KIỆN / DÃY (20 dãy × 63) + gõ Tổng 150 ở dòng 1 → tự đổ đầy 63 · 63 · 24
+        var cap = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.Columns[0].Header == "" && x.Model.ColCount > 12);
+        cap.Model.SetCells(Enumerable.Range(1, 20).Select(d => (0, 1 + d, "63")).ToList()); W(3);
+        cgg.Model.Set(0, 9, "150"); W(4);
+        Console.WriteLine($"[CARGO] KIỆN/DÃY 20×63, gõ Tổng 150 → dãy 1–4: {string.Join(", ", Enumerable.Range(10, 4).Select(c => cgg.Model.Get(0, c)))}");
+        Snap(main, "31b3-phieu-noi-dia-kien-day");
+        cgg.Model.Undo(); cap.Model.Undo(); W(2);
     }
     var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
     pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
@@ -1533,6 +1546,14 @@ void FilterScene()
         if (KhoLanh.App.Controls.Icon.TextOf(w.Content) == "Hủy") { w.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); break; }
     g.ClearFilters(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
     Console.WriteLine($"  [Lọc] bỏ lọc: {g.ShownRows.Count}/{total} dòng");
+    // 1.71: bấm tiêu đề cột → A→Z, bấm lại → Z→A
+    g.ToggleSort(tc); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    var asc = g.ShownRows.Take(5).Select(r => g.CellText(r, tc)).ToList();
+    Snap(main, "45d-sap-xep-a-z");
+    g.ToggleSort(tc); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    Console.WriteLine($"  [Sắp xếp] A→Z: {string.Join(" | ", asc)} · Z→A đầu: {g.CellText(g.ShownRows[0], tc)}");
+    Snap(main, "45e-sap-xep-z-a");
+    g.ClearSort();
     // 1.52: ⤢ mở bảng ra cửa sổ lớn (cùng dữ liệu)
     _ = g.OpenLarge(); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
     if (KhoLanh.App.Controls.SheetGrid.LastLarge is { } big)

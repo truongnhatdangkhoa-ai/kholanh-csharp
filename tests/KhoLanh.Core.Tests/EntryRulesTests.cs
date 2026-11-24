@@ -60,15 +60,22 @@ public class EntryRulesTests
     public void Kiem_ke_template_fills_size_weight_net_and_date_once()
     {
         var cols = KiemKe();
-        Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Net(kg)", "Ghi chú", "Ngày nhập" }, cols.Select(c => c.Header));
+        Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Ghi chú", "Ngày nhập",
+            "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" }, cols.Select(c => c.Header));
         var day1 = new DateTime(2026, 11, 24);
         var m = Model(cols, day1);
 
         // dán 2 dòng mã hàng + số lượng (dán nhiều dòng cũng tự điền)
         m.Paste(new CellRange(0, 1, 0, 1), "ma1\r\nMA2\r\n");
         m.SetCells(new[] { (0, 4, "5"), (1, 4, "3") });
-        Assert.Equal(new[] { "", "ma1", "16/20", "10.8", "5", "54", "", "24/11/2026" }, m.Row(0));
+        Assert.Equal(new[] { "", "ma1", "16/20", "10.8", "5", "54", "", "24/11/2026", "", "5", "54", "" }, m.Row(0));
         Assert.Equal(new[] { "21/25", "2", "6", "24/11/2026" }, new[] { m.Get(1, 2), m.Get(1, 3), m.Get(1, 5), m.Get(1, 7) });
+
+        // 1.71: gõ số lượng xuất → còn lại = SL − SL xuất, Net còn lại = còn lại × TL, ngày xuất = hôm nay (1 lần)
+        m.Set(1, 8, "1");
+        Assert.Equal(new[] { "2", "4", "24/11/2026" }, new[] { m.Get(1, 9), m.Get(1, 10), m.Get(1, 11) });
+        m.Undo();
+        Assert.Equal(new[] { "", "3", "" }, new[] { m.Get(1, 8), m.Get(1, 9), m.Get(1, 11) });
 
         // ngày sau sửa phiếu: ngày nhập không đổi; đổi mã → size / trọng lượng / net cập nhật
         m.Derive = ch => EntryRules.Derive(m.Columns, m.Get, ch, Look, day1.AddDays(3));

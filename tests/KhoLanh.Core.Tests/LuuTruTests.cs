@@ -359,6 +359,6 @@ public class LuuTruTests : IDisposable
         Assert.Equal("Lưu trữ cá nhân", Perm.Find(LuuTruService.PermKey)!.Label);
         Assert.Equal(new DateTime(2026, 11, 3), LuuTruService.DayOf("data-2026-11-03.json"));
         Assert.Null(LuuTruService.DayOf("data.json"));
-        Assert.Equal("1,5 MB", LuuTruService.Size(1572864));
+        Assert.Equal("1.5 MB", LuuTruService.Size(1572864));
     }
 }

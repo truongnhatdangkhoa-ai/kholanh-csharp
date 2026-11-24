@@ -437,7 +437,7 @@ public sealed class RaDongView : UserControl, IPage
             var saved = Svc.SavedRows.Where(r => r.Date == d).ToList();
             var fileNet = Math.Round(rows.Sum(r => r.Net), 2);
             if (saved.Count == 0) missing.Add(RaDongService.Dmy(d));
-            else if (Math.Abs(RaDongService.DaySum(saved) - fileNet) > 0.5) diff.Add($"{RaDongService.Dmy(d)}: đã lưu {RaDongService.DaySum(saved):#,0.##} kg, file {fileNet:#,0.##} kg");
+            else if (Math.Abs(RaDongService.DaySum(saved) - fileNet) > 0.5) diff.Add($"{RaDongService.Dmy(d)}: đã lưu {RaDongService.DaySum(saved):#,0.00} kg, file {fileNet:#,0.00} kg");
         }
         var msg = $"File: {Path.GetFileName(path)} ({days!.Count} ngày)\n\n" +
             (missing.Count == 0 ? "✔ Không thiếu ngày nào." : $"Chưa lưu {missing.Count} ngày: " + string.Join(", ", missing)) + "\n" +

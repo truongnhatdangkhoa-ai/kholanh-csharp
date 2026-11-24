@@ -231,6 +231,7 @@ public sealed class CargoView : UserControl
             g1.Children.Add(Labeled("Cont gửi kho số", Tb(c.ContSo, v => c.ContSo = v, 110)));
         }
         _editor.Children.Add(Section(_prof.Ten + " — thông tin cont" + $" (ví dụ số phiếu {_prof.SoEg})", g1));
+        _editor.Children.Add(BuildCapRow(c));
         for (var i = 0; i < c.Blocks.Count; i++) _editor.Children.Add(BuildBlock(c, i));
         if (_edit)
         {
@@ -243,6 +244,44 @@ public sealed class CargoView : UserControl
     }
     private static string NewId() => "b" + DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString("x") + Guid.NewGuid().ToString("N")[..3];
 
+    /// <summary>1.71: hàng "KIỆN / DÃY" — số kiện thực tế từng dãy, dùng chung cả cont (dán / kéo nhiều ô như Excel). Gõ Tổng ở dòng mục hàng → app đổ đầy theo hàng này.</summary>
+    private Control BuildCapRow(CargoRec c)
+    {
+        var gm = new GridModel { ReadOnly = !_edit };
+        var cols = new List<GridColumn> { new("lb", "", 110) { ReadOnly = true }, new("sum", "Tổng", 70, "number") { ReadOnly = true } };
+        for (var d = 1; d <= NDay; d++) cols.Add(Day(d));
+        string[] Row() => new[] { "KIỆN / DÃY", "" }.Concat(Enumerable.Range(1, NDay).Select(d => c.DayCap.GetValueOrDefault(d.ToString()) ?? "")).ToArray();
+        gm.Load(cols, new[] { Row() });
+        var grid = new SheetGrid(gm) { SpareRows = 0, Filterable = false, ShowTotals = false, Sortable = false };
+        grid.Display = (r, col, raw) => col == 1 ? (Caps(c).Values.Sum() is var t && t > 0 ? t.ToString("#,0", Ui.Vi) : "") : raw;
+        grid.Height = SheetGrid.HeadH + SheetGrid.RowH + ScrollH + 4;
+        gm.Changed += () =>
+        {
+            if (_loading) return;
+            if (gm.RowCount > 1) return;
+            var cap = new Dictionary<string, string>();
+            for (var d = 1; d <= NDay; d++) { var v = gm.Get(0, 1 + d).Trim(); if (v.Length > 0 && Ui.TryParseNumber(v, out var n) && n > 0) cap[d.ToString()] = ((int)Math.Floor(n)).ToString(System.Globalization.CultureInfo.InvariantCulture); }
+            c.DayCap = cap; grid.Refresh(); Dirty();
+        };
+        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+        if (_edit)
+        {
+            bar.Children.Add(Btn("Điền nhanh…", async () =>
+            {
+                var t = await Ui.Prompt(this, "Số dãy × số kiện mỗi dãy (từ dãy 1). Ví dụ: 20x63 = dãy 1 đến 20, mỗi dãy 63 kiện.", "KIỆN / DÃY", "");
+                if (t is null) return;
+                var m = System.Text.RegularExpressions.Regex.Match(t.Trim(), @"^(\d+)\s*[x×*]\s*(\d+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (!m.Success || int.Parse(m.Groups[1].Value) is < 1 or > NDay) { await Ui.Message(this, $"Gõ theo dạng số dãy × số kiện, ví dụ 20x63 (tối đa {NDay} dãy)."); return; }
+                var n = int.Parse(m.Groups[1].Value); var k = m.Groups[2].Value;
+                gm.SetCells(Enumerable.Range(1, NDay).Select(d => (0, 1 + d, d <= n ? k : "")).ToList());
+            }));
+        }
+        bar.Children.Add(new TextBlock { Text = "Gõ / dán số kiện thực tế từng dãy (dùng chung cả cont). Ở mục hàng, gõ số vào cột Tổng → app tự đổ đầy từ dãy 1; dãy đã có hàng của dòng khác chỉ nhận phần còn trống.",
+            Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Tag = "keep" });
+        var body = new StackPanel { Spacing = 6 }; body.Children.Add(Framed(grid)); body.Children.Add(bar);
+        return Section("KIỆN / DÃY — số kiện mỗi dãy", body);
+    }
+
     private static GridColumn Day(int d) => new("d" + d, d.ToString(), 46, "number");
 
     private Control BuildBlock(CargoRec c, int bi)
@@ -254,13 +293,9 @@ public sealed class CargoView : UserControl
         head.Children.Add(Labeled("Ghi chú sau tên", Tb(b.Tag, v => b.Tag = v, 160)));
         if (_edit)
         {
-            var caps = new Button { Content = "▤ Đổ đầy từng dãy…", Padding = new Thickness(8, 3), VerticalAlignment = VerticalAlignment.Bottom };
-            ToolTip.SetTip(caps, "Chọn 1 dòng trong bảng, nhập sức chứa từng dãy (62,62,62,54…) và TỔNG kiện của dòng → app xếp lần lượt từ dãy 1");
-            head.Children.Add(caps);
             var rm = new Button { Content = "🗑 Xóa mục", Padding = new Thickness(8, 3), VerticalAlignment = VerticalAlignment.Bottom }; rm.Classes.Add("danger");
             rm.Click += (_, _) => { c.Blocks.Remove(b); if (c.Blocks.Count == 0) c.Blocks.Add(new CargoBlock { Loai = "ks" }); _dirty = true; ShowEditor(); };
             head.Children.Add(rm);
-            _capsBtn[bi] = caps;
         }
         var gm = new GridModel { ReadOnly = !_edit };
         var cols = new List<GridColumn>();
@@ -269,12 +304,12 @@ public sealed class CargoView : UserControl
         {
             cols.AddRange(new[] { new GridColumn("loai", "Loại", 55), new GridColumn("sn", "Size-quy cách (0040-6)", 130), new GridColumn("lo", "Lô NL (22.05.26 L16)", 130), new GridColumn("kstay", "KQ KS tay", 70),
                 new GridColumn("size", "Size", 65) { ReadOnly = true }, new GridColumn("pack", "Quy cách", 80) { ReadOnly = true }, new GridColumn("mk", "Thị trường", 150) { ReadOnly = true },
-                new GridColumn("ks", "Ký hiệu KS", 100) { ReadOnly = true }, new GridColumn("ma", "Mã hàng", 190) { ReadOnly = true }, new GridColumn("tong", "Tổng", 65, "number") { ReadOnly = true } });
+                new GridColumn("ks", "Ký hiệu KS", 100) { ReadOnly = true }, new GridColumn("ma", "Mã hàng", 190) { ReadOnly = true }, new GridColumn("tong", "Tổng", 65, "number") { ReadOnly = !_edit } });
             first = 10;
         }
         else
         {
-            cols.AddRange(new[] { new GridColumn("size", "Size", 100), new GridColumn("pack", "Quy cách (10.0 kg x 1)", 150), new GridColumn("tong", "Tổng", 65, "number") { ReadOnly = true } });
+            cols.AddRange(new[] { new GridColumn("size", "Size", 100), new GridColumn("pack", "Quy cách (10.0 kg x 1)", 150), new GridColumn("tong", "Tổng", 65, "number") { ReadOnly = !_edit } });
             first = 3;
         }
         for (var d = 1; d <= NDay; d++) cols.Add(Day(d));
@@ -305,14 +340,39 @@ public sealed class CargoView : UserControl
         FixH();
         gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); FixH(); Dirty(); };
         _blocks.Add((b, gm));
-        if (_edit && _capsBtn.TryGetValue(bi, out var cb2)) cb2.Click += async (_, _) => await FillRows(c, bi, grid, gm);
+        // 1.71: gõ TỔNG kiện của dòng → đổ đầy từng dãy từ dãy 1 theo hàng KIỆN / DÃY (dãy đã có hàng dòng khác chỉ nhận phần trống) — như app cũ
+        var tongCol = ks ? 9 : 2; var dayFirst = ks ? 10 : 3;
+        if (_edit) gm.Derive = ch =>
+        {
+            var hits = ch.Where(x => x.c == tongCol && x.after.Trim() != x.before.Trim()).ToList();
+            if (hits.Count == 0 || _loading) return Array.Empty<(int, int, string)>();
+            var res = new List<(int, int, string)>();
+            SyncLines(b, gm, ks);
+            var caps = Caps(c);
+            foreach (var h in hits)
+            {
+                res.Add((h.r, tongCol, ""));   // ô Tổng chỉ để gõ — tổng thật luôn tính từ các dãy
+                var txt = h.after.Trim();
+                while (b.Lines.Count <= h.r) b.Lines.Add(new CargoLine());
+                var ln = b.Lines[h.r];
+                if (txt.Length == 0) { ln.Dai = new(); }
+                else
+                {
+                    if (!Ui.TryParseNumber(txt, out var want) || want < 0) { _status.Text = "Tổng kiện phải là số."; continue; }
+                    if (caps.Count == 0) { _status.Text = "Nhập số kiện từng dãy ở hàng “KIỆN / DÃY” (phía trên các mục hàng) rồi gõ lại Tổng."; continue; }
+                    var r = RaiTong(c, bi, h.r, want, caps);
+                    _status.Text = want <= 0 ? "Đã xóa số kiện của dòng." : $"Đã xếp {r.Placed:#,0} kiện vào {ln.Dai.Count} dãy" + (r.Left > 0 ? $" — CÒN DƯ {r.Left:#,0} kiện, hết dãy." : ".");
+                }
+                for (var d = 1; d <= NDay; d++) res.Add((h.r, dayFirst + d - 1, ln.Dai.GetValueOrDefault(d.ToString()) ?? ""));
+            }
+            return res;
+        };
         var note = new TextBlock { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Text = ks
             ? "Mỗi dòng: Loại (BTP/NL) + Size-quy cách + Lô nguyên liệu; app tự ra mã hàng và tra kết quả kháng sinh. Ô đỏ = còn lỗi (chưa có kết quả…), xanh = đã ra thị trường. Số kiện gõ vào cột dãy 1–40 (dán được từ Excel)."
             : "Hàng không kháng sinh: gõ tay Size + Quy cách; kiện vào cột “.” của phiếu." };
         var body = new StackPanel { Spacing = 6 }; body.Children.Add(head); body.Children.Add(Framed(grid)); body.Children.Add(note);
         return Section($"Mục hàng {bi + 1} — {(ks ? "kháng sinh" : "khác")}", body);
     }
-    private readonly Dictionary<int, Button> _capsBtn = new();
     /// <summary>Lưới mục hàng: tối thiểu số dòng hiện (kể cả dòng trống), số dòng trống luôn có ở cuối, chỗ cho thanh cuộn ngang.</summary>
     internal const int MinRows = 10, MinSpare = 3; private const double ScrollH = 14;
 
@@ -341,23 +401,6 @@ public sealed class CargoView : UserControl
     private static bool IsEmptyLine(CargoLine l) => l.Sn.Length == 0 && l.Lo.Length == 0 && l.KsTay.Length == 0 && l.Size.Length == 0 && l.Pack.Length == 0 && l.Dai.Count == 0 && l.Loai.Length == 0;
     private static double Num(string v) => double.TryParse(v.Replace(",", ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
 
-    private async Task FillRows(CargoRec c, int bi, SheetGrid grid, GridModel gm)
-    {
-        var li = Math.Max(0, grid.Row);
-        if (li >= c.Blocks[bi].Lines.Count) { await Ui.Message(this, "Chọn một dòng đã có trong bảng trước."); return; }
-        var capText = await Ui.Prompt(this, "Sức chứa (số kiện thực tế) từng dãy, cách nhau bằng dấu phẩy — dãy 1, 2, 3…\nVí dụ: 62,62,62,54,61", "Đổ đầy từng dãy", "");
-        if (capText is null) return;
-        var caps = new Dictionary<int, int>(); var i = 1;
-        foreach (var t in capText.Split(new[] { ',', ';', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)) { if (i > NDay) break; if (int.TryParse(t, out var v) && v > 0) caps[i] = v; i++; }
-        var tot = await Ui.Prompt(this, $"TỔNG kiện của dòng {li + 1} (app xếp lần lượt từ dãy 1, mỗi dãy chỉ nhận phần còn trống):", "Đổ đầy từng dãy", "");
-        if (tot is null) return;
-        if (!Ui.TryParseNumber(tot, out var total) || total <= 0) { await Ui.Message(this, "Tổng kiện phải là số lớn hơn 0."); return; }
-        var r = RaiTong(c, bi, li, total, caps);
-        if (r.NoCap) { await Ui.Message(this, "Chưa có sức chứa dãy nào."); return; }
-        _dirty = true; ShowEditor();
-        _status.Text = $"Đã xếp {r.Placed:#,0} kiện vào các dãy" + (r.Left > 0 ? $" — còn thừa {r.Left:#,0} kiện (không đủ chỗ trong {r.NDays} dãy)." : ".");
-    }
-
     // ------------------------------------------------------------------ tổng hợp / xem trước
 
     private void RefreshTitle()
@@ -376,7 +419,7 @@ public sealed class CargoView : UserControl
         var chk = Svc.CheckRec(_prof, _cur);
         double kg;
         if (_prof.Gk) kg = BuildGk(Svc.Cfg, _cur, Svc.Ks).Kg; else kg = BuildPhieu(Svc.Cfg, _cur, Svc.Ks).Kg;
-        _totals.Text = $"Tổng: {chk.Kien:#,0.##} kiện · {kg:#,0.###} kg · {DayCount(_cur)} dãy" + (chk.Kien > 0 ? "  —  " + PhieuKhoCore.DocSo(chk.Kien) + " kiện" : "");
+        _totals.Text = $"Tổng: {chk.Kien:#,0.##} kiện · {kg:#,0.00} kg · {DayCount(_cur)} dãy" + (chk.Kien > 0 ? "  —  " + PhieuKhoCore.DocSo(chk.Kien) + " kiện" : "");
         _problems.IsVisible = chk.Problems.Count > 0;
         _problems.Text = chk.Problems.Count == 0 ? "" : $"Cần xử lý trước khi xuất ({chk.Problems.Count}): " + string.Join(" · ", chk.Problems.Take(3)) + (chk.Problems.Count > 3 ? " …" : "");
         var sc = Svc.StockCheck(_cur); var bad = sc.Where(x => x.St != "ok").ToList();

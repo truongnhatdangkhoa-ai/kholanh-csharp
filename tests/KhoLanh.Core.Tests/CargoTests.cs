@@ -223,4 +223,22 @@ public class CargoTests : IDisposable
         Assert.Contains(cg.CellsUsed().Select(x => x.GetString()), s => s.Contains("Khách hàng : GỬI KHO TRANSIMEX LONG AN"));
         Assert.Equal(1.0, cg.Cell("F7").GetDouble());                                                // 15 dãy / bảng (cột F…T)
     }
+
+    [Fact]
+    public void Kien_day_luu_cung_cont_va_do_day_theo_tong()
+    {
+        var c = new CargoRec { Blocks = { } };
+        c.Blocks.Clear(); c.Blocks.Add(new CargoBlock { Loai = "ks", Lines = { new CargoLine(), new CargoLine() } });
+        for (var d = 1; d <= 20; d++) c.DayCap[d.ToString()] = "63";
+        var back = FromJson(ToJson(c))!;                                   // "dayCap" lưu cùng cont như app cũ
+        Assert.Equal(20, Caps(back).Count);
+        Assert.Equal(63, Caps(back)[20]);
+        Assert.Contains("\"dayCap\"", ToJson(c));
+        var r = RaiTong(back, 0, 0, 150, Caps(back));                    // 63 + 63 + 24
+        Assert.Equal(150, r.Placed);
+        Assert.Equal(new[] { "63", "63", "24" }, new[] { "1", "2", "3" }.Select(k => back.Blocks[0].Lines[0].Dai[k]));
+        var r2 = RaiTong(back, 0, 1, 50, Caps(back));                    // dãy 3 còn 39 trống, dãy 4: 11
+        Assert.Equal(new[] { "39", "11" }, new[] { "3", "4" }.Select(k => back.Blocks[0].Lines[1].Dai[k]));
+        Assert.Equal(0, r2.Left);
+    }
 }

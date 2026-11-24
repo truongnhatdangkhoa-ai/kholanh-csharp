@@ -796,9 +796,10 @@ public sealed class SoDoView : UserControl, IPage
     private Control BuildKk()
     {
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 4) };
-        Combo(_kMode, new[] { "Chỉ vị trí trống", "Mọi vị trí (phiếu trắng)" });
-        ToolTip.SetTip(_kMode, "Chỉ vị trí trống: các ô không có hàng theo sơ đồ kho · Mọi vị trí: phiếu trắng cả dãy");
-        bar.Children.Add(Label("Khu")); bar.Children.Add(_kKhu); bar.Children.Add(Label("Dãy")); bar.Children.Add(_kDay); bar.Children.Add(_kMode);
+        // 1.71: tab "Vị trí trống (ghi tay)" = phiếu trắng MỌI vị trí theo sơ đồ (bỏ lựa chọn "Chỉ vị trí trống" — người dùng chốt).
+        Combo(_kMode, new[] { "Mọi vị trí (phiếu trắng)" });
+        _kMode.IsVisible = false;
+        bar.Children.Add(Label("Khu")); bar.Children.Add(_kKhu); bar.Children.Add(Label("Dãy")); bar.Children.Add(_kDay);
         bar.Children.Add(Btn("Tạo lại phiếu", async () => { if (await KkCanLeave()) { _k = null; await KkEnsure(); } }));
         foreach (var c in new[] { _kKhu, _kDay, _kMode })
             c.SelectionChanged += async (_, _) => { if (!_loading) await KkSelChanged(); };
@@ -812,7 +813,7 @@ public sealed class SoDoView : UserControl, IPage
         var nl = Btn("Chuyển sang Nhập liệu", async () => await KkToNhapLieu(), tip: "Tạo trang Nhập liệu (mẫu Kiểm kê) cho 1 dãy, số lượng điền sẵn theo sổ để nhập số thực");
         var rs = Btn("Rà soát chênh lệch", async () => await KkReview(), tip: "So trang Nhập liệu kiểm kê mới nhất của dãy với sổ sách");
         b2.Children.Add(nl); b2.Children.Add(rs); _kSoOnly.Add(nl); _kSoOnly.Add(rs);
-        const string hint = "Vị trí có hàng: phiếu theo sổ sách (không in ô trống), sửa thẳng trên bảng (chỉ trên phiếu, không đổi tồn); dòng vàng có đề xuất chuyển (ô lẫn nhiều size) sang ô trống cùng tầng, dòng xanh là dòng đã chuyển. Vị trí trống: in các ô không có hàng theo sơ đồ kho để ghi tay.";
+        const string hint = "Vị trí có hàng: phiếu theo sổ sách (không in ô trống), sửa thẳng trên bảng (chỉ trên phiếu, không đổi tồn); dòng vàng có đề xuất chuyển (ô lẫn nhiều size) sang ô trống cùng tầng, dòng xanh là dòng đã chuyển. Vị trí trống (ghi tay): phiếu trắng mọi vị trí theo sơ đồ kho để ghi tay.";
         ToolTip.SetTip(_kInfo, hint);
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_kInfo);
         _kInfo.Margin = new Thickness(0, 0, 0, 4);
@@ -838,7 +839,6 @@ public sealed class SoDoView : UserControl, IPage
     private bool KkSoTab => (_kSub?.SelectedIndex ?? 0) == 0;
     private void KkModeUi()
     {
-        _kMode.IsVisible = !KkSoTab;
         foreach (var c in _kSoOnly) c.IsVisible = KkSoTab;
     }
     /// <summary>Đặt tab con + ô loại phiếu theo mode (không kích hoạt tạo lại phiếu).</summary>
@@ -848,7 +848,6 @@ public sealed class SoDoView : UserControl, IPage
         try
         {
             if (_kSub is not null) _kSub.SelectedIndex = mode == "so" ? 0 : 1;
-            if (mode != "so") _kMode.SelectedIndex = mode == "trong" ? 1 : 0;
             KkModeUi();
         }
         finally { _loading = was; }
@@ -856,7 +855,7 @@ public sealed class SoDoView : UserControl, IPage
     private (string Kho, string Khu, int D, string Mode) KkWant()
     {
         var khu = _kKhu.SelectedItem as string ?? ""; var d = _kDay.SelectedIndex <= 0 ? 0 : PickNum(_kDay);
-        return (_kho, khu.Replace("Khu ", ""), d, KkSoTab ? "so" : _kMode.SelectedIndex == 1 ? "trong" : "rong");
+        return (_kho, khu.Replace("Khu ", ""), d, KkSoTab ? "so" : "trong");
     }
     private void KkFillSelectors()
     {

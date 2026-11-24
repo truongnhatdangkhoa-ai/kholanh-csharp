@@ -47,6 +47,8 @@ public sealed class CargoRec
     public string ContSoTuCap { get; set; } = "";
     public string CapNhat { get; set; } = "";
     public List<CargoBlock> Blocks { get; set; } = new() { new CargoBlock { Loai = "ks" } };
+    /// <summary>Hàng "KIỆN / DÃY" (số kiện thực tế từng dãy, dùng chung cả cont — "dayCap" như app cũ): dãy → số kiện.</summary>
+    public Dictionary<string, string> DayCap { get; set; } = new();
     [JsonExtensionData] public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
@@ -500,6 +502,15 @@ public static class CargoCore
     public static string ContXeOf(XeInfo x) => string.Join(" / ", new[] { x.SoXe, x.Cont }.Where(s => s.Length > 0));
 
     /// <summary>"ĐỔ ĐẦY TỪNG DÃY": gõ TỔNG kiện của 1 dòng → xếp lần lượt từ dãy 1, mỗi dãy chỉ nhận phần còn trống = sức chứa dãy − hàng của các dòng khác. Dãy chưa có sức chứa = không nhận.</summary>
+    /// <summary>Sức chứa từng dãy của cont (hàng KIỆN / DÃY).</summary>
+    public static Dictionary<int, int> Caps(CargoRec c)
+    {
+        var d = new Dictionary<int, int>();
+        foreach (var (k, v) in c.DayCap)
+            if (int.TryParse(k, out var day) && day is >= 1 and <= NDay && double.TryParse((v ?? "").Replace(",", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && n > 0) d[day] = (int)Math.Floor(n);
+        return d;
+    }
+
     public static (double Placed, double Left, int NDays, bool NoCap) RaiTong(CargoRec cargo, int bi, int li, double total, IReadOnlyDictionary<int, int> caps)
     {
         var ln = cargo.Blocks[bi].Lines[li]; var nDay = Enumerable.Range(1, NDay).Count(d => caps.GetValueOrDefault(d) > 0);

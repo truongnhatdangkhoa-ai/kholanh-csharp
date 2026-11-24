@@ -92,7 +92,7 @@ public sealed class DetailPane : UserControl
             var col = m.Columns[c];
             if (col.Width < 4) continue;                                  // cột ẩn (giữ mã dòng)
             var raw = m.Get(r, c);
-            var v = _g.Display?.Invoke(r, c, raw) ?? raw;
+            var v = _g.ShowText(r, c, raw);
             if (string.IsNullOrWhiteSpace(v)) continue;
             yield return (string.IsNullOrWhiteSpace(col.Header) ? GridModel.ColumnName(c) : col.Header, v);
         }

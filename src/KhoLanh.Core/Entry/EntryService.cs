@@ -42,10 +42,36 @@ public sealed class EntryService
         new("xuat-kho", "Xuất kho", Cols(("Ngày", "date", 100, EntryRules.Today, ""), ("Số phiếu", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Tên hàng", "text", 240, EntryRules.Ten, ""), ("Size", "text", 80, EntryRules.Size, ""),
             ("Số thùng", "number", 90, "", ""), ("Tổng kg", "number", 100, "", ""), ("Vị trí", "text", 90, "", ""), ("Khách hàng", "text", 130, "", ""), ("Ghi chú", "text", 200, "", "")), true),
         // 1.62: mẫu kiểm kê mới — Size / Trọng lượng theo mã, Net = Số lượng × Trọng lượng, Ngày nhập = ngày tạo dòng (không tự đổi khi sửa)
+        // 1.71: Net(kg) → Tổng Net(kg); thêm Số lượng xuất · Số lượng còn lại (= Số lượng − SL xuất, là số đối chiếu kiểm kê) ·
+        //       Tổng Net(kg) còn lại (= SL còn lại × Trọng lượng) · Ngày xuất (tự điền khi gõ SL xuất)
         new("kiem-ke", "Kiểm kê", Cols(("Vị trí", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Size", "text", 90, EntryRules.Size, ""),
-            ("Trọng lượng", "number", 100, EntryRules.Tl, ""), ("Số lượng", "number", 90, "", ""), ("Net(kg)", "number", 100, "", "=[Số lượng]*[Trọng lượng]"),
-            ("Ghi chú", "text", 200, "", ""), ("Ngày nhập", "date", 100, EntryRules.Today, "")), true),
+            ("Trọng lượng", "number", 100, EntryRules.Tl, ""), ("Số lượng", "number", 90, "", ""), ("Tổng Net(kg)", "number", 110, "", "=[Số lượng]*[Trọng lượng]"),
+            ("Ghi chú", "text", 200, "", ""), ("Ngày nhập", "date", 100, EntryRules.Today, ""),
+            (KkXuat, "number", 110, "", ""), (KkConLai, "number", 120, "", "=[Số lượng]-[Số lượng xuất]"),
+            (KkNetConLai, "number", 140, "", "=[Số lượng còn lại]*[Trọng lượng]"), ("Ngày xuất", "date", 100, EntryRules.NgayXuat, "")), true),
     };
+
+    public const string KkXuat = "Số lượng xuất", KkConLai = "Số lượng còn lại", KkNetConLai = "Tổng Net(kg) còn lại";
+
+    /// <summary>1.71: trang / mẫu kiểm kê tạo trước bản này → đổi tên Net(kg) thành Tổng Net(kg) và thêm 4 cột mới (dữ liệu cũ giữ nguyên;
+    /// cột công thức tính lại khi lưu). Chỉ áp khi trang có đủ Số lượng + Trọng lượng.</summary>
+    public static List<GridColumn> UpgradeKiemKe(List<GridColumn> cols)
+    {
+        string F(GridColumn c) => GridFilter.Fold(c.Header).Replace(" ", "");
+        if (!cols.Any(c => F(c) == "soluong") || !cols.Any(c => F(c) == "trongluong")) return cols;
+        var res = cols.Select(c => F(c) is "net(kg)" or "netkg" or "net" && c.Formula.Replace(" ", "") == "=[Sốlượng]*[Trọnglượng]" ? new GridColumn(c.Key, "Tổng Net(kg)", c.Width, c.Type) { Auto = c.Auto, Formula = c.Formula, ReadOnly = c.ReadOnly } : c).ToList();
+        var next = res.Select(c => c.Key.StartsWith("c") && int.TryParse(c.Key[1..], out var n) ? n : -1).DefaultIfEmpty(-1).Max() + 1;
+        void Add(string h, string type, double w, string auto, string fx)
+        {
+            if (res.Any(c => GridFilter.Fold(c.Header).Trim() == GridFilter.Fold(h).Trim())) return;
+            res.Add(new GridColumn("c" + next++, h, w, type) { Auto = auto, Formula = fx });
+        }
+        Add(KkXuat, "number", 110, "", "");
+        Add(KkConLai, "number", 120, "", "=[Số lượng]-[Số lượng xuất]");
+        Add(KkNetConLai, "number", 140, "", "=[Số lượng còn lại]*[Trọng lượng]");
+        Add("Ngày xuất", "date", 100, EntryRules.NgayXuat, "");
+        return res;
+    }
 
     private static List<GridColumn> Cols(params (string h, string t, double w, string auto, string fx)[] cols) =>
         cols.Select((c, i) => new GridColumn("c" + i, c.h, c.w, c.t) { Auto = c.auto, Formula = c.fx }).ToList();
@@ -88,9 +114,13 @@ public sealed class EntryService
             return (JsonNode)o;
         }).ToArray()).ToJsonString();
 
-    private static PageInfo ToInfo(JsonObject o) => new(
-        S(o["id"]), S(o["ten"]), S(o["mau"]), S(o["tao"]), S(o["sua"]), S(o["nguoi"]),
-        int.TryParse(S(o["dong"]), out var n) ? n : 0, S(o["xoa"]) == "1", ParseCols(S(o["cot"])));
+    private static PageInfo ToInfo(JsonObject o)
+    {
+        var cols = ParseCols(S(o["cot"]));
+        if (S(o["mau"]) == "kiem-ke") cols = UpgradeKiemKe(cols);   // 1.71
+        return new(S(o["id"]), S(o["ten"]), S(o["mau"]), S(o["tao"]), S(o["sua"]), S(o["nguoi"]),
+            int.TryParse(S(o["dong"]), out var n) ? n : 0, S(o["xoa"]) == "1", cols);
+    }
 
     private static JsonObject ToRow(PageInfo p) => new()
     {
@@ -179,7 +209,15 @@ public sealed class EntryService
     {
         Require(Perm.View);
         var keys = p.Columns.Select(c => c.Key).ToList();
-        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+        return Fill(p, ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList());
+    }
+
+    /// <summary>1.71: trang kiểm kê cũ vừa được thêm cột công thức (Số lượng còn lại…) → tính sẵn khi mở, không phải đợi lưu lại.</summary>
+    private static List<string[]> Fill(PageInfo p, List<string[]> rows)
+    {
+        if (p.Template != "kiem-ke" || rows.Count == 0) return rows;
+        foreach (var (r, c, v) in EntryRules.RecomputeAll(p.Columns, rows)) if (c < rows[r].Length) rows[r][c] = v;
+        return rows;
     }
 
     /// <summary>Như <see cref="Load"/> nhưng mỗi dòng thêm 1 phần tử cuối = màu tô ô của dòng (<see cref="ColorKey"/>).</summary>
@@ -187,7 +225,7 @@ public sealed class EntryService
     {
         Require(Perm.View);
         var keys = p.Columns.Select(c => c.Key).Append(ColorKey).ToList();
-        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+        return Fill(p, ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList());
     }
 
     /// <summary>
@@ -232,7 +270,7 @@ public sealed class EntryService
             .Select(o => new Template(S(o["id"]), S(o["ten"]), ParseCols(S(o["cot"])), false))
             .Where(t => t.Id.Length > 0 && t.Columns.Count > 0).ToList();
         var over = rows.Where(t => BuiltIn.Any(b => b.Id == t.Id)).ToDictionary(t => t.Id);
-        var builtIn = BuiltIn.Select(b => over.TryGetValue(b.Id, out var o) ? o with { BuiltIn = true, Edited = true } : b);
+        var builtIn = BuiltIn.Select(b => over.TryGetValue(b.Id, out var o) ? o with { BuiltIn = true, Edited = true, Columns = b.Id == "kiem-ke" ? UpgradeKiemKe(o.Columns) : o.Columns } : b);
         return builtIn.Concat(rows.Where(t => !over.ContainsKey(t.Id)).OrderBy(t => t.Name, StringComparer.CurrentCulture)).ToList();
     }
 
