@@ -498,6 +498,31 @@ Snap(small, "03c-man-hinh-1366");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
+{
+    // rà màn hình nhỏ: mỗi module × mỗi tab cấp 1 (và tab cấp 2 trong tab đang mở)
+    var sw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; sw.Show();
+    var keys = new[] { "lx", "m6", "m13", "m1", "m2", "m7", "m3sk", "m1vtb", "m8", "m4", "m5", "m9", "m7ck", "m3", "m3dm", "m10", "m12", "m11", "m14", "m15", "m21", "m22" };
+    foreach (var k in keys)
+    {
+        try
+        {
+            sw.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+            var tc = sw.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault();
+            var n = tc?.ItemCount ?? 1;
+            for (var t = 0; t < n; t++)
+            {
+                if (tc is not null) { tc.SelectedIndex = t; for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); } }
+                Snap(sw, $"s-{k}-{t}");
+                var inner = sw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tc && x.IsEffectivelyVisible).FirstOrDefault();
+                if (inner is not null)
+                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(sw, $"s-{k}-{t}-{u}"); }
+            }
+        }
+        catch (Exception e) { Console.WriteLine($"  [{k}] lỗi: {e.Message}"); }
+    }
+    sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
