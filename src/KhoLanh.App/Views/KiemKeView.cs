@@ -497,8 +497,7 @@ public sealed partial class KiemKeView : UserControl, IPage
     private static readonly GridColumn[] KtCols = { new("ma", "Mã hàng", 235), new("ten", "Tên hàng", 180), new("tl", "Trọng lượng", 85, "number"), new("sl", "Số lượng", 80, "number"), new("net", "Net (kg)", 95, "number") };
     private Control BuildKt()
     {
-        var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 8, 0, 6) };
-        head.Children.Add(Label("Số liệu Kế toán", true, 14));
+        var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         head.Children.Add(Muted("Dán thẳng từ Excel (Ctrl+V) hoặc nạp file: Mã hàng, Tên hàng, Trọng lượng, Số lượng, Net. Net trống thì tính Số lượng × Trọng lượng."));
         var b = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         if (_edit)
@@ -509,11 +508,12 @@ public sealed partial class KiemKeView : UserControl, IPage
         }
         head.Children.Add(b); head.Children.Add(_ktInfo);
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_kg));
-        var rh = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 8, 0, 6) };
-        rh.Children.Add(Label("Kiểm kê (kg) ↔ Kế toán (Net kg)", true, 14)); rh.Children.Add(_ktOnlyLech);
+        var rh = new WrapPanel { ItemSpacing = 8, Margin = new Thickness(0, 0, 0, 6) };
+        rh.Children.Add(_ktOnlyLech);
         _ktOnlyLech.IsCheckedChanged += (_, _) => { if (!_loading) RenderKtResult(); };
         var right = new DockPanel(); DockPanel.SetDock(rh, Dock.Top); right.Children.Add(rh); right.Children.Add(Framed(_krg));
-        return Split(left, right, "5*,10,6*");
+        // 1.57: 2 bảng cạnh nhau → 2 tab con (màn hình nhỏ mỗi bảng chỉ còn nửa trang).
+        return new Border { Margin = new Thickness(0, 8, 0, 0), Child = Ui.SubTabs(("Kiểm kê ↔ Kế toán (kg)", right), ("Số liệu kế toán", left)) };
     }
     private void RenderKt()
     {
@@ -572,13 +572,12 @@ public sealed partial class KiemKeView : UserControl, IPage
         _gmg = new SheetGrid(_gmap) { SpareRows = 20 };
         _guiOn.IsCheckedChanged += async (_, _) => { if (_loading) return; var v = _guiOn.IsChecked == true; if (v != Svc.GuiOn && !await Act(() => Svc.SetGuiOn(v), v ? "Đã bật tồn kho gửi" : "Đã tắt tồn kho gửi")) { _loading = true; _guiOn.IsChecked = Svc.GuiOn; _loading = false; } };
         _guiOn.IsEnabled = _edit;
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         bar.Children.Add(_guiOn); bar.Children.Add(Btn("⟳ Đọc lại Tồn kho gửi", async () => await Act(Svc.ReloadGui, "Đã đọc lại tồn kho gửi")));
         var head = new StackPanel { Spacing = 4 }; head.Children.Add(bar); head.Children.Add(_guiInfo);
         head.Children.Add(Muted("Tồn kho gửi lấy từ module Tồn kho gửi › Dữ Liệu. Mã kho gửi 18–19 ký tự tự đổi sang mã 21 theo Mã hóa sản phẩm (ký tự 8–13 suy từ Số lô + Size: TGS / AD / Ecuador / TGC / BTP thường); có trong bảng chuyển đổi thì dùng bảng. Dòng không đổi được (tô đỏ) không tính vào tổng."));
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_gg));
-        var mbar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
-        mbar.Children.Add(Label("Bảng chuyển đổi mã (dùng chung với app cũ)", true));
+        var mbar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         if (_edit)
         {
             mbar.Children.Add(Btn("💾 Lưu bảng", async () => await Act(() => Svc.SaveGuiMap(GuiMapFromGrid()), "Đã lưu bảng chuyển đổi mã"), primary: true));
@@ -589,9 +588,9 @@ public sealed partial class KiemKeView : UserControl, IPage
                 LoadGuiMap(cur);
             }, tip: "Đưa các mã kho gửi chưa đổi được vào bảng để gõ mã 21 ký tự"));
         }
-        var right = new DockPanel(); var mh = new StackPanel(); mh.Children.Add(mbar); mh.Children.Add(Muted("Cột 1: mã kho gửi (19 ký tự) · Cột 2: mã 21 ký tự. Bảng ưu tiên hơn tự động."));
+        var right = new DockPanel(); var mh = new StackPanel(); mh.Children.Add(mbar); mh.Children.Add(Muted("Cột 1: mã kho gửi (19 ký tự) · Cột 2: mã 21 ký tự. Bảng ưu tiên hơn tự động; dùng chung với app cũ."));
         DockPanel.SetDock(mh, Dock.Top); right.Children.Add(mh); right.Children.Add(Framed(_gmg));
-        return Split(left, right, "*,10,460");
+        return Ui.SubTabs(("Tồn kho gửi (đã đổi mã)", left), ("Bảng chuyển đổi mã", right));
     }
     private IEnumerable<(string Gui, string Ma)> GuiMapFromGrid() { for (var r = 0; r < _gmap.RowCount; r++) yield return (_gmap.Get(r, 0).Trim(), _gmap.Get(r, 1).Trim()); }
     private void LoadGuiMap(IEnumerable<(string Gui, string Ma)> rows)

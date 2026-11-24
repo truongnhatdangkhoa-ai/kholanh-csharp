@@ -234,6 +234,37 @@ public static class Ui
         return ok;
     }
 
+    /// <summary>
+    /// Tab con trong 1 trang (1.57 — màn hình nhỏ): mỗi bảng dữ liệu 1 tab thay vì 2 – 4 bảng chen nhau trên cùng màn hình.
+    /// Nội dung tab được bọc khoảng cách trên 6 px; trả về TabControl để nơi dùng chuyển tab bằng code (vd chọn dòng → mở tab chi tiết).
+    /// </summary>
+    public static TabControl SubTabs(params (string Header, Control Content)[] tabs)
+    {
+        var tc = new TabControl();
+        foreach (var (h, c) in tabs) tc.Items.Add(new TabItem { Header = h, Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = c } });
+        // Không để đổi tab con nổi lên TabControl cha (cha thường vẽ lại cả trang khi đổi tab → mất dòng đang chọn).
+        tc.SelectionChanged += (_, e) => e.Handled = true;
+        return tc;
+    }
+
+    /// <summary>Danh sách + chi tiết thành 2 tab con (màn hình nhỏ không phải xem 2 bảng chồng nhau):
+    /// bấm đúp ở danh sách → mở tab chi tiết; <paramref name="info"/> (nếu có) nằm trên bảng chi tiết.</summary>
+    public static TabControl MasterDetail(string listHeader, Control list, Control listGrid, string detHeader, Control detail, Control? info = null)
+    {
+        Control det = detail;
+        if (info is not null)
+        {
+            var dp = new DockPanel();
+            info.Margin = new Thickness(0, 0, 0, 6);
+            DockPanel.SetDock(info, Dock.Top);
+            dp.Children.Add(info); dp.Children.Add(detail);
+            det = dp;
+        }
+        var tc = SubTabs((listHeader, list), (detHeader, det));
+        listGrid.DoubleTapped += (_, _) => tc.SelectedIndex = 1;
+        return tc;
+    }
+
     public static string SafeFileName(string s) =>
         string.Concat(s.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
 }

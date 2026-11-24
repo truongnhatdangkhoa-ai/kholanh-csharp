@@ -39,4 +39,14 @@ public class GridTotalsTests
         var r = GridTotals.Sum(m, new[] { 0, 1, 2 }, _ => true);
         Assert.Equal(8535, r[0]); Assert.Equal(84342.6, r[1]!.Value, 6); Assert.Equal(4, r[2]); Assert.Equal(1279.4, r[3]!.Value, 6);
     }
+
+    [Fact]
+    public void Bo_qua_dong_tong_co_san_trong_bang()
+    {
+        var m = new GridModel();
+        m.Load(new[] { new GridColumn("a", "Tên hàng", 100), new GridColumn("b", "Số lượng", 60, "number") },
+            new[] { new[] { "Tôm HLSO", "10" }, new[] { "Tôm Gia Công", "5" }, new[] { "TỔNG CỘNG", "15" }, new[] { "Tổng ngày 21/11/2026", "15" }, new[] { "▾ 20/11/2026", "7" }, new[] { "Tổng hợp HLSO", "2" } });
+        var r = GridTotals.Sum(m, Enumerable.Range(0, 6).ToList(), _ => true);
+        Assert.Equal(17, r[1]);      // "Tổng hợp HLSO" là tên hàng, không phải dòng tổng
+    }
 }

@@ -604,10 +604,7 @@ public sealed class ViTriView : UserControl, IPage
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
         var head = new StackPanel(); head.Children.Add(act); head.Children.Add(hint);
-        var split = new Grid { RowDefinitions = new RowDefinitions("*,Auto,220") };
-        split.Children.Add(Framed(_sg));
-        var info = _slipInfo; info.Margin = new Thickness(0, 6, 0, 4); Grid.SetRow(info, 1); split.Children.Add(info);
-        var det = Framed(_sd); Grid.SetRow(det, 2); split.Children.Add(det);
+        var split = Ui.MasterDetail("Danh sách phiếu", Framed(_sg), _sg, "Chi tiết phiếu", Framed(_sd), _slipInfo);
         var dock = new DockPanel();
         DockPanel.SetDock(head, Dock.Top);
         dock.Children.Add(head); dock.Children.Add(split);
@@ -802,10 +799,7 @@ public sealed class ViTriView : UserControl, IPage
             act.Children.Add(Btn("Ảnh PNG…", async () => { if (CurArc() is { } g) await ShowImage(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day), g.Loai); }));
         }
         act.Children.Add(Label("Mỗi ngày + mỗi loại phiếu tự gộp thành 1 phiếu (gộp theo Size).", size: 12));
-        var split = new Grid { RowDefinitions = new RowDefinitions("*,Auto,260") };
-        split.Children.Add(Framed(_ag));
-        var info = _arcInfo; info.Margin = new Thickness(0, 6, 0, 4); Grid.SetRow(info, 1); split.Children.Add(info);
-        var det = Framed(new SheetGrid(_adm) { SpareRows = 0 }); Grid.SetRow(det, 2); split.Children.Add(det);
+        var split = Ui.MasterDetail("Danh sách theo ngày", Framed(_ag), _ag, "Chi tiết ngày", Framed(new SheetGrid(_adm) { SpareRows = 0 }), _arcInfo);
         var dock = new DockPanel();
         DockPanel.SetDock(act, Dock.Top);
         dock.Children.Add(act); dock.Children.Add(split);

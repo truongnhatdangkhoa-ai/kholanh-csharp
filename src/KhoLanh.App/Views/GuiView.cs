@@ -585,16 +585,15 @@ public sealed class GuiView : UserControl, IPage
         }
         if (_export) { gbar.Children.Add(Btn("⬇ Xuất đặc tính", async () => await SaveXlsx(GuiExport.DacTinhList(D), "dac-tinh.xlsx"))); gbar.Children.Add(Btn("⬇ Xuất gộp", async () => await SaveXlsx(GuiExport.DacTinhGroups(D), "gop-dac-tinh.xlsx"))); }
         var left = Page(new StackPanel { Children = { gbar, _dtInfo } }, Framed(_dtg));
-        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,12,*") };
-        split.Children.Add(left); var right = Framed(_dgg); Grid.SetColumn(right, 2); split.Children.Add(right);
-        _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = split }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
+        // 1.57: bảng danh sách nhóm (trước nằm bên phải) thành tab riêng — màn hình nhỏ bảng gộp rộng hết trang
+        _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = left }, new TabItem { Header = "Nhóm đặc tính", Content = new Border { Padding = new Thickness(0, 8, 0, 0), Child = Framed(_dgg) } }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
         _dtTabs.SelectionChanged += (_, _) => { if (!_loading) RenderDt(); };
         return _dtTabs;
     }
 
     private void RenderDt()
     {
-        if (_dtTabs.SelectedIndex == 1)
+        if (_dtTabs.SelectedIndex == 2)
         {
             _dmm.Load(new[] { new GridColumn("a", "Diễn giải đặc tính", 360), new GridColumn("b", "Đặc tính", 200) }, D.DtManual.Select(r => new[] { r.MaHang, r.DacTinh })); _dmg.Refresh(); return;
         }

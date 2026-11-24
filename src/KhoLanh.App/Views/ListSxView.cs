@@ -58,18 +58,18 @@ public sealed class ListSxView : UserControl
 
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 6, 0, 6) };
         top.Children.Add(bar); top.Children.Add(_status);
-        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("1*,6,1*") };   // 1.52: khung chi tiết rộng ngang danh sách
-        split.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _lg });
-        var gs = new GridSplitter { Background = Brushes.Transparent }; Grid.SetColumn(gs, 1); split.Children.Add(gs);
-        var right = new ScrollViewer { Content = new Border { Padding = new Thickness(8, 0, 4, 8), Child = _detail }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        Grid.SetColumn(right, 2); split.Children.Add(right);
+        // 1.57: danh sách LSX / chi tiết List thành 2 tab con (bấm đúp LSX → mở chi tiết); trước 2 cột, màn hình nhỏ mỗi bên chật.
+        var right = new ScrollViewer { Content = new Border { Padding = new Thickness(0, 0, 4, 8), Child = _detail }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        _split = Ui.MasterDetail("Danh sách LSX", new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _lg }, _lg, "Chi tiết List", right);
+        var split = _split;
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(split);
         Content = root;
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }
 
     /// <summary>Chọn List của LSX (mở từ tab "⚡ Tự động đã tạo").</summary>
-    public void SelectLsx(string lsx) { _sel = lsx; _q.Text = ""; _ = LoadAsync(); }
+    public void SelectLsx(string lsx) { _sel = lsx; _q.Text = ""; _ = LoadAsync(); if (_split is not null) _split.SelectedIndex = 1; }
+    private TabControl? _split;
 
     private static IBrush Brush(string c) => AppTheme.Brush(c);
     private static Button Btn(string text, Func<Task> click, string? tip = null, bool primary = false)

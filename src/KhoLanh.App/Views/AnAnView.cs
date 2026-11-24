@@ -587,21 +587,17 @@ public sealed class AnAnView : UserControl, IPage
             bar.Children.Add(Btn("⬇ Xuất Bảng Tổng Hợp HLSO", async () => await SaveXlsx(AnAnExport.HlsoSummary(D, D.DataDate.Length > 0 ? D.DataDate : Today), $"BangTongHopHLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
         }
         if (_edit) bar.Children.Add(Btn("Lấy Kho Gửi từ Tồn kho gửi", async () => await PullKhoGui()));
-        // 1.49: bảng Tổng Tồn to hơn, hiện đủ 9 dòng không cuộn; Đối soát thu nhỏ (hiện đủ 5 dòng, hẹp lại) → Bảng Tổng Hợp HLSO có thêm chỗ
-        var left = new StackPanel { Spacing = 6, Width = 560 };
-        left.Children.Add(Label("Báo Cáo Tổng Tồn", true, 15));
-        left.Children.Add(Framed(new Border { Height = SheetGrid.HeadH + SheetGrid.RowH * 9 + 14, Child = _bcg }));
-        left.Children.Add(_bcKhoGui);
-        var right = new StackPanel { Spacing = 6, Margin = new Thickness(16, 0, 0, 0), MaxWidth = 470, HorizontalAlignment = HorizontalAlignment.Left };
-        right.Children.Add(Label("Đối Soát: 8 Module vs Load Data", true, 13));
-        right.Children.Add(Framed(new Border { Height = SheetGrid.HeadH + SheetGrid.RowH * 5 + 14, Child = new SheetGrid(_bdm) { SpareRows = 0, Filterable = false, CellBackground = (r, _) => r is 2 or 4 && _bdm.Get(r, 1) is { Length: > 0 } s && s != "0.00" && s != "-0.00" ? WarnBg : null } }));
-        right.Children.Add(_bcRecon);
-        var row = new DockPanel();
-        DockPanel.SetDock(left, Dock.Left); row.Children.Add(left); row.Children.Add(right);
-        var head = new StackPanel { Spacing = 6 };
-        head.Children.Add(bar); head.Children.Add(row);
-        head.Children.Add(Label("Bảng Tổng Hợp HLSO", true, 15));
-        return Page(head, Framed(_bhg));
+        // 1.57: 3 bảng (Tổng Tồn · Đối soát · Tổng Hợp HLSO) tách thành 3 tab con — màn hình nhỏ mỗi bảng có đủ chỗ
+        _bcg.ShowTotals = false;   // bảng đã có dòng TỔNG CỘNG
+        var tong = new DockPanel();
+        DockPanel.SetDock(_bcKhoGui, Dock.Bottom); _bcKhoGui.Margin = new Thickness(0, 6, 0, 0);
+        tong.Children.Add(_bcKhoGui); tong.Children.Add(Framed(_bcg));
+        var doiSoat = new DockPanel();
+        DockPanel.SetDock(_bcRecon, Dock.Bottom); _bcRecon.Margin = new Thickness(0, 6, 0, 0);
+        doiSoat.Children.Add(_bcRecon);
+        doiSoat.Children.Add(Framed(new SheetGrid(_bdm) { SpareRows = 0, Filterable = false, ShowTotals = false, CellBackground = (r, _) => r is 2 or 4 && _bdm.Get(r, 1) is { Length: > 0 } s && s != "0.00" && s != "-0.00" ? WarnBg : null }));
+        var tabs = Ui.SubTabs(("Báo Cáo Tổng Tồn", tong), ("Đối Soát: 8 Module vs Load Data", doiSoat), ("Bảng Tổng Hợp HLSO", Framed(_bhg)));
+        return Page(bar, tabs);
     }
 
     private async Task<string?> AskReportDate()
@@ -803,12 +799,8 @@ public sealed class AnAnView : UserControl, IPage
             bar.Children.Add(Btn("⬇ Xuất Gộp Đặc Tính", async () => await SaveXlsx(AnAnExport.GopDacTinh(D), $"GopDacTinh_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
         }
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_dtStats);
-        var body = new Grid { ColumnDefinitions = new ColumnDefinitions("*,10,420") };
-        body.Children.Add(Framed(_dtg));
-        var right = new DockPanel();
-        var rl = Label("Gộp Đặc Tính (nhóm của Bảng Tổng Hợp HLSO)", bold: true); DockPanel.SetDock(rl, Dock.Top);
-        right.Children.Add(rl); right.Children.Add(Framed(new SheetGrid(_dgm) { SpareRows = 0 }));
-        Grid.SetColumn(right, 2); body.Children.Add(right);
+        // 1.57: 2 bảng thành 2 tab con (màn hình nhỏ)
+        var body = Ui.SubTabs(("Đặc tính", Framed(_dtg)), ("Gộp Đặc Tính (nhóm của Bảng Tổng Hợp HLSO)", Framed(new SheetGrid(_dgm) { SpareRows = 0 })));
         return Page(head, body);
     }
 
@@ -882,7 +874,6 @@ public sealed class AnAnView : UserControl, IPage
         DockPanel.SetDock(th, Dock.Top); top.Children.Add(th); top.Children.Add(Framed(_xhg));
 
         var sbar = Bar();
-        sbar.Children.Add(Label("Phiếu xuất đã tạo", bold: true));
         if (_edit)
         {
             sbar.Children.Add(Btn("Trừ tồn kho", async () => await SlipAct(true), primary: true));
@@ -890,8 +881,7 @@ public sealed class AnAnView : UserControl, IPage
         }
         var bottom = new DockPanel();
         DockPanel.SetDock(sbar, Dock.Top); bottom.Children.Add(sbar); bottom.Children.Add(Framed(_xsg));
-        var xh = new Grid { RowDefinitions = new RowDefinitions("3*,8,2*") };
-        xh.Children.Add(top); Grid.SetRow(bottom, 2); xh.Children.Add(bottom);
+        // 1.57: chọn hàng và danh sách phiếu đã tạo thành 2 tab (trước đây 2 bảng chồng nhau)
 
         var ngss = new StackPanel { Spacing = 8, Margin = new Thickness(0, 10, 0, 0) };
         ngss.Children.Add(Muted("2 số này không có trong file tồn kho: nhập tay (Kho Gửi tự lấy từ Tồn kho gửi khi dữ liệu bên đó đổi). Dùng cho Báo Cáo Tổng Tồn và file báo cáo."));
@@ -917,7 +907,8 @@ public sealed class AnAnView : UserControl, IPage
         {
             Items =
             {
-                new TabItem { Header = "Xuất Hàng", Content = xh },
+                new TabItem { Header = "Tạo phiếu xuất", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = top } },
+                new TabItem { Header = "Phiếu xuất đã tạo", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = bottom } },
                 new TabItem { Header = "Báo cáo ngoài sổ sách", Content = ngss },
             },
         };
