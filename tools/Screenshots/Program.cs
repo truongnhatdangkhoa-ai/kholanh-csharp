@@ -991,6 +991,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
         g.Select(3, 4); g.Select(9, 6, extend: true);
         Snap(main, "20b-nhap-lieu-chon-vung");
+        SnapSuggest(main, "20c-nhap-lieu-goi-y");
     }
 }
 // Kiểm tra nhanh thao tác bàn phím trên lưới (gõ, Enter, Tab, F2, Delete, Ctrl+Z, Ctrl+D)
