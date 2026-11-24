@@ -264,4 +264,37 @@ public class LanTests : IDisposable
         Assert.Equal("b1", Local(win, "B"));
         Assert.Equal("a", Local(win, "S"));
     }
+
+    /// <summary>
+    /// Lỗi chập chờn CI 24/11 ("a,b,c,a,b"): máy con gửi sổ chờ, máy chủ áp xong nhưng câu trả lời bị mất (máy chủ tắt đúng lúc) →
+    /// máy con sửa tiếp bảng đó → mục chờ mới vẫn mang bản gốc cũ → máy chủ gộp 3 bên sai, nhân đôi dòng.
+    /// Nay sổ chờ nhớ lần gửi trước (đã đánh dấu gửi); máy chủ thấy lần đó đã áp thì lấy nội dung lần đó làm bản gốc.
+    /// </summary>
+    [Fact]
+    public void Resent_pending_after_lost_reply_is_not_duplicated()
+    {
+        var (srv, cli, _, _) = Pair();
+        Stop(srv);
+        cli.Lan.Write(Db, One("S", Rows("a", "b")));                 // máy chủ tắt → vào sổ chờ (bản gốc: chưa có bảng)
+        Until(() => !cli.Lan.Online || cli.Lan.PendingCount() > 0, "vào sổ chờ");
+        var first = Assert.Single(cli.Lan.PendingItems());           // "gửi" lần 1 (đánh dấu đã gửi)
+        Assert.Null(first["prev"]);
+        var ms2 = Setup("chu2", LanService.RoleServer, null);
+        var srv2 = Boot(ms2);
+        Until(() => srv2.Lan.Serving, "máy chủ 2 lên");
+        first["u"] = "admin";
+        Assert.Equal("ok", srv2.Lan.ApplyExternal(new[] { first }, "may-con").Single()["st"]!.ToString());   // máy chủ áp xong, máy con không biết
+        Assert.Equal("a,b", Local(srv2, "S"));
+
+        cli.Lan.Write(Db, One("S", Rows("a", "b", "c")));            // người dùng sửa tiếp khi chưa có trả lời
+        var second = Assert.Single(cli.Lan.PendingItems());
+        Assert.Equal(first["op"]!.ToString(), second["prev"]![0]!["op"]!.ToString());
+        second["u"] = "admin";
+        srv2.Lan.ApplyExternal(new[] { second }, "may-con");
+        Assert.Equal("a,b,c", Local(srv2, "S"));                      // trước đây: "a,b,c,a,b"
+
+        // gửi lại đúng mục đã áp → bỏ qua (không áp 2 lần)
+        Assert.Equal("trung", srv2.Lan.ApplyExternal(new[] { second }, "may-con").Single()["st"]!.ToString());
+        Assert.Equal("a,b,c", Local(srv2, "S"));
+    }
 }

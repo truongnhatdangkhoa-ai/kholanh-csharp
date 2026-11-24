@@ -623,6 +623,10 @@ public sealed partial class LanService : ISheetSource, IDisposable
         lock (_dataLock)
         {
             if (opId.Length > 0 && Applied(opId)) return R("trung");
+            // Lần gửi trước của chính mục này đã được áp (máy con không nhận được trả lời) → bản gốc đúng là nội dung lần đó.
+            if (it["prev"] is JsonArray prev)
+                foreach (var po in prev.OfType<JsonObject>().Reverse())
+                    if (po["op"]?.ToString() is { Length: > 0 } pid && Applied(pid)) { bd = po["d"]?.ToString(); bv = -1; break; }
             var (curJson, curV) = _store.ReadVersioned(db, sheet);
             string? cur = Exists(db, sheet) ? curJson : null;
             JsonObject res;
@@ -920,7 +924,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 c.Execute("""
                     INSERT INTO lan_pending(db_key, sheet, op_id, data, base_version, base_data, username, created_at)
                     VALUES(@db, @sheet, @op, @data, @bv, @bd, @user, @now)
-                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data
+                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data, sent=0,
+                        prev_ops=CASE WHEN lan_pending.sent=1 THEN json_insert(lan_pending.prev_ops, '$[#]', json_object('op', lan_pending.op_id, 'd', lan_pending.data)) ELSE lan_pending.prev_ops END
                     """, new { q.db, q.sheet, op = Guid.NewGuid().ToString("N"), q.data, q.bv, q.bd, user = "", now });
             SetEpoch(epoch, winnerStart);
             _settings.Set("lan_last_seq", "0");
@@ -951,11 +956,29 @@ public sealed partial class LanService : ISheetSource, IDisposable
         return c.ExecuteScalar<long>("SELECT COUNT(*) FROM lan_pending WHERE db_key=@db AND sheet=@sheet", new { db, sheet }) > 0;
     }
 
-    private List<(string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username)> PendingRows()
+    private List<(string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username, string prev_ops)> PendingRows()
     {
         using var c = _db.Open();
-        return c.Query<(string, string, string, string?, long, string?, string)>(
-            "SELECT db_key, sheet, op_id, data, base_version, base_data, username FROM lan_pending ORDER BY created_at").ToList();
+        return c.Query<(string, string, string, string?, long, string?, string, string)>(
+            "SELECT db_key, sheet, op_id, data, base_version, base_data, username, prev_ops FROM lan_pending ORDER BY created_at").ToList();
+    }
+
+    /// <summary>Đánh dấu các mục sổ chờ sắp gửi đi (máy chủ có thể áp xong mà câu trả lời không về được).</summary>
+    private void MarkSent(IEnumerable<string> opIds)
+    {
+        lock (_dataLock)
+        {
+            using var c = _db.Open();
+            foreach (var op in opIds) c.Execute("UPDATE lan_pending SET sent=1 WHERE op_id=@op", new { op });
+        }
+    }
+
+    /// <summary>1 mục sổ chờ dạng gửi lên máy chủ / máy chính (kèm các lần gửi trước chưa được xác nhận).</summary>
+    private static JsonObject ItemOf((string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username, string prev_ops) p)
+    {
+        var o = new JsonObject { ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username };
+        try { if (JsonNode.Parse(p.prev_ops) is JsonArray pa && pa.Count > 0) o["prev"] = pa; } catch { /* hỏng thì bỏ */ }
+        return o;
     }
 
     private void WritePending(string db, IDictionary<string, string?> sheets)
@@ -971,7 +994,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 c.Execute("""
                     INSERT INTO lan_pending(db_key, sheet, op_id, data, base_version, base_data, username, created_at)
                     VALUES(@db, @sheet, @op, @data, @bv, @bd, @user, @now)
-                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data
+                    ON CONFLICT(db_key, sheet) DO UPDATE SET op_id=excluded.op_id, data=excluded.data, sent=0,
+                        prev_ops=CASE WHEN lan_pending.sent=1 THEN json_insert(lan_pending.prev_ops, '$[#]', json_object('op', lan_pending.op_id, 'd', lan_pending.data)) ELSE lan_pending.prev_ops END
                     """, new { db, sheet, op = Guid.NewGuid().ToString("N"), data, bv = curV, bd = exists ? curJson : null, user = _session.Username, now });
                 // database riêng của máy: ghi thẳng, giữ số phiên bản cũ (= bản gốc)
                 _store.SetExact(db, sheet, data, curV);
@@ -987,10 +1011,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
         var rows = PendingRows();
         if (rows.Count == 0) return;
         var req = Req("sync");
-        req["items"] = new JsonArray(rows.Select(p => (JsonNode)new JsonObject
-        {
-            ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username,
-        }).ToArray());
+        req["items"] = new JsonArray(rows.Select(p => (JsonNode)ItemOf(p)).ToArray());
+        MarkSent(rows.Select(p => p.op_id));
         JsonObject r;
         try { r = await CallNode(n, req, TimeSpan.FromSeconds(120), ct); }
         catch (LanUnreachableException) { GoOffline(); return; }
@@ -1003,7 +1025,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
             if (st == "loi") { err++; errors.Add($"{it["sheet"]}: {it["note"]}"); continue; } // giữ trong sổ chờ
             if (st == "gop") merged++; else if (st == "xungdot") conflict++; else ok++;
             using (var c = _db.Open()) c.Execute("DELETE FROM lan_pending WHERE op_id=@op", new { op = it["op"]!.ToString() });
-            // tải bản trên máy chủ về (đã gộp / bản chính khi xung đột)
+            // tải bản trên máy chủ về (đã gộp / bản chính khi xung đột) — trừ khi người dùng vừa sửa tiếp bảng này (còn mục chờ mới hơn)
+            if (HasPending(it["db"]!.ToString(), it["sheet"]!.ToString())) continue;
             try
             {
                 var rq = Req("read"); rq["db"] = it["db"]!.ToString(); rq["sheet"] = it["sheet"]!.ToString();

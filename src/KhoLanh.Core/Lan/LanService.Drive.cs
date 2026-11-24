@@ -25,10 +25,12 @@ public sealed partial class LanService
     }
 
     /// <summary>Sổ chờ của máy xem từ xa, dạng gửi lên máy chính.</summary>
-    public List<JsonObject> PendingItems() => PendingRows().Select(p => new JsonObject
+    public List<JsonObject> PendingItems()
     {
-        ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username,
-    }).ToList();
+        var rows = PendingRows();
+        MarkSent(rows.Select(p => p.op_id));
+        return rows.Select(p => ItemOf(p)).ToList();
+    }
 
     /// <summary>Bỏ các mục sổ chờ máy chính đã nhận (sau đó bảng được thay bằng bản của máy chính).</summary>
     public void Acknowledge(IEnumerable<string> opIds)
