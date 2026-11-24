@@ -556,13 +556,9 @@ public sealed class ViTriView : UserControl, IPage
         var save = new Button { Content = "Lưu ảnh PNG…", Classes = { "primary" }, IsDefault = true };
         var close = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
-        body.Children.Add(new ScrollViewer
-        {
-            MaxHeight = 560, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = new Border { BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
-        });
+        body.Children.Add(Ui.ImagePreview(bmp, 900));
         body.Children.Add(Ui.Buttons(close, save));
-        var w = Ui.Dialog("Ảnh phiếu xuất", body, Math.Min(960, bmp.Size.Width / 2 + 80));
+        var w = Ui.Dialog("Ảnh phiếu xuất", body, Ui.ImageDialogWidth(bmp, 900));
         close.Click += (_, _) => w.Close();
         save.Click += async (_, _) =>
         {
