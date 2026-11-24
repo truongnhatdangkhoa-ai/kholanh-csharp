@@ -177,7 +177,7 @@ public sealed class ListSxView : UserControl
     }
 
     /// <summary>Chiều cao bảng con: tiêu đề + số dòng (≥ 3) + thanh cuộn ngang, tối đa <paramref name="max"/>.</summary>
-    private static double SubH(int rows, double max) => Math.Min(max, SheetGrid.HeadH + SheetGrid.RowH * Math.Max(3, rows) + 22);
+    private static double SubH(int rows, double max) => SheetGrid.FitHeight(Math.Max(3, rows), max);
 
     private async Task Import()
     {
