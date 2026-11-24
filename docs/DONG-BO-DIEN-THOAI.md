@@ -3,6 +3,10 @@
 Tài liệu cho **bản mobile** sau này và cho ai sửa phần đồng bộ. PC (bản C#, `Core/PhoneSync/PhoneSyncService.cs`, `Core/Services/PhoneWebApp.cs`)
 giữ **đúng** giao thức của app cũ (Electron `main.js`, `core/sheets-webapp-client.js`) nên app điện thoại hiện có dùng được ngay.
 
+> **Từ 1.58:** hệ thống mới dùng **Google Sheet riêng** + app điện thoại mới `truongnhatdangkhoa-ai/kholanh-csharp-mobile` ("Kho Lạnh (mới)").
+> Đường dẫn Web App của Sheet mới cài sẵn ở cả 2 bên (`PhoneWebApp.DefaultUrl` · `www/app-config.js`) — PC chỉ nhập `PC_TOKEN`,
+> điện thoại chỉ nhập tài khoản + mật khẩu (`APP_TOKEN` = quản trị). Hệ thống cũ (app PC Electron + `kholanh-anan-mobile` + Sheet cũ) giữ nguyên.
+
 ## 1. Vận chuyển
 
 - Kho trung gian: 1 Google Sheet + **Apps Script Web App** (`Code.gs` của app điện thoại), đường dẫn `https://script.google.com/macros/s/…/exec`.
