@@ -67,6 +67,16 @@ public partial class BackupView : UserControl, IPage
         ShowAccounts();
     }
 
+    private async void OnAcctUpgrade(object? sender, RoutedEventArgs e)
+    {
+        string? script = null;
+        if (!await Ui.Run(this, () => script = App.Services.Accounts.UpgradeScript())) return;
+        var file = Path.Combine(App.DataFolder, "TaiKhoan-AppsScript.gs");
+        try { File.WriteAllText(file, script!); } catch { }
+        await Copy(script!);
+        AcctMsg.Text = $"Đã chép mã Apps Script bản mới (giữ nguyên mã kết nối; lưu ở {file}). Mở Apps Script của Google Sheet tài khoản, xóa mã cũ, dán, Lưu, rồi Triển khai › Quản lý triển khai › ✏ › Phiên bản mới › Triển khai. Đường dẫn giữ nguyên.";
+    }
+
     private async void OnAcctConnect(object? sender, RoutedEventArgs e)
     {
         var input = AcctInput.Text ?? "";

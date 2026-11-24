@@ -97,6 +97,10 @@ public class AccountSyncTests : IDisposable
         Assert.DoesNotContain("__MA_", AccountSyncService.ScriptTemplate().Replace("'__MA_DOC__'", "").Replace("'__MA_QUAN_TRI__'", ""));
         Assert.True(a.Accounts.CanWrite);
         Assert.Single(_web.Rows);
+        var up = a.Accounts.UpgradeScript();                     // cập nhật bản mới giữ nguyên 2 mã đang dùng
+        Assert.Equal(_web.Token, Between(up, "var MA_DOC = '", "'"));
+        Assert.Equal(_web.Admin, Between(up, "var MA_QUAN_TRI = '", "'"));
+        Assert.Contains("email_google", up);
     }
 
     [Fact]
@@ -125,6 +129,29 @@ public class AccountSyncTests : IDisposable
         b.Auth.Login("nv1", "matkhau3");
         Assert.False(b.Session.Can("m1", Perm.Edit));
         Assert.True(b.Session.Can("m2", Perm.Export));
+    }
+
+    [Fact]
+    public async Task Google_email_is_shared_through_the_sheet()
+    {
+        var a = await AdminMachine();
+        a.Auth.CreateUser("nv1", "Nhân viên 1", "matkhau2", Roles.Staff);
+        var id = a.Auth.ListUsers().Single(x => x.Username == "nv1").Id;
+        a.Auth.SetGoogleEmail(id, " NV1@Gmail.com ");
+        Assert.Equal("nv1@gmail.com", _web.Rows.Single(r => r["username"] == "nv1")["email_google"]);
+        var b = Machine("B");
+        await b.Accounts.ConnectAsync(a.Accounts.ConnectionCode(forAdmin: false));
+        Assert.Equal("nv1", b.Auth.LoginGoogle("nv1@GMAIL.com").Username);
+        b.Auth.Logout();
+        // Sheet cũ chưa có cột email_google → máy giữ email đang có
+        foreach (var r in _web.Rows) r.Remove("email_google");
+        await b.Accounts.PullAsync();
+        Assert.Equal("nv1", b.Auth.LoginGoogle("nv1@gmail.com").Username);
+        b.Auth.Logout();
+        // Quản trị bỏ email → máy khác cũng không đăng nhập Google được nữa
+        a.Auth.SetGoogleEmail(id, "");
+        await b.Accounts.PullAsync();
+        Assert.Throws<BusinessException>(() => b.Auth.LoginGoogle("nv1@gmail.com"));
     }
 
     [Fact]

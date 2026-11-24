@@ -51,3 +51,14 @@ Từ bản 1.19.0, tài khoản **Quản trị đăng nhập ở máy nào cũng
 - Đừng chia sẻ Google Sheet, file Apps Script hay thư mục bộ cài (file `ket-noi.txt`) cho người ngoài, vì trong đó có mã kết nối.
 - Nếu lộ mã, bấm **Tạo lại mã Apps Script**, dán lại vào Apps Script, rồi chọn **Triển khai › Quản lý triển khai › sửa › Phiên bản mới**. Sau đó kết nối lại các máy.
 - Máy nhân viên không tự đổi được mật khẩu. Nhờ Quản trị đặt lại.
+
+## Đăng nhập bằng Google (1.70)
+
+Người dùng bấm **Đăng nhập bằng Google** ở màn hình đăng nhập → trình duyệt mặc định mở trang chọn tài khoản Google (đang đăng nhập sẵn thì chỉ cần chọn) → phần mềm nhận **email** và vào đúng tài khoản được gán email đó. Phần mềm chỉ xin quyền `openid email profile` (không đụng Drive / Gmail); mật khẩu Google không đi qua phần mềm.
+
+Cài một lần:
+1. **Cập nhật Apps Script tài khoản** (để email Google dùng chung mọi máy): máy quản trị › **Sao lưu và cài đặt › Cập nhật mã Apps Script** (giữ nguyên mã kết nối) → dán đè vào Apps Script của Google Sheet tài khoản → Lưu → **Triển khai › Quản lý triển khai › ✏ › Phiên bản mới › Triển khai**. Chưa cập nhật thì email chỉ lưu ở từng máy.
+2. **Mã OAuth trên mỗi máy:** **Hệ thống › Tài khoản › Đăng nhập Google…** — Client ID đã cài sẵn (mã Desktop `kholanhanan` của dự án Google Cloud `kholanhcloud`, dùng chung với Drive cá nhân của app cũ); dán **Client secret** (Google Cloud › APIs & Services › Credentials › kholanhanan) → **Thử đăng nhập Google** → Lưu. Secret cất mã hóa trong máy, không gửi lên Sheet. Máy chưa cài thì không hiện nút.
+3. **Gán email:** **Hệ thống › Tài khoản** › sửa tài khoản › ô **Email Google** (1 email chỉ gán 1 tài khoản; để trống = không dùng). Tài khoản bị khóa thì đăng nhập Google cũng bị chặn.
+
+Lưu ý: dự án Google Cloud ở chế độ *Testing* thì chỉ email trong danh sách *Test users* đăng nhập được (Google Auth Platform › Audience). Đăng nhập bằng Google không mở khóa ghi tài khoản dùng chung — muốn thêm / sửa tài khoản trên máy quản trị, đăng nhập bằng mật khẩu Quản trị.

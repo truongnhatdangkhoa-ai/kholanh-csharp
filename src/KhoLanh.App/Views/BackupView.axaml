@@ -89,6 +89,7 @@
               <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
               <Button Content="Tạo bộ cài cho máy mới…" Click="OnAcctBundle"/>
               <Button Content="Chép mã máy nhân viên" Click="OnAcctCodeStaff"/>
+              <Button Content="Cập nhật mã Apps Script" Click="OnAcctUpgrade" ToolTip.Tip="Mã Apps Script bản mới, giữ nguyên mã kết nối (1.70: thêm cột Email Google). Dán đè rồi Triển khai › Quản lý triển khai › Phiên bản mới."/>
               <Button x:Name="AcctCodeAdminButton" Content="Chép mã máy quản trị" Click="OnAcctCodeAdmin"/>
               <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
             </WrapPanel>

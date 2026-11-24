@@ -10,7 +10,7 @@
 var MA_DOC = '__MA_DOC__';           // máy có mã này: đọc danh sách tài khoản để đăng nhập
 var MA_QUAN_TRI = '__MA_QUAN_TRI__'; // chỉ máy quản trị: được thêm / sửa tài khoản, phân quyền
 var TAB = 'TaiKhoan';
-var COT = ['username', 'ho_ten', 'vai_tro', 'dang_dung', 'quyen', 'mat_khau_bam', 'muoi', 'cap_nhat_luc', 'cap_nhat_boi'];
+var COT = ['username', 'ho_ten', 'vai_tro', 'dang_dung', 'quyen', 'mat_khau_bam', 'muoi', 'cap_nhat_luc', 'cap_nhat_boi', 'email_google']; // email_google: 1.70 (đăng nhập Google)
 
 function doGet() {
   return out_({ ok: true, app: 'kholanh-taikhoan', v: 1 });
@@ -52,6 +52,10 @@ function tab_() {
     sh.getRange(1, 1, 1, COT.length).setValues([COT]).setFontWeight('bold');
     sh.getRange(1, 1, 1000, COT.length).setNumberFormat('@');
     sh.setFrozenRows(1);
+  } else if (sh.getLastColumn() < COT.length) {
+    // Sheet tạo bằng bản cũ: thêm tiêu đề cột mới (vd email_google) — dữ liệu cũ giữ nguyên.
+    sh.getRange(1, 1, 1, COT.length).setValues([COT]).setFontWeight('bold');
+    sh.getRange(1, 1, 1000, COT.length).setNumberFormat('@');
   }
   return sh;
 }
