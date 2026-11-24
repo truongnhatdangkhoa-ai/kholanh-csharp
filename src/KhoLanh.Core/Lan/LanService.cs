@@ -40,6 +40,16 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private readonly object _state = new();
     private readonly object _dataLock = new();
     private readonly ConcurrentDictionary<string, long> _readVersions = new();
+    // Bảng vừa được ghi vào database riêng từ bản mới của máy chủ (ghi / đọc / gửi sổ chờ) → số thứ tự lần ghi. Pull dùng để
+    // không áp dữ liệu cũ hơn: phản hồi "changes" được máy chủ tính TRƯỚC lần ghi đó, áp vào sẽ xóa / lùi bản vừa ghi
+    // (rồi khi mất máy chủ, sổ chờ lấy nhầm bản gốc rỗng → gộp 3 bên nhân đôi dòng).
+    private readonly ConcurrentDictionary<string, long> _touched = new();
+    private long _touchSeq;
+    private void Touch(string db, string sheet) => _touched[K(db, sheet)] = Interlocked.Increment(ref _touchSeq);
+    /// <summary>Kiểm thử: chạy sau khi Pull nhận phản hồi, trước khi áp (để chen một lần ghi vào giữa).</summary>
+    internal Func<Task>? TestAfterPullResponse;
+    private int _pullsApplied;
+    internal int PullsApplied => Volatile.Read(ref _pullsApplied);
     private readonly ConcurrentDictionary<string, LanConnection> _conns = new();
     private readonly ConcurrentDictionary<string, Seen> _seen = new();
     private TcpListener? _listener;
@@ -777,24 +787,32 @@ public sealed partial class LanService : ISheetSource, IDisposable
         var since = full ? 0 : long.TryParse(_settings.Get("lan_last_seq"), out var s) ? s : 0;
         if (_settings.Get("lan_sync_epoch") != _serverEpoch.ToString()) since = 0; // máy chủ khác / nhiệm kỳ khác: tải lại toàn bộ
         var req = Req("changes"); req["since"] = since; req["seq"] = _store.CurrentSeq();
+        var stamp = Interlocked.Read(ref _touchSeq);
         JsonObject r;
         try { r = await CallNode(n, req, TimeSpan.FromSeconds(60), ct); }
         catch (LanUnreachableException) { GoOffline(); return; }
         if (r["ok"]?.GetValue<bool>() != true) { if (r["notServing"]?.GetValue<bool>() == true) GoOffline(); return; }
         Learn(r["nodes"] as JsonArray);
-        var pending = PendingKeys();
-        var got = new HashSet<string>();
-        foreach (var it in (r["items"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
+        if (TestAfterPullResponse is { } hook) await hook();
+        lock (_dataLock)
         {
-            var db = it["db"]!.ToString(); var sheet = it["sheet"]!.ToString();
-            got.Add(db + "/" + sheet);
-            if (pending.Contains(db + "/" + sheet)) continue; // đang có thay đổi chờ gửi: giữ bản của mình
-            _store.SetExact(db, sheet, it["data"]?.ToString(), it["v"]!.GetValue<long>());
+            var pending = PendingKeys();
+            // bảng đang chờ gửi, hoặc vừa ghi bản mới hơn phản hồi này (ghi / đọc trong lúc chờ phản hồi): giữ bản của mình
+            bool Keep(string k) => pending.Contains(k) || (_touched.TryGetValue(k, out var t) && t > stamp);
+            var got = new HashSet<string>();
+            foreach (var it in (r["items"] as JsonArray ?? new JsonArray()).OfType<JsonObject>())
+            {
+                var db = it["db"]!.ToString(); var sheet = it["sheet"]!.ToString();
+                got.Add(db + "/" + sheet);
+                if (Keep(db + "/" + sheet)) continue;
+                _store.SetExact(db, sheet, it["data"]?.ToString(), it["v"]!.GetValue<long>());
+            }
+            if (since == 0)
+                foreach (var (db, sheet, _) in _store.AllVersions())
+                    if (!got.Contains(db + "/" + sheet) && !Keep(db + "/" + sheet))
+                        _store.SetExact(db, sheet, null, 0);
         }
-        if (since == 0)
-            foreach (var (db, sheet, _) in _store.AllVersions())
-                if (!got.Contains(db + "/" + sheet) && !pending.Contains(db + "/" + sheet))
-                    _store.SetExact(db, sheet, null, 0);
+        Interlocked.Increment(ref _pullsApplied);
         var seq = r["seq"]!.GetValue<long>();
         var ep = r["epoch"]?.GetValue<long>() ?? 0;
         if (ep != _serverEpoch) { _serverEpoch = ep; _settings.Set("lan_sync_epoch", ""); return; } // đổi nhiệm kỳ giữa chừng: lượt sau tải lại
@@ -1009,7 +1027,13 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 var rq = Req("read"); rq["db"] = it["db"]!.ToString(); rq["sheet"] = it["sheet"]!.ToString();
                 var rr = await CallNode(n, rq, TimeSpan.FromSeconds(60), ct);
                 if (rr["ok"]?.GetValue<bool>() == true)
-                    _store.SetExact(it["db"]!.ToString(), it["sheet"]!.ToString(), rr["data"]!.ToString() == "[]" && rr["v"]!.GetValue<long>() == 0 ? null : rr["data"]!.ToString(), rr["v"]!.GetValue<long>());
+                    lock (_dataLock)
+                    {
+                        var (fdb, fsh) = (it["db"]!.ToString(), it["sheet"]!.ToString());
+                        if (HasPending(fdb, fsh)) continue; // vừa sửa tiếp khi đang gửi: giữ bản mới, lượt sau gửi tiếp
+                        _store.SetExact(fdb, fsh, rr["data"]!.ToString() == "[]" && rr["v"]!.GetValue<long>() == 0 ? null : rr["data"]!.ToString(), rr["v"]!.GetValue<long>());
+                        Touch(fdb, fsh);
+                    }
             }
             catch (LanUnreachableException) { GoOffline(); }
         }
@@ -1040,7 +1064,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
             var r = CallServer(req);
             if (r["ok"]?.GetValue<bool>() != true) throw new BusinessException(r["error"]?.ToString() ?? "Máy chủ báo lỗi.");
             var data = r["data"]!.ToString(); var v = r["v"]!.GetValue<long>();
-            if (!HasPending(dbKey, sheet)) _store.SetExact(dbKey, sheet, v == 0 && data == "[]" && !Exists(dbKey, sheet) ? null : data, v);
+            lock (_dataLock)
+                if (!HasPending(dbKey, sheet)) { _store.SetExact(dbKey, sheet, v == 0 && data == "[]" && !Exists(dbKey, sheet) ? null : data, v); Touch(dbKey, sheet); }
             _readVersions[K(dbKey, sheet)] = v;
             return data;
         }
@@ -1102,12 +1127,14 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 var r = CallServer(req);
                 if (r["ok"]?.GetValue<bool>() == true)
                 {
-                    foreach (var (s, node) in r["vers"]!.AsObject())
-                    {
-                        var v = node!.GetValue<long>();
-                        _store.SetExact(dbKey, s, raw[s], v);
-                        _readVersions[K(dbKey, s)] = v;
-                    }
+                    lock (_dataLock)
+                        foreach (var (s, node) in r["vers"]!.AsObject())
+                        {
+                            var v = node!.GetValue<long>();
+                            _store.SetExact(dbKey, s, raw[s], v);
+                            Touch(dbKey, s);
+                            _readVersions[K(dbKey, s)] = v;
+                        }
                     return;
                 }
                 if (r["conflict"]?.GetValue<bool>() == true) throw new SheetConflictException(dbKey, r["sheet"]?.ToString() ?? "");
