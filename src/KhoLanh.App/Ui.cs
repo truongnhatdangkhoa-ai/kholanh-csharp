@@ -302,6 +302,27 @@ public static class Ui
     }
 
     /// <summary>
+    /// Khung cảnh báo đối soát (1.69 — Tồn kho An An / Tồn kho gửi): có lệch → khung nền nhạt đỏ (lỗi) / vàng (cần kiểm tra), mỗi cảnh báo 1 dòng;
+    /// không lệch → nhãn xanh "khớp". Chữ không mờ để <c>HintTrim</c> không ẩn.
+    /// </summary>
+    public static Control CanhBaoBox(IReadOnlyList<KhoLanh.Core.TonKho.CanhBao> list, string okText)
+    {
+        if (list.Count == 0)
+            return new Border { Classes = { "pill", "ok" }, Margin = new Thickness(0, 6, 0, 6), Padding = new Thickness(10, 3), Child = new TextBlock { Text = "✓ " + okText, FontSize = 12.5 } };
+        var loi = list.Any(x => x.Loi);
+        var fg = AppTheme.Brush(loi ? "#B42318" : "#9A5B00");
+        var sp = new StackPanel { Spacing = 3 };
+        sp.Children.Add(new TextBlock { Text = loi ? "⚠ CÓ SAI LỆCH SỐ LIỆU — kiểm tra trước khi báo cáo" : "⚠ Cần kiểm tra số liệu", FontWeight = FontWeight.Bold, FontSize = 13.5, Foreground = fg });
+        foreach (var c in list)
+            sp.Children.Add(new TextBlock { Text = "• " + c.Text, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Foreground = AppTheme.Brush(c.Loi ? "#B42318" : "#9A5B00"), FontWeight = c.Loi ? FontWeight.SemiBold : FontWeight.Normal });
+        return new Border
+        {
+            Background = AppTheme.Brush(loi ? "#FDE8E6" : "#FFF2D6"), BorderBrush = fg, BorderThickness = new Thickness(1, 1, 1, 1),
+            CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 7), Margin = new Thickness(0, 6, 0, 6), Child = sp,
+        };
+    }
+
+    /// <summary>
     /// Tab con trong 1 trang (1.57 — màn hình nhỏ): mỗi bảng dữ liệu 1 tab thay vì 2 – 4 bảng chen nhau trên cùng màn hình.
     /// Nội dung tab được bọc khoảng cách trên 6 px; trả về TabControl để nơi dùng chuyển tab bằng code (vd chọn dòng → mở tab chi tiết).
     /// </summary>

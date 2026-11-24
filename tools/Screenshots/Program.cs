@@ -585,6 +585,91 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
     catch (Exception ex) { Console.WriteLine("[AN-LOC] LỖI: " + ex.GetType().Name + ": " + ex.Message); s.Lan.Dispose(); Environment.Exit(1); }
     s.Lan.Dispose(); Console.WriteLine("Xong (an-loc): " + outDir); return;
 }
+// 1.69: chuột phải ở bảng có lọc báo "Specified cast is not valid" (menu tìm vạch ngăn theo vị trí). SHOTS_ONLY=menu-phai: mở menu chuột phải
+// ở mọi bảng của Tồn kho gửi + Tồn kho An An (mọi tab); thoát mã 1 nếu lỗi.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu-phai")
+{
+    var n = 0;
+    try { s.AnAn.AssignGroup(new[] { "IQF" }, KhoLanh.Core.TonKho.AnAnData.HlsoColumns[0]); } catch (Exception ex) { Console.WriteLine("[MENU-PHAI] gộp thử: " + ex.Message); }
+    foreach (var key in new[] { "m2", "m1" })
+    {
+        main.Navigate(key); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+        var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        for (var t = 0; t < tabs.ItemCount; t++)
+        {
+            tabs.SelectedIndex = t; for (var i = 0; i < 15; i++) { Thread.Sleep(20); Pump(); }
+            foreach (var sub in main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tabs && x.IsEffectivelyVisible).ToList())
+                for (var u = 0; u < sub.ItemCount; u++)
+                {
+                    sub.SelectedIndex = u; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); }
+                    if (u == 0 && (tabs.Items[t] as TabItem)?.Header?.ToString() is { } th && th.Contains("Đặc", StringComparison.OrdinalIgnoreCase))
+                        Snap(main, $"dac-tinh-khoa-{key}");   // 1.69: đặc tính đã gộp hiện mờ (khóa)
+                    foreach (var g in main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList())
+                    {
+                        var surf = g.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null);
+                        if (surf?.ContextMenu is not { } cm) continue;
+                        try
+                        {
+                            var op = false; cm.Opened += (_, _) => op = true;
+                            surf.RaiseEvent(new ContextRequestedEventArgs());   // như bấm chuột phải
+                            Pump(); if (!op) cm.Open(surf); Pump(); cm.Close(); Pump(); n++;
+                        }
+                        catch (Exception ex) { Console.WriteLine($"[MENU-PHAI] LỖI ({key} tab {t}.{u}): {ex.GetType().Name}: {ex.Message}"); s.Lan.Dispose(); Environment.Exit(1); }
+                    }
+                }
+        }
+    }
+    Console.WriteLine($"[MENU-PHAI] đạt: mở menu chuột phải {n} lần không lỗi");
+    s.Lan.Dispose(); Console.WriteLine("Xong (menu-phai): " + outDir); return;
+}
+// 1.69: tab Báo Cáo (tab 2) của Tồn kho An An (Tổng Tồn + Tồn Kho Gửi + Đối Soát chung 1 tab, cảnh báo lệch) và Tồn kho gửi
+// (Báo Cáo tab 2, Đối Soát có cảnh báo). SHOTS_ONLY=bc
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bc")
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    {   // Tồn kho gửi: 7 dòng mẫu (CKQ / ASCN chưa gộp đặc tính → cảnh báo)
+        var fp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ton-kho-gui-bc 23.11.xlsx");
+        using (var wbk = new ClosedXML.Excel.XLWorkbook())
+        {
+            var ws = wbk.AddWorksheet("Sheet1"); ws.Cell(1, 1).Value = "BÁO CÁO TỒN KHO GỬI";
+            var hh = new[] { "Mã hàng", "Tên hàng", "Số lô", "Size", "Quy cách", "Ngày nhập kho", "Phiếu nhập", "Số kiện", "Trọng lượng", "Số kiện", "Trọng lượng" };
+            for (var c = 0; c < hh.Length; c++) ws.Cell(2, c + 1).Value = hh[c];
+            var gdata = new (string, string, string, string, double, double)[]
+            {
+                ("VRHLBTNXECR003140IME1", "TÔM TCT BTP50, BLOCK, 1.8Kg x 6, 0083", "L1", "BTP50", 10, 108), ("VRHLBTNXECR003141IME1", "TÔM TCT BTP35, IQF, 9Kg x 1, CKQ", "04.04.26 L12 NÂU", "BTP35", 5, 45),
+                ("VRHLBTNXECR003142IME1", "TÔM ECU 41/50, BLOCK, 1.8Kg x 7, ASCN", "ECUADOR-01", "ECU41/50", 8, 100.8), ("VRHLBTNXECR003144IME1", "NL 105, BLOCK, 10kg x 1, 0083", "L5", "NL 105", 4, 40),
+            };
+            var rr = 3; foreach (var x in gdata) { ws.Cell(rr, 1).Value = x.Item1; ws.Cell(rr, 2).Value = x.Item2; ws.Cell(rr, 3).Value = x.Item3; ws.Cell(rr, 4).Value = x.Item4; ws.Cell(rr, 5).Value = "1.8Kg x 6"; ws.Cell(rr, 6).Value = new DateTime(2026, 11, 5); ws.Cell(rr, 7).Value = "PN" + rr; ws.Cell(rr, 8).Value = 99; ws.Cell(rr, 9).Value = 99; ws.Cell(rr, 10).Value = x.Item5; ws.Cell(rr, 11).Value = x.Item6; rr++; }
+            wbk.SaveAs(fp);
+        }
+        s.Gui.Commit(s.Gui.Preview(fp));
+        s.Gui.SaveManual(new[] { ("Tôm EU Nhật", "83.EU-H-M") }); s.Gui.MergeGroup(new[] { "83.EU-H-M" }, "EU");
+    }
+    {   // Tồn kho An An: 12 dòng Thành phẩm + 2 dòng không thuộc bảng nào (→ lệch Load Data); chưa nhập Bột + Sốt + Bếp
+        var hs = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng", "Size" };
+        var rowsA = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, 14).Select(i => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject
+        { ["c0"] = i < 12 ? "Thành phẩm" : "", ["c1"] = i < 12 ? $"VRHLBTNXECR00{3140 + i}IME1" : $"ZZ-LA-{i}", ["c2"] = $"Tôm thẻ HLSO 31/40 mẫu {i}", ["c3"] = "IQF", ["c4"] = "HD-2611", ["c5"] = "Thùng", ["c6"] = (40 + i).ToString(), ["c7"] = "10", ["c8"] = "31/40" }).ToArray());
+        var mt = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(hs.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO AN AN 23.11.xlsx", ["dataDate"] = DateTime.Today.ToString("yyyy-MM-dd") };
+        s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = rowsA, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + mt.ToJsonString() }) });
+    }
+    foreach (var (win, tag) in new[] { (main, ""), (new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }, "-1366") })
+    {
+        if (win != main) win.Show();
+        win.Navigate("audit"); win.Navigate("m1"); W(50);
+        var at = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[BC] An An tab 2 = {(at.Items[1] as TabItem)?.Header} · tab 3 = {(at.Items[2] as TabItem)?.Header}");
+        at.SelectedIndex = 1; W(30); Snap(win, "40b-an-an-bao-cao-doi-soat" + tag);
+        win.Navigate("m2"); W(50);
+        var gt = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[BC] Gửi tab 2 = {(gt.Items[1] as TabItem)?.Header} · tab 6 = {(gt.Items[5] as TabItem)?.Header}");
+        gt.SelectedIndex = 1; W(30); Snap(win, "41b-gui-bao-cao" + tag);
+        gt.SelectedIndex = 5; W(30); Snap(win, "41c-gui-doi-soat" + tag);
+        if (win != main) win.Close();
+    }
+    var bd = KhoLanh.Core.TonKho.BaoCaoTongTon.CanhBaoXuat(s.AnAn.D);
+    Console.WriteLine($"[BC] cảnh báo xuất Excel: {bd.Count} · " + string.Join(" | ", bd));
+    s.Lan.Dispose(); Console.WriteLine("Xong (bc): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
@@ -1106,8 +1191,8 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         s.Gui.SaveManual(new[] { ("Tôm EU Nhật", "83.EU-H-M") }); s.Gui.MergeGroup(new[] { "83.EU-H-M" }, "EU");
         main.Navigate("audit"); main.Navigate("m2"); for (var i = 0; i < 14; i++) { Thread.Sleep(30); Pump(); }
         var gtabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        for (var t = 0; t < 7; t++) { gtabs.SelectedIndex = t; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"41-gui-tab{t + 1}"); }
-        // Phiếu xuất: gõ SL xuất vào dòng đầu rồi tạo phiếu
+        for (var t = 0; t < gtabs.ItemCount; t++) { gtabs.SelectedIndex = t; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"41-gui-tab{t + 1}"); }
+        // Phiếu xuất (1.69: tab 3 — Báo Cáo lên tab 2): gõ SL xuất vào dòng đầu rồi tạo phiếu
         gtabs.SelectedIndex = 2; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var pg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         var before = s.Gui.Slips.Count; var kien0 = s.Gui.D.Rows[0].SoKien;
@@ -1139,7 +1224,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         }
         Console.WriteLine($"[GUI] gộp đặc tính: {nGroupedBefore} -> {s.Gui.D.DtGroupMap.Count} đặc tính đã gộp");
         Snap(main, "41-gui-dac-tinh-sau-gop");
-        gtabs.SelectedIndex = 5; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "41-gui-bao-cao-sau-gop");
+        gtabs.SelectedIndex = 1; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "41-gui-bao-cao-sau-gop");
         Console.WriteLine($"[GUI] bảng tổng hợp: {s.Gui.D.ComputePivot().Grand.Tong} kg");
     }
     if (key == "m6")

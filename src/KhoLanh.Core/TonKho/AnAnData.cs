@@ -520,12 +520,15 @@ public sealed class AnAnData
 
     public sealed record TotRow(string Label, double? Weight, bool Manual);
 
-    /// <summary>Bảng "Báo Cáo Tổng Tồn": Bột + Sốt + Bếp (nhập tay) + 8 bảng; chỉ giữ dòng có tồn (|kg| ≥ 0.005).</summary>
+    /// <summary>
+    /// Bảng "Báo Cáo Tổng Tồn": Bột + Sốt + Bếp (nhập tay) + 8 bảng; bảng chỉ giữ dòng có tồn (|kg| ≥ 0.005).
+    /// 1.69: dòng Bột + Sốt + Bếp LUÔN hiện (chưa nhập = 0) để không bị sót khi báo cáo (app cũ ẩn khi trống).
+    /// </summary>
     public List<TotRow> TongTonRows()
     {
-        var list = new List<TotRow> { new(ManualLabel, ManualValues.GetValueOrDefault(LabelKey(ManualLabel)), true) };
+        var list = new List<TotRow> { new(ManualLabel, ManualValues.GetValueOrDefault(LabelKey(ManualLabel)) is double mv && !double.IsNaN(mv) ? mv : 0, true) };
         foreach (var m in FilterModules) list.Add(new(m.Label, ModuleWeight(m.Id), false));
-        return list.Where(r => HasStock(r.Weight)).ToList();
+        return list.Where(r => r.Manual || HasStock(r.Weight)).ToList();
     }
 
     public static bool HasStock(double? v) => v is double d && !double.IsNaN(d) && Math.Abs(d) >= 0.005;
