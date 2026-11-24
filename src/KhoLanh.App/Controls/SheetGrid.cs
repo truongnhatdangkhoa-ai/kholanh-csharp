@@ -280,6 +280,9 @@ public sealed class SheetGrid : UserControl
         DetachedFromVisualTree += (_, _) => Model.Changed -= OnModelChanged;
         _seenLoads = Model.Loads; _seenRows = Model.RowCount;
         _editor.KeyDown += OnEditorKey;
+        _sug.Child = new Border { Background = AppTheme.Card, BorderBrush = AppTheme.Brush("#B9C3D0"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(3), Child = _sugList, MinWidth = 380, MaxWidth = 620 };
+        _overlay.Children.Add(_sug);
+        _editor.TextChanged += (_, _) => UpdateSuggest();
         _fTimer.Tick += (_, _) => { _fTimer.Stop(); if (_fCol >= 0) SetFilter(_fCol, _fEditor.Text ?? ""); };
         _fEditor.TextChanged += (_, _) => { if (_fEditor.IsVisible) { _fTimer.Stop(); _fTimer.Start(); } };
         _fEditor.LostFocus += (_, _) => HideFilterEditor(false);
@@ -314,8 +317,9 @@ public sealed class SheetGrid : UserControl
         var g = new SheetGrid(Model)
         {
             SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest,
         };
+        g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol;
         foreach (var (k, f) in _filters) g._filters[k] = new ColumnFilter { Text = f.Text, Allowed = f.Allowed is null ? null : new HashSet<string>(f.Allowed) };
         var title = LargeTitle ?? owner.Title ?? "Bảng";
@@ -554,7 +558,7 @@ public sealed class SheetGrid : UserControl
     private void Commit(int dr, int dc)
     {
         if (!_editing) return;
-        _editing = false;
+        _editing = false; CloseSuggest();
         _editor.IsVisible = false;
         var v = _editor.Text ?? "";
         if (v != Model.Get(Row, Col)) Model.Set(Row, Col, v);
@@ -564,12 +568,22 @@ public sealed class SheetGrid : UserControl
 
     private void Cancel()
     {
-        _editing = false; _editor.IsVisible = false; _surface.Focus(); Redraw();
+        _editing = false; CloseSuggest(); _editor.IsVisible = false; _surface.Focus(); Redraw();
     }
 
     private void OnEditorKey(object? sender, KeyEventArgs e)
     {
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        if (_sug.IsOpen && _sugItems.Count > 0)
+        {
+            switch (e.Key)
+            {
+                case Key.Down: _sugSel = Math.Min(_sugItems.Count - 1, _sugSel + 1); PaintSuggest(); e.Handled = true; return;
+                case Key.Up: _sugSel = Math.Max(-1, _sugSel - 1); PaintSuggest(); e.Handled = true; return;
+                case Key.Enter or Key.Tab when _sugSel >= 0: PickSuggest(_sugSel); e.Handled = true; return;
+                case Key.Escape: CloseSuggest(); e.Handled = true; return;
+            }
+        }
         switch (e.Key)
         {
             case Key.Enter when e.KeyModifiers.HasFlag(KeyModifiers.Alt):
@@ -584,6 +598,65 @@ public sealed class SheetGrid : UserControl
             default: return;
         }
         e.Handled = true;
+    }
+
+    // ------------------------------------------------------------------ gợi ý khi gõ (1.54 — vd cột Mã hàng của Nhập liệu)
+
+    /// <summary>Một gợi ý: <see cref="Value"/> là chữ điền vào ô; <see cref="Label"/> / <see cref="Detail"/> để hiện; <see cref="Tag"/> tuỳ nơi dùng.</summary>
+    public sealed record GridSuggestion(string Value, string Label, string Detail, object? Tag = null);
+    /// <summary>Gợi ý cho (cột, chữ đang gõ) — null / rỗng = không gợi ý. Chọn bằng ↑ ↓ + Enter / Tab hoặc bấm chuột.</summary>
+    public Func<int, string, IReadOnlyList<GridSuggestion>>? Suggest { get; set; }
+    /// <summary>Đã chọn 1 gợi ý (dòng dữ liệu, cột, gợi ý) — sau khi ô đã nhận giá trị.</summary>
+    public event Action<int, int, GridSuggestion>? SuggestionPicked;
+    private readonly Popup _sug = new() { Placement = PlacementMode.BottomEdgeAlignedLeft, IsLightDismissEnabled = false };
+    private readonly StackPanel _sugList = new() { Spacing = 1 };
+    private List<GridSuggestion> _sugItems = new();
+    private int _sugSel = -1;
+
+    private void UpdateSuggest()
+    {
+        if (!_editing || Suggest is null || Col < 0 || Col >= Model.ColCount) { CloseSuggest(); return; }
+        IReadOnlyList<GridSuggestion> items;
+        try { items = Suggest(Col, _editor.Text ?? "") ?? Array.Empty<GridSuggestion>(); } catch { items = Array.Empty<GridSuggestion>(); }
+        _sugItems = items.ToList(); _sugSel = -1;
+        if (_sugItems.Count == 0) { CloseSuggest(); return; }
+        PaintSuggest();
+        _sug.PlacementTarget = _editor;
+        _sug.IsOpen = true;
+    }
+    private void PaintSuggest()
+    {
+        _sugList.Children.Clear();
+        for (var i = 0; i < _sugItems.Count; i++)
+        {
+            var it = _sugItems[i]; var idx = i;
+            var row = new Border
+            {
+                Padding = new Thickness(8, 4), CornerRadius = new CornerRadius(4), Cursor = new Cursor(StandardCursorType.Hand),
+                Background = i == _sugSel ? AppTheme.Brush("#E6F0FC") : Brushes.Transparent,
+                Child = new StackPanel
+                {
+                    Children =
+                    {
+                        new TextBlock { Text = it.Label, FontWeight = FontWeight.SemiBold, FontSize = 13 },
+                        new TextBlock { Text = it.Detail, FontSize = 11.5, Foreground = AppTheme.Brush("#5D6B78"), TextTrimming = TextTrimming.CharacterEllipsis },
+                    },
+                },
+            };
+            row.PointerPressed += (_, e) => { e.Handled = true; PickSuggest(idx); };
+            _sugList.Children.Add(row);
+        }
+        _sugList.Children.Add(new TextBlock { Text = "↑ ↓ chọn · Enter điền · Esc bỏ qua", FontSize = 11, Foreground = AppTheme.Brush("#7A8797"), Margin = new Thickness(8, 3, 8, 2) });
+    }
+    private void CloseSuggest() { if (_sug.IsOpen) _sug.IsOpen = false; _sugItems.Clear(); _sugSel = -1; }
+    private void PickSuggest(int i)
+    {
+        if (i < 0 || i >= _sugItems.Count) return;
+        var it = _sugItems[i]; var r = Row; var c = Col;
+        _editor.Text = it.Value;
+        CloseSuggest();
+        Commit(1, 0);
+        SuggestionPicked?.Invoke(r, c, it);
     }
 
     // ------------------------------------------------------------------ chép / dán

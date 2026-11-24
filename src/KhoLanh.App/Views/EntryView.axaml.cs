@@ -41,6 +41,10 @@ public partial class EntryView : UserControl, IPage
         InitializeComponent();
         _grid = new SheetGrid(_model) { IsVisible = false };
         _grid.Display = FormatCell;
+        _grid.Suggest = SuggestFor;
+        _grid.SuggestionPicked += OnSuggestionPicked;
+        _grid.CellBackground = UnknownCodeBg;
+        AttachedToVisualTree += (_, _) => LoadSuggestions();
         GridHost.Children.Add(_grid);
         _model.Changed += () =>
         {
@@ -340,6 +344,65 @@ public partial class EntryView : UserControl, IPage
         var name = await Ui.Prompt(this, "Tên mẫu (lưu bộ cột của trang này để tạo trang mới sau). Trùng tên mẫu cũ thì thay mẫu cũ.", "Lưu thành mẫu", _page.Name);
         if (string.IsNullOrWhiteSpace(name)) return;
         if (await Ui.Run(this, () => Svc.SaveTemplate(name, _model.Columns))) SaveState.Text = $"Đã lưu mẫu “{name.Trim()}”";
+    }
+
+    // ------------------------------------------------------------------ gợi ý mã hàng (1.54)
+
+    private static List<MaGoiY.Sug>? _sugs;          // dùng chung giữa các lần mở trang; làm mới sau 5 phút
+    private static HashSet<string> _known = new();
+    private static DateTime _sugAt;
+    private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
+
+    /// <summary>Nạp ngầm danh sách gợi ý: mã đang có tồn ở mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
+    private void LoadSuggestions()
+    {
+        if (_sugs is not null && (DateTime.Now - _sugAt).TotalMinutes < 5) return;
+        _sugAt = DateTime.Now;
+        var s = App.Services;
+        Task.Run(() =>
+        {
+            try
+            {
+                var stock = new KhoLanh.Core.TimNhanh.GsService(s).Build().Rows;
+                var list = MaGoiY.Build(stock, MaGoiY.ReadCatalog(s.Lan));
+                Dispatcher.UIThread.Post(() => { _sugs = list; _known = MaGoiY.Known(list); _grid.Refresh(); });
+            }
+            catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
+        });
+    }
+
+    private static bool IsCodeCol(GridColumn c) => KhoLanh.Core.Grid.GridFilter.Fold(c.Header).Trim() is "ma hang" or "ma" or "ma hh" or "ma sp" or "ma san pham" or "item code" or "code";
+    private int ColBy(params string[] names)
+    {
+        for (var i = 0; i < _model.ColCount; i++) if (names.Contains(KhoLanh.Core.Grid.GridFilter.Fold(_model.Columns[i].Header).Trim())) return i;
+        return -1;
+    }
+
+    private IReadOnlyList<SheetGrid.GridSuggestion> SuggestFor(int col, string text)
+    {
+        if (_sugs is null || col >= _model.ColCount || !IsCodeCol(_model.Columns[col])) return Array.Empty<SheetGrid.GridSuggestion>();
+        return MaGoiY.Search(_sugs, text).Select(x => new SheetGrid.GridSuggestion(x.Ma, x.Ma,
+            string.Join(" · ", new[] { x.Ten, x.Size, x.Dt, x.Ton > 0 ? "tồn " + x.Ton.ToString("#,0.###", Ui.Vi) : "", x.Nguon }.Where(t => t.Length > 0)), x)).ToList();
+    }
+
+    /// <summary>Chọn gợi ý → điền thêm Tên hàng / Size / Đặc tính của dòng đó nếu đang trống.</summary>
+    private void OnSuggestionPicked(int row, int col, SheetGrid.GridSuggestion it)
+    {
+        if (it.Tag is not MaGoiY.Sug x || _model.ReadOnly) return;
+        var cells = new List<(int, int, string)>();
+        void Fill(string v, params string[] names) { var c = ColBy(names); if (c >= 0 && v.Length > 0 && _model.Get(row, c).Trim().Length == 0) cells.Add((row, c, v)); }
+        Fill(x.Ten, "ten hang", "ten", "ten san pham", "dien giai");
+        Fill(x.Size, "size", "co", "kich co");
+        Fill(x.Dt, "dac tinh");
+        if (cells.Count > 0) _model.SetCells(cells);
+    }
+
+    /// <summary>Mã gõ tay không có trong tồn lẫn danh mục → tô vàng nhạt để để ý.</summary>
+    private IBrush? UnknownCodeBg(int r, int c)
+    {
+        if (_sugs is null || c >= _model.ColCount || !IsCodeCol(_model.Columns[c])) return null;
+        var v = _model.Get(r, c).Trim();
+        return v.Length > 0 && !_known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
     }
 
     // ------------------------------------------------------------------ hiển thị

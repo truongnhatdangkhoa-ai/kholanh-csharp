@@ -44,6 +44,37 @@ void SnapFlyout(Window w, Button anchor, string name)
     Console.WriteLine("  " + name);
 }
 
+void SnapPopup(Window w, Control child, Control anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(child.Bounds.Right), (int)Math.Ceiling(child.Bounds.Bottom));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(child);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(child.Bounds.X, child.Bounds.Y, child.Bounds.Width, child.Bounds.Height), new Rect(pt.X, pt.Y, child.Bounds.Width, child.Bounds.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
+/// <summary>Nhập liệu: gõ vào cột Mã hàng → ô gợi ý (popup ghép vào ảnh).</summary>
+void SnapSuggest(Window w, string name)
+{
+    var g = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    for (var i = 0; i < 60 && typeof(EntryView).GetField("_sugs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) { Thread.Sleep(50); Pump(); }
+    var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
+    g.Select(3, mc); g.BeginEdit("VRHO"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    if (pop.IsOpen && pop.Child is Control ch) SnapPopup(w, ch, ed, name); else { Console.WriteLine("  (không mở được gợi ý)"); Snap(w, name); }
+    var esc = new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent };
+    ed.RaiseEvent(esc); ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); Pump();
+}
+
 void Snap(Window w, string name)
 {
     Pump();
@@ -472,6 +503,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
     foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })
     {
         main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k == "m6") SnapSuggest(main, "ui-nhap-lieu-goi-y");
         if (k == "m7" && main.PageHost.Content is ViTriView vv)
         {
             _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
