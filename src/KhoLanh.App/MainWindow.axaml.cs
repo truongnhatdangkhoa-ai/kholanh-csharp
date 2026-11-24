@@ -151,6 +151,9 @@ public partial class MainWindow : Window
         ShowLan();
         // Lịch xuất: tự quét Gmail cập nhật lịch (tài khoản có quyền «Duyệt email Lịch xuất», đã khai báo Gmail, bật tự quét).
         s.LichXuat.StartAutoEmail();
+        s.LichXuat.Auto = true; // tự tạo List (/ Phiếu) theo Lịch xuất — nhật ký PNX_AutoLog dùng chung app cũ
+        s.LichXuat.AutoMade += OnAutoMade;
+        Closed += (_, _) => s.LichXuat.AutoMade -= OnAutoMade;
         Closed += (_, _) => s.LichXuat.StopAutoEmail();
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
@@ -192,6 +195,19 @@ public partial class MainWindow : Window
     });
 
     private void OnTroLyClick(object? sender, RoutedEventArgs e) => Navigate("troly");
+
+    private int _autoN;
+    /// <summary>Lịch xuất vừa tự tạo List / Phiếu → nút ⚡ trên thanh menu (bấm mở tab "Tự động đã tạo").</summary>
+    private void OnAutoMade(List<string> msgs) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        var made = msgs.Count(m => m.Contains("tạo List") || m.Contains("List TRỐNG") || m.Contains("tạo phiếu"));
+        if (made == 0 && !msgs.Any(m => m.StartsWith("Chưa tự tạo"))) return;
+        _autoN += made;
+        AutoButton.Content = _autoN > 0 ? $"⚡ Tự tạo: {_autoN}" : "⚡ Lỗi tự tạo";
+        ToolTip.SetTip(AutoButton, string.Join("\n", msgs.Take(12)) + "\n\nBấm để xem ở Phiếu xuất kho › Tự động đã tạo.");
+        AutoButton.IsVisible = true;
+    });
+    private void OnAutoClick(object? sender, RoutedEventArgs e) { AutoButton.IsVisible = false; _autoN = 0; Show("m13", new Views.PhieuKhoView(3)); }
 
     private void OnUpdateReady(Version v) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {

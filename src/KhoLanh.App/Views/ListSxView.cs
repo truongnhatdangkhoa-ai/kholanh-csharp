@@ -68,6 +68,9 @@ public sealed class ListSxView : UserControl
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }
 
+    /// <summary>Chọn List của LSX (mở từ tab "⚡ Tự động đã tạo").</summary>
+    public void SelectLsx(string lsx) { _sel = lsx; _q.Text = ""; _ = LoadAsync(); }
+
     private static IBrush Brush(string c) => AppTheme.Brush(c);
     private static Button Btn(string text, Func<Task> click, string? tip = null, bool primary = false)
     {
@@ -107,7 +110,7 @@ public sealed class ListSxView : UserControl
             new GridColumn("ton", "Tồn (kiện)", 80, "number"), new GridColumn("phieu", "Phiếu XK", 65, "number"), new GridColumn("lich", "Lịch xuất", 85), new GridColumn("tt", "Tình trạng", 250),
         }, _shown.Select(i => new[]
         {
-            i.Rec.Lsx, i.Rec.Khach, i.Rec.File == "(tồn kho)" ? "Tồn kho (tự tạo)" : i.Rec.File, $"{i.Rec.Data.Rows.Count} × {i.Rec.Data.Sizes.Count}",
+            i.Rec.Lsx, i.Rec.Khach, (PhieuKhoService.TagOf(i.Rec.Data) is not null ? "⚡ " : "") + (i.Rec.File == "(tồn kho)" ? "Tồn kho (tự tạo)" : i.Rec.File), $"{i.Rec.Data.Rows.Count} × {i.Rec.Data.Sizes.Count}",
             i.Ton is null ? "—" : i.Ton > 0 ? F(i.Ton.Value) : "Hết", i.Phieu.ToString(), i.LichN == 0 ? "chưa có" : $"{i.LichOk}/{i.LichN} đã xuất", (i.CanhBao ? "⚠ " : "") + i.Nhan,
         }));
         _lg.Refresh();

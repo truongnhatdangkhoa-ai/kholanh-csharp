@@ -44,6 +44,8 @@ public sealed class PhieuKhoView : UserControl, IPage
 
     private readonly string? _openId;
     private readonly ListSxView _lsxView;
+    private readonly PnxAutoView _autoView;
+    private readonly TabItem _autoTab = new() { Header = "⚡ Tự động đã tạo" };
     private readonly TabControl _outer;
 
     /// <summary>Mở module: <paramref name="tab"/> 0 = Phiếu xuất khẩu · 1 = List sản xuất · 2 = Cargo list; <paramref name="openPhieuId"/> / <paramref name="openListLsx"/> = mở thẳng phiếu / List đó.</summary>
@@ -91,6 +93,9 @@ public sealed class PhieuKhoView : UserControl, IPage
         DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
         // 2 phần của module: phiếu xuất khẩu theo LSX (List sản xuất) và Cargo list (hàng tạm: Thuận Phước · Gia công · Gửi kho)
         _lsxView = new ListSxView(openListLsx, OpenFromList);
+        _autoView = new PnxAutoView(OpenFromList, lsx => { _outer!.SelectedIndex = 1; _lsxView.SelectLsx(lsx); });
+        _autoView.UnseenChanged += n => _autoTab.Header = n > 0 ? $"⚡ Tự động đã tạo ({n} mới)" : "⚡ Tự động đã tạo";
+        _autoTab.Content = _autoView;
         _outer = new TabControl
         {
             Items =
@@ -98,8 +103,9 @@ public sealed class PhieuKhoView : UserControl, IPage
                 new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = root },
                 new TabItem { Header = "List sản xuất", Content = _lsxView },
                 new TabItem { Header = "Cargo list: Thuận Phước · Gia công · Gửi kho", Content = new CargoView() },
+                _autoTab,
             },
-            SelectedIndex = Math.Clamp(tab, 0, 2),
+            SelectedIndex = Math.Clamp(tab, 0, 3),
         };
         Content = _outer;
         ShowEditor();
@@ -145,7 +151,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     private async Task LoadAsync()
     {
         _status.Text = "Đang tải…";
-        try { await Task.Run(Svc.Load); }
+        try { await Task.Run(() => { Svc.Load(); try { Svc.LoadAutoLog(); } catch { } }); }
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
         _status.Text = "";
         RenderList();
@@ -166,7 +172,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         var q = StripLower(_search.Text ?? "");
         _shown = Svc.List.Where(p => p.Loai == "xuat_khau" && (q.Length == 0 || StripLower(p.SoPhieu + " " + p.Lsx + " " + p.Khach + " " + p.Ngay).Contains(q))).ToList();
         _loading = true;
-        _list.ItemsSource = _shown.Select(p => $"{(p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)")}  ·  {Dm(p.Ngay)}{(p.Lsx.Length > 0 ? "  ·  " + p.Lsx : "")}{(p.Khach.Length > 0 ? " " + p.Khach : "")}{(p.XuatLuc.Length > 0 ? "  ✓ đã xuất" : "")}").ToList();
+        _list.ItemsSource = _shown.Select(p => $"{(PhieuKhoService.TagOf(p) is null ? "" : Svc.IsNew(p) ? "⚡ MỚI · " : "⚡ ")}{(p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)")}  ·  {Dm(p.Ngay)}{(p.Lsx.Length > 0 ? "  ·  " + p.Lsx : "")}{(p.Khach.Length > 0 ? " " + p.Khach : "")}{(p.XuatLuc.Length > 0 ? "  ✓ đã xuất" : "")}").ToList();
         var i = keepId is null ? -1 : _shown.FindIndex(p => p.Id == keepId);
         _list.SelectedIndex = i;
         _loading = false;
@@ -182,6 +188,12 @@ public sealed class PhieuKhoView : UserControl, IPage
         { RenderList(_cur.Id); return; }
         _cur = Clone(_shown[i]); _dirty = false;
         ShowEditor();
+        if (PhieuKhoService.TagOf(_shown[i]) is { } tag)
+        {
+            var ng = tag.NgayLich.Length >= 10 ? $" từ lịch xuất ngày {tag.NgayLich[8..10]}/{tag.NgayLich[5..7]}/{tag.NgayLich[..4]}" : "";
+            _status.Text = "⚡ Phiếu do hệ thống tự tạo" + ng + " — kiểm tra lại Tên hàng, Mã hàng, số kiện, Theo hợp đồng… rồi mới xuất Excel.";
+            if (Svc.IsNew(_shown[i])) { var id = _shown[i].Id; _ = Task.Run(() => { try { Svc.MarkSeen('p', id); } catch { } }); }
+        }
     }
 
     private async Task NewPhieu()

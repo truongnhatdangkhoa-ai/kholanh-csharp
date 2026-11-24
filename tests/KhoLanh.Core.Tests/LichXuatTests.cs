@@ -218,6 +218,58 @@ public class LichXuatTests : IDisposable
     }
 
     [Fact]
+    public void Tu_tao_list_theo_lich_xuat_va_nhat_ky()
+    {
+        SeedAnAn();
+        Lx.Auto = true;
+        var made = new List<string>(); Lx.AutoMade += m => made.AddRange(m);
+        // lịch mới: LSX có tồn → List từ tồn kho; LSX chưa có hàng → List TRỐNG
+        var a = Lx.Add(new LichXuatService.Input { Ngay = "2026-11-25", Lsx = "26.11.020" });
+        var b = Lx.Add(new LichXuatService.Input { Ngay = "2026-11-26", Lsx = "26.12.555" });
+        Lx.Add(new LichXuatService.Input { Ngay = "2026-11-20", Lsx = "26.11.077" }); // ngày đã qua → không tạo
+        var pnx = _s.PhieuKho; pnx.Load(); pnx.LoadAutoLog();
+        Assert.Equal(2, pnx.Lists.Count);
+        var l20 = pnx.FindList("26.11.020")!; var l555 = pnx.FindList("26.12.555")!;
+        Assert.Equal(2, l20.Data.Rows.Count); Assert.Empty(l555.Data.Rows);
+        Assert.Equal("2026-11-25", KhoLanh.Core.PhieuKho.PhieuKhoService.TagOf(l20.Data)!.NgayLich);
+        Assert.Equal(2, pnx.AutoLogs.Count(l => l["loaiPhieu"] == "__list" && l["listNew"] == "1"));
+        Assert.Equal((0, 2), pnx.Unseen());
+        Assert.Contains(made, m => m.Contains("List TRỐNG"));
+        Assert.Contains("List trống", pnx.AutoItems().Single(i => i.Lsx == "26.12.555").Note);
+
+        // sửa lịch không đổi LSX → không tạo gì; xóa List rồi sửa lịch → đã có nhật ký nhưng List bị xóa hết → quên nhật ký → rà bù tạo lại
+        made.Clear();
+        Lx.Mutate(l => l.Single(x => x.Id == a.Id).GhiChu = "gọi xe");
+        Assert.Empty(made);
+        pnx.DeleteList("26.12.555");
+        pnx.LoadAutoLog(); Assert.DoesNotContain(pnx.AutoLogs, l => l["listKey"] == "26.12.555");
+        Lx.Reconcile(force: true);
+        pnx.Load(); Assert.NotNull(pnx.FindList("26.12.555"));
+
+        // đánh dấu đã xem
+        pnx.LoadAutoLog(); Assert.True(pnx.MarkSeen('l', "26.11.020"));
+        Assert.Equal((0, 1), pnx.Unseen());
+        pnx.MarkSeen(); Assert.Equal((0, 0), pnx.Unseen());
+
+        // chế độ List + Phiếu: đổi LSX của lịch b sang 26.11.077 → List từ tồn + phiếu xuất khẩu gắn nhãn tự động
+        Lx.AutoMode = "phieu";
+        Lx.Mutate(l => l.Single(x => x.Id == b.Id).Lsx = "LSX 26.11.077");
+        pnx.Load(); pnx.LoadAutoLog();
+        var p = pnx.List.Single();
+        Assert.Contains("26.11.077", p.Lsx); Assert.Equal("2026-11-26", p.Ngay);
+        Assert.NotNull(KhoLanh.Core.PhieuKho.PhieuKhoService.TagOf(p));
+        Assert.True(pnx.IsNew(p));
+        Assert.Contains(pnx.AutoLogs, l => l["key"] == "26.11.077|xuat_khau" && l["phieuId"] == p.Id);
+        // sửa lần nữa không tạo phiếu thứ 2
+        Lx.Mutate(l => l.Single(x => x.Id == b.Id).Lsx = "LSX 26.11.077 ");
+        pnx.Load(); Assert.Single(pnx.List);
+        // tắt
+        Lx.AutoMode = "off"; made.Clear();
+        Lx.Add(new LichXuatService.Input { Ngay = "2026-11-27", Lsx = "26.12.900" });
+        Assert.Empty(made);
+    }
+
+    [Fact]
     public void Viec_cho_lsx_chua_co_lich_va_tong_ket_thang()
     {
         Assert.Contains("chưa có lịch", Lx.PendAdd("26.12.001", "Chờ chứng thư"));

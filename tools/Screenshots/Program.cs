@@ -1076,6 +1076,21 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     s.PhoneSync.Pick = new HashSet<string> { "M01", "M01VT", "M01VTB", "M02", "M03" };
     main.Navigate("phone"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, "42-dong-bo-dien-thoai");
 }
+// ---------------- Tự tạo List / Phiếu theo Lịch xuất ----------------
+{
+    s.LichXuat.Auto = true; s.LichXuat.AutoMode = "phieu";
+    try
+    {
+        s.LichXuat.Load();
+        var d1 = DateTime.Today.AddDays(2).ToString("yyyy-MM-dd"); var d2 = DateTime.Today.AddDays(3).ToString("yyyy-MM-dd");
+        s.LichXuat.Add(new KhoLanh.Core.LichXuat.LichXuatService.Input { Ngay = d1, Lsx = "26.11.088", ContSo = "TGHU 889120-4" });
+        s.LichXuat.Add(new KhoLanh.Core.LichXuat.LichXuatService.Input { Ngay = d2, Lsx = "26.12.140" });
+        Console.WriteLine("[AUTO] " + s.PhieuKho.Lists.Count + " List");
+    }
+    catch (Exception e) { Console.WriteLine("[AUTO] lỗi: " + e.Message); }
+    s.LichXuat.AutoMode = "list";
+    main.Show("m13", new PhieuKhoView(3)); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "43-tu-dong-da-tao");
+}
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 

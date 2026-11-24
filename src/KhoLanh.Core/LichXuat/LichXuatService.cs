@@ -18,7 +18,7 @@ namespace KhoLanh.Core.LichXuat;
 /// Mỗi lần ghi đọc lại bảng mới nhất trước (không đè thay đổi của máy khác), tự chuyển lịch ngày đã qua sang "Đã xuất", gắn việc chờ của LSX vừa có lịch,
 /// cập nhật Tổng kết tháng. Dò hàng theo LSX trong Thành Phẩm Chính của Tồn kho An An (cột Hợp đồng).
 /// </summary>
-public sealed class LichXuatService
+public sealed partial class LichXuatService
 {
     public const string PermKey = "lx", PermMail = "lxmail";
     private readonly Func<ISheetSource> _src;
@@ -66,6 +66,7 @@ public sealed class LichXuatService
         Rows = ReadAll().Where(Keep).ToList();
         Pending = ReadPend();
         LoadPnx();
+        Reconcile();
     }
 
     public void LoadPnx()
@@ -87,6 +88,7 @@ public sealed class LichXuatService
         lock (_lock)
         {
             var all = ReadAll(); var pend = ReadPend(); var now = Now();
+            var snap = Snap(all);
             var r = fn(all);
             AutoDone(all, now);
             var rest = AttachPend(all, pend, now);
@@ -99,6 +101,7 @@ public sealed class LichXuatService
             _src().Write(Db, sheets);
             Rows = all.Where(Keep).ToList(); Pending = rest;
             if (log is not null) _audit.Log(_session.Username, "Lịch xuất", log);
+            AfterWrite(snap, all, now);
             Changed?.Invoke();
             return r;
         }
@@ -459,17 +462,7 @@ public sealed class LichXuatService
     {
         if (!CanPnx) throw new BusinessException("Tài khoản không có quyền sửa Phiếu xuất kho — không tạo được List.");
         var g = Group(ids); if (g.Count == 0) throw new BusinessException("Không còn lịch này.");
-        var pnx = _pnx(); pnx.Load(); var msgs = new List<string>(); var d = AnAn();
-        foreach (var code in g.SelectMany(z => Codes(z.Lsx)).Distinct())
-        {
-            if (pnx.FindList(code) is { } have) { msgs.Add($"LSX {code}: đã có List ({have.Data.Rows.Count} ngày) — giữ nguyên."); continue; }
-            var (lines, msg) = TpcLines(d, code);
-            if (lines.Count == 0) { msgs.Add($"LSX {code}: {msg}"); continue; }
-            var ld = ListFromStock(lines, code, Now());
-            if (!ld.Ok) { msgs.Add($"LSX {code}: không còn hàng tồn để tạo List."); continue; }
-            pnx.SaveListData(ld, "(tồn kho)");
-            msgs.Add($"LSX {code}: đã tạo List từ tồn kho — {ld.Rows.Count} ngày × {ld.Sizes.Count} size" + (ld.Warnings.Count > 0 ? " · ⚠ " + string.Join(" ", ld.Warnings) : "") + ".");
-        }
+        var msgs = ListsFor(g, false, "tạo list nhanh");
         LoadPnx(); Changed?.Invoke();
         return msgs;
     }
@@ -478,7 +471,8 @@ public sealed class LichXuatService
     /// Tạo Phiếu xuất kho (xuất khẩu) cho nhóm LSX của lịch: điền LSX, ngày, khách, số cont; áp các List đã có (chưa có List thì tạo từ tồn kho trước).
     /// Đã có phiếu → không tạo lại, trả phiếu cũ.
     /// </summary>
-    public (Phieu Phieu, bool Created, List<string> Notes) CreatePhieu(IEnumerable<string> ids)
+    public (Phieu Phieu, bool Created, List<string> Notes) CreatePhieu(IEnumerable<string> ids) => CreatePhieu(ids, false);
+    private (Phieu Phieu, bool Created, List<string> Notes) CreatePhieu(IEnumerable<string> ids, bool auto)
     {
         if (!CanPnx) throw new BusinessException("Tài khoản không có quyền sửa Phiếu xuất kho.");
         var g = Group(ids); if (g.Count == 0) throw new BusinessException("Không còn lịch này.");
@@ -498,7 +492,10 @@ public sealed class LichXuatService
             notes.AddRange(a.Notes.Select(n => $"LSX {c}: {n}"));
         }
         PhieuKhoCore.RefreshNumbers(pnx.List, p);
+        var tag = TagOf(g);
+        PhieuKhoService.SetTag(p, tag);
         var saved = pnx.Save(p);
+        try { pnx.LoadAutoLog(); foreach (var c in codes) pnx.LogAdd(c, "xuat_khau", tag, saved.Id, phieuNew: auto, ghiChu: auto ? "tự tạo theo lịch xuất" : "tạo phiếu nhanh"); pnx.SaveAutoLog(); } catch { /* nhật ký lỗi không chặn phiếu */ }
         LoadPnx(); Changed?.Invoke();
         notes.Add("Đã tạo phiếu " + (saved.SoPhieu.Length > 0 ? saved.SoPhieu : "") + " — mở Phiếu xuất kho để kiểm tra rồi xuất Excel.");
         return (saved, true, notes);

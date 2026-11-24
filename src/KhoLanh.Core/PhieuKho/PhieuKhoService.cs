@@ -11,7 +11,7 @@ namespace KhoLanh.Core.PhieuKho;
 /// Dùng CHUNG dữ liệu với app cũ: database "phieu-nhap-xuat", sheet PNX_Phieu (mỗi phiếu 1 dòng: id, loai, ngay, soPhieu, lsx, khach, capNhat, data = "__JSON__" + JSON phiếu).
 /// Xuất Excel = điền thẳng vào file mẫu .xlsm nhúng sẵn (giữ nguyên định dạng, hình, macro).
 /// </summary>
-public sealed class PhieuKhoService
+public sealed partial class PhieuKhoService
 {
     public const string Db = "phieu-nhap-xuat", SheetPhieu = "PNX_Phieu", SheetLsx = "PNX_ListSX", PermKey = "m13";
 
@@ -104,7 +104,7 @@ public sealed class PhieuKhoService
     {
         RequireEdit();
         var n = Lists.RemoveAll(x => PhieuKhoCore.LsxNorm(x.Lsx) == PhieuKhoCore.LsxNorm(lsx));
-        if (n > 0) { SaveLists(); Log("Xóa List sản xuất", "LSX " + lsx); }
+        if (n > 0) { SaveLists(); Log("Xóa List sản xuất", "LSX " + lsx); ForgetLog(new[] { lsx }); }
     }
 
     /// <summary>Hàm tra Packing từ mã hàng bằng Mã hóa sản phẩm (đoạn 9 trọng lượng, đoạn 10 quy cách); null nếu chưa nối Tổng hợp.</summary>
@@ -155,6 +155,7 @@ public sealed class PhieuKhoService
         List.Remove(p);
         SaveAll();
         Log("Xóa phiếu", p.SoPhieu);
+        ForgetLog(PhieuKhoCore.LsxList(p.Lsx));
     }
 
     public ThongKeThang.Data ThongKe(string monthKey) => ThongKeThang.Build(List, monthKey);
