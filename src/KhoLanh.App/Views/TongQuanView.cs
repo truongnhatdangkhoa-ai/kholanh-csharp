@@ -96,7 +96,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         return b;
     }
     private static ScrollViewer Scroll(Control c) => new() { Content = new Border { Padding = new Thickness(0, 8, 8, 16), Child = c }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-    internal static Border Card(Control body, double pad = 14) => new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(pad), Child = body };
+    internal static Border Card(Control body, double pad = 14) => new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(pad), Child = body };
     internal static TextBlock H2(string t) => new() { Text = t, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Dark, VerticalAlignment = VerticalAlignment.Center };
     internal static Border Pill(string text, string bg, string fg, double fs = 11.5) => new()
     {
@@ -188,12 +188,11 @@ public sealed partial class TongQuanView : UserControl, IPage
             var s = new StackPanel { Spacing = 2 };
             s.Children.Add(new TextBlock { Text = title.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeight.SemiBold, Foreground = Muted });
             var v = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-            v.Children.Add(new TextBlock { Text = value, FontSize = 26, FontWeight = FontWeight.Bold, Foreground = B(accent) });
+            v.Children.Add(new TextBlock { Text = value, FontSize = 24, FontWeight = FontWeight.SemiBold, Foreground = Dark });   // Băng sạch: số màu chữ, màu chỉ dùng cho trạng thái
             v.Children.Add(new TextBlock { Text = unit, FontSize = 12.5, Foreground = Muted, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 5) });
             s.Children.Add(v);
             if (sub is not null) s.Children.Add(sub);
-            var card = new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(4, 1, 1, 1), CornerRadius = new CornerRadius(10), Padding = new Thickness(14, 10), Margin = new Thickness(0, 0, 10, 0), Child = s };
-            card.BorderBrush = B(accent);
+            var card = new Border { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10), Margin = new Thickness(0, 0, 10, 0), Child = s };
             if (click is not null) { card.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); card.PointerPressed += async (_, _) => await click(); }
             return card;
         }

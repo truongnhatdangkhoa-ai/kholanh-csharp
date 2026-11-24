@@ -409,7 +409,7 @@ public sealed class CargoView : UserControl
     {
         if (_cur is null) return;
         var box = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 220, Watermark = "Dán email / bảng có: Họ tên tài xế, SĐT, Số xe, Số cont, Seal, Ngày xuất…" };
-        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { try { var t = await cb.GetTextAsync(); if (!string.IsNullOrWhiteSpace(t)) box.Text = t; } catch { } }
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { try { var t = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(cb); if (!string.IsNullOrWhiteSpace(t)) box.Text = t; } catch { } }
         var ok = new Button { Content = "Nhận thông tin xe", Classes = { "primary" } }; var close = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel(); body.Children.Add(new TextBlock { Text = "Dán nội dung thông tin xe — app tách tài xế + SĐT (→ Người nhận hàng), số xe + cont (→ Cont / Xe), seal và ngày xuất.", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
         body.Children.Add(box); body.Children.Add(Ui.Buttons(close, ok));

@@ -4,16 +4,16 @@
         Title="Kho Lạnh - Đăng nhập" Width="820" Height="600" CanResize="False"
         WindowStartupLocation="CenterScreen" Icon="/Assets/app.ico">
   <Grid ColumnDefinitions="340,*">
-    <Border Background="{DynamicResource BrandDark}">
+    <Border Background="{DynamicResource NavBg}">
       <StackPanel VerticalAlignment="Center" Margin="36" Spacing="14">
         <Image Source="/Assets/logo.png" Width="96" Height="96" HorizontalAlignment="Left"/>
         <TextBlock Text="KHO LẠNH" FontSize="30" FontWeight="Bold" Foreground="White"/>
         <TextBlock Text="Quản lý nhập, xuất, tồn kho lạnh theo mã hàng, size, lô và vị trí."
-                   Foreground="#B9D3E8" TextWrapping="Wrap" FontSize="14"/>
-        <TextBlock x:Name="VersionText" Foreground="#7FA3C0" FontSize="12" Margin="0,24,0,0"/>
+                   Foreground="{DynamicResource NavFg}" TextWrapping="Wrap" FontSize="14"/>
+        <TextBlock x:Name="VersionText" Foreground="{DynamicResource NavMuted}" FontSize="12" Margin="0,24,0,0"/>
       </StackPanel>
     </Border>
-    <Border Grid.Column="1" Background="White" Padding="48,0">
+    <Border Grid.Column="1" Background="{DynamicResource CardBg}" Padding="48,0">
       <StackPanel VerticalAlignment="Center" Spacing="6">
         <TextBlock x:Name="Heading" Text="Đăng nhập" Classes="title"/>
         <TextBlock x:Name="SubHeading" Classes="muted" TextWrapping="Wrap" Margin="0,0,0,16"

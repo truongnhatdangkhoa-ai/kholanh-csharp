@@ -54,10 +54,10 @@ public sealed partial class KiemKeView
         var side = new ScrollViewer { Content = _nSide, Width = 430 };
         var root = new DockPanel(); DockPanel.SetDock(side, Dock.Left); root.Children.Add(side); root.Children.Add(main);
         DragDrop.SetAllowDrop(root, true);
-        root.AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None; });
+        root.AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None; });
         root.AddHandler(DragDrop.DropEvent, async (_, e) =>
         {
-            var files = e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null && Regex.IsMatch(p!, @"\.(xlsx|xlsm|xls|csv)$", RegexOptions.IgnoreCase)).Select(p => p!).ToList() ?? new();
+            var files = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null && Regex.IsMatch(p!, @"\.(xlsx|xlsm|xls|csv)$", RegexOptions.IgnoreCase)).Select(p => p!).ToList() ?? new();
             if (files.Count == 0) { await Ui.Message(this, "Chỉ nhận file Excel (.xlsx, .xls) hoặc .csv."); return; }
             await LoadFiles(files);
         });

@@ -539,7 +539,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     {
         if (_cur is null) return;
         var box = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 240, Watermark = "Dán email có các dòng: Họ tên tài xế: … / Số điện thoại: … / Số xe: … / Số cont: … / Số seal: … / Số booking: … / Nhiệt độ cài đặt cont: …" };
-        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { try { var t = await cb.GetTextAsync(); if (!string.IsNullOrWhiteSpace(t) && t.Contains(':')) box.Text = t; } catch { } }
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { try { var t = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(cb); if (!string.IsNullOrWhiteSpace(t) && t.Contains(':')) box.Text = t; } catch { } }
         var msg = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
         var ok = new Button { Content = "Nhận thông tin xe", Classes = { "primary" }, IsDefault = false };
         var close = new Button { Content = "Đóng", IsCancel = true };
