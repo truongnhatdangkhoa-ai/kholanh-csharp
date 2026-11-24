@@ -60,7 +60,11 @@ public sealed class SheetGrid : UserControl
     /// <summary>Chiều cao dòng tìm kiếm theo cột (dưới tiêu đề).</summary>
     internal const double FilterH = 26;
     /// <summary>Tổng chiều cao phần đầu bảng (tiêu đề + dòng tìm kiếm nếu có).</summary>
-    internal double TopH => HeadH + (_filterable ? FilterH : 0);
+    internal double TopH => HeadH + (ShowFilterRow ? FilterH : 0);
+    /// <summary>Dòng tìm kiếm chỉ hiện khi bảng đủ cao (≥ 6 dòng sau khi thêm) — bảng con thấp / cố định chiều cao không bị mất dòng
+    /// (1.51: sau 1.49 nhiều bảng con chỉ còn thấy 1 dòng). Bảng thấp vẫn lọc được bằng nút ▾ ở tiêu đề; đang lọc bằng chữ thì luôn hiện.</summary>
+    internal bool ShowFilterRow => _filterable && (_surface.Bounds.Height <= 0 || _surface.Bounds.Height >= HeadH + FilterH + RowH * 6
+        || _filters.Values.Any(f => f.Text.Trim().Length > 0));
     internal double NumW => Math.Max(44, (Math.Max(Model.RowCount + SpareRows, 1).ToString().Length) * 8 + 18);
     internal double RowHeadW => NumW + (HasCheck ? CheckW : 0);
 
@@ -188,7 +192,7 @@ public sealed class SheetGrid : UserControl
 
     internal void ShowFilterEditor(int c)
     {
-        if (!_filterable || c < 0 || c >= Model.ColCount) return;
+        if (!ShowFilterRow || c < 0 || c >= Model.ColCount) return;
         if (_editing) Commit(0, 0);
         _fCol = c;
         _fEditor.Text = FilterOf(c)?.Text ?? "";
@@ -728,7 +732,7 @@ public sealed class SheetGrid : UserControl
                 }
             dc.DrawLine(HeadLine, new Point(0, hh - 0.5), new Point(b.Width, hh - 0.5));
             // dòng tìm kiếm riêng từng cột
-            if (_g.Filterable)
+            if (_g.ShowFilterRow)
             {
                 dc.FillRectangle(AppTheme.Card, new Rect(0, hh, b.Width, SheetGrid.FilterH));
                 using (dc.PushClip(new Rect(rhw, hh, Math.Max(0, b.Width - rhw), SheetGrid.FilterH)))
@@ -773,7 +777,7 @@ public sealed class SheetGrid : UserControl
                     if (_g.HasCheck && mr < m.RowCount) DrawCheck(dc, new Point(_g.NumW + 5, y + (rh - 15) / 2), _g.IsChecked(mr));
                     dc.DrawLine(HeadLine, new Point(0, y + rh - 0.5), new Point(rhw, y + rh - 0.5));
                 }
-            if (_g.Filterable)
+            if (_g.ShowFilterRow)
             {   // ô góc của dòng tìm kiếm: phễu (xanh khi đang lọc — bấm để bỏ mọi bộ lọc)
                 var gx = rhw / 2 - 5.5; var gy = hh + SheetGrid.FilterH / 2;
                 var fun = new StreamGeometry();
@@ -839,7 +843,7 @@ public sealed class SheetGrid : UserControl
             var rc = ResizeHit(p);
             if (rc >= 0) { _drag = Drag.Resize; _resizeCol = rc; _resizeStartX = p.X; _resizeStartW = _g.Model.Columns[rc].Width; e.Pointer.Capture(this); return; }
             var (r, c) = _g.HitCell(p);
-            if (_g.Filterable && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH)
+            if (_g.ShowFilterRow && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH)
             {   // dòng tìm kiếm: ô góc = bỏ mọi bộ lọc; ô cột = gõ chữ tìm
                 if (c < 0) _g.ClearFilters(); else _g.ShowFilterEditor(c);
                 e.Handled = true; return;
@@ -879,7 +883,7 @@ public sealed class SheetGrid : UserControl
             if (_drag == Drag.None)
             {
                 Cursor = ResizeHit(p) >= 0 ? new Cursor(StandardCursorType.SizeWestEast)
-                    : _g.Filterable && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH ? new Cursor(StandardCursorType.Ibeam) : Cursor.Default;
+                    : _g.ShowFilterRow && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH ? new Cursor(StandardCursorType.Ibeam) : Cursor.Default;
                 return;
             }
             if (_drag == Drag.Resize)

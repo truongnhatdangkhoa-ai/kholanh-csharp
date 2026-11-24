@@ -662,6 +662,16 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         s.KiemKe.MoChot("demo");
     }
     if (key == "m10")
+    {   // 1.51: ghi chú dài thu vào nút Hướng dẫn
+        var kt = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        kt.SelectedIndex = 4; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var hints = KhoLanh.App.Controls.HintTrim.Collect(main.PageHost);
+        Console.WriteLine($"[Ghi chú] Kết quả kháng sinh › Nạp PDF: {hints.Count} ghi chú thu gọn");
+        var hf = main.ShowHelp(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "27z-huong-dan");
+        hf.Hide(); kt.SelectedIndex = 0; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
+    }
+    if (key == "m10")
     {
         for (var i = 0; i < 20; i++) { Thread.Sleep(40); Pump(); }
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();

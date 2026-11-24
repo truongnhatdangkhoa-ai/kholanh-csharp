@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildSide();
         SetMini(s.Settings.Get(KeyMini(u.Username)) == "1", save: false);
+        HelpButton.Content = Controls.Icon.Make("info", 17);
         SearchButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
             Controls.Icon.Make("search", 15), new TextBlock { Text = "Tìm nhanh", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
@@ -386,6 +387,16 @@ public partial class MainWindow : Window
         if (again != newPw) { await Ui.Message(this, "Hai lần nhập mật khẩu mới không khớp."); return; }
         if (await Ui.Run(this, () => App.Services.Auth.ChangeOwnPassword(oldPw, newPw)))
             await Ui.Message(this, "Đã đổi mật khẩu.");
+    }
+
+    /// <summary>Nút "Hướng dẫn": hiện các ghi chú đã thu gọn của trang đang mở (<see cref="Controls.HintTrim"/>).</summary>
+    private void OnHelpClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ShowHelp();
+    internal Flyout ShowHelp()
+    {
+        var hints = PageHost.Content is Avalonia.Visual v ? Controls.HintTrim.Collect(v) : new List<string>();
+        var fl = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = Controls.HintTrim.Panel(hints) };
+        fl.ShowAt(HelpButton);
+        return fl;
     }
 
     private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
