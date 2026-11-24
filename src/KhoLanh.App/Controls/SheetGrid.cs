@@ -49,6 +49,8 @@ public sealed class SheetGrid : UserControl
     public Func<int, int, IBrush?>? CellBackground { get; set; }
     /// <summary>Màu chữ riêng từng ô (null = mặc định) — vd dòng đã khóa hiện mờ.</summary>
     public Func<int, int, IBrush?>? CellForeground { get; set; }
+    /// <summary>Dòng nào được cộng vào dòng Tổng cuối bảng (null = mọi dòng trừ dòng tổng có sẵn) — vd bảng có dòng nhóm + dòng chi tiết thì chỉ cộng dòng chi tiết.</summary>
+    public Func<int, bool>? TotalsRowFilter { get; set; }
     public event Action? SelectionChanged;
     /// <summary>Đổi bộ lọc cột (dòng tìm kiếm / danh sách lọc).</summary>
     public event Action? FilterChanged;
@@ -319,7 +321,7 @@ public sealed class SheetGrid : UserControl
         var g = new SheetGrid(Model)
         {
             SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol;
@@ -808,12 +810,12 @@ public sealed class SheetGrid : UserControl
         if (!_sumDirty && ver == _sumVer) return;
         _sumDirty = false; _sumVer = ver;
         var rows = ShownRows;
-        _sumAll = GridTotals.Sum(Model, rows, SumCol);
+        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter);
         _chkCount = 0;
         if (HasCheck)
         {
             _chkCount = rows.Count(IsChecked);
-            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, IsChecked) : Array.Empty<double?>();
+            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false) : Array.Empty<double?>();
         }
         else _sumChk = Array.Empty<double?>();
     }
