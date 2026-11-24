@@ -472,6 +472,14 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
     foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })
     {
         main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k == "m7" && main.PageHost.Content is ViTriView vv)
+        {
+            _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+            var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+            g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
+            for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(pw, "ui-vi-tri-chon");
+            pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "ui-vi-tri-phieu");
+        }
         foreach (var sg in main.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>())
         {
             var tb = typeof(KhoLanh.App.Controls.SheetGrid).GetField("_totals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg) as Control;
@@ -633,9 +641,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     if (key == "m7")
     {
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
-        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        var vtv = (ViTriView)main.PageHost.Content!;
+        _ = vtv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+        var pw = vtv.PickerWindow!;
+        var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
         g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
-        Pump(); g.Select(2, 7); Snap(main, "24-vi-tri");
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 7); Snap(pw, "24b0-vi-tri-chon-hang");
+        pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var dg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        dg.Select(0, 7); Snap(main, "24-vi-tri");
         tc.SelectedIndex = 1; Pump();
         var sg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
         sg.Select(0, 0); Snap(main, "24b-vi-tri-phieu");
