@@ -83,9 +83,36 @@ Làm lần lượt; **xong mỗi module: ghi báo cáo vào mục "Nhật ký ti
 | 1 | Đổi icon + logo theo ảnh | ✅ 1.38.0 |
 | 2 | Đồng bộ điện thoại mọi module (hạ tầng cho bản mobile) | ✅ 1.38.0 |
 | 3 | Tự tạo List / phiếu theo Lịch xuất | ✅ 1.39.0 |
-| 4 | Danh mục mã hàng | ⏳ |
+| 4 | Danh mục mã hàng | ⏳ đang làm (xem Biên bản bàn giao) |
 | 5 | Drive cá nhân / Lưu trữ, Dọn rác | ⏳ |
 | 6 | Kiểm kê nhanh | ⏳ |
 
 - 24/11/2026 · Icon + Đồng bộ điện thoại · 1.38.0 · icon / logo mới (`Assets/app.ico` 16–256, `Assets/logo.png`, bản 1024 ở `docs/brand/icon-1024.png` cho bản mobile). `Core/PhoneSync/PhoneSyncService.cs`: đẩy M01 / M01VT (+ cột phụ vt-push-extra) / M01VTB / M02 (đặc tính suy ra) / M03 (pushRows + LSX) / M08 (`AnhXa.ToPhoneTable`) / LX / C3D + phiếu PC (`CollectPcSlips` = phieu-pc-push.js) + Meta; nhận phiếu M01 / M01VT / M01VTB / M02 / M03 (`ApplyPhonePhieu` = so-kho-core.js) đọc / ghi THẲNG sheet dùng chung rồi nạp lại service; chọn bảng `phone_sync_pick`, trạng thái `phone_sync_status`, tự đồng bộ `PhoneAutoSync` (`phone_sync_interval`). Giao diện `Views/PhoneSyncView.cs` (quyền `phone`), hộp thoại dùng chung `Views/PhoneConnect.cs`. Test `PhoneSyncTests` (Web App giả). Giao thức: `docs/DONG-BO-DIEN-THOAI.md`. · còn: tab báo cáo Excel BaoCao_M01/M02, kháng sinh chỉ phần mới, yêu cầu lịch xuất từ điện thoại, lưu trữ phiếu cũ, tài khoản điện thoại.
 - 24/11/2026 · Tự tạo List / phiếu theo Lịch xuất · 1.39.0 · `LichXuat/LichXuatAuto.cs` (LichXuatService thành partial): `Mutate` chụp LSX + loại phiếu từng lịch trước khi sửa → `AfterWrite` tạo List cho lịch XUẤT sắp tới mới / đổi LSX / đổi loại (từ tồn kho, không có hàng → List trống `(tự tạo từ lịch xuất)`), `Reconcile` (gọi trong `Load`, 2 phút / lần) rà lịch 14 ngày tới thiếu khóa `__list`; `AutoMode` (settings `lx_auto_mode`: list mặc định · phieu = thêm Phiếu xuất khẩu theo nhóm cùng ngày + cont · off); `Auto` chỉ bật ở app (`MainWindow`), test bật tay. `PhieuKho/PhieuKhoAuto.cs` (PhieuKhoService thành partial): nhật ký `PNX_AutoLog` đúng cột app cũ (LogKey = lsxNorm|loaiPhieu, giữ 2000 dòng), nhãn `tuDong` {at, ngayLich, loaiLich, lichIds} trong `Extra`, chưa xem (listNew / phieuNew + listSeen / phieuSeen), `MarkSeen`, `AutoItems`, xóa hết List + Phiếu của LSX → quên nhật ký. Nút Tạo List / Tạo phiếu cũng gắn nhãn + ghi nhật ký (không tính "mới"). Giao diện `Views/PnxAutoView.cs` (tab "⚡ Tự động đã tạo" của Phiếu xuất kho), ⚡ trên danh sách phiếu / List, nút "⚡ Tự tạo: n" trên thanh menu. Test `Tu_tao_list_theo_lich_xuat_va_nhat_ky`. · còn: tự tạo phiếu loại khác xuất khẩu (app cũ cũng chỉ tạo List), cập nhật List khi Load Data mới (đã có "Quét tồn kho").
+
+## BIÊN BẢN BÀN GIAO (24/11/2026 — tạm dừng theo yêu cầu người dùng)
+Trạng thái repo: mọi việc đã xong đều đã commit + đẩy lên `claude/confident-bardeen-fhu6c6` VÀ `main` (bản mới nhất **1.39.0**, commit "1.39.0: tự tạo List / phiếu theo Lịch xuất"). 266 test đạt, App build đạt. Không có thay đổi dở dang chưa commit.
+
+**Đã xong đợt 2:** việc 1 (icon / logo) + 2 (đồng bộ điện thoại) — 1.38.0; việc 3 (tự tạo List / phiếu theo Lịch xuất) — 1.39.0 (chi tiết ở Nhật ký tiến độ phía trên).
+
+**Việc tiếp theo (chưa viết dòng code nào):**
+
+### 4. Danh mục mã hàng — ĐANG LÀM (mới đọc xong app cũ)
+- App cũ: `app/html/danh-muc-ma-hang.html` + `app/html/js/danh-muc-ma-hang.js` (227 dòng, đã đọc hết). Nguồn = db `tong-hop`, sheet `MaDaTao` (cột `STT | Mã | Ghi chú | Đủ mã`), ghi kèm `M8_Meta` = `[{data:"__JSON__{savedAt, version:2}"}]`.
+  Đoạn mã: sheet `MaHoa` (cột `Tổ hợp` = số đoạn, `Mã`, `Tên`) + danh sách cố định đoạn 1 (`js/m8-seg1-fixed.js`). 10 đoạn, độ dài 4,1,1,1,1,2,3,4,2,2 = 21 ký tự; đoạn 2–8 toàn "X" = không có (hợp lệ).
+- Cần làm: lõi `Core/DanhMuc/DanhMucMa.cs` — Decode (C# đã có `TimNhanh/Gs.Decode` + `GsService.ReadMaHoa` → tái dùng), NoteOf (ghép tên các đoạn bằng " • "),
+  Checks: trùng mã; "gần giống" = khác đúng 1 ký tự và ký tự đó làm 1 bên có đoạn chưa khai báo còn bên kia hợp lệ (thuật toán bucket theo vị trí — chép `checks()`);
+  StatusOf (lỗi: thiếu mã / không đủ 21 ký tự / trùng; cảnh báo: đoạn chưa khai báo, nghi gõ sai);
+  "Đang dùng ở": đếm dòng có mã `^(TPC-)?[A-Z0-9]{21}$` trong mọi ô chuỗi của `ton-kho-an-an/LoadData`, `ton-vi-tri-an-an/ViTri`, `ton-kho-an-an/ViTriBot` (M01), `ton-kho-gui/DuLieuChinh` (M02), `nxt-bot-sot/SoCai` (SK);
+  "Cần xử lý": mã đang dùng mà chưa có trong danh mục (thêm hàng loạt, diễn giải tự dựng), mã trùng, mã nghi gõ sai, mã có đoạn chưa khai báo. Xuất Excel 7 cột (STT, Mã hàng, Diễn giải, Size đoạn 8, Trọng lượng đoạn 9, Đang dùng ở, Kiểm tra).
+- Service: đọc / ghi `MaDaTao` qua `Func<ISheetSource>`; kiểm tra TongHopService (đang dùng MaDaTao? — grep thấy dùng ở TroLyMaHang, DoiChieu, KiemKe, PhoneSync) để không đè dữ liệu; nạp lại TongHopService sau khi ghi.
+- Giao diện `Views/DanhMucMaView.cs`: lưới SheetGrid sửa được (tối đa 2.000 dòng khớp ô tìm), lọc Tất cả / Trùng / Nghi gõ sai / Đoạn chưa khai báo, tab "Cần xử lý", thêm / xóa dòng, xuất Excel. Quyền mới (vd `dmma`, nhóm Hệ thống hoặc Báo cáo) + `Perm.MissingDefault` nếu cần. Test golden: viết `Data/dm-golden.gen.js` chạy decode / checks của app cũ.
+
+### 5. Drive cá nhân / Lưu trữ, Dọn rác — chưa bắt đầu
+- App cũ: `drive-ca-nhan.html` + `core/drive-ca-nhan.js`; `luu-tru.html` / `quan-ly-file.html` + `core/kho-ca-nhan.js`, `core/luu-tru.js`; `core/don-rac.js`. C# đã có module "drive" (Drive máy ở nhà) — xem lại để tái dùng.
+
+### 6. Kiểm kê nhanh — chưa bắt đầu
+- App cũ: `js/kk-nhanh-core.js` (detectKind, summarize, todo, readiness, filterRows) + `js/kk-nhanh.js`. Làm thành tab trong `Views/KiemKeView.cs`; test golden đối chiếu lõi JS.
+
+**Quy trình mỗi việc (giữ nguyên):** test đạt hết → build App → cảnh chụp mới cuối `tools/Screenshots/Program.cs` (số kế tiếp: 44) + chép vào `docs/anh/` → nâng `<Version>` (kế tiếp 1.40.0) → README + bảng kế hoạch + Nhật ký → commit (kết thúc bằng 2 dòng Co-Authored-By / Claude-Session) → push nhánh làm việc + `git push origin HEAD:main`.
+Lưu ý: không đụng repo cũ (chỉ đọc); không force-push; không copy token cố định trong `core/app-config` của app cũ; dùng `Enumerable.Reverse`; code mới dùng `AppTheme.Brush("#...")`.
