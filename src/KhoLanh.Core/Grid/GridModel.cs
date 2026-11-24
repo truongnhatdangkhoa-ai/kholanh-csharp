@@ -41,6 +41,8 @@ public sealed class GridModel
     public int RowCount => _rows.Count;
     public int ColCount => Columns.Count;
     public int Version { get; private set; }
+    /// <summary>Tăng mỗi lần <see cref="Load"/> (lưới dựa vào đây để lọc lại khi nạp dữ liệu mới).</summary>
+    public int Loads { get; private set; }
 
     /// <summary>Một thao tác: danh sách thay đổi ô + thay đổi số dòng / cột (để hoàn tác).</summary>
     private sealed class Edit
@@ -63,6 +65,7 @@ public sealed class GridModel
         _rows.Clear();
         foreach (var r in rows) _rows.Add(Fit(r.Select(x => x ?? "").ToArray()));
         _undo.Clear(); _redo.Clear();
+        Loads++;
         Bump();
     }
 
