@@ -1,0 +1,467 @@
+{
+ "aoas": [
+  [
+   [
+    "BÁO CÁO TỒN KHO"
+   ],
+   [],
+   [
+    "STT",
+    "Mã hàng",
+    "Tên hàng",
+    "Tồn cuối",
+    "Trọng lượng"
+   ]
+  ],
+  [
+   [
+    "Mã  Hàng",
+    "Tên",
+    "Net (kg)",
+    "Số lượng"
+   ]
+  ],
+  [
+   [
+    "x"
+   ],
+   [
+    "Mã hàng",
+    "Tên",
+    "Net",
+    "Vị trí"
+   ]
+  ],
+  [
+   [
+    "Mã hàng",
+    "Khách hàng",
+    "Số kiện",
+    "Net"
+   ]
+  ],
+  [
+   [
+    "MaHang",
+    "Mã cũ",
+    "SL"
+   ]
+  ],
+  [
+   [
+    "Tên",
+    "Số lượng"
+   ],
+   [
+    "a",
+    1
+   ]
+  ],
+  [
+   [
+    "Ma hang",
+    "TLG"
+   ]
+  ],
+  [
+   [
+    "Mã hàng",
+    "Tồn kho",
+    "Kho gửi"
+   ]
+  ],
+  []
+ ],
+ "detect": [
+  {
+   "kind": "an",
+   "header": 2,
+   "why": "có cột Tồn cuối / Tồn kho"
+  },
+  {
+   "kind": "kt",
+   "header": 0,
+   "why": "có Mã hàng + Net / Trọng lượng, không có Tồn cuối"
+  },
+  {
+   "kind": "",
+   "header": 1,
+   "why": "chưa chắc là loại nào"
+  },
+  {
+   "kind": "gui",
+   "header": 0,
+   "why": "có cột đặc trưng tồn kho gửi"
+  },
+  {
+   "kind": "gui",
+   "header": 0,
+   "why": "có cột đặc trưng tồn kho gửi"
+  },
+  {
+   "kind": "",
+   "header": -1,
+   "why": "không thấy dòng tiêu đề có cột \"Mã hàng\""
+  },
+  {
+   "kind": "kt",
+   "header": 0,
+   "why": "có Mã hàng + Net / Trọng lượng, không có Tồn cuối"
+  },
+  {
+   "kind": "an",
+   "header": 0,
+   "why": "có cột Tồn cuối / Tồn kho"
+  },
+  {
+   "kind": "",
+   "header": -1,
+   "why": "không thấy dòng tiêu đề có cột \"Mã hàng\""
+  }
+ ],
+ "rows": [
+  {
+   "key": "A1",
+   "ma": "A1",
+   "ten": "Tôm sú",
+   "status": "Khớp",
+   "dKg": 0
+  },
+  {
+   "key": "A2",
+   "ma": "A2",
+   "ten": "",
+   "status": "Thừa",
+   "dKg": 12.345
+  },
+  {
+   "key": "A3",
+   "ma": "A3",
+   "ten": "Cá",
+   "status": "Thiếu",
+   "dKg": -40
+  },
+  {
+   "key": "A4",
+   "ma": "a4",
+   "ten": "Mực ống",
+   "status": "Lệch kg",
+   "dKg": 3.333
+  },
+  {
+   "key": "B5",
+   "ma": "B5",
+   "ten": "",
+   "status": "Chỉ có ở kiểm kê",
+   "dKg": 20
+  },
+  {
+   "key": "B6",
+   "ma": "B6",
+   "ten": "Ghẹ",
+   "status": "Chưa kiểm kê",
+   "dKg": -20
+  },
+  {
+   "key": "B7",
+   "ma": "B7",
+   "ten": "Ghẹ  xanh",
+   "status": "Chỉ có ở kiểm kê",
+   "dKg": 40
+  },
+  {
+   "key": "B8",
+   "ma": "B8",
+   "ten": "x",
+   "status": "Chưa kiểm kê",
+   "dKg": -40
+  },
+  {
+   "key": "C9",
+   "ma": "C 9",
+   "ten": "Tôm thẻ",
+   "status": "Thiếu",
+   "dKg": -40
+  }
+ ],
+ "nn": [
+  [
+   "B5",
+   {
+    "code": "sai-ma",
+    "side": "kk",
+    "fixTo": "B6",
+    "strong": true,
+    "level": "ng"
+   }
+  ],
+  [
+   "B6",
+   {
+    "code": "sai-ma",
+    "side": "ton",
+    "strong": true,
+    "level": "ng"
+   }
+  ],
+  [
+   "B7",
+   {
+    "code": "sai-ma",
+    "side": "kk",
+    "fixTo": "B8",
+    "strong": false,
+    "level": "ng"
+   }
+  ],
+  [
+   "A3",
+   {
+    "code": "lech-kien",
+    "level": "xd"
+   }
+  ],
+  [
+   "A4",
+   {
+    "code": "cx",
+    "level": "cx"
+   }
+  ]
+ ],
+ "sum": {
+  "total": 9,
+  "khop": 1,
+  "thua": 1,
+  "thieu": 2,
+  "lechKg": 1,
+  "chiKK": 2,
+  "chuaKK": 2,
+  "open": 8,
+  "kgLech": 215.68,
+  "auto": 1,
+  "autoList": [
+   {
+    "key": "B5",
+    "ma": "B5",
+    "to": "B6"
+   }
+  ],
+  "nghi": 3,
+  "chuaRo": 4,
+  "noName": 2,
+  "noNameList": []
+ },
+ "ctxs": [
+  {},
+  {
+   "hasKK": true,
+   "hasAn": true,
+   "hasKT": true,
+   "dirty": 0,
+   "locked": false,
+   "nPages": 3
+  },
+  {
+   "hasKK": true,
+   "hasAn": false,
+   "dirty": 2,
+   "locked": true
+  }
+ ],
+ "todo": [
+  [
+   [
+    "kk",
+    "warn",
+    "goto-tong",
+    "Mở Số liệu tổng"
+   ],
+   [
+    "an",
+    "warn",
+    "pick",
+    "Chọn file"
+   ],
+   [
+    "fix",
+    "ok",
+    "fix",
+    "Sửa 1 mã"
+   ],
+   [
+    "chikk",
+    "bad",
+    "filter:Chỉ có ở kiểm kê",
+    "Xem"
+   ],
+   [
+    "chuakk",
+    "bad",
+    "filter:Chưa kiểm kê",
+    "Xem"
+   ],
+   [
+    "lech",
+    "bad",
+    "filter:LECH",
+    "Xem"
+   ],
+   [
+    "ten",
+    "info",
+    "ten",
+    "Cập nhật tên"
+   ]
+  ],
+  [
+   [
+    "fix",
+    "ok",
+    "fix",
+    "Sửa 1 mã"
+   ],
+   [
+    "chikk",
+    "bad",
+    "filter:Chỉ có ở kiểm kê",
+    "Xem"
+   ],
+   [
+    "chuakk",
+    "bad",
+    "filter:Chưa kiểm kê",
+    "Xem"
+   ],
+   [
+    "lech",
+    "bad",
+    "filter:LECH",
+    "Xem"
+   ],
+   [
+    "ten",
+    "info",
+    "ten",
+    "Cập nhật tên"
+   ]
+  ],
+  [
+   [
+    "an",
+    "warn",
+    "pick",
+    "Chọn file"
+   ],
+   [
+    "save",
+    "warn",
+    "save",
+    "Lưu ngay"
+   ],
+   [
+    "fix",
+    "ok",
+    "fix",
+    "Sửa 1 mã"
+   ],
+   [
+    "chikk",
+    "bad",
+    "filter:Chỉ có ở kiểm kê",
+    "Xem"
+   ],
+   [
+    "chuakk",
+    "bad",
+    "filter:Chưa kiểm kê",
+    "Xem"
+   ],
+   [
+    "lech",
+    "bad",
+    "filter:LECH",
+    "Xem"
+   ],
+   [
+    "ten",
+    "info",
+    "ten",
+    "Cập nhật tên"
+   ]
+  ]
+ ],
+ "filters": [
+  [
+   "LECH",
+   ""
+  ],
+  [
+   "ALL",
+   ""
+  ],
+  [
+   "Thiếu",
+   ""
+  ],
+  [
+   "",
+   "tom"
+  ],
+  [
+   "ALL",
+   "c9"
+  ],
+  [
+   "ALL",
+   "ghe xanh"
+  ],
+  [
+   "Khớp",
+   "zz"
+  ]
+ ],
+ "filt": [
+  [
+   "A3",
+   "B7",
+   "B8",
+   "C9",
+   "B5",
+   "B6",
+   "A2",
+   "A4"
+  ],
+  [
+   "A3",
+   "B7",
+   "B8",
+   "C9",
+   "B5",
+   "B6",
+   "A2",
+   "A4",
+   "A1"
+  ],
+  [
+   "A3",
+   "C9"
+  ],
+  [
+   "C9"
+  ],
+  [
+   "C9"
+  ],
+  [
+   "B7"
+  ],
+  []
+ ],
+ "strip": [
+  "ma hang",
+  "dac tinh kg",
+  "ton cuoi ky",
+  "trong luong kien"
+ ]
+}
