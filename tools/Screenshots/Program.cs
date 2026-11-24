@@ -329,7 +329,8 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
         if (idx % 97 == 5) sl -= 3; else if (idx % 131 == 11) sl += 2;
         if (!typoDone && ma == typoMa) { ma = typoTo; typoDone = true; }
         if (ma == stock[10].Ma && idx % 2 == 0) tl += 0.5;
-        return new[] { x.Vt, ma, x.Ten, "", sl.ToString(), tl.ToString(ic), "10/2026", "lô " + x.Lo };
+        // mẫu Kiểm kê 1.62: Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg), Ghi chú, Ngày nhập
+        return new[] { x.Vt, ma, "", tl.ToString(ic), sl.ToString(), "", "lô " + x.Lo, DateTime.Today.ToString("dd/MM/yyyy") };
     }
     var all = vtDemo.Select((x, i) => (x, i)).ToList();
     bool Part1(string vt) => vt.StartsWith("TG1.A.") || vt.StartsWith("TG1.B.");
@@ -337,7 +338,7 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     var kp1 = s.Entry.Create($"Kiểm kê TG1 khu A-B {DateTime.Today.AddDays(-1):dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp1, kp1.Columns, all.Where(t => Part1(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList());
     var rest = all.Where(t => !Part1(t.x.Vt) && !Skip(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList();
-    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "Tôm PD BTP 60/70", "60/70", "18", "10", "10/2026", "hàng lạ, chưa có mã" });
+    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "60/70", "10", "18", "", "hàng lạ, chưa có mã", DateTime.Today.ToString("dd/MM/yyyy") });
     var kp2 = s.Entry.Create($"Kiểm kê TG1 C-D, TG2 {DateTime.Today:dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp2, kp2.Columns, rest);
 
@@ -601,6 +602,36 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
         }
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
+// Nhập liệu 1.62: SHOTS_ONLY=nl — mẫu Kiểm kê mới (dán mã → tự điền), tô màu ô, tab Mẫu, hộp Cột…
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
+{
+    void WaitNl(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var codes = s.ViTri.Rows.Select(r => r.Ma).Where(m => m.Length > 0).Distinct().Take(6).ToList();
+    var pg = s.Entry.Create("Kiểm kê kho 1 " + DateTime.Today.ToString("dd/MM/yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    main.Navigate("m6"); WaitNl(600);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    for (var i = 0; i < 100 && typeof(EntryView).GetField("_lookup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) WaitNl(60);
+    var combo = ev.GetVisualDescendants().OfType<ComboBox>().First();
+    combo.SelectedItem = combo.Items.Cast<object>().First(o => o.ToString() == pg.Name); WaitNl(400);
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var m = g.Model;
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 1, 0, 1), string.Join("\r\n", codes));          // dán cột Mã hàng → Size / Trọng lượng / Ngày nhập tự điền
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 0, 0, 0), string.Join("\r\n", codes.Select((_, i) => $"TG1.A.0{i + 1}.1.1")));
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 4, 0, 4), string.Join("\r\n", codes.Select((_, i) => (12 + i * 7).ToString())));
+    g.Select(1, 0); g.Select(2, 5, extend: true);
+    var paint = typeof(EntryView).GetMethod("PaintSelection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+    paint.Invoke(ev, new object[] { "y" });
+    g.Select(4, 4); g.Select(4, 5, extend: true); paint.Invoke(ev, new object[] { "r" });
+    g.Select(0, 1); WaitNl(300);
+    Snap(main, "20-nhap-lieu");
+    Console.WriteLine("   dòng 1: " + string.Join(" | ", m.Row(0)));
+    var tabs = ev.GetVisualDescendants().OfType<TabControl>().First();
+    tabs.SelectedIndex = 2; WaitNl(500);
+    var ml = ev.GetVisualDescendants().OfType<ListBox>().First(l => l.IsEffectivelyVisible);
+    ml.SelectedIndex = 3; WaitNl(400);
+    Snap(main, "20d-nhap-lieu-mau");
+    s.Lan.Dispose(); Console.WriteLine("Xong (nl): " + outDir); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }

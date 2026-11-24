@@ -335,7 +335,8 @@ public partial class MainWindow : Window
         page ??= item.Create();
         PageHost.IsVisible = true;
         PageHost.Content = page;
-        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
+        // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
+        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = ""; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
         foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
@@ -364,6 +365,7 @@ public partial class MainWindow : Window
     internal Flyout ShowHelp()
     {
         var hints = PageHost.Content is Avalonia.Visual v ? Controls.HintTrim.Collect(v) : new List<string>();
+        if (PageHost.Content is IPage { Subtitle: { Length: > 0 } sub }) hints.Insert(0, sub);
         var fl = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = Controls.HintTrim.Panel(hints) };
         fl.ShowAt(HelpButton);
         return fl;

@@ -123,8 +123,10 @@ public class KiemKeTests : IDisposable
     }
     private EntryService.PageInfo Page(string name, params string[][] rows)
     {
+        // dòng viết theo mẫu cũ (Vị trí, Mã, Tên, Size, Số thùng, Kg / thùng, Ngày SX, Ghi chú) → mẫu Kiểm kê 1.62
+        // (Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg) = công thức, Ghi chú, Ngày nhập)
         var p = _s.Entry.Create(name, EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
-        return _s.Entry.Save(p, p.Columns, rows.Select(r => (IReadOnlyList<string>)r).ToList());
+        return _s.Entry.Save(p, p.Columns, rows.Select(r => (IReadOnlyList<string>)new[] { r[0], r[1], r[3], r[5], r[4], "", r[7], r[6] }).ToList());
     }
     private void SeedPositions()
     {
