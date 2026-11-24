@@ -185,6 +185,33 @@ public class ViTriTests : IDisposable
     }
 
     [Fact]
+    public void Smart_search_exact_size_label_like_old_app()
+    {
+        const string S50 = "TPC-VRHLBTNXXXR000050IME1", S4150 = "TPC-VRHLBTNXXXR004150IME1", S35 = "TPC-VRHLBTNXXXR000035IME1", S500 = "TPC-VRHLBTNXXXR000500IME1";
+        Vt.Load();
+        Vt.Import(Vt.ReadFile(File_("TON 21.11.xlsx",
+            (S50, "Tôm BTP (1.8 kg x 6 gói) - MKS NAU - 16TC", "L1", "TG1.A.04.6.1", 50, 10.8),
+            (S50, "Tôm BTP (1.8 kg x 6 gói) - 23.MKS - Nau.", "L2", "TG1.A.09.7.2", 3, 10.8),
+            (S4150, "Tôm BTP (1.8 kg x 6 gói) - MKS NAU - RADONG", "L3", "TG2.E.02.5.2", 7, 9),
+            (S35, "Tôm BTP (1.8 kg x 6 gói) - 23.MKS - TRANG", "L4", "TG2.F.11.5.1", 50, 10.8),
+            (S500, "Tôm BTP (1.8 kg x 6 gói) - MKS - X", "L5", "TG2.F.11.5.2", 1, 10.8))));
+        var tag50 = Vt.GopLabel(Vt.Rows.First(r => r.MaGoc == S50));
+        Assert.False(string.IsNullOrEmpty(tag50));
+        List<string> Hit(string q) { var m = Vt.Matcher(q); return Vt.Rows.Where(r => m is null || m(r)).Select(r => r.Lo).ToList(); }
+        // "<nhãn> <từ khác>": chỉ đúng nhãn BTP 50, không lẫn 41/50, 35, BTP 500
+        Assert.Equal(new[] { "L1", "L2" }, Hit(tag50 + " mks"));
+        Assert.Equal(new[] { "L1" }, Hit(tag50 + " MKS Nau 16tc"));
+        // cả ô là nhãn: nhãn BẮT ĐẦU bằng; có dấu cách cuối → đúng nhãn
+        Assert.Equal(new[] { "L1", "L2" }, Hit(tag50!));
+        Assert.Equal(new[] { "L1", "L2" }, Hit(tag50 + " "));
+        // 1 con số: ô nào ĐÚNG BẰNG số đó (Size "50"), không ra 41/50
+        Assert.Equal(new[] { "L1", "L2" }, Hit("50"));
+        // tìm thường: mỗi từ ở cột bất kỳ, bỏ dấu
+        Assert.Equal(new[] { "L3" }, Hit("radong e.02"));
+        Assert.Null(Vt.Matcher("  "));
+    }
+
+    [Fact]
     public void Warnings_other_positions_and_duplicate_same_day()
     {
         Vt.Load(); Vt.Import(Vt.ReadFile(F1()));

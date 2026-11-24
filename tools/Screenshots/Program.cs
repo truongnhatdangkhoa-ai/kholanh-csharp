@@ -633,6 +633,38 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
     Snap(main, "20d-nhap-lieu-mau");
     s.Lan.Dispose(); Console.WriteLine("Xong (nl): " + outDir); return;
 }
+// Tồn theo vị trí — tìm đúng nhãn size + lọc vị trí đang chọn; Sơ đồ kho — Phiếu In 2 tab (1.63): SHOTS_ONLY=vt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m7"); W(900);
+    var vv = (ViTriView)main.PageHost.Content!;
+    _ = vv.OpenPickerForTest(); W(600);
+    var pw = vv.PickerWindow!;
+    var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+    // vị trí có ≥ 2 mã, lấy nhãn size của 1 mã trong đó
+    var vtRows = s.ViTri.Rows;
+    var multi = vtRows.Where(r => r.Vt.Length > 0 && r.Sl > 0 && s.ViTri.GopLabel(r) is not null).GroupBy(r => r.Vt).First(gr => gr.Select(r => r.Ma).Distinct().Count() >= 2);
+    var label = s.ViTri.GopLabel(multi.First())!;
+    var q = pw.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm: BTP") == true);
+    q.Text = label; W(400);
+    var r0 = Enumerable.Range(0, g.Model.RowCount).First(i => g.Model.Row(i)[0] == multi.Key);
+    g.Model.SetCells(new[] { (r0, 7, "x") }); W(300); g.Select(r0, 7);
+    Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[2]).Distinct())}");
+    Snap(pw, "24b1-vi-tri-tim-dung-size");
+    var pos = pw.GetVisualDescendants().OfType<CheckBox>().First(c => c.Content as string == "Lọc vị trí đang chọn");
+    pos.IsChecked = true; W(400);
+    Snap(pw, "24b2-vi-tri-loc-vi-tri-dang-chon");
+    pw.Close(); W(300);
+    main.Navigate("m8"); W(900);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    tc.SelectedIndex = 4; W(600);
+    Snap(main, "25f-so-do-phieu-in");
+    var sub = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t != tc && t.Items.Count == 2 && t.IsEffectivelyVisible);
+    sub.SelectedIndex = 1; W(600);
+    Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
+    s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
+}
 // Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
 {
