@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.BackupView">
-  <!-- 1.56: gọn lại — bỏ Thông tin công ty (giữ Tên kho), ghi chú dài chuyển thành gợi ý khi rê chuột. Trái: cài đặt máy · Phải: sao lưu. -->
+  <!-- 1.56: gọn lại — bỏ Thông tin công ty (giữ Tên kho). 1.68: sao lưu chuyển sang Dữ liệu & sao lưu; trái: máy này · phải: cập nhật + tài khoản dùng chung. -->
   <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
     <ScrollViewer>
       <StackPanel Spacing="12" Margin="0,0,6,0">
@@ -28,6 +28,20 @@
         <Border Classes="card">
           <StackPanel x:Name="BootPanel" Spacing="6"/>
         </Border>
+        <!-- Chép từ app cũ -->
+        <Border Classes="card">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
+                    ToolTip.Tip="Chép Tồn kho An An, Tồn kho gửi, Tổng hợp, Báo cáo rã đông, Tồn theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê, Kết quả kháng sinh từ app cũ (app › database › engine › khokhanh.db). Chỉ đọc file cũ; dữ liệu các bảng đó ở app mới được thay bằng bản chép."/>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- 1.68: sao lưu / khôi phục chuyển sang Hệ thống › Dữ liệu & sao lưu › Sao lưu -->
+    <ScrollViewer Grid.Column="1">
+      <StackPanel Spacing="12" Margin="0,0,6,0">
         <!-- Cập nhật -->
         <Border Classes="card">
           <StackPanel Spacing="8">
@@ -81,40 +95,13 @@
             <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
         </Border>
-        <!-- Chép từ app cũ -->
         <Border Classes="card">
           <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
-                    ToolTip.Tip="Chép Tồn kho An An, Tồn kho gửi, Tổng hợp, Báo cáo rã đông, Tồn theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê, Kết quả kháng sinh từ app cũ (app › database › engine › khokhanh.db). Chỉ đọc file cũ; dữ liệu các bảng đó ở app mới được thay bằng bản chép."/>
+            <TextBlock Text="Sao lưu, khôi phục, đồng bộ LAN / Drive" Classes="section" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Content="Mở Dữ liệu &amp; sao lưu" Click="OnOpenDuLieu"/>
           </Grid>
         </Border>
       </StackPanel>
     </ScrollViewer>
-
-    <!-- Sao lưu và khôi phục -->
-    <Border Grid.Column="1" Classes="card">
-      <DockPanel>
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
-          <TextBlock Text="Sao lưu và khôi phục" Classes="section" VerticalAlignment="Center"
-                     ToolTip.Tip="Mỗi ngày, lần mở đầu tiên tự sao lưu (giữ 30 bản). Nên chép thêm ra USB / Google Drive định kỳ."/>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <Button x:Name="RestoreFileButton" Content="Khôi phục từ file…" Classes="danger" Click="OnRestoreFile"/>
-            <Button Content="Sao lưu ra file…" Classes="primary" Click="OnBackup"/>
-          </StackPanel>
-        </Grid>
-        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
-          <TextBlock Text="Bản sao lưu tự động — giữ 30 bản gần nhất" Classes="muted" FontSize="12" VerticalAlignment="Center" Tag="keep"/>
-          <Button Grid.Column="1" x:Name="RestoreSelButton" Content="Khôi phục bản đang chọn" Classes="danger" Click="OnRestoreSelected"/>
-        </Grid>
-        <DataGrid x:Name="Grid">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Tên file" Binding="{Binding Name}" Width="*"/>
-            <DataGridTextColumn Header="Thời gian" Binding="{Binding LastWriteTime, StringFormat='dd/MM/yyyy HH:mm'}" Width="140"/>
-            <DataGridTextColumn Header="Dung lượng (KB)" Binding="{Binding Kb}" Width="130"/>
-          </DataGrid.Columns>
-        </DataGrid>
-      </DockPanel>
-    </Border>
   </Grid>
 </UserControl>

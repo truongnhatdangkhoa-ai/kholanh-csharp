@@ -587,10 +587,11 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
-    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
+    // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
+    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-cai-dat"), ("dulieu", "he-du-lieu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("saoluu", "he-sao-luu"), ("dcn", "he-drive-ca-nhan"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
     {
         main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
-        if (k is "users" or "lan")
+        if (k is "users")
         {
             var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
             if (k == "users") main.PageHost.GetVisualDescendants().OfType<DataGrid>().First().SelectedIndex = 1;

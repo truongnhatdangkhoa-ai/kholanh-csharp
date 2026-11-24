@@ -23,7 +23,8 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" or "troly" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "troly" ? Roles.IsAdmin(App.Services.Session.Role)
+        : i.Key == "dulieu" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -100,9 +101,8 @@ public partial class MainWindow : Window
             ("HỆ THỐNG", new[]
             {
                 new NavItem("users", "Tài khoản", () => new UsersView()),
-                new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
-                new NavItem("lan", "Mạng LAN", () => new LanView()),
-                new NavItem("drive", "Đồng bộ Google Drive", () => new DriveSyncView()),
+                new NavItem("dulieu", "Dữ liệu & sao lưu", () => new DuLieuView()),
+                new NavItem("backup", "Cài đặt máy", () => new BackupView()),
                 new NavItem("phone", "Đồng bộ điện thoại", () => new PhoneSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
@@ -145,6 +145,7 @@ public partial class MainWindow : Window
         Closed += (_, _) => s.LichXuat.StopAutoEmail();
         // Lưu trữ cá nhân: tự sao lưu Google Drive theo lịch của tài khoản (chỉ chạy khi đã đăng nhập Google trong module).
         if (s.LuuTru.CanUse) { s.LuuTru.StartAuto(); Closed += (_, _) => s.LuuTru.StopAuto(); }
+        if (s.DriveCaNhan.CanUse) { s.DriveCaNhan.StartAuto(); Closed += (_, _) => s.DriveCaNhan.StopAuto(); }
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {
@@ -231,7 +232,7 @@ public partial class MainWindow : Window
         ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
         ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
-        ["users"] = "users", ["backup"] = "save", ["lan"] = "network", ["drive"] = "cloud", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
+        ["users"] = "users", ["backup"] = "gear", ["dulieu"] = "save", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
     };
     /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
     private static readonly Dictionary<string, string> GroupIcons = new()
@@ -323,6 +324,8 @@ public partial class MainWindow : Window
     /// <summary>Mở một màn hình; nếu truyền sẵn control thì dùng control đó.</summary>
     public void Show(string key, Control? page)
     {
+        // 1.68: Mạng LAN / Đồng bộ Google Drive / sao lưu gom vào "Dữ liệu & sao lưu" — giữ khóa cũ để các nút / Trợ lý mở đúng tab
+        if (key is "lan" or "drive" or "saoluu" or "dcn") { page ??= new DuLieuView(key); key = "dulieu"; }
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
         if (!Allowed(item)) return;
