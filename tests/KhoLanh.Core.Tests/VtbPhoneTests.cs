@@ -14,10 +14,13 @@ public sealed class FakeWebApp : HttpMessageHandler
 {
     public readonly Dictionary<string, (List<string> H, List<JsonArray> Rows)> Tabs = new();
     public readonly List<string> Calls = new();
+    public readonly List<JsonObject> Payloads = new();
+    /// <summary>Giả Code.gs bản cũ (chưa có pc.ksUpsert / pc.archive).</summary>
+    public bool Legacy;
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
     {
         var b = JsonNode.Parse(await req.Content!.ReadAsStringAsync(ct))!.AsObject();
-        var a = b["action"]!.ToString(); Calls.Add(a);
+        var a = b["action"]!.ToString(); Calls.Add(a); Payloads.Add(b);
         JsonObject res;
         if (b["token"]?.ToString() != "TK") res = new JsonObject { ["ok"] = false, ["error"] = "Sai mã PC_TOKEN" };
         else switch (a)
@@ -41,6 +44,8 @@ public sealed class FakeWebApp : HttpMessageHandler
                 foreach (var u in b["updates"]!.AsArray()) { var row = t.Rows[u!["rowNumber"]!.GetValue<int>() - 2]; foreach (var (k, v) in u["values"]!.AsObject()) row[t.H.IndexOf(k)] = v!.ToString(); }
                 res = new JsonObject { ["ok"] = true }; break;
             }
+            case "pc.ksUpsert" when !Legacy: res = new JsonObject { ["ok"] = true }; break;
+            case "pc.archive" when !Legacy: res = new JsonObject { ["ok"] = true, ["moved"] = 3 }; break;
             default: res = new JsonObject { ["ok"] = false, ["error"] = "Không có chức năng " + a }; break;
         }
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(res.ToJsonString(), Encoding.UTF8, "application/json") };

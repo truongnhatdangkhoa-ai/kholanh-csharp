@@ -129,4 +129,93 @@ public class PhoneSyncTests : IDisposable
         var (pull2, _) = await ps.SyncAsync();
         Assert.Equal(0, pull2.NewPhieu); Assert.Equal(45, JsonNode.Parse(_s.Lan.Read("ton-kho-an-an", "LoadData"))!.AsArray()[0]!["c3"]!.GetValue<double>());
     }
+
+    // ------------------------------------------------------------------ 1.55: phần còn thiếu so với app PC cũ
+
+    [Fact]
+    public async Task Bao_cao_Excel_va_phan_loai_cho_dien_thoai()
+    {
+        var ps = Svc();
+        await ps.PushAsync(new[] { "M01", "M02" });
+        var b2 = Tab("BaoCao_M02");
+        var th = b2.Where(r => r["key"] == "tonghop").OrderBy(r => int.Parse(r["part"])).ToList();
+        Assert.NotEmpty(th);
+        Assert.All(th, r => Assert.StartsWith("~", r["data"]));
+        var bytes = Convert.FromBase64String(string.Concat(th.Select(r => r["data"][1..])));
+        Assert.Equal((byte)'P', bytes[0]); Assert.Equal((byte)'K', bytes[1]);      // file xlsx (zip)
+        Assert.Equal("22/11/2026", th[0]["reportDate"]);
+        var pl = b2.Single(r => r["key"] == "phanloai");
+        var json = JsonNode.Parse(System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(pl["data"][1..])))!;
+        Assert.Equal("m02", json["nguon"]!.ToString());
+        Assert.Equal(6, json["loai"]!.AsArray().Count);
+        var nl = json["loai"]![0]!;
+        Assert.Equal("Tôm Nguyên Liệu", nl["name"]!.ToString()); Assert.Equal(100, nl["net"]!.GetValue<double>());
+        Assert.Equal("NL85", nl["sizes"]![0]!["label"]!.ToString()); Assert.Equal("Lô LO1", nl["sizes"]![0]!["items"]![0]!["sub"]!.ToString());
+        Assert.NotNull(nl["cross"]);
+        var meta = Tab("Meta").ToDictionary(r => r["key"], r => r["value"]);
+        Assert.Equal("2026-11-24T09:00:00.000Z", meta["m02BaoCaoAt"]);
+        Assert.True(meta.ContainsKey("m01BaoCaoLoi"));
+    }
+
+    [Fact]
+    public async Task Khang_sinh_chi_gui_phan_moi()
+    {
+        var ps = Svc();
+        string Rec(string lo, string dat) => new JsonObject { ["date"] = "2026-11-20", ["batch"] = lo, ["dat"] = dat, ["inputs"] = new JsonObject { ["enro"] = 0.5, ["aoz"] = "KPH" }, ["lan2"] = new JsonObject { ["date"] = "2026-11-22", ["dat"] = "Đạt" } }.ToJsonString();
+        void Put(params (string K, string V)[] rows) => _s.Lan.Write("ket-qua-khang-sinh", new Dictionary<string, JsonArray?> { ["KhangSinh"] = A(rows.Select(r => new JsonObject { ["key"] = r.K, ["value"] = r.V }).ToArray()) });
+        Put(("s:batch:2026-11-20:L1:1", Rec("L1", "Đạt")), ("s:batch:2026-11-20:L2:2", Rec("L2", "Không đạt")), ("s:ksinhRulesData", "{}"));
+        var k1 = await ps.PushKhangSinhAsync();
+        Assert.True(k1.Full); Assert.Equal(3, k1.Sent);
+        var up = _fake.Payloads.Last(p => p["action"]!.ToString() == "pc.ksUpsert");
+        Assert.True(up["full"]!.GetValue<bool>());
+        var v = up["rows"]![0]![2]!.ToString();
+        Assert.StartsWith("~", v);
+        var o = JsonNode.Parse(v[1..])!;
+        Assert.Equal("L1", o["b"]!.ToString()); Assert.Equal("0.5", o["i"]![0]!.ToString()); Assert.Equal("KPH", o["i"]![5]!.ToString()); Assert.Equal("Đạt", o["L"]![0]![1]!.ToString());
+        // không đổi → không gửi
+        var n = _fake.Calls.Count(c => c == "pc.ksUpsert");
+        Assert.Equal(0, (await ps.PushKhangSinhAsync()).Sent);
+        Assert.Equal(n, _fake.Calls.Count(c => c == "pc.ksUpsert"));
+        // sửa 1 dòng + xóa 1 dòng → chỉ gửi phần đổi
+        Put(("s:batch:2026-11-20:L1:1", Rec("L1", "Không đạt")), ("s:ksinhRulesData", "{}"));
+        var k3 = await ps.PushKhangSinhAsync();
+        Assert.False(k3.Full); Assert.Equal(1, k3.Sent); Assert.Equal(1, k3.Deleted);
+        var up3 = _fake.Payloads.Last(p => p["action"]!.ToString() == "pc.ksUpsert");
+        Assert.Equal("s:batch:2026-11-20:L2:2", up3["dels"]![0]![0]!.ToString());
+        // Code.gs cũ → đẩy cả bảng kiểu (key, value)
+        _fake.Legacy = true; _s.Settings.Set(PhoneSyncService.KeyKsState, "");
+        var k4 = await ps.PushKhangSinhAsync();
+        Assert.True(k4.Legacy); Assert.Equal(2, Tab("M08_KhangSinh").Count);
+    }
+
+    [Fact]
+    public async Task Yeu_cau_lich_xuat_tu_dien_thoai_va_luu_tru_phieu()
+    {
+        var ps = Svc();
+        var lx = _s.LichXuat;
+        var old = lx.Add(new KhoLanh.Core.LichXuat.LichXuatService.Input { Ngay = "2026-12-02", Lsx = "26.12.050" });
+        _fake.Tabs["LichXuat_YeuCau"] = (PhoneSyncService.LxYcHeaders.ToList(), new());
+        _fake.Row("LichXuat_YeuCau", ("id", "Y1"), ("hanhDong", "add"), ("loai", "xuat"), ("ngay", "2026-12-01"), ("lsx", "26.12.001 + 26.12.002"), ("trangThaiLich", "plan"));
+        _fake.Row("LichXuat_YeuCau", ("id", "Y2"), ("hanhDong", "add"), ("loai", "nhap"), ("ngay", "2026-12-03"), ("lsx", "Xe GC Thuận Phước"));
+        _fake.Row("LichXuat_YeuCau", ("id", "Y3"), ("hanhDong", "move"), ("targetId", old.Id), ("ngay", "2026-12-05"), ("trangThaiLich", "wait"));
+        _fake.Row("LichXuat_YeuCau", ("id", "Y4"), ("hanhDong", "add"), ("ngay", "1/12"), ("lsx", "26.12.009"));
+        _fake.Row("LichXuat_YeuCau", ("id", "Y5"), ("hanhDong", "add"), ("ngay", "2026-12-09"), ("lsx", "26.12.010"), ("trangThai", "Đã xử lý"));
+        var r = await ps.PullLichXuatRequestsAsync();
+        Assert.Equal(3, r.Done); Assert.Equal(1, r.Err);
+        Assert.Equal("Đã xử lý", _fake.Cell("LichXuat_YeuCau", 0, "trangThai"));
+        Assert.StartsWith("Lỗi - Ngày không hợp lệ", _fake.Cell("LichXuat_YeuCau", 3, "trangThai"));
+        lx.Load();
+        var dec1 = lx.Rows.Where(x => x.Ngay == "2026-12-01").ToList();
+        Assert.Equal(2, dec1.Count); Assert.Equal(dec1[0].Cont, dec1[1].Cont); Assert.NotEqual("", dec1[0].Cont);   // 2 LSX chung cont
+        var moved = lx.Rows.Single(x => x.Id == old.Id);
+        Assert.Equal("2026-12-05", moved.Ngay); Assert.Equal("wait", moved.TrangThai);
+        Assert.Contains(_s.Modules.ReadSheet("lichxuat", "LichXuatCont").OfType<JsonObject>(), o => o["loai"]?.ToString() == "nhap" && o["lsx"]?.ToString() == "Xe GC Thuận Phước");
+        Assert.True(_fake.Tabs.ContainsKey("LichXuat_Cont"));                       // đã đẩy lại bảng lịch trước khi đánh dấu
+        // gọi lại: không xử lý lặp
+        Assert.Equal(0, (await ps.PullLichXuatRequestsAsync()).Done);
+        // lưu trữ phiếu cũ: 1 lần / ngày
+        Assert.Equal(3, await ps.MaybeArchiveAsync());
+        Assert.Null(await ps.MaybeArchiveAsync());
+        Assert.Equal(90, _fake.Payloads.Last(p => p["action"]!.ToString() == "pc.archive")["days"]!.GetValue<int>());
+    }
 }
