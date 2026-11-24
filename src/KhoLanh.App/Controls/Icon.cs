@@ -66,6 +66,11 @@ public static class Icon
         ["tag"] = "M3 12 V4 A1 1 0 0 1 4 3 H11 L21 13 L13 21 Z M7.5 7 V7.5",
         ["layers"] = "M12 3 L22 8 L12 13 L2 8 Z M2 13 L12 18 L22 13 M2 17 L12 22 L22 17",
         ["menu"] = "M3 6 H21 M3 12 H21 M3 18 H21",
+        ["folder"] = "M3 6 A1 1 0 0 1 4 5 H9 L11 7 H20 A1 1 0 0 1 21 8 V18 A1 1 0 0 1 20 19 H4 A1 1 0 0 1 3 18 Z",
+        ["scissors"] = "M6 4 A2.5 2.5 0 1 1 6 9 A2.5 2.5 0 1 1 6 4 M6 15 A2.5 2.5 0 1 1 6 20 A2.5 2.5 0 1 1 6 15 M8 8 L20 18 M8 16 L20 6",
+        ["image"] = "M3 4 H21 V20 H3 Z M3 16 L8 11 L13 16 M12 14 L15 11 L21 17 M15.5 7.5 V8",
+        ["eye"] = "M2 12 C5 6 19 6 22 12 C19 18 5 18 2 12 Z M12 9.5 A2.5 2.5 0 1 1 12 14.5 A2.5 2.5 0 1 1 12 9.5",
+        ["play"] = "M7 5 L19 12 L7 19 Z",
         ["logout"] = "M9 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 H9 M16 17 L21 12 L16 7 M21 12 H9",
     };
 
@@ -93,5 +98,63 @@ public static class Icon
         var b = new Button { Content = Label(text, icon) };
         if (kind.Length > 0) b.Classes.Add(kind);
         return b;
+    }
+
+    /// <summary>Ký hiệu / emoji đầu chữ của nút → biểu tượng (dùng cho bộ chuyển tự động <see cref="InstallEmojiSwap"/>).</summary>
+    public static readonly IReadOnlyDictionary<string, string> Emoji = new Dictionary<string, string>
+    {
+        ["💾"] = "save", ["⬇"] = "download", ["⤓"] = "download", ["⟳"] = "refresh", ["↻"] = "refresh", ["↺"] = "refresh", ["⟲"] = "refresh",
+        ["⚡"] = "bolt", ["＋"] = "plus", ["➕"] = "plus", ["↶"] = "undo", ["↩"] = "undo", ["⏪"] = "undo", ["🔒"] = "lock", ["📂"] = "folder", ["🗄"] = "folder",
+        ["▶"] = "play", ["✕"] = "x", ["✖"] = "x", ["❌"] = "x", ["✗"] = "x", ["⛔"] = "x", ["🗑"] = "trash", ["🖨"] = "print", ["📱"] = "phone",
+        ["📄"] = "doc", ["✉"] = "mail", ["📩"] = "mail", ["✎"] = "edit", ["✏"] = "edit", ["📝"] = "edit", ["⇄"] = "compare", ["⚖"] = "compare", ["📋"] = "copy",
+        ["✂"] = "scissors", ["⬆"] = "upload", ["📤"] = "upload", ["✅"] = "ok", ["✔"] = "ok", ["✓"] = "ok", ["⚠"] = "warn", ["⏰"] = "history", ["⏱"] = "history",
+        ["📦"] = "box", ["💡"] = "info", ["ⓘ"] = "info", ["🖥"] = "network", ["⚙"] = "gear", ["🔍"] = "search", ["👁"] = "eye", ["◀"] = "chevron-left",
+        ["🪄"] = "assist", ["🔠"] = "tag", ["🖼"] = "image", ["☁"] = "cloud", ["📅"] = "calendar", ["🏬"] = "warehouse", ["🚢"] = "truck", ["🚚"] = "truck",
+        ["📍"] = "pin", ["🗺"] = "map", ["🧮"] = "chart", ["🧪"] = "check",
+    };
+
+    /// <summary>Chữ của nội dung nút / tab (chuỗi, hoặc chữ trong khối biểu tượng + chữ), bỏ ký hiệu đầu.</summary>
+    public static string? TextOf(object? content) => content switch
+    {
+        string str => Split(str).Text,
+        Panel p => p.Children.OfType<TextBlock>().Select(t => t.Text).FirstOrDefault(),
+        TextBlock t => t.Text,
+        _ => null,
+    };
+
+    /// <summary>Tách ký hiệu đầu chuỗi (nếu có trong bảng) → (biểu tượng, phần chữ còn lại).</summary>
+    public static (string? Icon, string Text) Split(string s)
+    {
+        var t = s.TrimStart();
+        foreach (var (k, v) in Emoji)
+            if (t.StartsWith(k, StringComparison.Ordinal))
+            {
+                var rest = t[k.Length..].TrimStart('\uFE0F').TrimStart();
+                return (v, rest);
+            }
+        return (null, s);
+    }
+
+    private static Control Swap(string icon, string rest, double size) =>
+        rest.Length == 0 ? Make(icon, size) : Label(rest, icon, size);
+
+    /// <summary>
+    /// Bộ chuyển tự động (gọi 1 lần lúc mở app): nội dung chữ của nút / tab / mục menu bắt đầu bằng emoji hoặc ký hiệu trong <see cref="Emoji"/>
+    /// được thay bằng biểu tượng nét mảnh + chữ. Emoji hiển thị khác nhau giữa các máy, biểu tượng thì đồng nhất và đổi màu theo Sáng / Tối.
+    /// </summary>
+    public static void InstallEmojiSwap()
+    {
+        ContentControl.ContentProperty.Changed.AddClassHandler<Avalonia.Controls.Button>((b, e) =>
+        {
+            if (e.NewValue is string str && Split(str) is { Icon: { } ic } x) b.Content = Swap(ic, x.Text, 15);
+        });
+        Avalonia.Controls.Primitives.HeaderedContentControl.HeaderProperty.Changed.AddClassHandler<TabItem>((t, e) =>
+        {
+            if (e.NewValue is string str && Split(str) is { Icon: { } ic } x) t.Header = Swap(ic, x.Text, 15);
+        });
+        MenuItem.HeaderProperty.Changed.AddClassHandler<MenuItem>((m, e) =>
+        {
+            if (e.NewValue is string str && Split(str) is { Icon: { } ic } x) { m.Header = x.Text; m.Icon = Make(ic, 15); }
+        });
     }
 }

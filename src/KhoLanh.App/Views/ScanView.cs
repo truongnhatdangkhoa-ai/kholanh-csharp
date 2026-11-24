@@ -100,10 +100,10 @@ public sealed class ScanView : UserControl, IPage
         Content = root;
 
         DragDrop.SetAllowDrop(this, true);
-        AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.Data.Contains(DataFormats.Files) ? DragDropEffects.Copy : DragDropEffects.None; });
+        AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None; });
         AddHandler(DragDrop.DropEvent, async (_, e) =>
         {
-            var files = e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Cast<string>().ToList();
+            var files = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Cast<string>().ToList();
             if (files is { Count: > 0 }) await AddFiles(files);
         });
         AttachedToVisualTree += (_, _) => Boot();

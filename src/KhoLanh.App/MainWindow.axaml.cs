@@ -368,23 +368,26 @@ public partial class MainWindow : Window
     /// <summary>Giao diện Sáng dịu / Tối + cỡ chữ 90–130 % — lưu theo tài khoản trên máy này, áp dụng ngay.</summary>
     private async void OnThemeSettings(object? sender, RoutedEventArgs e)
     {
-        var mode0 = AppTheme.Current; var scale0 = AppTheme.Scale;
-        var light = new RadioButton { Content = "Sáng dịu — nền trắng ngà, đỡ chói", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Light };
+        var mode0 = AppTheme.Current; var scale0 = AppTheme.Scale; var dens0 = AppTheme.Density;
+        var dens = new ComboBox { ItemsSource = AppTheme.Densities.Select(x => x.Label).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(AppTheme.Densities, x => x.Key == dens0)), MinWidth = 220 };
+        var light = new RadioButton { Content = "Sáng dịu — nền xám lạnh nhạt, đỡ chói", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Light };
         var dark = new RadioButton { Content = "Tối — nền xám đen", GroupName = "th", IsChecked = mode0 == AppTheme.Mode.Dark };
         var scales = new[] { 0.9, 1.0, 1.1, 1.2, 1.3 };
         var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
-        void Preview() { AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
-        light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview();
+        void Preview() { AppTheme.SetDensity(AppTheme.Densities[Math.Max(0, dens.SelectedIndex)].Key); AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
+        light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview(); dens.SelectionChanged += (_, _) => Preview();
         var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
         body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);
         body.Children.Add(new TextBlock { Text = "Lưu riêng cho tài khoản này trên máy này. Phím tắt: Ctrl + / Ctrl − / Ctrl 0.", Classes = { "muted" }, FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = "Mật độ bảng (chiều cao dòng)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) });
+        body.Children.Add(dens);
         body.Children.Add(Ui.Buttons(cancel, ok));
         var w = Ui.Dialog("Giao diện & cỡ chữ", body, 400); var saved = false;
         ok.Click += (_, _) => { saved = true; w.Close(); }; cancel.Click += (_, _) => w.Close();
         await Ui.Show(this, w);
-        if (!saved) { AppTheme.Apply(mode0, scale0); ApplyZoom(); }
+        if (!saved) { AppTheme.SetDensity(dens0); AppTheme.Apply(mode0, scale0); ApplyZoom(); }
         else AppTheme.SaveFor(App.Services.Session.Username);
         ReloadPage();
     }

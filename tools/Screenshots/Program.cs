@@ -529,11 +529,11 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan
     var scan = main.PageHost.GetVisualDescendants().OfType<ScanView>().First();
     var t = scan.AddFiles(new List<string> { photo, photo }); for (var i = 0; i < 300 && !t.IsCompleted; i++) { Thread.Sleep(30); Pump(); }
     Wait(2500); Snap(main, "51-scan-ket-qua");
-    var cropBtn = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Chỉnh khung cắt");
+    var cropBtn = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Chỉnh khung cắt");
     cropBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(800); Snap(main, "51-scan-khung-cat");
-    var modeBtn = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Màu");
+    var modeBtn = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Màu");
     modeBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(300);
-    var done = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "✔ Xong chỉnh khung");
+    var done = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Xong chỉnh khung");
     done.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); Wait(2500); Snap(main, "51-scan-mau");
     if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "tools") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ công cụ): " + outDir); return; }
 }
@@ -583,7 +583,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var days = s.RaDong.SavedRows.Select(x => x.Date).Distinct().OrderBy(x => x).TakeLast(2).Select(d => (d, s.RaDong.SavedRows.Where(x => x.Date == d).ToList())).ToList();
         KhoLanh.App.Views.DayImageRenderer.Render(days).Save(Path.Combine(outDir, "22c-ra-dong-anh-ngay.png"));
         tc.SelectedIndex = 0;
-        var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => (t.Content as string)?.StartsWith("Bảng chưa gộp") == true);
+        var tg = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => KhoLanh.App.Controls.Icon.TextOf(t.Content)?.StartsWith("Bảng chưa gộp") == true);
         tg.IsChecked = true; Snap(main, "22d-ra-dong-chua-gop"); tg.IsChecked = false;
     }
     if (key == "m5")
@@ -672,7 +672,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         tc.SelectedIndex = 1; Pump();
         var ins = main.PageHost.GetVisualDescendants().OfType<TextBox>().Where(t => t.IsEffectivelyVisible && t.Watermark == "ND").ToList();
         ins[1].Text = "4.83"; ins[2].Text = "10";
-        main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tra cứu kết quả").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tra cứu kết quả").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Pump(); Snap(main, "27c-khang-sinh-tra-cuu");
         tc.SelectedIndex = 2; Pump();
         var bg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
@@ -767,7 +767,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("2"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 8; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "40-an-an-xuat-hang-go-SL");
-        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Console.WriteLine($"[AN-AN] tạo phiếu xuất: {before} -> {s.AnAn.Slips.Count} phiếu");
         Snap(main, "40-an-an-sau-tao-phieu");
@@ -822,7 +822,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
             s.AnAn.Commit(pv2);
             var bt = main.PageHost.GetVisualDescendants().OfType<Button>().ToList();
             tabs.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-            Button B(string pre) => main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string)?.Contains(pre) == true);
+            Button B(string pre) => main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content)?.Contains(pre) == true);
             Dlg("40-an-an-lich-su-nap", () => { B("Lịch sử nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
             Dlg("40-an-an-so-sanh", () => { B("So sánh 2 lần nạp").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); return System.Threading.Tasks.Task.CompletedTask; }).GetAwaiter().GetResult();
             Console.WriteLine($"[AN-AN] lịch sử nạp: {s.AnAn.History().Count} mục · hoàn tác được: {s.AnAn.CanUndo}");
@@ -861,17 +861,17 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         main.KeyTextInput("4"); Pump(); main.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null); main.KeyRelease(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.None, null);
         for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         Snap(main, "41-gui-px-go-SL");
-        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && (b.Content as string) == "Tạo phiếu xuất");
+        var tao = main.PageHost.GetVisualDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu xuất");
         tao.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); }
         var dlgW = main.OwnedWindows.FirstOrDefault();
-        if (dlgW is not null) { Snap(dlgW, "41-gui-px-xac-nhan"); var okb = dlgW.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string) == "Tạo phiếu"); okb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } }
+        if (dlgW is not null) { Snap(dlgW, "41-gui-px-xac-nhan"); var okb = dlgW.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tạo phiếu"); okb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } }
         Console.WriteLine($"[GUI] tạo phiếu: {before} -> {s.Gui.Slips.Count} phiếu · số kiện dòng 1: {kien0} -> {s.Gui.D.Rows[0].SoKien} · hộp xác nhận mở: {(dlgW is not null)}");
         Snap(main, "41-gui-px-ds");
         // Đặc tính: bôi đen dòng chưa gộp rồi gộp
         gtabs.SelectedIndex = 4; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var dgrid = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         Console.WriteLine($"[GUI] đặc tính: {dgrid.Model.RowCount} dòng");
-        var gb = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && (b.Content as string) == "Gộp dòng chọn");
+        var gb = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Gộp dòng chọn");
         var nGroupedBefore = s.Gui.D.DtGroupMap.Count;
         if (gb is not null && dgrid.Model.RowCount > 0)
         {

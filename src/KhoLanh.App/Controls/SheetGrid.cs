@@ -37,13 +37,17 @@ public sealed class SheetGrid : UserControl
     public CellRange Selection => CellRange.Of(AnchorRow, AnchorCol, Row, Col);
     /// <summary>Số dòng trống thêm ở cuối để gõ / dán tiếp.</summary>
     public int SpareRows { get; set; } = 20;
+    /// <summary>Chữ hiện giữa bảng khi bảng chỉ đọc không có dòng nào (null = không hiện).</summary>
+    public string? EmptyText { get; set; } = "Không có dòng nào.";
     /// <summary>Định dạng hiển thị (giá trị lưu vẫn là chuỗi gốc).</summary>
     public Func<int, int, string, string>? Display { get; set; }
     /// <summary>Màu nền riêng từng ô (null = mặc định).</summary>
     public Func<int, int, IBrush?>? CellBackground { get; set; }
     public event Action? SelectionChanged;
 
-    internal const double RowH = 24, HeadH = 26;
+    /// <summary>Chiều cao dòng theo mật độ bảng của tài khoản (Gọn 22 · Vừa 26 · Thoáng 32 — <see cref="AppTheme.Density"/>).</summary>
+    internal static double RowH => AppTheme.RowHeight;
+    internal const double HeadH = 28;
     internal double RowHeadW => Math.Max(44, (Math.Max(Model.RowCount + SpareRows, 1).ToString().Length) * 8 + 18);
     internal int TopRow;          // dòng đầu đang thấy
     internal double OffsetX;      // cuộn ngang (px)
@@ -302,7 +306,7 @@ public sealed class SheetGrid : UserControl
     {
         if (Model.ReadOnly) return;
         if (TopLevel.GetTopLevel(this)?.Clipboard is not { } cb) return;
-        var text = await cb.GetTextAsync();
+        var text = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(cb);
         if (string.IsNullOrEmpty(text)) return;
         var r = Model.Paste(Selection, text);
         SelectRange(r);
@@ -431,6 +435,12 @@ public sealed class SheetGrid : UserControl
                     dc.DrawLine(HeadLine, new Point(cx + cw - 0.5, 0), new Point(cx + cw - 0.5, SheetGrid.HeadH));
                 }
             dc.DrawLine(HeadLine, new Point(0, SheetGrid.HeadH - 0.5), new Point(b.Width, SheetGrid.HeadH - 0.5));
+            // trạng thái trống: bảng chỉ đọc không có dòng nào
+            if (m.RowCount == 0 && m.ReadOnly && m.ColCount > 0 && !string.IsNullOrEmpty(_g.EmptyText))
+            {
+                var et = new FormattedText(_g.EmptyText, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, HeadText);
+                dc.DrawText(et, new Point(Math.Max(rhw + 12, (b.Width - et.Width) / 2), SheetGrid.HeadH + 22));
+            }
             // số dòng
             dc.FillRectangle(HeadBg, new Rect(0, SheetGrid.HeadH, rhw, b.Height));
             using (dc.PushClip(new Rect(0, SheetGrid.HeadH, rhw, Math.Max(0, b.Height - SheetGrid.HeadH))))
