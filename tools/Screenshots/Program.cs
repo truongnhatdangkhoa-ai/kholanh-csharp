@@ -671,6 +671,11 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
     main.Navigate("m13"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); }
     PxScene(); s.Lan.Dispose(); Console.WriteLine("Xong (px): " + outDir); return;
 }
+// 1.62: popup kéo giãn / phóng to, Tồn kho gửi 1 tab Load Data, Báo cáo rã đông tích ngày gộp ảnh: SHOTS_ONLY=bt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bt")
+{
+    BtScene(); s.Lan.Dispose(); Console.WriteLine("Xong (bt): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
@@ -1428,4 +1433,36 @@ static string FindRepo()
     var d = new DirectoryInfo(AppContext.BaseDirectory);
     while (d is not null && !File.Exists(Path.Combine(d.FullName, "Directory.Build.props"))) d = d.Parent;
     return d?.FullName ?? Directory.GetCurrentDirectory();
+}
+
+void BtScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    Window Dlg() { for (var i = 0; i < 60 && main.OwnedWindows.Count == 0; i++) W(1); return main.OwnedWindows.Last(); }
+    object? Call(object o, string m) => o.GetType().GetMethod(m, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(o, null);
+    main.Navigate("m2"); W(40); Snap(main, "41-ton-kho-gui");
+    {   // hộp thoại có bảng (cùng khuôn "Lịch sử nạp Excel"): dựng bằng Ui.Dialog + Ui.Show như các màn hình
+        var gm = new KhoLanh.Core.Grid.GridModel { ReadOnly = true };
+        gm.Load(new[] { new KhoLanh.Core.Grid.GridColumn("t", "Lúc nạp", 140), new KhoLanh.Core.Grid.GridColumn("f", "File", 260), new KhoLanh.Core.Grid.GridColumn("r", "Dòng", 80, "number") },
+            Enumerable.Range(1, 30).Select(i => new[] { $"{i:00}/11/2026 08:00", $"TON KHO {i:00}.11.xlsx", (3000 + i * 17).ToString() }));
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray, Child = new KhoLanh.App.Controls.SheetGrid(gm) { SpareRows = 0, Height = 340 } });
+        var cl = new Button { Content = "Đóng" }; body.Children.Add(Ui.Buttons(cl));
+        _ = Ui.Show(main, Ui.Dialog("Lịch sử nạp Excel · Tồn kho An An", body, 1000));
+    }
+    var h = Dlg(); W(10);
+    Console.WriteLine($"[BT] lịch sử nạp: CanResize={h.CanResize} {h.Bounds.Width:0}x{h.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap");
+    h.Width = 1300; h.Height = 760; W(10);
+    var hg = h.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    Console.WriteLine($"[BT] sau kéo giãn: {h.Bounds.Width:0}x{h.Bounds.Height:0} bảng cao {hg.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap-gian"); h.Close(); W(4);
+    main.Navigate("m4"); W(40);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 1; W(10);
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var heads = Enumerable.Range(0, g.Model.RowCount).Where(r => g.Model.Get(r, 0).StartsWith("▾")).Take(2).ToList();
+    g.SetChecked(heads, true); W(10); Snap(main, "22c-ra-dong-tich-ngay");
+    _ = Call(main.PageHost.Content!, "DayImage"); var d = Dlg(); W(10);
+    Console.WriteLine($"[BT] ảnh gộp: {d.Title} CanResize={d.CanResize} {d.Bounds.Width:0}x{d.Bounds.Height:0}");
+    Snap(d, "22d-ra-dong-anh-gop"); d.Close(); W(4);
 }
