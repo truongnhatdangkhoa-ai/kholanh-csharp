@@ -100,7 +100,7 @@ public sealed class SoKhoView : UserControl, IPage
         private Dictionary<string, (string H, double W, string T)> _def = new(ColDef);
         private string _tplSig = "";
         /// <summary>Cột của lưới phiếu theo mẫu cột (SoKhoMau) của loại phiếu: thứ tự, tên, ẩn, cột phụ x_….</summary>
-        private void ApplyTemplate()
+        private void ApplyMau()
         {
             var t = Svc.TemplateFor(_loai);
             var cols = t.Columns.Where(c => !c.Hidden || c.Key == "maHang").ToList();
@@ -122,7 +122,7 @@ public sealed class SoKhoView : UserControl, IPage
                 "xuat" => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
                 _ => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
             };
-            ApplyTemplate();
+            ApplyMau();
             _g = new SheetGrid(_m) { SpareRows = 12 };
             _tg = new SheetGrid(_tm) { SpareRows = 0 };
             _list.SelectionChanged += (_, _) => { if (_list.SelectedIndex >= 0 && _list.SelectedIndex < Shown.Count) Open(Shown[_list.SelectedIndex]); };
@@ -171,7 +171,7 @@ public sealed class SoKhoView : UserControl, IPage
 
         public void Reload()
         {
-            var sig = _tplSig; ApplyTemplate(); var tplChanged = sig != _tplSig;
+            var sig = _tplSig; ApplyMau(); var tplChanged = sig != _tplSig;
             _groups = Groups(Svc.Lines, _loai);
             FillList();
             _lots = Compute(Svc.Lines).Lots.Where(l => l.Sl > Eps || l.Net > Eps).OrderBy(l => l.MaHang).ThenBy(l => l.ViTri).ThenBy(l => l.NgayNhap).ToList();

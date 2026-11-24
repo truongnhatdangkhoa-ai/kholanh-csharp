@@ -59,6 +59,10 @@ public partial class MainWindow : Window
             {
                 new NavItem("lx", "Tổng quan", () => new TongQuanView()),
             }),
+            ("NHẬP LIỆU", new[]
+            {
+                new NavItem("m6", "Nhập liệu", () => new EntryView()),
+            }),
             ("TỒN KHO", new[]
             {
                 new NavItem("m1", "Tồn kho An An", () => new AnAnView()),
@@ -68,17 +72,17 @@ public partial class MainWindow : Window
                 new NavItem("m1vtb", "Vị Trí Bột", () => new VtbView()),
                 new NavItem("m8", "Sơ đồ kho", () => new SoDoView()),
             }),
-            ("BÁO CÁO", new[]
+            ("CHỨC NĂNG", new[]
             {
-                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
-                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m4", "Báo cáo rã đông", () => new RaDongView()),
                 new NavItem("m5", "Đối chiếu hàng ngày", () => new DoiChieuView()),
                 new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),
                 new NavItem("m7ck", "Số liệu cuối kỳ", () => new CuoiKyView()),
+                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
+                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
             }),
-            ("PHIẾU & CHỨNG TỪ", new[]
+            ("CHỨNG TỪ", new[]
             {
                 new NavItem("m13", "Phiếu xuất kho", () => new PhieuKhoView()),
                 new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
@@ -90,10 +94,6 @@ public partial class MainWindow : Window
                 new NavItem("m15", "Scan tài liệu", () => new ScanView()),
                 new NavItem("m21", "Xử lý PDF & Excel", () => new XuLyTepView()),
                 new NavItem("m22", "So sánh & Tra cứu bảng", () => new SoSanhBangView()),
-            }),
-            ("NHẬP LIỆU", new[]
-            {
-                new NavItem("m6", "Nhập liệu", () => new EntryView()),
             }),
             ("HỆ THỐNG", new[]
             {
