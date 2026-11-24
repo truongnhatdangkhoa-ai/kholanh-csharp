@@ -470,15 +470,9 @@ public sealed class TongHopView : UserControl, IPage
             var path = await Ui.SaveFile(this, "Xuất Excel", "Tong-hop-Bang-2.xlsx", "xlsx", "Excel");
             if (path is not null && await Ui.Run(this, () => Svc.ExportGroups(path))) Ui.OpenExternal(path);
         }));
-        var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto,*"), RowSpacing = 6 };
-        var h1 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        h1.Children.Add(new TextBlock { Text = "Bảng 1 — Dữ liệu nhập từ Excel", Classes = { "section" } }); h1.Children.Add(_t1Info);
-        var h2 = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        h2.Children.Add(new TextBlock { Text = "Bảng 2 — Gộp theo Ngày + Tên sản phẩm + Size", Classes = { "section" } }); h2.Children.Add(_t2Info);
-        grid.Children.Add(h1);
-        Grid.SetRow(_t1Grid, 1); grid.Children.Add(_t1Grid);
-        Grid.SetRow(h2, 2); grid.Children.Add(h2);
-        Grid.SetRow(_t2Grid, 3); grid.Children.Add(_t2Grid);
+        // 1.57: Bảng 1 / Bảng 2 thành 2 tab con (trước xếp chồng — màn hình nhỏ mỗi bảng vài dòng).
+        static Control Pane(Control info, Control g) { var d = new DockPanel(); info.Margin = new Thickness(0, 0, 0, 6); DockPanel.SetDock(info, Dock.Top); d.Children.Add(info); d.Children.Add(g); return d; }
+        var grid = Ui.SubTabs(("Bảng 2 — Gộp theo Ngày + Tên SP + Size", Pane(_t2Info, _t2Grid)), ("Bảng 1 — Dữ liệu nhập từ Excel", Pane(_t1Info, _t1Grid)));
         var root = new DockPanel();
         DockPanel.SetDock(bar, Dock.Top);
         root.Children.Add(bar); root.Children.Add(grid);
@@ -551,18 +545,11 @@ public sealed class TongHopView : UserControl, IPage
         _axTest.TextChanged += (_, _) => TestAnhXa();
         var test = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         test.Children.Add(_axTest); test.Children.Add(_axTestOut);
-        var grids = new Grid { ColumnDefinitions = new ColumnDefinitions("3*,2*"), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), ColumnSpacing = 12, RowSpacing = 6 };
-        void Put(Control c, int r, int col, int rowSpan = 1) { Grid.SetRow(c, r); Grid.SetColumn(c, col); Grid.SetRowSpan(c, rowSpan); grids.Children.Add(c); }
-        Put(new TextBlock { Text = "Quy tắc đơn lẻ", Classes = { "section" } }, 0, 0);
-        Put(_axRulesGrid, 1, 0, 3);
-        Put(new TextBlock { Text = "Quy tắc kết hợp", Classes = { "section" } }, 0, 1);
-        Put(_axCombosGrid, 1, 1);
-        var segBox = new StackPanel { Spacing = 6 };
-        segBox.Children.Add(new TextBlock { Text = "Loại quy tắc (đoạn ký tự) · Tách theo loại ở từng nơi", Classes = { "section" } });
-        _axSegsGrid.Height = 150;
-        segBox.Children.Add(_axSegsGrid);
-        segBox.Children.Add(_axOpts);
-        Put(segBox, 2, 1, 2);
+        // 1.57: 3 bảng (đơn lẻ / kết hợp / loại quy tắc) thành 3 tab con.
+        var segBox = new DockPanel();
+        _axOpts.Margin = new Thickness(0, 8, 0, 0);
+        DockPanel.SetDock(_axOpts, Dock.Bottom); segBox.Children.Add(_axOpts); segBox.Children.Add(_axSegsGrid);
+        var grids = Ui.SubTabs(("Quy tắc đơn lẻ", _axRulesGrid), ("Quy tắc kết hợp", _axCombosGrid), ("Loại quy tắc · tách theo nơi dùng", segBox));
         var root = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
         var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
         top.Children.Add(help); top.Children.Add(test);

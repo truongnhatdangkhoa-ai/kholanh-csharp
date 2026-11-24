@@ -30,7 +30,7 @@ public static class GridTotals
         var vi = cols.ToDictionary(c => c, c => IsViFormat(rows.Where(r => r >= 0 && r < m.RowCount).Select(r => m.Get(r, c))));
         foreach (var r in rows)
         {
-            if (r < 0 || r >= m.RowCount || (rowFilter is not null && !rowFilter(r))) continue;
+            if (r < 0 || r >= m.RowCount || (rowFilter is not null && !rowFilter(r)) || IsSubtotalRow(m, r)) continue;
             foreach (var c in cols)
             {
                 var v = m.Get(r, c);
@@ -62,6 +62,18 @@ public static class GridTotals
         if (!vi) return GridFilter.TryNumber(v, out d);
         var t = v.Trim().Replace(" ", "").Replace(".", "").Replace(',', '.');
         return double.TryParse(t, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d);
+    }
+
+    private static readonly Regex SubtotalText = new(@"^(tong(?!\s+hop)|cong|ca nam|total|sum|subtotal)(\s|:|$)|^[▾▸▼►]", RegexOptions.Compiled);
+    /// <summary>Dòng tổng / dòng nhóm có sẵn trong bảng ("TỔNG CỘNG", "Tổng ngày…", "Cả năm", "▾ 20/11/2026") — không cộng vào dòng Tổng cuối bảng (tránh cộng 2 lần).</summary>
+    public static bool IsSubtotalRow(GridModel m, int r)
+    {
+        for (var c = 0; c < Math.Min(3, m.ColCount); c++)
+        {
+            var v = GridFilter.Fold(m.Get(r, c)).Trim();
+            if (v.Length > 0 && SubtotalText.IsMatch(v)) return true;
+        }
+        return false;
     }
 
     /// <summary>Khóa lưu bật / tắt theo tên cột.</summary>
