@@ -38,6 +38,7 @@
         </StackPanel>
         <TextBlock Grid.Column="1" x:Name="PageSubtitle" Classes="muted" VerticalAlignment="Center" Margin="14,2,12,0" TextTrimming="CharacterEllipsis"/>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+          <Button x:Name="HelpButton" Classes="ghost" Click="OnHelpClick" ToolTip.Tip="Hướng dẫn màn hình này (các ghi chú đã thu gọn để bảng có thêm chỗ)"/>
           <Button x:Name="SearchButton" Classes="ghost" Click="OnSearchClick" ToolTip.Tip="Tìm mã hàng / size / vị trí / hợp đồng / phiếu / LSX / cont trong mọi module (Ctrl + K)"/>
           <Button x:Name="AutoButton" Classes="ghost" IsVisible="False" Foreground="{DynamicResource Warn}" Click="OnAutoClick"/>
           <Button x:Name="TroLyButton" Classes="ghost" IsVisible="False" Foreground="{DynamicResource Danger}" Click="OnTroLyClick"/>
