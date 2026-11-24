@@ -29,4 +29,14 @@ public class GridTotalsTests
         var ticked = GridTotals.Sum(m, new[] { 0, 1, 2, 3 }, Sum, r => m.Get(r, 2).Length > 0);
         Assert.Equal(50, ticked[1]); Assert.Equal(15, ticked[2]);
     }
+
+    [Fact]
+    public void Cot_so_kieu_Viet_da_dinh_dang()
+    {
+        var m = new GridModel();
+        m.Load(new[] { new GridColumn("a", "Kiểm kê (kiện)", 80), new GridColumn("b", "Kiểm kê (kg)", 90), new GridColumn("c", "Chênh (kiện)", 70), new GridColumn("d", "SL tồn", 70) },
+            new[] { new[] { "3.891", "35.019,00", "-24", "10.8" }, new[] { "462", "4.158,00", "+18", "1263.6" }, new[] { "4.182", "45.165,60", "+10", "5" } });
+        var r = GridTotals.Sum(m, new[] { 0, 1, 2 }, _ => true);
+        Assert.Equal(8535, r[0]); Assert.Equal(84342.6, r[1]!.Value, 6); Assert.Equal(4, r[2]); Assert.Equal(1279.4, r[3]!.Value, 6);
+    }
 }

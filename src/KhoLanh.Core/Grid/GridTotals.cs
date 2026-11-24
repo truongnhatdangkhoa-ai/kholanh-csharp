@@ -26,16 +26,42 @@ public static class GridTotals
     {
         var res = new double?[m.ColCount];
         var cols = Enumerable.Range(0, m.ColCount).Where(sumCol).ToArray();
+        // cột ghi số kiểu Việt đã định dạng ("3.891", "35.019,00") → dấu chấm là phân cách nghìn
+        var vi = cols.ToDictionary(c => c, c => IsViFormat(rows.Where(r => r >= 0 && r < m.RowCount).Select(r => m.Get(r, c))));
         foreach (var r in rows)
         {
             if (r < 0 || r >= m.RowCount || (rowFilter is not null && !rowFilter(r))) continue;
             foreach (var c in cols)
             {
                 var v = m.Get(r, c);
-                if (v.Length > 0 && GridFilter.TryNumber(v, out var d)) res[c] = (res[c] ?? 0) + d;
+                if (v.Length > 0 && Parse(v, vi[c], out var d)) res[c] = (res[c] ?? 0) + d;
             }
         }
         return res;
+    }
+
+    private static readonly Regex ViNum = new(@"^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$|^[+-]?\d+,(\d{1,2}|\d{4,})$", RegexOptions.Compiled);
+    private static readonly Regex Dotted = new(@"^[+-]?\d+\.(\d+)$", RegexOptions.Compiled);
+    /// <summary>Cột dùng dấu chấm phân cách nghìn: có số dạng 1.234,5 / 1.234.567 / 12,5, hoặc mọi số có dấu chấm đều đúng 3 chữ số sau dấu chấm.</summary>
+    public static bool IsViFormat(IEnumerable<string> values)
+    {
+        int dotted = 0, dotted3 = 0;
+        foreach (var raw in values)
+        {
+            var v = (raw ?? "").Trim().Replace(" ", "");
+            if (v.Length == 0) continue;
+            if (v.Contains(',') && ViNum.IsMatch(v)) return true;
+            if (Regex.IsMatch(v, @"^[+-]?\d{1,3}(\.\d{3}){2,}$")) return true;
+            var m = Dotted.Match(v);
+            if (m.Success) { dotted++; if (m.Groups[1].Value.Length == 3) dotted3++; }
+        }
+        return dotted > 0 && dotted == dotted3;
+    }
+    private static bool Parse(string v, bool vi, out double d)
+    {
+        if (!vi) return GridFilter.TryNumber(v, out d);
+        var t = v.Trim().Replace(" ", "").Replace(".", "").Replace(',', '.');
+        return double.TryParse(t, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d);
     }
 
     /// <summary>Khóa lưu bật / tắt theo tên cột.</summary>
