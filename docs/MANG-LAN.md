@@ -1,7 +1,7 @@
 # Dùng chung dữ liệu qua mạng LAN
 
 Từ bản 1.8.0, nhiều máy trong cùng mạng nội bộ dùng chung dữ liệu hai module Tồn kho An An và Tồn kho gửi.
-Cài ở **Hệ thống › Mạng LAN** (chỉ Quản trị).
+Cài ở **Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Máy chủ LAN** (chỉ Quản trị).
 
 ![Mạng LAN](anh/15-mang-lan.png)
 
@@ -21,7 +21,7 @@ Quản trị gán vai cho **tài khoản**, mọi máy tự nhận vai khi đăn
 ![Phân vai theo tài khoản](anh/15b-mang-lan-theo-tai-khoan.png)
 
 1. Bật **Tài khoản dùng chung (Google Sheet)** trước (xem [TAI-KHOAN-DUNG-CHUNG.md](TAI-KHOAN-DUNG-CHUNG.md)). Apps Script đang dùng **không phải dán lại**: phân vai được lưu ở một dòng riêng `#mang-lan` trong tab TaiKhoan (đừng sửa tay dòng này).
-2. Trên máy quản trị (máy có mã quản trị), mở **Hệ thống › Mạng LAN**, tick **Bật: máy tự nhận vai theo tài khoản đăng nhập**, chọn vai cho từng tài khoản rồi bấm **Lưu phân vai**:
+2. Trên máy quản trị (máy có mã quản trị), mở **Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Máy chủ LAN**, tick **Bật: máy tự nhận vai theo tài khoản đăng nhập**, chọn vai cho từng tài khoản rồi bấm **Lưu phân vai**:
    - **Máy chủ chính**: thường là tài khoản Quản trị trên máy luôn bật.
    - **Máy dự phòng**: ví dụ tài khoản Quản lý A.
    - Không gán (**Máy con**): mọi tài khoản còn lại.
