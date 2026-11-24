@@ -714,10 +714,12 @@ public sealed class SheetGrid : UserControl
         try { App.Services.Settings.Set(KeyOn, string.Join("\n", _sumOn)); App.Services.Settings.Set(KeyOff, string.Join("\n", _sumOff)); } catch { /* chỉ là tuỳ chọn hiển thị */ }
         _sumDirty = true; Redraw();
     }
+    private (int, int, int) _sumVer = (-1, -1, -1);
     private void ComputeSums()
     {
-        if (!_sumDirty) return;
-        _sumDirty = false;
+        var ver = (Model.Version, Model.Loads, Model.ColCount);
+        if (!_sumDirty && ver == _sumVer) return;
+        _sumDirty = false; _sumVer = ver;
         var rows = ShownRows;
         _sumAll = GridTotals.Sum(Model, rows, SumCol);
         _chkCount = 0;
@@ -755,7 +757,7 @@ public sealed class SheetGrid : UserControl
             }
             var h = show ? RowH * (g._chkCount > 0 ? 2 : 1) + 1 : 0;
             if (IsVisible != show) IsVisible = show;
-            if (Math.Abs(Height - h) > 0.5) Height = h;
+            if (double.IsNaN(Height) || Math.Abs(Height - h) > 0.5) Height = h;
             InvalidateVisual();
         }
 

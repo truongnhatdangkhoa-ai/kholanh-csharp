@@ -467,6 +467,20 @@ Snap(small, "03c-man-hinh-1366");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
+{
+    foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })
+    {
+        main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        foreach (var sg in main.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>())
+        {
+            var tb = typeof(KhoLanh.App.Controls.SheetGrid).GetField("_totals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg) as Control;
+            var sa = (double?[])typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sumAll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg)!;
+            Console.WriteLine($"   [{n}] grid h={sg.Bounds.Height:0} cols={sg.Model.ColCount} totals vis={tb!.IsVisible} h={tb.Bounds.Height:0} sums={string.Join(",", sa.Select(x => x?.ToString() ?? "-"))}");
+        }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 

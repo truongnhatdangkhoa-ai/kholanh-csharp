@@ -3,12 +3,12 @@ using System.Text.RegularExpressions;
 namespace KhoLanh.Core.Grid;
 
 /// <summary>
-/// Dòng TỔNG cuối bảng (1.54): cột nào được cộng và tổng theo các dòng đang hiện. Tự chọn theo TÊN cột (số lượng / kiện / thùng / bao / kg / net / tổng / tồn / xuất / nhập…),
+/// Dòng TỔNG cuối bảng (1.54): cột nào được cộng và tổng theo các dòng đang hiện. Tự chọn theo TÊN cột (số lượng / kiện / thùng / bao / net / tổng / tồn / xuất / nhập…; "Kg" trơn thường là kg / đơn vị → không),
 /// bỏ cột đơn vị (T.Lượng, kg/đơn vị, Size, ngày, mã, lô, giá…); người dùng bật / tắt từng cột (lưu theo tên cột, áp cho mọi bảng có cột cùng tên).
 /// </summary>
 public static class GridTotals
 {
-    private static readonly Regex Include = new(@"(^|[^a-z])(sl|so luong|luong|kien|thung|bao|kg|net|tong|ton|xuat|nhap|tan|qty|quantity|amount|so cai|khoi luong)([^a-z]|$)", RegexOptions.Compiled);
+    private static readonly Regex Include = new(@"(^|[^a-z])(sl|so luong|luong|kien|thung|bao|net|tong|ton|xuat|nhap|tan|qty|quantity|amount|so cai|khoi luong|da lam phieu)([^a-z]|$)", RegexOptions.Compiled);
     private static readonly Regex Exclude = new(@"kg\s*/|/\s*(don vi|dv)\b|don vi|dv\b|t\.\s*luong|^trong luong$|size|ngay|thang|nam\b|^ma\b|\bma (hang|lo|phieu)|\blo\b|han dung|ty le|ti le|%|gia\b|don gia|stt|^#$|\bid\b|so phieu|so cont|so xe|hop dong|vi tri|ghi chu|dac tinh|ten\b|khach|ky\b|thoi gian|gio\b", RegexOptions.Compiled);
 
     /// <summary>Cột có nên cộng mặc định không (theo tên cột).</summary>

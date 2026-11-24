@@ -8,8 +8,8 @@ public class GridTotalsTests
 {
     [Theory]
     [InlineData("SL tồn", true)] [InlineData("SL xuất ✎", true)] [InlineData("Net tồn (kg)", true)] [InlineData("Tồn cuối", true)]
-    [InlineData("Số thùng", true)] [InlineData("Kg", true)] [InlineData("Tổng (kg)", true)] [InlineData("Kiện/Bao", true)] [InlineData("Số kiện", true)]
-    [InlineData("Trọng Lượng (KG)", true)] [InlineData("Đã xuất", true)] [InlineData("Tấn", true)]
+    [InlineData("Số thùng", true)] [InlineData("Kg", false)] [InlineData("Kg xuất", true)] [InlineData("Tổng (kg)", true)] [InlineData("Kiện/Bao", true)] [InlineData("Số kiện", true)]
+    [InlineData("Trọng Lượng (KG)", true)] [InlineData("Đã xuất", true)] [InlineData("Đã làm phiếu", true)] [InlineData("Tấn", true)]
     [InlineData("T.Lượng", false)] [InlineData("Trọng lượng", false)] [InlineData("Net (kg/đơn vị)", false)] [InlineData("Trọng lượng (kg) (kg/bao)", false)]
     [InlineData("Size", false)] [InlineData("Ngày nhập", false)] [InlineData("Mã hàng", false)] [InlineData("Lô", false)] [InlineData("Vị trí", false)]
     [InlineData("Hợp đồng", false)] [InlineData("Đơn giá", false)] [InlineData("Tỷ lệ %", false)] [InlineData("Tên hàng", false)] [InlineData("Ghi chú kho", false)]
