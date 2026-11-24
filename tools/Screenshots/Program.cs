@@ -1533,6 +1533,14 @@ void FilterScene()
         if (KhoLanh.App.Controls.Icon.TextOf(w.Content) == "Hủy") { w.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); break; }
     g.ClearFilters(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
     Console.WriteLine($"  [Lọc] bỏ lọc: {g.ShownRows.Count}/{total} dòng");
+    // 1.71: bấm tiêu đề cột → A→Z, bấm lại → Z→A
+    g.ToggleSort(tc); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    var asc = g.ShownRows.Take(5).Select(r => g.CellText(r, tc)).ToList();
+    Snap(main, "45d-sap-xep-a-z");
+    g.ToggleSort(tc); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    Console.WriteLine($"  [Sắp xếp] A→Z: {string.Join(" | ", asc)} · Z→A đầu: {g.CellText(g.ShownRows[0], tc)}");
+    Snap(main, "45e-sap-xep-z-a");
+    g.ClearSort();
     // 1.52: ⤢ mở bảng ra cửa sổ lớn (cùng dữ liệu)
     _ = g.OpenLarge(); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
     if (KhoLanh.App.Controls.SheetGrid.LastLarge is { } big)
