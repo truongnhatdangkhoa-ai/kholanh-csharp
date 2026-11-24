@@ -28,11 +28,26 @@ public partial class UsersView : UserControl, IPage
         catch { /* mất mạng: dùng bản lưu trong máy */ }
     }
 
+    /// <summary>1 dòng bảng danh sách (kèm vai máy LAN theo phân vai tài khoản).</summary>
+    public sealed record Row(User U, string LanLabel)
+    {
+        public string Username => U.Username; public string FullName => U.FullName; public string RoleLabel => U.RoleLabel; public string StatusLabel => U.StatusLabel;
+    }
+
+    private static string LanRoleOf(string user)
+    {
+        var a = App.Services.Accounts;
+        if (!a.Enabled) return "";
+        var plan = a.Plan;
+        if (plan is null) return "Máy con";
+        return KhoLanh.Core.Lan.LanService.RoleLabel(plan.RoleOf(user)) + (plan.On ? "" : " (chưa bật)");
+    }
+
     private void Load()
     {
         var list = App.Services.Auth.ListUsers();
-        List.ItemsSource = list;
-        CountText.Text = $"Tài khoản ({list.Count})";
+        List.ItemsSource = list.Select(u => new Row(u, LanRoleOf(u.Username))).ToList();
+        CountText.Text = $"{list.Count} tài khoản";
     }
 
     private void Edit(User u)
@@ -46,6 +61,13 @@ public partial class UsersView : UserControl, IPage
         PassPanel.IsVisible = isNew; PassBox.Text = "";
         ActiveBox.IsChecked = u.IsActive;
         ResetButton.IsVisible = !isNew;
+        // vai máy LAN theo tài khoản (lưu ở phân vai trên Google Sheet tài khoản dùng chung)
+        var acc = App.Services.Accounts;
+        LanPanel.IsVisible = acc.Enabled;
+        var lanRole = acc.Plan?.RoleOf(u.Username) ?? KhoLanh.Core.Lan.LanService.RoleClient;
+        LanBox.SelectedIndex = lanRole == KhoLanh.Core.Lan.LanService.RoleServer ? 1 : lanRole == KhoLanh.Core.Lan.LanService.RoleStandby ? 2 : 0;
+        ToolTip.SetTip(LanPanel, acc.Plan?.On == true ? "Máy đăng nhập bằng tài khoản này tự nhận vai này (Mạng LAN › phân vai theo tài khoản)."
+            : "Có hiệu lực khi bật “máy tự nhận vai theo tài khoản” ở Hệ thống › Mạng LAN.");
         _loading = true;
         CustomBox.IsChecked = u.Role != Roles.Admin && u.Permissions.Length > 0;
         _loading = false;
@@ -121,12 +143,12 @@ public partial class UsersView : UserControl, IPage
     private string PermissionsToSave() =>
         CustomBox.IsChecked == true && SelectedRole != Roles.Admin && CurrentBoxes() is { } m ? Perm.Serialize(m) : "";
 
-    private void OnSelect(object? sender, SelectionChangedEventArgs e)
-    {
-        if (List.SelectedItem is User u) Edit(u);
-    }
+    private void OpenSelected() { if (List.SelectedItem is Row r) { Edit(r.U); Tabs.SelectedIndex = 1; } }
+    private void OnEdit(object? sender, RoutedEventArgs e) => OpenSelected();
+    private void OnListDoubleTapped(object? sender, Avalonia.Input.TappedEventArgs e) => OpenSelected();
+    private void OnBack(object? sender, RoutedEventArgs e) => Tabs.SelectedIndex = 0;
 
-    private void OnNew(object? sender, RoutedEventArgs e) { List.SelectedItem = null; Edit(new User()); UserBox.Focus(); }
+    private void OnNew(object? sender, RoutedEventArgs e) { List.SelectedItem = null; Edit(new User()); Tabs.SelectedIndex = 1; UserBox.Focus(); }
 
     /// <summary>
     /// Dùng chung tài khoản mà máy chưa mở khóa ghi → hỏi mật khẩu Quản trị (hoặc mã cho máy quản trị) để mở ngay, thay vì chỉ báo lỗi.
@@ -165,7 +187,19 @@ public partial class UsersView : UserControl, IPage
                 App.Services.Auth.SetPermissions(editing.Id, perms);
             }
         }));
-        if (ok) { Load(); Edit(new User()); }
+        if (ok && App.Services.Accounts.Enabled)
+        {
+            var want = (LanBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "client";
+            var lan = want == "server" ? KhoLanh.Core.Lan.LanService.RoleServer : want == "standby" ? KhoLanh.Core.Lan.LanService.RoleStandby : KhoLanh.Core.Lan.LanService.RoleClient;
+            var cur = App.Services.Accounts.Plan?.RoleOf(user) ?? KhoLanh.Core.Lan.LanService.RoleClient;
+            if (cur != lan)
+                ok = await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p =>
+                {
+                    if (lan == KhoLanh.Core.Lan.LanService.RoleClient) p.Vai.Remove(user); else p.Vai[user] = lan;
+                    return true;
+                }));
+        }
+        if (ok) { Load(); Tabs.SelectedIndex = 0; Edit(new User()); }
     }
 
     private async void OnReset(object? sender, RoutedEventArgs e)

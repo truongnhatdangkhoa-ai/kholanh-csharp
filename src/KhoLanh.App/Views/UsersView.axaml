@@ -1,72 +1,71 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.UsersView">
-  <!-- 1.56: danh sách tài khoản thu gọn bên trái; bên phải là thông tin + bảng phân quyền rộng (nhóm xếp nhiều cột). -->
-  <Grid ColumnDefinitions="280,*" ColumnSpacing="14">
-    <Border Classes="card" Padding="10">
-      <DockPanel>
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="2,0,0,8">
-          <TextBlock x:Name="CountText" Classes="section" VerticalAlignment="Center"/>
-          <Button Grid.Column="1" Content="+ Tài khoản mới" Classes="primary" Click="OnNew"/>
-        </Grid>
-        <ListBox x:Name="List" SelectionChanged="OnSelect">
-          <ListBox.ItemTemplate>
-            <DataTemplate>
-              <StackPanel Margin="2,3" Spacing="1">
-                <TextBlock Text="{Binding Username}" FontWeight="SemiBold"/>
-                <TextBlock Classes="muted" FontSize="12" TextTrimming="CharacterEllipsis">
-                  <TextBlock.Text>
-                    <MultiBinding StringFormat="{}{0} · {1} · {2}">
-                      <Binding Path="FullName"/>
-                      <Binding Path="RoleLabel"/>
-                      <Binding Path="StatusLabel"/>
-                    </MultiBinding>
-                  </TextBlock.Text>
-                </TextBlock>
-              </StackPanel>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
+  <!-- 1.56: 2 tab — Danh sách tài khoản (bảng rộng) · Thông tin & phân quyền (form + vai máy LAN + bảng quyền rộng hết trang). Bấm đúp / Sửa → tab 2. -->
+  <TabControl x:Name="Tabs">
+    <TabItem Header="Danh sách tài khoản">
+      <DockPanel Margin="0,8,0,0">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+          <Button Content="+ Tài khoản mới" Classes="primary" Click="OnNew"/>
+          <Button x:Name="EditButton" Content="Sửa tài khoản đang chọn" Click="OnEdit"/>
+          <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0" Tag="keep"/>
+        </StackPanel>
+        <DataGrid x:Name="List" IsReadOnly="True" DoubleTapped="OnListDoubleTapped">
+          <DataGrid.Columns>
+            <DataGridTextColumn Header="Tên đăng nhập" Binding="{Binding Username}" Width="180"/>
+            <DataGridTextColumn Header="Họ tên" Binding="{Binding FullName}" Width="*"/>
+            <DataGridTextColumn Header="Vai trò" Binding="{Binding RoleLabel}" Width="170"/>
+            <DataGridTextColumn Header="Vai máy LAN" Binding="{Binding LanLabel}" Width="150"/>
+            <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusLabel}" Width="120"/>
+          </DataGrid.Columns>
+        </DataGrid>
       </DockPanel>
-    </Border>
-
-    <Border Grid.Column="1" Classes="card" Padding="16,12">
-      <DockPanel>
-        <!-- đầu: tiêu đề + nút -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
-          <TextBlock x:Name="FormTitle" Classes="section" VerticalAlignment="Center"/>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <Button x:Name="ResetButton" Content="Đặt lại mật khẩu" Click="OnReset"/>
-            <Button Content="Lưu" Classes="primary" MinWidth="90" Click="OnSave"/>
-          </StackPanel>
-        </Grid>
-        <!-- thông tin tài khoản: 1 hàng -->
-        <WrapPanel DockPanel.Dock="Top" ItemSpacing="12" LineSpacing="8">
-          <StackPanel Width="200" Spacing="3"><TextBlock Text="Tên đăng nhập *" Classes="label"/><TextBox x:Name="UserBox"/></StackPanel>
-          <StackPanel Width="240" Spacing="3"><TextBlock Text="Họ tên" Classes="label"/><TextBox x:Name="NameBox"/></StackPanel>
-          <StackPanel Width="160" Spacing="3">
-            <TextBlock Text="Vai trò" Classes="label"/>
-            <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" SelectionChanged="OnRoleChanged">
-              <ComboBoxItem Content="Nhân viên" Tag="staff"/>
-              <ComboBoxItem Content="Quản lý" Tag="manager"/>
-              <ComboBoxItem Content="Quản trị" Tag="admin"/>
-            </ComboBox>
-          </StackPanel>
-          <StackPanel x:Name="PassPanel" Width="200" Spacing="3"><TextBlock Text="Mật khẩu * (≥ 6 ký tự)" Classes="label"/><TextBox x:Name="PassBox" PasswordChar="•"/></StackPanel>
-          <CheckBox x:Name="ActiveBox" Content="Đang dùng" IsChecked="True" VerticalAlignment="Bottom" Margin="0,0,0,4" ToolTip.Tip="Bỏ chọn để khóa tài khoản"/>
-        </WrapPanel>
-        <!-- phân quyền -->
-        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Margin="0,14,0,8" Padding="0,10,0,0">
-          <Grid ColumnDefinitions="Auto,Auto,*">
-            <TextBlock Text="Phân quyền" Classes="section" VerticalAlignment="Center" Margin="0,0,16,0"/>
-            <CheckBox Grid.Column="1" x:Name="CustomBox" Content="Chỉnh quyền riêng cho tài khoản này" IsCheckedChanged="OnCustomChanged"/>
-            <TextBlock Grid.Column="2" x:Name="PermHint" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0" TextTrimming="CharacterEllipsis" Tag="keep"/>
+    </TabItem>
+    <TabItem Header="Thông tin &amp; phân quyền">
+      <Border Classes="card" Padding="16,12" Margin="0,8,0,0">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBlock x:Name="FormTitle" Classes="section" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+              <Button Content="← Danh sách" Click="OnBack"/>
+              <Button x:Name="ResetButton" Content="Đặt lại mật khẩu" Click="OnReset"/>
+              <Button Content="Lưu" Classes="primary" MinWidth="90" Click="OnSave"/>
+            </StackPanel>
           </Grid>
-        </Border>
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-          <WrapPanel x:Name="PermPanel" ItemSpacing="12" LineSpacing="12"/>
-        </ScrollViewer>
-      </DockPanel>
-    </Border>
-  </Grid>
+          <WrapPanel DockPanel.Dock="Top" ItemSpacing="12" LineSpacing="8">
+            <StackPanel Width="190" Spacing="3"><TextBlock Text="Tên đăng nhập *" Classes="label"/><TextBox x:Name="UserBox"/></StackPanel>
+            <StackPanel Width="230" Spacing="3"><TextBlock Text="Họ tên" Classes="label"/><TextBox x:Name="NameBox"/></StackPanel>
+            <StackPanel Width="150" Spacing="3">
+              <TextBlock Text="Vai trò" Classes="label"/>
+              <ComboBox x:Name="RoleBox" HorizontalAlignment="Stretch" SelectionChanged="OnRoleChanged">
+                <ComboBoxItem Content="Nhân viên" Tag="staff"/>
+                <ComboBoxItem Content="Quản lý" Tag="manager"/>
+                <ComboBoxItem Content="Quản trị" Tag="admin"/>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel x:Name="LanPanel" Width="160" Spacing="3">
+              <TextBlock x:Name="LanLabelText" Text="Vai máy LAN" Classes="label"/>
+              <ComboBox x:Name="LanBox" HorizontalAlignment="Stretch">
+                <ComboBoxItem Content="Máy con" Tag="client"/>
+                <ComboBoxItem Content="Máy chủ chính" Tag="server"/>
+                <ComboBoxItem Content="Máy dự phòng" Tag="standby"/>
+              </ComboBox>
+            </StackPanel>
+            <StackPanel x:Name="PassPanel" Width="190" Spacing="3"><TextBlock Text="Mật khẩu * (≥ 6 ký tự)" Classes="label"/><TextBox x:Name="PassBox" PasswordChar="•"/></StackPanel>
+            <CheckBox x:Name="ActiveBox" Content="Đang dùng" IsChecked="True" VerticalAlignment="Bottom" Margin="0,0,0,4" ToolTip.Tip="Bỏ chọn để khóa tài khoản"/>
+          </WrapPanel>
+          <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Margin="0,14,0,8" Padding="0,10,0,0">
+            <Grid ColumnDefinitions="Auto,Auto,*">
+              <TextBlock Text="Phân quyền" Classes="section" VerticalAlignment="Center" Margin="0,0,16,0"/>
+              <CheckBox Grid.Column="1" x:Name="CustomBox" Content="Chỉnh quyền riêng cho tài khoản này" IsCheckedChanged="OnCustomChanged"/>
+              <TextBlock Grid.Column="2" x:Name="PermHint" Classes="muted" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0" TextTrimming="CharacterEllipsis" Tag="keep"/>
+            </Grid>
+          </Border>
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <WrapPanel x:Name="PermPanel" ItemSpacing="12" LineSpacing="12"/>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </TabItem>
+  </TabControl>
 </UserControl>

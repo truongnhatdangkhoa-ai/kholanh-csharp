@@ -501,7 +501,15 @@ small.Close();
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
-    { main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n); }
+    {
+        main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k is "users" or "lan")
+        {
+            var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+            if (k == "users") main.PageHost.GetVisualDescendants().OfType<DataGrid>().First().SelectedIndex = 1;
+            tc.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, n + "-2");
+        }
+    }
     s.Lan.Dispose(); Console.WriteLine("Xong (he): " + outDir); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")

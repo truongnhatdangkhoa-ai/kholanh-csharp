@@ -59,7 +59,7 @@
                 <StackPanel x:Name="AutoRows" Spacing="4"/>
                 <TextBlock x:Name="AutoSlots" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
                 <WrapPanel ItemSpacing="6" LineSpacing="6">
-                  <Button x:Name="AutoSaveButton" Content="Lưu phân vai" Classes="primary" Click="OnAutoSave"/>
+                  <Button x:Name="AutoSaveButton" Content="Lưu bật / tắt" Classes="primary" Click="OnAutoSave"/>
                   <Button x:Name="ClaimButton" Content="Chuyển máy chủ về máy này" Click="OnClaim"/>
                   <Button x:Name="DropStandbyButton" Content="Bỏ máy dự phòng" Click="OnDropStandby"/>
                 </WrapPanel>
