@@ -93,7 +93,7 @@
     <Setter Property="Background" Value="{DynamicResource AccentStrong}"/>
   </Style>
 
-  <!-- 1.59: chữ trong nút biểu tượng + chữ (Icon.Label) theo màu chữ của nút (kiểu TextBlock chung đặt màu chữ thường → nút chính bị chữ tối) -->
+  <!-- 1.60: chữ trong nút biểu tượng + chữ (Icon.Label) theo màu chữ của nút (kiểu TextBlock chung đặt màu chữ thường → nút chính bị chữ tối) -->
   <Style Selector="Button.primary TextBlock"><Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}"/></Style>
   <Style Selector="Button.danger TextBlock"><Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}"/></Style>
 

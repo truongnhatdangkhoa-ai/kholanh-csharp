@@ -209,6 +209,28 @@ public class AccountSyncService
         return n;
     }
 
+    private readonly object _pfLock = new();
+    private Task<int>? _prefetch;
+
+    /// <summary>
+    /// Tải danh sách ngầm (1 lượt dùng chung): cửa sổ đăng nhập gọi ngay lúc mở — song song với kiểm tra bản cập nhật và lúc người dùng gõ
+    /// mật khẩu — nên khi bấm Đăng nhập thường đã có danh sách mới. Đang tải, hoặc vừa tải xong trong 2 phút, thì trả lại đúng lượt đó;
+    /// lượt trước lỗi / đã cũ thì tải lượt mới.
+    /// </summary>
+    public Task<int> PrefetchAsync(TimeSpan? timeout = null)
+    {
+        lock (_pfLock)
+        {
+            if (_prefetch is { IsCompleted: false }) return _prefetch;
+            if (_prefetch is { IsCompletedSuccessfully: true } && DateTime.UtcNow - _prefetchAt < TimeSpan.FromMinutes(2)) return _prefetch;
+            if (!Enabled) return Task.FromResult(0);
+            var t = timeout ?? TimeSpan.FromSeconds(20);
+            _prefetchAt = DateTime.UtcNow;
+            return _prefetch = Task.Run(() => PullAsync(t));
+        }
+    }
+    private DateTime _prefetchAt;
+
     /// <summary>Ghi danh sách từ Sheet vào bảng users: thêm / cập nhật theo tên đăng nhập; tài khoản không còn trên Sheet bị khóa.</summary>
     internal int Apply(JsonArray users)
     {
@@ -352,10 +374,18 @@ public class AccountSyncService
                 if (!string.IsNullOrEmpty(mine)) _sessionKey = Unseal(password, mine);
                 return;
             }
-            if (string.IsNullOrEmpty(mine) || Unseal(password, mine) != stored) Publish(u.Username, password);
+            if (string.IsNullOrEmpty(mine) || Unseal(password, mine) != stored)
+            {
+                // Ghi gói khóa lên Sheet chạy NGẦM (trước 1.59 chặn màn hình đăng nhập tới 15 giây).
+                var name = u.Username;
+                PublishTask = Task.Run(() => { try { Publish(name, password); } catch { /* lần đăng nhập sau thử lại */ } });
+            }
         }
         catch { /* mất mạng / Sheet lỗi: đăng nhập vẫn bình thường, lần sau thử lại */ }
     }
+
+    /// <summary>Lượt ghi gói khóa ngầm gần nhất (để kiểm thử chờ).</summary>
+    internal Task PublishTask { get; private set; } = Task.CompletedTask;
 
     public void AfterLogout() => _sessionKey = "";
 
@@ -495,13 +525,21 @@ public class AccountSyncService
 
     // ---------------- gọi Web App ----------------
 
+    private static readonly HttpClient Shared = new(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = true,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+    }) { Timeout = TimeSpan.FromSeconds(60) };
+
     private async Task<JsonObject> CallAsync(string url, string token, string admin, string action, JsonObject? payload, CancellationToken ct = default)
     {
         var body = payload ?? new JsonObject();
         body["token"] = token; body["action"] = action;
         if (admin.Length > 0) body["adminKey"] = admin;
-        using var h = _handler is null ? new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }) : new HttpClient(_handler, false);
-        h.Timeout = TimeSpan.FromSeconds(60);
+        // Dùng chung 1 HttpClient (giữ sẵn kết nối TLS tới Google giữa các lần gọi — lần tải ngầm lúc mở cửa sổ làm "nóng" cho lần sau).
+        using var own = _handler is null ? null : new HttpClient(_handler, false) { Timeout = TimeSpan.FromSeconds(60) };
+        var h = own ?? Shared;
         HttpResponseMessage res;
         try
         {

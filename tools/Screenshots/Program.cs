@@ -523,7 +523,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
     }
     sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
 }
-// Lưu trữ cá nhân (1.59): SHOTS_ONLY=lt
+// Lưu trữ cá nhân (1.60): SHOTS_ONLY=lt
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")
 {
     void WaitLt(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }

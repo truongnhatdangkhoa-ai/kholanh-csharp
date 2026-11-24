@@ -1,4 +1,4 @@
-# Lưu trữ cá nhân (1.59)
+# Lưu trữ cá nhân (1.60)
 
 Công cụ › **Lưu trữ cá nhân** (quyền `m19`): nơi cất ghi chú, số liệu, liên kết, ảnh, tệp của **riêng từng tài khoản**.
 Làm lại từ M19 của app cũ (khung chat) thành dạng **bảng + ngăn + thẻ** cho dễ quản lý.
