@@ -64,6 +64,7 @@ public class LanPlanTests : IDisposable
         if (s.Session.CurrentUser is not null) s.Auth.Logout();
         await s.Accounts.PullAsync();
         s.Auth.Login(user, pass);
+        await s.Accounts.PublishTask;
         var msg = LanPlanSync.ApplyAtLogin(s);
         if (!s.Lan.Enabled || msg is null) s.Lan.Start();
         return msg;
