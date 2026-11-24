@@ -204,6 +204,26 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Client_learns_standby_from_a_write_before_its_next_pull()
+    {
+        // 1.50: máy con biết máy dự phòng ngay từ câu trả lời lượt ghi — trước đây chỉ biết ở lượt "changes" (mỗi 15 s),
+        // máy chủ tắt ngay sau khi máy dự phòng vừa nối thì máy con không tìm được máy chủ mới (CI đỏ ở Standby_takes_over…).
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var code = srv.Lan.ConnectionCode();
+        var cli = Boot(Setup("con", LanService.RoleClient, code));
+        Until(() => cli.Lan.Online, "máy con nối");
+        cli.Lan.TickMs = 600_000;          // máy con thôi tự kéo "changes"
+        Thread.Sleep(300);                 // chờ vòng đang chạy dở kết thúc
+        var sb = Boot(Setup("duphong", LanService.RoleStandby, code));
+        Until(() => sb.Lan.Online, "máy dự phòng nối");
+        Assert.DoesNotContain("duphong", cli.Settings.Get("lan_nodes", "[]"));
+        cli.Lan.Write(Db, One("S", Rows("a")));
+        Assert.Contains("duphong", cli.Settings.Get("lan_nodes", "[]"));
+    }
+
+    [Fact]
     public void Standby_takes_over_and_hands_back_to_the_main_server()
     {
         var ms = Setup("chu", LanService.RoleServer, null);
