@@ -1,0 +1,638 @@
+{
+ "aoa": {
+  "nhap": [
+   [
+    "BÁO CÁO NHẬP TRONG KỲ"
+   ],
+   [
+    "Từ ngày 01/10/2026 đến ngày 31/10/2026"
+   ],
+   [],
+   [
+    "Ngày nhập",
+    "Số lệnh",
+    "Mã hàng",
+    "Tên hàng",
+    "Loại nhập",
+    "Số lượng",
+    "Trọng lượng",
+    "Net"
+   ],
+   [
+    "Nhập sản xuất",
+    "",
+    "",
+    "",
+    "",
+    "Sum: 7",
+    "",
+    "Sum: 70"
+   ],
+   [
+    "05/10/2026",
+    "PN-01",
+    "TPC-VRHLBTNXXXR00004010IM",
+    "Tôm HLSO",
+    "",
+    5,
+    10,
+    50
+   ],
+   [
+    46298,
+    "PN-02",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm HLSO 51/60",
+    "Nhập sản xuất",
+    2,
+    10,
+    20
+   ],
+   [
+    "Nhập trả hàng",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Sum: 9"
+   ],
+   [
+    "07/10/2026",
+    "PN-03",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm",
+    "Nhập khác",
+    1,
+    9,
+    9
+   ],
+   [
+    "32/10/2026",
+    "PN-04",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm",
+    "",
+    1,
+    10,
+    10
+   ],
+   [
+    "08/10/2026",
+    "",
+    "VRHLBTNXXXR00004010IM",
+    "Tôm",
+    "",
+    1,
+    10,
+    10
+   ],
+   [
+    "08/10/2026",
+    "PN-05",
+    "VRHLBTNXXXR00004010IM",
+    "Tôm",
+    "",
+    1,
+    10,
+    "abc"
+   ],
+   [
+    "Tổng cộng",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    999
+   ]
+  ],
+  "xuat": [
+   [
+    "BÁO CÁO XUẤT TRONG KỲ"
+   ],
+   [],
+   [
+    "Ngày xuất",
+    "Mã phiếu xuất",
+    "Kho",
+    "Mã hàng",
+    "Tên hàng",
+    "Khách hàng",
+    "Số lượng",
+    "KL Net"
+   ],
+   [
+    "02/10/2026",
+    "PX-01",
+    "K1",
+    "VRHLBTNXXXR00004010IM",
+    "Tôm",
+    "CGC",
+    3,
+    30
+   ],
+   [
+    "10/10/2026",
+    "PX-02",
+    "K1",
+    "VRYYBTNXXXR00014010IM",
+    "Tôm YY",
+    "MATSUOKA",
+    3,
+    37.5
+   ],
+   [
+    "12/10/2026",
+    "PX-03",
+    "K1",
+    "VRHLBTNXXXR00006010IM",
+    "Tôm",
+    "",
+    1,
+    10
+   ],
+   [
+    "15/11/2026",
+    "PX-04",
+    "K1",
+    "VRYYBTNXXXR00014010IM",
+    "Tôm",
+    "",
+    1,
+    12.5
+   ],
+   [],
+   [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  ]
+ },
+ "nhap": {
+  "ok": true,
+  "error": "",
+  "headerRow": 4,
+  "mapping": {
+   "phieu": 1,
+   "ngay": 0,
+   "ma": 2,
+   "ten": 3,
+   "sl": 7,
+   "loai": 4
+  },
+  "labels": [
+   "Ngày nhập",
+   "Số lệnh",
+   "Mã hàng",
+   "Tên hàng",
+   "Loại nhập",
+   "Số lượng",
+   "Trọng lượng",
+   "Net"
+  ],
+  "rows": [
+   {
+    "id": "aa:anan_nhap:6",
+    "src": "anan",
+    "row": 6,
+    "phieu": "PN-01",
+    "ngay": "2026-10-05",
+    "kho": "",
+    "ma": "VRHLBTNXXXR00004010IM",
+    "ten": "Tôm HLSO",
+    "lsx": "",
+    "loai": "Nhập sản xuất",
+    "dir": "N",
+    "kg": 50
+   },
+   {
+    "id": "aa:anan_nhap:7",
+    "src": "anan",
+    "row": 7,
+    "phieu": "PN-02",
+    "ngay": "2026-10-03",
+    "kho": "",
+    "ma": "VRHLBTNXXXR00006010IM",
+    "ten": "Tôm HLSO 51/60",
+    "lsx": "",
+    "loai": "Nhập sản xuất",
+    "dir": "N",
+    "kg": 20
+   },
+   {
+    "id": "aa:anan_nhap:9",
+    "src": "anan",
+    "row": 9,
+    "phieu": "PN-03",
+    "ngay": "2026-10-07",
+    "kho": "",
+    "ma": "VRHLBTNXXXR00006010IM",
+    "ten": "Tôm",
+    "lsx": "",
+    "loai": "Nhập khác",
+    "dir": "N",
+    "kg": 9
+   }
+  ],
+  "period": {
+   "from": "2026-10-01",
+   "to": "2026-10-31",
+   "source": "tiêu đề báo cáo"
+  },
+  "stats": {
+   "nRows": 3,
+   "totalKg": 79,
+   "skipped": 1,
+   "totals": 0,
+   "issues": 3,
+   "counts": {}
+  },
+  "issues": [
+   {
+    "type": "so-loi",
+    "sev": "loi",
+    "row": 10,
+    "ma": "VRHLBTNXXXR00006010IM",
+    "msg": "Ngày không đọc được: \"32/10/2026\""
+   },
+   {
+    "type": "so-loi",
+    "sev": "loi",
+    "row": 11,
+    "ma": "VRHLBTNXXXR00004010IM",
+    "msg": "Thiếu mã phiếu"
+   },
+   {
+    "type": "so-loi",
+    "sev": "loi",
+    "row": 12,
+    "ma": "VRHLBTNXXXR00004010IM",
+    "msg": "Khối lượng không đọc được: \"abc\""
+   }
+  ]
+ },
+ "xuat": {
+  "ok": true,
+  "error": "",
+  "headerRow": 3,
+  "mapping": {
+   "phieu": 1,
+   "ngay": 0,
+   "ma": 3,
+   "ten": 4,
+   "sl": 7,
+   "doiTac": 5,
+   "kho": 2
+  },
+  "labels": [
+   "Ngày xuất",
+   "Mã phiếu xuất",
+   "Kho",
+   "Mã hàng",
+   "Tên hàng",
+   "Khách hàng",
+   "Số lượng",
+   "KL Net"
+  ],
+  "rows": [
+   {
+    "id": "aa:anan_xuat:4",
+    "src": "anan",
+    "row": 4,
+    "phieu": "PX-01",
+    "ngay": "2026-10-02",
+    "kho": "K1",
+    "ma": "VRHLBTNXXXR00004010IM",
+    "ten": "Tôm",
+    "lsx": "",
+    "loai": "",
+    "dir": "X",
+    "kg": 30
+   },
+   {
+    "id": "aa:anan_xuat:5",
+    "src": "anan",
+    "row": 5,
+    "phieu": "PX-02",
+    "ngay": "2026-10-10",
+    "kho": "K1",
+    "ma": "VRYYBTNXXXR00014010IM",
+    "ten": "Tôm YY",
+    "lsx": "",
+    "loai": "",
+    "dir": "X",
+    "kg": 37.5
+   },
+   {
+    "id": "aa:anan_xuat:6",
+    "src": "anan",
+    "row": 6,
+    "phieu": "PX-03",
+    "ngay": "2026-10-12",
+    "kho": "K1",
+    "ma": "VRHLBTNXXXR00006010IM",
+    "ten": "Tôm",
+    "lsx": "",
+    "loai": "",
+    "dir": "X",
+    "kg": 10
+   },
+   {
+    "id": "aa:anan_xuat:7",
+    "src": "anan",
+    "row": 7,
+    "phieu": "PX-04",
+    "ngay": "2026-11-15",
+    "kho": "K1",
+    "ma": "VRYYBTNXXXR00014010IM",
+    "ten": "Tôm",
+    "lsx": "",
+    "loai": "",
+    "dir": "X",
+    "kg": 12.5
+   }
+  ],
+  "period": null,
+  "stats": {
+   "nRows": 4,
+   "totalKg": 90,
+   "skipped": 0,
+   "totals": 0,
+   "issues": 0,
+   "counts": {}
+  },
+  "issues": []
+ },
+ "items": [
+  {
+   "ma": "VRZZBTNXXXR00013010IM",
+   "diff": 108,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "don-vi/cao",
+    "ct-lech-nxt/thap",
+    "ct-ngoai-ky/thap",
+    "ct-khong-doi-ung/thap",
+    "sai-trong-luong/thap"
+   ],
+   "ct": {
+    "n": 2,
+    "nFlag": 2,
+    "flags": [
+     "ketoan:XK10:khong-doi-ung",
+     "ketoan:XK09:sau-chot,net-lech,khong-doi-ung"
+    ]
+   }
+  },
+  {
+   "ma": "VRCOBTNXXXR00008010IM",
+   "diff": 70,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "ngoai-danh-muc/cao",
+    "chi-co-1-ben/cao",
+    "quy-cach/thap",
+    "chia-ma/thap"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00004110IM",
+   "diff": 50,
+   "status": "diff",
+   "causes": [
+    "quy-cach/cao",
+    "lech-dau-ky/cao",
+    "chia-ma/thap"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00005010IM",
+   "diff": -50,
+   "status": "diff",
+   "causes": [
+    "quy-cach/cao",
+    "lech-dau-ky/cao"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRCOBTNXXXR00009010IM",
+   "diff": -40,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "chi-co-1-ben/cao",
+    "quy-cach/thap",
+    "chia-ma/thap"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRYYBTNXXXR00014010IM",
+   "diff": 37.5,
+   "status": "diff",
+   "causes": [
+    "lech-phat-sinh/cao",
+    "nhan-ma/thap",
+    "ct-bang-chenh/thap",
+    "ct-ngoai-ky/thap",
+    "ct-khong-doi-ung/thap"
+   ],
+   "ct": {
+    "n": 3,
+    "nFlag": 3,
+    "flags": [
+     "ketoan:XK01:bang-chenh",
+     "anan:PX-02:bang-chenh",
+     "anan:PX-04:sau-chot,khong-doi-ung"
+    ]
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007010IM",
+   "diff": 30,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "chia-ma/trung binh",
+    "quy-cach/thap"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007210IM",
+   "diff": -20,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "chi-co-1-ben/cao",
+    "quy-cach/thap"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRNOBTNXXXR00011010IM",
+   "diff": 10,
+   "status": "diff",
+   "causes": [
+    "quy-cach/cao",
+    "ct-lech-nxt/cao",
+    "ct-trung/cao",
+    "ct-khong-doi-ung/trung binh",
+    "tu-khong-khop/trung binh",
+    "ct-bang-chenh/thap"
+   ],
+   "ct": {
+    "n": 2,
+    "nFlag": 2,
+    "flags": [
+     "ketoan:NK03:trung,khong-doi-ung,bang-chenh",
+     "ketoan:NK03:trung,khong-doi-ung,bang-chenh"
+    ]
+   }
+  },
+  {
+   "ma": "VRNOBTNXXXR00012010IM",
+   "diff": -10,
+   "status": "diff",
+   "causes": [
+    "quy-cach/cao",
+    "lech-dau-ky/cao",
+    "chi-co-1-ben/cao",
+    "ton-am/cao"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRPDBTNXXXR00007110IM",
+   "diff": -10,
+   "status": "diff",
+   "causes": [
+    "lech-dau-ky/cao",
+    "chi-co-1-ben/cao",
+    "nhan-ma/trung binh"
+   ],
+   "ct": {
+    "n": 0,
+    "nFlag": 0,
+    "flags": []
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00006010IM",
+   "diff": 5,
+   "status": "diff",
+   "causes": [
+    "sai-trong-luong/cao",
+    "nhan-ma/thap",
+    "ct-khong-doi-ung/thap"
+   ],
+   "ct": {
+    "n": 5,
+    "nFlag": 1,
+    "flags": [
+     "ketoan:NK02:",
+     "anan:PN-02:",
+     "anan:PN-03:khong-doi-ung",
+     "ketoan:XK03:",
+     "anan:PX-03:"
+    ]
+   }
+  },
+  {
+   "ma": "VRHLBTNXXXR00004010IM",
+   "diff": 0,
+   "status": "match",
+   "causes": [],
+   "ct": {
+    "n": 4,
+    "nFlag": 0,
+    "flags": [
+     "ketoan:NK01:",
+     "anan:PX-01:",
+     "anan:PN-01:",
+     "ketoan:XK02:"
+    ]
+   }
+  }
+ ],
+ "validation": [
+  {
+   "level": "ok",
+   "text": "Đọc dữ liệu thành công"
+  },
+  {
+   "level": "ok",
+   "text": "Nhận diện cột và định dạng hợp lệ"
+  },
+  {
+   "level": "ok",
+   "text": "Mã hàng: 13 mã (ẩn 1 mã Bột)"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng tồn âm"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng đầu + nhập − xuất ≠ cuối"
+  },
+  {
+   "level": "warn",
+   "text": "Tồn kho An An: 1 dòng sai trọng lượng / Net"
+  },
+  {
+   "level": "ok",
+   "text": "Chứng từ kế toán: 9 dòng (02/10/2026 – 14/11/2026)"
+  },
+  {
+   "level": "warn",
+   "text": "Có 2 chứng từ nằm ngoài kỳ đối chiếu"
+  },
+  {
+   "level": "ok",
+   "text": "Không phát hiện dòng trùng mã"
+  }
+ ]
+}

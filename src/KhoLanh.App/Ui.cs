@@ -165,8 +165,21 @@ public static class Ui
         return result;
     }
 
+    /// <summary>Cho hộp thoại theo cỡ chữ đang chọn (Giao diện &amp; cỡ chữ): bọc nội dung trong LayoutTransformControl, nới kích thước cửa sổ.</summary>
+    public static void ApplyZoom(Window w)
+    {
+        var sc = AppTheme.Scale; if (Math.Abs(sc - 1) < 0.001 || w.Content is LayoutTransformControl || w.Content is not Control c) return;
+        w.Content = null;
+        w.Content = new LayoutTransformControl { Child = c, LayoutTransform = new Avalonia.Media.ScaleTransform(sc, sc) };
+        if (!double.IsNaN(w.Width)) w.Width *= sc;
+        if (!double.IsNaN(w.Height)) w.Height *= sc;
+        if (w.MinWidth > 0) w.MinWidth *= sc;
+        if (w.MinHeight > 0) w.MinHeight *= sc;
+    }
+
     public static async Task Show(Visual v, Window w)
     {
+        ApplyZoom(w);
         if (Owner(v) is { } owner) await w.ShowDialog(owner);
         else { var tcs = new TaskCompletionSource(); w.Closed += (_, _) => tcs.TrySetResult(); w.Show(); await tcs.Task; }
     }

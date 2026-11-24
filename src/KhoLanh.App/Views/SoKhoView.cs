@@ -54,6 +54,7 @@ public sealed class SoKhoView : UserControl, IPage
     private bool _loaded;
 
     /// <summary>Báo các tab vẽ lại sau khi sổ đổi.</summary>
+    private static TextBlock Muted(string t) => new() { Text = t, FontSize = 12, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     internal static event Action? Changed;
     internal static void RaiseChanged() => Changed?.Invoke();
 
@@ -95,7 +96,22 @@ public sealed class SoKhoView : UserControl, IPage
         private readonly TextBlock _msg = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _head = new() { FontSize = 15, FontWeight = FontWeight.Bold };
         private List<PGroup> _groups = new(); private List<string> _ids = new(); private PGroup? _cur; private List<SkLot> _lots = new();
-        private readonly string[] _keys;
+        private string[] _keys = Array.Empty<string>();
+        private Dictionary<string, (string H, double W, string T)> _def = new(ColDef);
+        private string _tplSig = "";
+        /// <summary>Cột của lưới phiếu theo mẫu cột (SoKhoMau) của loại phiếu: thứ tự, tên, ẩn, cột phụ x_….</summary>
+        private void ApplyTemplate()
+        {
+            var t = Svc.TemplateFor(_loai);
+            var cols = t.Columns.Where(c => !c.Hidden || c.Key == "maHang").ToList();
+            if (_loai == "chuyen") cols = cols.Where(c => c.Key is not ("netDv" or "hopDong")).ToList();
+            var keys = cols.Select(c => c.Key).ToList();
+            if (_loai == "chuyen") keys.Insert(Math.Max(0, keys.IndexOf("viTri") + 1), "viTriDen");
+            _def = new(ColDef);
+            foreach (var c in cols) _def[c.Key] = (c.Key == "soLuong" && !c.Label.Contains('(') ? c.Label + " (bao)" : c.Label, ColDef.TryGetValue(c.Key, out var cd) ? Math.Max(cd.W, Math.Min(c.Label.Length * 7.5 + 16, 200)) : Math.Min(Math.Max(c.W * 0.8, 90), 220), c.Type == "number" ? "number" : "text");
+            _keys = keys.ToArray();
+            _tplSig = string.Join("|", _keys.Select(k => k + "=" + _def[k].H));
+        }
 
         public PhieuPanel(string loai)
         {
@@ -106,6 +122,7 @@ public sealed class SoKhoView : UserControl, IPage
                 "xuat" => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
                 _ => new[] { "viTri", "maHang", "size", "soLuong", "netDv", "net", "hopDong", "hanDung", "ngayNhap", "ghiChu" },
             };
+            ApplyTemplate();
             _g = new SheetGrid(_m) { SpareRows = 12 };
             _tg = new SheetGrid(_tm) { SpareRows = 0 };
             _list.SelectionChanged += (_, _) => { if (_list.SelectedIndex >= 0 && _list.SelectedIndex < Shown.Count) Open(Shown[_list.SelectedIndex]); };
@@ -154,6 +171,7 @@ public sealed class SoKhoView : UserControl, IPage
 
         public void Reload()
         {
+            var sig = _tplSig; ApplyTemplate(); var tplChanged = sig != _tplSig;
             _groups = Groups(Svc.Lines, _loai);
             FillList();
             _lots = Compute(Svc.Lines).Lots.Where(l => l.Sl > Eps || l.Net > Eps).OrderBy(l => l.MaHang).ThenBy(l => l.ViTri).ThenBy(l => l.NgayNhap).ToList();
@@ -161,7 +179,7 @@ public sealed class SoKhoView : UserControl, IPage
                 new GridColumn("sl", "Tồn (bao)", 75, "number"), new GridColumn("net", "Tồn (kg)", 80, "number"), new GridColumn("lsx", "Hợp đồng nhập", 110) },
                 _lots.Select(l => new[] { l.ViTri, l.MaHang, l.Size, Dmy(l.HanDung), Dmy(l.NgayNhap), F(l.Sl), F(l.Net), l.HopDong }));
             _tg.Refresh();
-            if (_cur is not null && _groups.FirstOrDefault(g => g.Key == _cur.Key) is { } again) Open(again); else if (_cur is null && _m.ColCount == 0) New();
+            if (_cur is not null && _groups.FirstOrDefault(g => g.Key == _cur.Key) is { } again) Open(again); else if (_cur is null && (_m.ColCount == 0 || tplChanged)) New();
         }
         private void FillList()
         {
@@ -174,10 +192,11 @@ public sealed class SoKhoView : UserControl, IPage
             string V(SkLine l, string k) => k switch
             {
                 "viTri" => l.ViTri, "viTriDen" => l.ViTriDen, "maHang" => l.MaHang, "size" => l.Size, "soLuong" => F(l.SoLuong, 4), "netDv" => F(l.NetDv, 4), "net" => F(l.Net, 4),
-                "hopDong" => l.HopDong, "hanDung" => Dmy(l.HanDung), "ngayNhap" => _loai == "nhap" && l.NgayNhap == l.Ngay ? "" : Dmy(l.NgayNhap), "ghiChu" => l.GhiChu, _ => "",
+                "hopDong" => l.HopDong, "hanDung" => Dmy(l.HanDung), "ngayNhap" => _loai == "nhap" && l.NgayNhap == l.Ngay ? "" : Dmy(l.NgayNhap), "ghiChu" => l.GhiChu,
+                _ => k.StartsWith("x_", StringComparison.Ordinal) && l.Extra[k] is { } xv ? (xv is JsonValue jv && jv.TryGetValue<double>(out var xd) ? F(xd, 4) : xv.ToString()) : "",
             };
             var list = ls.ToList(); _ids = list.Select(l => l.Id).ToList();
-            _m.Load(_keys.Select(k => new GridColumn(k, ColDef[k].H, ColDef[k].W, ColDef[k].T)), list.Select(l => _keys.Select(k => V(l, k))));
+            _m.Load(_keys.Select(k => new GridColumn(k, _def[k].H, _def[k].W, _def[k].T)), list.Select(l => _keys.Select(k => V(l, k))));
             _g.Refresh(); _msg.Text = "";
         }
         private void New()
@@ -199,11 +218,31 @@ public sealed class SoKhoView : UserControl, IPage
             for (var r = 0; r < _m.RowCount; r++)
             {
                 if (_keys.All(k => _m.Get(r, Array.IndexOf(_keys, k)).Trim().Length == 0)) continue;
-                var raw = new JsonObject { ["loai"] = _loai, ["ngay"] = ngay, ["chungTu"] = (_ct.Text ?? "").Trim() };
-                for (var c = 0; c < _keys.Length; c++) raw[_keys[c]] = _m.Get(r, c).Trim();
+                var keep = r < _ids.Count ? _cur?.Lines.FirstOrDefault(l => l.Id == _ids[r]) : null;
+                // dòng đang sửa: giữ các ô mẫu đang ẩn (không có trên lưới); Tổng (kg) ẩn thì tính lại từ Số lượng × Net
+                var raw = keep is null ? new JsonObject() : ToStore(keep);
+                if (keep is not null && !_keys.Contains("net")) raw.Remove("net");
+                raw["loai"] = _loai; raw["ngay"] = ngay; raw["chungTu"] = (_ct.Text ?? "").Trim();
+                var extra = keep is null ? new JsonObject() : (JsonObject)keep.Extra.DeepClone(); raw.Remove("extraJson");
+                for (var c = 0; c < _keys.Length; c++)
+                {
+                    var v = _m.Get(r, c).Trim();
+                    if (_keys[c].StartsWith("x_", StringComparison.Ordinal)) { if (v.Length > 0) extra[_keys[c]] = _def[_keys[c]].T == "number" && SoKhoCore.ParseNum(v) is { } xn && double.IsFinite(xn) ? xn : v; else extra.Remove(_keys[c]); }
+                    else raw[_keys[c]] = v;
+                }
+                // công thức cột (trừ Tổng kg — sổ tự tính Số lượng × Net): ô để trống thì tự tính từ các cột khác (2 lượt cho công thức dùng cột có công thức)
+                double? Get(string k) => k.StartsWith("x_", StringComparison.Ordinal) ? (extra[k] is JsonValue ev && ev.TryGetValue<double>(out var ed) ? ed : SoKhoCore.ParseNum(extra[k]?.ToString() ?? "")) : SoKhoCore.ParseNum(raw[k]?.ToString() ?? "");
+                for (var pass = 0; pass < 2; pass++)
+                    foreach (var fc in Svc.TemplateFor(_loai).Columns.Where(c => c.Formula is not null && c.Key != "net"))
+                    {
+                        var isX = fc.Key.StartsWith("x_", StringComparison.Ordinal);
+                        var curV = isX ? extra[fc.Key]?.ToString() ?? "" : raw[fc.Key]?.ToString() ?? "";
+                        if (curV.Trim().Length > 0) continue;
+                        if (SkTemplate.Eval(fc.Formula, Get) is { } fv) { if (isX) extra[fc.Key] = fv; else raw[fc.Key] = fv.ToString(CultureInfo.InvariantCulture); }
+                    }
+                raw["extra"] = extra;
                 if (_loai == "xuat" && S(raw["hopDong"]).Length == 0) raw["hopDong"] = (_hd.Text ?? "").Trim();
                 if (r < _ids.Count) raw["id"] = _ids[r];
-                var keep = _cur?.Lines.FirstOrDefault(l => l.Id == S(raw["id"]));
                 if (keep is not null) { raw["nguon"] = keep.Nguon; raw["nguoi"] = keep.Nguoi; raw["luc"] = keep.Luc; raw["phieuId"] = keep.PhieuId; }
                 o.Add(NormLine(raw));
             }
@@ -509,10 +548,15 @@ public sealed class SoKhoView : UserControl, IPage
             var q = Core.ChungTu.ChungTuService.StripAccents(_q.Text ?? "");
             _shown = SortLines(Svc.Lines.Where(l => string.CompareOrdinal(l.Ngay, IsoOf(_from)) >= 0 && string.CompareOrdinal(l.Ngay, IsoOf(_to)) <= 0 && (loai is null || l.Loai == loai)
                 && (q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents($"{l.MaHang} {l.ChungTu} {l.HopDong} {l.GhiChu} {l.ViTri}").Contains(q)))).ToList();
+            // cột phụ (x_…) của mọi mẫu cột — như sổ chi tiết của app cũ
+            var extraCols = Svc.Templates.SelectMany(t => t.Columns).Where(c => !c.Builtin).GroupBy(c => c.Key).Select(g => g.First()).ToList();
+            static string Ex(SkLine l, string k) => l.Extra[k] is { } xv ? (xv is JsonValue jv && jv.TryGetValue<double>(out var xd) ? F(xd) : xv.ToString()) : "";
             _m.Load(new[] { new GridColumn("ngay", "Ngày", 80), new GridColumn("loai", "Loại", 90), new GridColumn("ct", "Chứng từ", 100), new GridColumn("vt", "Vị trí", 70), new GridColumn("vd", "→ Vị trí", 65),
                 new GridColumn("ma", "Mã hàng", 130), new GridColumn("sz", "Size", 60), new GridColumn("sl", "SL (bao)", 70, "number"), new GridColumn("net", "Tổng (kg)", 80, "number"), new GridColumn("hd", "LSX / HĐ", 110),
-                new GridColumn("han", "Hạn dùng", 80), new GridColumn("nn", "Ngày nhập", 80), new GridColumn("gc", "Ghi chú", 180), new GridColumn("ng", "Nguồn · người", 110) },
-                _shown.Select(l => new[] { Dmy(l.Ngay), LoaiTen.GetValueOrDefault(l.Loai, l.Loai), l.ChungTu, l.ViTri, l.ViTriDen, l.MaHang, l.Size, F(l.SoLuong), F(l.Net), l.HopDong, Dmy(l.HanDung), Dmy(l.NgayNhap), l.GhiChu, l.Nguon + (l.Nguoi.Length > 0 ? " · " + l.Nguoi : "") }));
+                new GridColumn("han", "Hạn dùng", 80), new GridColumn("nn", "Ngày nhập", 80), new GridColumn("gc", "Ghi chú", 180), new GridColumn("ng", "Nguồn · người", 110) }
+                .Concat(extraCols.Select(c => new GridColumn(c.Key, c.Label, Math.Min(Math.Max(c.W * 0.8, 70), 200), c.Type == "number" ? "number" : "text"))),
+                _shown.Select(l => new[] { Dmy(l.Ngay), LoaiTen.GetValueOrDefault(l.Loai, l.Loai), l.ChungTu, l.ViTri, l.ViTriDen, l.MaHang, l.Size, F(l.SoLuong), F(l.Net), l.HopDong, Dmy(l.HanDung), Dmy(l.NgayNhap), l.GhiChu, l.Nguon + (l.Nguoi.Length > 0 ? " · " + l.Nguoi : "") }
+                    .Concat(extraCols.Select(c => Ex(l, c.Key))).ToArray()));
             _ops = HistOps(Svc.Hist);
             _hm.Load(new[] { new GridColumn("luc", "Lúc", 120), new GridColumn("ng", "Người", 90), new GridColumn("mt", "Thao tác", 360), new GridColumn("t", "Thêm", 55, "number"), new GridColumn("s", "Sửa", 50, "number"), new GridColumn("x", "Xóa", 50, "number"), new GridColumn("u", "Trạng thái", 110) },
                 _ops.Select(o => new[] { DateTime.TryParse(o.Luc, Ic, DateTimeStyles.RoundtripKind, out var d) ? d.ToLocalTime().ToString("dd/MM HH:mm:ss") : o.Luc, o.Nguoi, o.MoTa, o.Them.ToString(), o.Sua.ToString(), o.Xoa.ToString(), o.Undone ? "Đã hoàn tác" : "" }));
@@ -558,10 +602,93 @@ public sealed class SoKhoView : UserControl, IPage
             s.Children.Add(Lb("Báo hạn dùng trước (ngày)")); s.Children.Add(_hsd);
             s.Children.Add(Lb("Tồn tối thiểu theo mã (bao) — dưới mức hiện vàng ở Tồn kho")); s.Children.Add(Framed(_mg));
             if (Svc.CanEdit) s.Children.Add(Btn("💾 Lưu cấu hình", Save, primary: true));
+            // ---- mẫu cột phiếu (SoKhoMau)
+            _tg = new SheetGrid(_tm) { SpareRows = 0, Height = 330, CellBackground = (r, _) => r < _tplCols.Count && _tplCols[r].Hidden ? HiddenBg : null };
+            s.Children.Add(new TextBlock { Text = "Mẫu cột phiếu", FontSize = 15, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 14, 0, 0) });
+            s.Children.Add(Muted("Đổi tên / ẩn / sắp xếp cột của lưới phiếu nhập · xuất · chuyển, thêm cột phụ (ghi vào sổ cái, xem ở tab Sổ cái). Mã hàng luôn hiện. Dùng chung sheet SoKhoMau với app cũ."));
+            _tplLoai.SelectionChanged += (_, _) => { if (!_painting) PaintTpl(); };
+            var row1 = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 }; row1.Children.Add(Lb("Áp dụng cho")); row1.Children.Add(_tplLoai); row1.Children.Add(_tplInfo);
+            s.Children.Add(row1); s.Children.Add(Framed(_tg));
+            if (Svc.CanEdit)
+            {
+                var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+                acts.Children.Add(Btn("▲ Lên", () => Move(-1))); acts.Children.Add(Btn("▼ Xuống", () => Move(1)));
+                acts.Children.Add(Btn("+ Thêm cột phụ…", AddExtra)); acts.Children.Add(Btn("Xóa cột đang chọn", DelCol));
+                acts.Children.Add(Btn("Về mẫu cơ bản", () => { _tplCols = SkTemplate.Default().Columns; LoadTplGrid(); }));
+                acts.Children.Add(Btn("💾 Lưu mẫu cột", SaveTpl, primary: true));
+                s.Children.Add(acts);
+            }
             Content = new ScrollViewer { Content = s };
+        }
+
+        private static readonly IBrush HiddenBg = AppTheme.Brush("#EEF1F5");
+        private static readonly (string Loai, string Ten)[] TplLoais = { ("", "Mẫu chung (mọi loại phiếu)"), ("nhap", "Phiếu nhập"), ("xuat", "Phiếu xuất"), ("chuyen", "Chuyển vị trí") };
+        private readonly ComboBox _tplLoai = new() { ItemsSource = TplLoais.Select(x => x.Ten).ToList(), SelectedIndex = 0, MinWidth = 220 };
+        private readonly TextBlock _tplInfo = new() { FontSize = 12, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
+        private readonly GridModel _tm = new(); private readonly SheetGrid _tg;
+        private List<SkCol> _tplCols = new(); private List<string> _tplRemoved = new();
+        private bool _painting;
+        private string TplLoai => TplLoais[Math.Max(0, _tplLoai.SelectedIndex)].Loai;
+        private SkTemplate? Existing() => TplLoai.Length == 0 ? Svc.Templates.FirstOrDefault(t => t.MacDinh) ?? Svc.Templates.FirstOrDefault(t => t.Loai.Length == 0) : Svc.Templates.FirstOrDefault(t => t.Loai == TplLoai);
+
+        private void PaintTpl()
+        {
+            var ex = Existing(); var src = ex ?? Svc.TemplateFor(TplLoai);
+            _tplCols = src.Columns.Select(c => c.Clone()).ToList(); _tplRemoved = src.Removed.ToList();
+            _tplInfo.Text = ex is not null ? $"Đang dùng mẫu \"{ex.Ten}\"." : $"Chưa có mẫu riêng — đang dùng \"{src.Ten}\"; lưu để tạo mẫu riêng cho {TplLoais[_tplLoai.SelectedIndex].Ten.ToLowerInvariant()}.";
+            LoadTplGrid();
+        }
+        private void LoadTplGrid()
+        {
+            var ro = !Svc.CanEdit;
+            _tm.Load(new[] { new GridColumn("key", "Khóa", 110) { ReadOnly = true }, new GridColumn("label", "Tên cột", 200) { ReadOnly = ro }, new GridColumn("hidden", "Ẩn (gõ x)", 80) { ReadOnly = ro },
+                new GridColumn("type", "Kiểu (cột phụ: chữ / số / ngày)", 190) { ReadOnly = ro }, new GridColumn("w", "Rộng", 70, "number") { ReadOnly = ro } },
+                _tplCols.Select(c => new[] { c.Key, c.Label, c.Hidden ? "x" : "", c.Builtin ? (c.Type == "number" ? "số (dựng sẵn)" : c.Type == "date" ? "ngày (dựng sẵn)" : "chữ (dựng sẵn)") : c.Type == "number" ? "số" : c.Type == "date" ? "ngày" : "chữ", c.W.ToString("0", CultureInfo.InvariantCulture) }));
+            _tg.Refresh();
+        }
+        /// <summary>Đọc lại lưới vào danh sách cột (tên, ẩn, kiểu, rộng).</summary>
+        private void ReadTplGrid()
+        {
+            for (var r = 0; r < _tplCols.Count && r < _tm.RowCount; r++)
+            {
+                var c = _tplCols[r]; var lb = _tm.Get(r, 1).Trim(); if (lb.Length > 0) c.Label = lb;
+                c.Hidden = c.Key != "maHang" && _tm.Get(r, 2).Trim().Length > 0;
+                if (!c.Builtin) { var t = KhoLanh.Core.TimNhanh.Gs.Norm(_tm.Get(r, 3)); c.Type = t.StartsWith("so") || t.StartsWith("number") ? "number" : t.StartsWith("ngay") || t.StartsWith("date") ? "date" : "text"; }
+                if (ParseNum(_tm.Get(r, 4)) is { } w && w >= 40 && w <= 600) c.W = w;
+            }
+        }
+        private void Move(int d)
+        {
+            ReadTplGrid(); var r = _tg.Row; var n = r + d; if (r < 0 || r >= _tplCols.Count || n < 0 || n >= _tplCols.Count) return;
+            (_tplCols[r], _tplCols[n]) = (_tplCols[n], _tplCols[r]); LoadTplGrid(); _tg.Select(n, 1);
+        }
+        private async Task AddExtra()
+        {
+            ReadTplGrid();
+            var name = await Ui.Prompt(this, "Tên cột phụ (VD: Số xe, Người giao):", "Thêm cột phụ"); if (string.IsNullOrWhiteSpace(name)) return;
+            _tplCols.Add(new SkCol { Key = SkTemplate.NewExtraKey(name, _tplCols.Select(c => c.Key).Concat(Svc.Templates.SelectMany(t => t.Columns).Select(c => c.Key))), Label = name.Trim(), Type = "text", W = 140 });
+            LoadTplGrid(); _tg.Select(_tplCols.Count - 1, 1);
+        }
+        private async Task DelCol()
+        {
+            ReadTplGrid(); var r = _tg.Row; if (r < 0 || r >= _tplCols.Count) return; var c = _tplCols[r];
+            if (c.Key == "maHang") { await Ui.Message(this, "Không xóa được cột Mã hàng."); return; }
+            if (!await Ui.Confirm(this, c.Builtin ? $"Xóa cột dựng sẵn \"{c.Label}\" khỏi mẫu? (Có thể thêm lại bằng \"Về mẫu cơ bản\".)" : $"Xóa cột phụ \"{c.Label}\"? Số liệu đã ghi trong sổ cái vẫn giữ.", yes: "Xóa")) return;
+            _tplCols.RemoveAt(r); if (c.Builtin && !_tplRemoved.Contains(c.Key)) _tplRemoved.Add(c.Key); LoadTplGrid();
+        }
+        private async Task SaveTpl()
+        {
+            ReadTplGrid();
+            var ex = Existing(); var list = Svc.Templates.Select(t => t).ToList();
+            var cols = _tplCols.Select(c => { var o = new System.Text.Json.Nodes.JsonObject { ["key"] = c.Key, ["label"] = c.Label, ["type"] = c.Type, ["hidden"] = c.Hidden, ["w"] = c.W }; if (c.Type == "number") o["formula"] = c.Formula?.DeepClone(); return o; })
+                .Concat(_tplRemoved.Where(k => _tplCols.All(c => c.Key != k)).Select(k => new System.Text.Json.Nodes.JsonObject { ["key"] = k, ["removed"] = true })).ToList();
+            var t = SkTemplate.Norm(ex?.Id ?? "", ex?.Ten ?? (TplLoai.Length == 0 ? "Mẫu cơ bản" : "Mẫu " + TplLoais[_tplLoai.SelectedIndex].Ten.ToLowerInvariant()), TplLoai, ex?.MacDinh ?? TplLoai.Length == 0, cols);
+            if (ex is not null) list[list.IndexOf(ex)] = t; else list.Add(t);
+            if (await Ui.Run(this, () => Svc.SaveTemplates(list))) { PaintTpl(); RaiseChanged(); await Ui.Message(this, "Đã lưu mẫu cột — lưới phiếu dùng mẫu mới."); }
         }
         public void Paint()
         {
+            _painting = true; PaintTpl(); _painting = false;
             _tol.Value = (decimal)Svc.Tol; _hsd.Value = Svc.HsdDays;
             _mm.Load(new[] { new GridColumn("ma", "Mã hàng", 180), new GridColumn("min", "Tồn tối thiểu (bao)", 140, "number") }, Svc.MinStock.Select(m => new[] { m.Key, F(m.Value) }));
             _mg.Refresh();

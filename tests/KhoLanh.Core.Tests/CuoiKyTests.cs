@@ -160,6 +160,60 @@ public class CuoiKyServiceTests : IDisposable
     }
 
     [Fact]
+    public void Lay_tu_module_sua_o_nguon_va_chung_tu_An_An()
+    {
+        const string A = "VRHLBTNXXXR000040IM10", B = "VRHLBTNXXXR000041IM10";
+        JsonObject Cell(string j) => new() { ["data"] = "__JSON__" + j };
+        // dữ liệu đã nạp trong module Tồn kho An An (LoadData c0..cN + LoadDataMeta.headers)
+        _s.Lan.Write("ton-kho-an-an", new Dictionary<string, JsonArray?>
+        {
+            ["LoadData"] = new JsonArray(new JsonObject { ["c0"] = "TPC-" + A, ["c1"] = "Tôm 31/40", ["c2"] = 12, ["c3"] = 10, ["c4"] = 120 }, new JsonObject { ["c0"] = B, ["c1"] = "Tôm 31/40", ["c2"] = 5, ["c3"] = 10, ["c4"] = 50 }),
+            ["LoadDataMeta"] = new JsonArray(Cell("{\"headers\":[\"Mã hàng\",\"Tên hàng\",\"Tồn cuối\",\"Trọng lượng\",\"Tồn cuối (NET)\"],\"fileName\":\"TON AN AN 31.10.xlsx\",\"dataDate\":\"31/10/2026\"}")),
+        });
+        var ck = _s.CuoiKy;
+        Assert.Equal("TON AN AN 31.10.xlsx · dữ liệu ngày 31/10/2026", ck.ModuleInfo("anan"));
+        Assert.Null(ck.ModuleInfo("gui"));
+        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => ck.LoadFromModule("gui"));
+        var an = ck.LoadFromModule("anan");
+        Assert.True(an.Ok, an.Error); Assert.Equal("module Tồn kho An An", an.FromModule); Assert.Equal(2, an.Rows.Count); Assert.Equal(120, an.Rows[0].Kg);
+        var kt = Xlsx("kt.xlsx", ("NXT", new[]
+        {
+            new object?[] { "Từ ngày 01/10/2026 đến ngày 31/10/2026" },
+            new object?[] { "Mã thành phẩm", "Tên thành phẩm", "Tồn đầu kỳ", "Nhập trong kỳ", "Xuất trong kỳ", "Tồn CK" },
+            new object?[] { A, "Tôm", 120, 0, 0, 100 }, new object?[] { B, "Tôm", 50, 0, 0, 50 },
+        }));
+        Assert.True(ck.LoadFile("ketoan", kt).Ok);
+        // chứng từ xuất An An
+        var xu = Xlsx("xuat.xlsx", ("Xuat", new[]
+        {
+            new object?[] { "Ngày xuất", "Số phiếu xuất", "Mã hàng", "Tên hàng", "Net" },
+            new object?[] { "05/10/2026", "PX-1", A, "Tôm", 20.0 },
+        }));
+        var xs = ck.LoadFile("anan_xuat", xu);
+        Assert.True(xs.Ok, xs.Error); Assert.Single(xs.Vouchers); Assert.Equal("X", xs.Vouchers[0].Dir);
+        var r = ck.Run();
+        Assert.Equal(20, r.ByMa[A].Diff);
+        Assert.Contains(r.ByMa[A].Ct.Lines, l => l.V.Src == "anan" && l.V.Phieu == "PX-1");
+        // sửa ô số lượng của dòng An An → đối chiếu lại khớp; trả lại giá trị gốc → lệch lại; hoàn tác → khớp
+        var row = ck.Files["anan"].Rows.First(x => x.Ma == A);
+        ck.EditCell("anan", row, "kg", "100", "kiểm lại sổ");
+        Assert.True(ck.IsEdited("anan", row, "kg"));
+        Assert.Equal(0, ck.Run().ByMa[A].Diff);
+        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => ck.EditCell("anan", row, "kg", "100"));
+        ck.RevertCell("anan", row, "kg");
+        Assert.False(ck.IsEdited("anan", row, "kg")); Assert.Equal(20, ck.Run().ByMa[A].Diff);
+        ck.Undo(ck.State.History[^1].Id);
+        Assert.Equal(0, ck.Run().ByMa[A].Diff);
+        Assert.StartsWith("Sửa dữ liệu Tồn kho An An (dòng 2): số lượng 120 → 100", ck.State.History.First(h => h.Action == "sua-du-lieu").Summary);
+        // máy khác mở lại: nguồn từ module + chứng từ xuất + phần sửa còn nguyên
+        var ck2 = new CkService(() => _s.Lan, _s.Session, _s.Settings);
+        Assert.True(ck2.Load());
+        Assert.Equal("module Tồn kho An An", ck2.Files["anan"].FromModule);
+        Assert.Single(ck2.Files["anan_xuat"].Vouchers);
+        Assert.Equal(0, ck2.Run().ByMa[A].Diff);
+    }
+
+    [Fact]
     public void Nap_file_doi_chieu_xu_ly_va_mo_lai()
     {
         const string A = "VRHLBTNXXXR000040IM10", B = "VRHLBTNXXXR000041IM10";

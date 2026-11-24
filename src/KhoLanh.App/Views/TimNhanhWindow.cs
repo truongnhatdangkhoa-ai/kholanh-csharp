@@ -26,6 +26,16 @@ public sealed class TimNhanhWindow : Window
 
     private readonly IReadOnlyList<ModuleLink> _mods;
     private readonly Action<string> _go;
+    private readonly Action<string, Control>? _show;
+    private readonly WrapPanel _docPanel = new();
+    private List<GsDoc> _docs = new();
+    // Lọc theo cột (lọc phân tầng: giá trị của 1 cột lấy từ các dòng khớp ô tìm + bộ lọc các cột khác)
+    private static readonly (string Key, string Label)[] FilterCols = { ("src", "Nguồn"), ("vt", "Khu vị trí"), ("size", "Size"), ("hd", "Hợp đồng"), ("dt", "Đặc tính") };
+    private readonly Dictionary<string, ComboBox> _cf = new();
+    private readonly Button _cfClear = new() { Content = "Bỏ lọc cột", IsVisible = false, Padding = new Thickness(8, 3), FontSize = 12.5 };
+    private readonly StackPanel _cfPanel = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+    private bool _cfBusy;
+    private List<GsRow> _base = new();
     private readonly TextBox _q = new() { Watermark = "Tìm mã hàng, size (BTP 50), vị trí, hợp đồng, lô, đặc tính hoặc tên module…", FontSize = 15, Padding = new Thickness(10, 7) };
     private readonly TextBlock _status = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly WrapPanel _modPanel = new();
@@ -41,9 +51,19 @@ public sealed class TimNhanhWindow : Window
     private string? _detailKey;
     private readonly DispatcherTimer _debounce = new() { Interval = TimeSpan.FromMilliseconds(160) };
 
-    public TimNhanhWindow(IReadOnlyList<ModuleLink> modules, Action<string> go, string initial = "")
+    public TimNhanhWindow(IReadOnlyList<ModuleLink> modules, Action<string> go, string initial = "", Action<string, Control>? show = null)
     {
-        _mods = modules; _go = go;
+        _mods = modules; _go = go; _show = show;
+        _cfPanel.Children.Add(new TextBlock { Text = "Lọc cột:", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center });
+        foreach (var (k, lb) in FilterCols)
+        {
+            var cb = new ComboBox { MinWidth = 130, MaxWidth = 220, FontSize = 12.5, PlaceholderText = lb };
+            ToolTip.SetTip(cb, "Lọc theo " + lb);
+            cb.SelectionChanged += (_, _) => { if (!_cfBusy) { _limit = Page; Render(); } };
+            _cf[k] = cb; _cfPanel.Children.Add(cb);
+        }
+        _cfClear.Click += (_, _) => { _cfBusy = true; foreach (var c in _cf.Values) c.SelectedIndex = -1; _cfBusy = false; _limit = Page; Render(); };
+        _cfPanel.Children.Add(_cfClear);
         Title = "Tìm nhanh toàn app"; Width = 1240; Height = 760; MinWidth = 900; MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Brush("#F3F6F9", "#181A1E");
 
@@ -68,7 +88,7 @@ public sealed class TimNhanhWindow : Window
         _detailBox = new Border { Width = 360, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(14, 12), Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), IsVisible = false, Child = new ScrollViewer { Content = _detail } };
 
         var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
-        top.Children.Add(_q); top.Children.Add(_status); top.Children.Add(_modPanel);
+        top.Children.Add(_q); top.Children.Add(_status); top.Children.Add(_modPanel); top.Children.Add(_docPanel); top.Children.Add(_cfPanel);
         var tbl = new DockPanel();
         var foot = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 }; foot.Children.Add(_foot); foot.Children.Add(_more); _more.Margin = new Thickness(0, 4, 0, 0);
         DockPanel.SetDock(foot, Dock.Bottom); tbl.Children.Add(foot);
@@ -85,12 +105,12 @@ public sealed class TimNhanhWindow : Window
     public async Task LoadAsync()
     {
         _loading = true; RenderStatus();
-        try { _data = await Task.Run(() => new GsService(App.Services).Build()); }
+        try { (_data, _docs) = await Task.Run(() => (new GsService(App.Services).Build(), GsDocs.Build(App.Services))); }
         catch (Exception e) { _data = Gs.Prepare(Array.Empty<GsRow>(), new[] { e.Message }); }
         _loading = false; Render();
     }
     /// <summary>Dùng cho công cụ chụp màn hình: nạp đồng bộ.</summary>
-    public void LoadNow() { _data = new GsService(App.Services).Build(); Render(); }
+    public void LoadNow() { _data = new GsService(App.Services).Build(); _docs = GsDocs.Build(App.Services); Render(); }
     public void SetQuery(string q) { _q.Text = q; _debounce.Stop(); _limit = Page; Render(); }
     public void SelectRow(int r) { if (r < _list.Count) { _g.Select(r, 2); ShowDetail(_list[r].Key); } }
 
@@ -123,17 +143,67 @@ public sealed class TimNhanhWindow : Window
                 b.Click += (_, _) => Go(m.Key); _modPanel.Children.Add(b);
             }
         }
+        // phiếu / LSX / số cont (từ 2 ký tự)
+        _docPanel.Children.Clear();
+        var docs = q.Trim().Length >= 2 ? GsDocs.Search(_docs, q) : new();
+        if (docs.Count > 0)
+        {
+            _docPanel.Children.Add(new TextBlock { Text = "Phiếu · LSX · Số cont:", FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+            foreach (var d in docs)
+            {
+                var sp = new StackPanel(); sp.Children.Add(new TextBlock { Text = d.Title, FontWeight = FontWeight.SemiBold, FontSize = 12.5 }); sp.Children.Add(new TextBlock { Text = d.Sub, FontSize = 11, Classes = { "muted" } });
+                var b = new Button { Content = sp, Padding = new Thickness(8, 3), Margin = new Thickness(0, 0, 6, 4), Tag = d };
+                b.Click += (_, _) => OpenDoc(d); _docPanel.Children.Add(b);
+            }
+        }
         if (_data is null || nq.Length == 0)
         {
-            _list = new(); _terms = new(); LoadGrid(); CloseDetail();
+            _list = new(); _base = new(); _terms = new(); FillFilters(); LoadGrid(); CloseDetail();
             _foot.Text = nq.Length == 0 ? "Gõ để tìm. Ví dụ: BTP 50 · VRHLBTN · A.01 · HD-2614 · bột chiên." : ""; _more.IsVisible = false; return;
         }
-        _list = Gs.Search(_data, q, out _terms);
+        _base = Gs.Search(_data, q, out _terms);
+        _list = _base.Where(r => PassFilters(r, null)).ToList();
+        FillFilters();
         LoadGrid();
         var tot = (ton: _list.Sum(r => r.Ton ?? 0), kg: _list.Sum(r => r.Kg ?? 0));
         _foot.Text = _list.Count == 0 ? $"Không có kết quả cho “{q.Trim()}”." : $"Tổng: {_list.Count:#,0} dòng · {_list.Select(r => r.Key).Distinct().Count():#,0} mã · tồn {FN(tot.ton)} · {FK(tot.kg)} kg";
         _more.IsVisible = _list.Count > _limit; _more.Content = $"Hiện thêm {Math.Min(Page, _list.Count - _limit):#,0} dòng (còn {_list.Count - _limit:#,0})";
         if (_detailKey is not null) ShowDetail(_detailKey);
+    }
+
+    private static string ColVal(GsRow r, string k)
+    {
+        var v = k switch { "src" => Gs.SrcName(r.Src), "vt" => Zone(r.Vt), "size" => r.Size, "hd" => r.Hd, "dt" => r.Dt, _ => "" };
+        return string.IsNullOrWhiteSpace(v) ? "(Trống)" : v.Trim();
+    }
+    /// <summary>Khu của vị trí: phần đầu trước dấu chấm (bỏ "TG1.") — "A.01.1.1" → "A".</summary>
+    private static string Zone(string vt) { var s = Gs.ShortPlace(vt); var i = s.IndexOf('.'); return i > 0 ? s[..i] : s; }
+    private string? Picked(string k) => _cf[k].SelectedIndex > 0 ? _cf[k].SelectedItem as string : null;
+    private bool PassFilters(GsRow r, string? except) => FilterCols.All(c => c.Key == except || Picked(c.Key) is not { } v || ColVal(r, c.Key) == v);
+
+    private void FillFilters()
+    {
+        _cfBusy = true;
+        foreach (var (k, lb) in FilterCols)
+        {
+            var cur = Picked(k);
+            var vals = _base.Where(r => PassFilters(r, k)).Select(r => ColVal(r, k)).Distinct().OrderBy(x => x == "(Trống)" ? "\uffff" : x, StringComparer.CurrentCulture).ToList();
+            var items = new List<string> { $"{lb}: tất cả" }; items.AddRange(vals);
+            _cf[k].ItemsSource = items; _cf[k].SelectedIndex = cur is null ? 0 : Math.Max(0, items.IndexOf(cur));
+            _cf[k].IsEnabled = vals.Count > 0;
+        }
+        _cfPanel.IsVisible = _base.Count > 0;
+        _cfClear.IsVisible = FilterCols.Any(c => Picked(c.Key) is not null);
+        _cfBusy = false;
+    }
+
+    private void OpenDoc(GsDoc d)
+    {
+        if (!_mods.Any(m => m.Key == d.Menu)) return;
+        Close();
+        if (_show is null) { _go(d.Menu); return; }
+        if (d.Kind == "pnx") _show(d.Menu, new PhieuKhoView(0, d.Id));
+        else _show(d.Menu, new ViTriView { OpenSlipId = d.Id });
     }
 
     private void LoadGrid()
@@ -167,7 +237,7 @@ public sealed class TimNhanhWindow : Window
         head.Children.Add(new SelectableTextBlock { Text = r0.Ma, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = Dark, TextWrapping = TextWrapping.Wrap });
         _detail.Children.Add(head);
         var ten = rows.Select(r => r.Ten).FirstOrDefault(t => t.Length > 0); if (ten is not null) _detail.Children.Add(new TextBlock { Text = ten, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
-        _detail.Children.Add(new TextBlock { Text = $"Chỉ các dòng khớp “{(_q.Text ?? "").Trim()}”", Classes = { "muted" }, FontSize = 12 });
+        _detail.Children.Add(new TextBlock { Text = $"Chỉ các dòng khớp “{(_q.Text ?? "").Trim()}”" + (FilterCols.Any(c => Picked(c.Key) is not null) ? " và bộ lọc cột" : ""), Classes = { "muted" }, FontSize = 12 });
         var tags = new WrapPanel();
         foreach (var t in rows.Select(r => r.Tag).Where(t => t.Length > 0).Distinct().Take(1).Concat(rows.Select(r => r.Dt).Where(t => t.Length > 0).Distinct()))
             tags.Children.Add(new Border { Background = AppTheme.Brush("#E3F2FB"), CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 2), Margin = new Thickness(0, 0, 5, 4), Child = new TextBlock { Text = t, FontSize = 12 } });
@@ -205,6 +275,20 @@ public sealed class TimNhanhWindow : Window
             if (r.Kg is not null) rr.Children.Add(new TextBlock { Text = FK(r.Kg) + " kg", Classes = { "muted" }, FontSize = 11.5, HorizontalAlignment = HorizontalAlignment.Right });
             Grid.SetColumn(rr, 1); g.Children.Add(rr);
             _detail.Children.Add(g);
+        }
+        if (_data is not null && Gs.Decode(_data, r0.Ma) is { Count: > 0 } dec)
+        {
+            _detail.Children.Add(Sec("Giải mã (Tổng hợp)"));
+            var dg = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*") };
+            for (var i = 0; i < dec.Count; i++)
+            {
+                dg.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                var (lb, code, name) = dec[i];
+                var a = new TextBlock { Text = lb, FontSize = 11.5, Classes = { "muted" }, Margin = new Thickness(0, 1, 8, 1) }; Grid.SetRow(a, i); dg.Children.Add(a);
+                var c = new TextBlock { Text = code, FontSize = 12, FontFamily = new FontFamily("Consolas, Menlo, monospace"), FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 1, 8, 1) }; Grid.SetRow(c, i); Grid.SetColumn(c, 1); dg.Children.Add(c);
+                var n = new TextBlock { Text = name ?? "Chưa khai báo", FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 1) }; if (name is null) n.Classes.Add("muted"); Grid.SetRow(n, i); Grid.SetColumn(n, 2); dg.Children.Add(n);
+            }
+            _detail.Children.Add(dg);
         }
         var hds = rows.Select(r => r.Hd).Where(h => h.Length > 0).Distinct().ToList();
         if (hds.Count > 0) { _detail.Children.Add(Sec("Hợp đồng")); _detail.Children.Add(new TextBlock { Text = string.Join(" · ", hds), TextWrapping = TextWrapping.Wrap, FontSize = 12.5 }); }

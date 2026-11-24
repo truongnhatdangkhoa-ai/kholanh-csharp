@@ -8,10 +8,10 @@ public static class ExcelOps
 {
     public sealed record Sheet(string Name, IReadOnlyList<IReadOnlyList<object?>> Aoa);
 
-    /// <summary>Đọc mọi sheet của file (xlsx / xlsm / xls / csv); số giữ là số, ngày → số ngày Excel.</summary>
+    /// <summary>Đọc mọi sheet của file (xlsx / xlsm / xls / csv); số giữ là số, ô ngày giữ là DateTime (như cellDates của app cũ).</summary>
     public static List<Sheet> Read(string path)
     {
-        var (book, names) = CkService.ReadExcel(path);
+        var (book, names) = CkService.ReadExcel(path, keepDates: true);
         return names.Select(n => new Sheet(n, book[n])).ToList();
     }
 
@@ -40,6 +40,9 @@ public static class ExcelOps
         if (!wb.Worksheets.Any()) wb.AddWorksheet("Sheet1");
         wb.SaveAs(path);
     }
+
+    /// <summary>Giá trị ô để hiện trên lưới: ngày → dd/MM/yyyy (kèm giờ nếu có), còn lại như <see cref="CcBang.Str"/>.</summary>
+    public static string Show(object? v) => v is DateTime d ? d.ToString(d.TimeOfDay == TimeSpan.Zero ? "dd/MM/yyyy" : "dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture) : CcBang.Str(v);
 
     public static string SheetName(string name0, HashSet<string> used)
     {

@@ -78,6 +78,8 @@ public sealed class CkSource
 {
     public bool Ok;
     public string Kind = "", Error = "", FileName = "", Sheet = "", LoadedAt = "";
+    /// <summary>Lấy từ module (vd "module Tồn kho An An") — rỗng = nạp file.</summary>
+    public string FromModule = "";
     public bool NeedMap;
     public int HeaderRow;
     public Dictionary<string, int> Mapping = new();
@@ -562,6 +564,13 @@ public static class CkImport
     /// <summary>Đọc 1 workbook (đã chuyển thành mảng dòng từng sheet) cho nguồn <paramref name="kind"/>; kế toán kèm sheet chứng từ + danh mục.</summary>
     public static CkSource ReadWorkbook(IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<object?>>> book, IList<string> names, string kind, string fileName, ReadOpts? o = null, string? sheet = null)
     {
+        if (CkService.IsMove(kind))
+        {
+            var msn = sheet is not null && names.Contains(sheet) ? sheet : names.FirstOrDefault();
+            if (msn is null) return new CkSource { Kind = kind, FileName = fileName, Error = "File không có sheet nào." };
+            var mr = CkMovement.Read(book[msn], kind); mr.FileName = fileName; mr.Sheets = names.ToList(); if (mr.Ok) mr.Sheet = msn;
+            return mr;
+        }
         var sn = PickSheet(book, names, kind, sheet);
         if (sn is null)
         {

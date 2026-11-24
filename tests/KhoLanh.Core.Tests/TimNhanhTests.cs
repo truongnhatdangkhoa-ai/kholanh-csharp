@@ -56,6 +56,24 @@ public class TimNhanhTests : IDisposable
         Assert.Equal("A.01.1.1", Gs.ShortPlace("TG1.A.01.1.1"));
     }
 
+    [Fact]
+    public void Tim_phieu_LSX_cont_va_giai_ma()
+    {
+        GsDoc D(string id, params string[] f) => new("pnx", id, "m13", "Phiếu " + f[0], "", string.Join(" | ", f.Select(GsDocs.Fold)));
+        var docs = new[] { D("1", "21.11 XK 05", "LSX 26.11.020", "CGC", "TGHU8812345"), D("2", "22.11 XK 06", "LSX 26.11.031", "MATSUOKA", "MSKU1234567"), D("3", "XK 07", "26.11.03", "Thuận Phước", "") };
+        Assert.Equal(new[] { "1" }, GsDocs.Search(docs, "tghu88").Select(d => d.Id));
+        Assert.Equal(new[] { "3", "2" }, GsDocs.Search(docs, "26.11.03").Select(d => d.Id));   // khớp đầu trường lên trước, rồi theo thứ tự
+        Assert.Equal(new[] { "3" }, GsDocs.Search(docs, "thuan phuoc").Select(d => d.Id));
+        Assert.Empty(GsDocs.Search(docs, "  "));
+        var data = new Gs.Data(); data.Seg[8] = new() { ["3140"] = "Size 31/40" }; data.Seg[1] = new() { ["VRHL"] = "Tôm thẻ" };
+        var dec = Gs.Decode(data, "TPC-VRHLBTNXECR003140IMC1");
+        Assert.Equal(10, dec.Count);
+        Assert.Equal(("Tên sản phẩm", "VRHL", (string?)"Tôm thẻ"), dec[0]);
+        Assert.Equal(("Size", "3140", (string?)"Size 31/40"), dec[7]);
+        Assert.Null(dec[9].Name);
+        Assert.Empty(Gs.Decode(data, "BOT-A"));
+    }
+
     // ---- gom dữ liệu thật từ các module
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "klcs-gs-" + Guid.NewGuid().ToString("N"));
     private readonly AppServices _s;

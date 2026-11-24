@@ -147,6 +147,50 @@ public static class CkHistory
         return (true, "", entry);
     }
 
+    public sealed record CellChange(string Field, JsonNode? Before, JsonNode? After);
+    public static bool NodeEquals(JsonNode? a, JsonNode? b) => NodeText(a) == NodeText(b);
+    private static string NodeText(JsonNode? n) => n is JsonValue v && v.TryGetValue<double>(out var d) ? JsNum(d) : n?.ToString() ?? "";
+
+    /// <summary>Sửa ô dữ liệu nguồn (mã / số lượng kg) của 1 dòng — dữ liệu đọc từ file không đổi, phần sửa được áp khi đối chiếu (H.editCells).</summary>
+    public static (bool Ok, string Error, CkEntry? Entry) EditCells(CkState state, string kind, string key, IEnumerable<CellChange> changes, CkMeta m, string ma = "", string sourceLabel = "", string rowLabel = "")
+    {
+        var at = m.At.Length > 0 ? m.At : Now();
+        var list = changes.Where(c => c.Field is "ma" or "kg" && NodeText(c.Before) != NodeText(c.After)).ToList();
+        if (list.Count == 0) return (false, "Không có gì thay đổi", null);
+        var ops = new List<CkOp>();
+        foreach (var c in list)
+        {
+            var rec = new CkEdit2 { Id = Uid("e"), Kind = kind, Key = key, Field = c.Field, Before = c.Before?.DeepClone(), After = c.After?.DeepClone(), At = at, By = m.By };
+            state.Edits.Add(rec); ops.Add(new CkOp { T = "ed+", Id = rec.Id });
+        }
+        var mas = list.SelectMany(c => c.Field == "ma" ? new[] { NodeText(c.Before), NodeText(c.After) } : new[] { ma }).Where(x => x.Length > 0).Distinct().ToList();
+        var entry = new CkEntry
+        {
+            Id = Uid("h"), At = at, By = m.By, Action = "sua-du-lieu", Ma = mas.LastOrDefault() ?? "", Mas = mas,
+            Summary = $"Sửa dữ liệu {(sourceLabel.Length > 0 ? sourceLabel : kind)} (dòng {(rowLabel.Length > 0 ? rowLabel : key)}): " + string.Join("; ", list.Select(c => (c.Field == "ma" ? "mã " : "số lượng ") + NodeText(c.Before) + " → " + NodeText(c.After))),
+            Reason = m.Reason, Ops = ops,
+        };
+        state.History.Add(entry);
+        return (true, "", entry);
+    }
+
+    /// <summary>Trả lại giá trị gốc 1 ô (hủy mọi lần sửa ô đó) — 1 thao tác, hoàn tác được (H.revertCell).</summary>
+    public static (bool Ok, string Error, CkEntry? Entry) RevertCell(CkState state, string kind, string key, string field, CkMeta m, string ma = "", string sourceLabel = "", string rowLabel = "")
+    {
+        var at = m.At.Length > 0 ? m.At : Now();
+        var act = state.Edits.Where(e => e.Kind == kind && e.Key == key && e.Field == field && !e.Cancelled).ToList();
+        if (act.Count == 0) return (false, "Ô này chưa bị sửa", null);
+        var ops = new List<CkOp>();
+        foreach (var e in act) { e.Cancelled = true; e.CancelledAt = at; ops.Add(new CkOp { T = "ed-", Id = e.Id }); }
+        var entry = new CkEntry
+        {
+            Id = Uid("h"), At = at, By = m.By, Action = "huy-sua-du-lieu", Ma = ma, Mas = ma.Length > 0 ? new() { ma } : new(),
+            Summary = $"Trả lại giá trị gốc {(field == "ma" ? "mã" : "số lượng")} ({(sourceLabel.Length > 0 ? sourceLabel : kind)}, dòng {(rowLabel.Length > 0 ? rowLabel : key)})", Ops = ops,
+        };
+        state.History.Add(entry);
+        return (true, "", entry);
+    }
+
     public static (bool Ok, string Error, CkEntry? Entry) SetStatus(CkState s, string ma, string status, CkMeta m) => Commit(s, ma, new Patch { Status = status }, m with { Action = "doi-trang-thai", Summary = "Đổi trạng thái → " + (CkConfig.StatusLabel(status) is { Length: > 0 } l ? l : status) });
     public static (bool Ok, string Error, CkEntry? Entry) Confirm(CkState s, string ma, string cause, string causeNote, double? diffAtDecision, double adjQty, string? note, CkMeta m)
     {

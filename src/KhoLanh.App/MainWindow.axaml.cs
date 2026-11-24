@@ -256,8 +256,9 @@ public partial class MainWindow : Window
     {
         if (_search is { } open) { open.Activate(); return open; }
         var mods = _menu.SelectMany(m => m.items.Where(Allowed).Select(i => new Views.TimNhanhWindow.ModuleLink(i.Key, i.Label, GroupLabel(m.group)))).ToList();
-        var w = _search = new Views.TimNhanhWindow(mods, Navigate, text);
+        var w = _search = new Views.TimNhanhWindow(mods, Navigate, text, (k, c) => Show(k, c));
         w.Closed += (_, _) => _search = null;
+        Ui.ApplyZoom(w);
         w.Show(this);
         return w;
     }

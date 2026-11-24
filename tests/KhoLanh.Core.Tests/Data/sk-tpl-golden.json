@@ -1,0 +1,442 @@
+{
+ "stores": [
+  {
+   "id": "m1",
+   "ten": "Mẫu xuất",
+   "loai": "xuat",
+   "macDinh": "",
+   "columnsJson": "[{\"key\":\"maHang\",\"label\":\"Mã\",\"hidden\":true},{\"key\":\"viTri\",\"label\":\"VT\",\"w\":30},{\"key\":\"soLuong\",\"label\":\"Bao\"},{\"key\":\"net\",\"label\":\"Net (kg)\"},{\"key\":\"x_so_xe\",\"label\":\"Số xe\",\"type\":\"text\",\"w\":150},{\"key\":\"x_nhiet\",\"label\":\"\",\"type\":\"number\"},{\"key\":\"bad\",\"label\":\"Lạ\"},{\"key\":\"hopDong\",\"removed\":true},{\"key\":\"maHang\",\"removed\":true},{\"key\":\"ghiChu\",\"hidden\":true}]"
+  },
+  {
+   "id": "m2",
+   "ten": "Mẫu chung",
+   "loai": "",
+   "macDinh": "1",
+   "columnsJson": "[]"
+  },
+  {
+   "id": "",
+   "ten": "",
+   "loai": "abc",
+   "macDinh": 1,
+   "columnsJson": "không phải json"
+  }
+ ],
+ "templates": [
+  {
+   "ten": "Mẫu xuất",
+   "loai": "xuat",
+   "macDinh": false,
+   "removed": [
+    "hopDong"
+   ],
+   "columns": [
+    {
+     "key": "maHang",
+     "label": "Mã",
+     "type": "text",
+     "hidden": false,
+     "w": 190,
+     "builtin": true
+    },
+    {
+     "key": "viTri",
+     "label": "VT",
+     "type": "text",
+     "hidden": false,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "soLuong",
+     "label": "Bao",
+     "type": "number",
+     "hidden": false,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "netDv",
+     "label": "Net (kg/đơn vị)",
+     "type": "number",
+     "hidden": false,
+     "w": 120,
+     "builtin": true
+    },
+    {
+     "key": "net",
+     "label": "Tổng (kg)",
+     "type": "number",
+     "hidden": false,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "x_so_xe",
+     "label": "Số xe",
+     "type": "text",
+     "hidden": false,
+     "w": 150,
+     "builtin": false
+    },
+    {
+     "key": "x_nhiet",
+     "label": "nhiet",
+     "type": "number",
+     "hidden": false,
+     "w": 120,
+     "builtin": false
+    },
+    {
+     "key": "ghiChu",
+     "label": "Ghi chú",
+     "type": "text",
+     "hidden": true,
+     "w": 220,
+     "builtin": true
+    },
+    {
+     "key": "size",
+     "label": "Size",
+     "type": "text",
+     "hidden": true,
+     "w": 90,
+     "builtin": true
+    },
+    {
+     "key": "hanDung",
+     "label": "Hạn dùng",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "ngayNhap",
+     "label": "Ngày nhập",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    }
+   ]
+  },
+  {
+   "ten": "Mẫu chung",
+   "loai": "",
+   "macDinh": true,
+   "removed": [],
+   "columns": [
+    {
+     "key": "netDv",
+     "label": "Net (kg/đơn vị)",
+     "type": "number",
+     "hidden": false,
+     "w": 120,
+     "builtin": true
+    },
+    {
+     "key": "viTri",
+     "label": "Vị trí",
+     "type": "text",
+     "hidden": true,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "maHang",
+     "label": "Mã hàng",
+     "type": "text",
+     "hidden": true,
+     "w": 190,
+     "builtin": true
+    },
+    {
+     "key": "size",
+     "label": "Size",
+     "type": "text",
+     "hidden": true,
+     "w": 90,
+     "builtin": true
+    },
+    {
+     "key": "soLuong",
+     "label": "Số lượng",
+     "type": "number",
+     "hidden": true,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "net",
+     "label": "Tổng (kg)",
+     "type": "number",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "hopDong",
+     "label": "Hợp đồng",
+     "type": "text",
+     "hidden": true,
+     "w": 130,
+     "builtin": true
+    },
+    {
+     "key": "hanDung",
+     "label": "Hạn dùng",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "ngayNhap",
+     "label": "Ngày nhập",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "ghiChu",
+     "label": "Ghi chú",
+     "type": "text",
+     "hidden": true,
+     "w": 220,
+     "builtin": true
+    }
+   ]
+  },
+  {
+   "ten": "Mẫu",
+   "loai": "",
+   "macDinh": true,
+   "removed": [],
+   "columns": [
+    {
+     "key": "netDv",
+     "label": "Net (kg/đơn vị)",
+     "type": "number",
+     "hidden": false,
+     "w": 120,
+     "builtin": true
+    },
+    {
+     "key": "viTri",
+     "label": "Vị trí",
+     "type": "text",
+     "hidden": true,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "maHang",
+     "label": "Mã hàng",
+     "type": "text",
+     "hidden": true,
+     "w": 190,
+     "builtin": true
+    },
+    {
+     "key": "size",
+     "label": "Size",
+     "type": "text",
+     "hidden": true,
+     "w": 90,
+     "builtin": true
+    },
+    {
+     "key": "soLuong",
+     "label": "Số lượng",
+     "type": "number",
+     "hidden": true,
+     "w": 100,
+     "builtin": true
+    },
+    {
+     "key": "net",
+     "label": "Tổng (kg)",
+     "type": "number",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "hopDong",
+     "label": "Hợp đồng",
+     "type": "text",
+     "hidden": true,
+     "w": 130,
+     "builtin": true
+    },
+    {
+     "key": "hanDung",
+     "label": "Hạn dùng",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "ngayNhap",
+     "label": "Ngày nhập",
+     "type": "date",
+     "hidden": true,
+     "w": 110,
+     "builtin": true
+    },
+    {
+     "key": "ghiChu",
+     "label": "Ghi chú",
+     "type": "text",
+     "hidden": true,
+     "w": 220,
+     "builtin": true
+    }
+   ]
+  }
+ ],
+ "stored": {
+  "id": "m1",
+  "ten": "Mẫu xuất",
+  "loai": "xuat",
+  "macDinh": "",
+  "columnsJson": "[{\"key\":\"maHang\",\"label\":\"Mã\",\"type\":\"text\",\"required\":true,\"hidden\":false,\"w\":190,\"builtin\":true,\"formula\":null},{\"key\":\"viTri\",\"label\":\"VT\",\"type\":\"text\",\"required\":false,\"hidden\":false,\"w\":100,\"builtin\":true,\"formula\":null},{\"key\":\"soLuong\",\"label\":\"Bao\",\"type\":\"number\",\"required\":false,\"hidden\":false,\"w\":100,\"builtin\":true,\"formula\":null},{\"key\":\"netDv\",\"label\":\"Net (kg/đơn vị)\",\"type\":\"number\",\"required\":false,\"hidden\":false,\"w\":120,\"builtin\":true,\"formula\":null},{\"key\":\"net\",\"label\":\"Tổng (kg)\",\"type\":\"number\",\"required\":false,\"hidden\":false,\"w\":110,\"builtin\":true,\"formula\":[{\"c\":\"soLuong\"},\"*\",{\"c\":\"netDv\"}]},{\"key\":\"x_so_xe\",\"label\":\"Số xe\",\"type\":\"text\",\"required\":false,\"hidden\":false,\"w\":150,\"builtin\":false,\"formula\":null},{\"key\":\"x_nhiet\",\"label\":\"nhiet\",\"type\":\"number\",\"required\":false,\"hidden\":false,\"w\":120,\"builtin\":false,\"formula\":null},{\"key\":\"ghiChu\",\"label\":\"Ghi chú\",\"type\":\"text\",\"required\":false,\"hidden\":true,\"w\":220,\"builtin\":true,\"formula\":null},{\"key\":\"size\",\"label\":\"Size\",\"type\":\"text\",\"required\":false,\"hidden\":true,\"w\":90,\"builtin\":true,\"formula\":null},{\"key\":\"hanDung\",\"label\":\"Hạn dùng\",\"type\":\"date\",\"required\":false,\"hidden\":true,\"w\":110,\"builtin\":true,\"formula\":null},{\"key\":\"ngayNhap\",\"label\":\"Ngày nhập\",\"type\":\"date\",\"required\":false,\"hidden\":true,\"w\":110,\"builtin\":true,\"formula\":null},{\"key\":\"hopDong\",\"removed\":true}]"
+ },
+ "eval": [
+  {
+   "f": [
+    {
+     "c": "soLuong"
+    },
+    "*",
+    {
+     "c": "netDv"
+    }
+   ],
+   "vals": {
+    "soLuong": 4,
+    "netDv": 25
+   },
+   "out": 100
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "+",
+    {
+     "c": "b"
+    },
+    "*",
+    {
+     "n": 2
+    }
+   ],
+   "vals": {
+    "a": 1,
+    "b": 3
+   },
+   "out": 7
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "+",
+    {
+     "c": "b"
+    },
+    "*",
+    {
+     "n": 2
+    }
+   ],
+   "vals": {
+    "a": 1,
+    "b": null
+   },
+   "out": 1
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "-",
+    {
+     "c": "b"
+    }
+   ],
+   "vals": {
+    "a": null,
+    "b": null
+   },
+   "out": null
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "/",
+    {
+     "c": "b"
+    }
+   ],
+   "vals": {
+    "a": 1,
+    "b": 0
+   },
+   "out": null
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "/",
+    {
+     "n": 3
+    }
+   ],
+   "vals": {
+    "a": 10
+   },
+   "out": 3.3333
+  },
+  {
+   "f": [
+    {
+     "c": "a"
+    },
+    "-",
+    {
+     "c": "b"
+    },
+    "/",
+    {
+     "n": 4
+    },
+    "+",
+    {
+     "n": 0.5
+    }
+   ],
+   "vals": {
+    "a": 7,
+    "b": 2
+   },
+   "out": 7
+  }
+ ],
+ "pick": {
+  "xuat": "Mẫu xuất",
+  "nhap": "Mẫu chung",
+  "none": "Mẫu cơ bản"
+ }
+}

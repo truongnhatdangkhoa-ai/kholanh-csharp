@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -20,6 +21,8 @@ public sealed class CkService
     public const string PermKey = "m7ck", Db = "so-lieu-cuoi-ky";
     private const string SPhien = "DC2_Phien", SRev = "DC2_Rev", SCt = "DC2_ChungTu", SMaKt = "DC2_MaKeToan", SDm = "DC2_DanhMuc", SQd = "DC2_QuyetDinh", SDc = "DC2_DieuChinh", SLs = "DC2_LichSu", SEd = "DC2_ChinhSua";
     private static string SrcSheet(string k) => "DC2_Nguon_" + k;
+    /// <summary>Nguồn chứng từ nhập / xuất An An (dòng = chứng từ).</summary>
+    public static bool IsMove(string k) => k is "anan_nhap" or "anan_xuat";
     private static readonly string[] SrcKinds = { "anan", "ketoan", "gui", "kiemke", "anan_nhap", "anan_xuat" };
     private const int Chunk = 26000;
     private static readonly JsonSerializerOptions J = CkHistory.Json;
@@ -84,7 +87,7 @@ public sealed class CkService
         var o = new JsonObject
         {
             ["ok"] = true, ["kind"] = s.Kind, ["fileName"] = s.FileName, ["sheet"] = s.Sheet, ["sheets"] = new JsonArray(s.Sheets.Select(x => (JsonNode)x).ToArray()), ["headerRow"] = s.HeaderRow,
-            ["loadedAt"] = s.LoadedAt, ["mapping"] = JsonSerializer.SerializeToNode(s.Mapping, J), ["mappingLabels"] = JsonSerializer.SerializeToNode(s.MappingLabels, J),
+            ["loadedAt"] = s.LoadedAt, ["origin"] = s.FromModule.Length > 0 ? new JsonObject { ["type"] = "module", ["label"] = s.FromModule } : new JsonObject { ["type"] = "file" }, ["mapping"] = JsonSerializer.SerializeToNode(s.Mapping, J), ["mappingLabels"] = JsonSerializer.SerializeToNode(s.MappingLabels, J),
             ["labels"] = new JsonArray(s.Labels.Select(x => (JsonNode)x).ToArray()),
             ["stats"] = new JsonObject
             {
@@ -101,7 +104,7 @@ public sealed class CkService
     private static CkPeriod? PeriodOf(JsonNode? n) => n is JsonObject o && (AnAnStore.S(o["from"]).Length > 0 || AnAnStore.S(o["to"]).Length > 0) ? new CkPeriod(AnAnStore.S(o["from"]), AnAnStore.S(o["to"]), AnAnStore.S(o["source"])) : null;
     private static CkSource FromMeta(string kind, JsonObject o, List<CkRow> rows)
     {
-        var s = new CkSource { Ok = true, Kind = kind, FileName = AnAnStore.S(o["fileName"]), Sheet = AnAnStore.S(o["sheet"]), LoadedAt = AnAnStore.S(o["loadedAt"]), Rows = rows, Period = PeriodOf(o["period"]), PeriodGuess = PeriodOf(o["periodGuess"]) };
+        var s = new CkSource { Ok = true, Kind = kind, FileName = AnAnStore.S(o["fileName"]), Sheet = AnAnStore.S(o["sheet"]), LoadedAt = AnAnStore.S(o["loadedAt"]), Rows = rows, Period = PeriodOf(o["period"]), PeriodGuess = PeriodOf(o["periodGuess"]), FromModule = AnAnStore.S(o["origin"]?["type"]) == "module" ? AnAnStore.S(o["origin"]?["label"]) : "" };
         try { s.HeaderRow = (int)C3dI(o["headerRow"]); s.Mapping = o["mapping"]?.Deserialize<Dictionary<string, int>>(J) ?? new(); s.MappingLabels = o["mappingLabels"]?.Deserialize<Dictionary<string, string>>(J) ?? new(); } catch { }
         if (o["labels"] is JsonArray la) s.Labels = la.Select(AnAnStore.S).ToList();
         if (o["sheets"] is JsonArray sh) s.Sheets = sh.Select(AnAnStore.S).ToList();
@@ -138,7 +141,7 @@ public sealed class CkService
             [SPhien] = TextChunks(meta), [SCt] = Chunks(kt?.Ct?.Vouchers ?? new()), [SMaKt] = Chunks(kt?.KnownCodes ?? new()), [SDm] = Chunks(kt?.DanhMuc ?? new()),
             [SPhien + "_ct"] = TextChunks(kt?.Ct is { } ct ? new JsonObject { ["ok"] = true, ["kind"] = "ct", ["sheet"] = ct.Sheet, ["stats"] = new JsonObject { ["nRows"] = ct.Stats.NRows, ["from"] = ct.Stats.From, ["to"] = ct.Stats.To } } : null),
         };
-        foreach (var k in SrcKinds) sh[SrcSheet(k)] = Files.TryGetValue(k, out var s) ? Chunks(s.Rows) : new JsonArray();
+        foreach (var k in SrcKinds) sh[SrcSheet(k)] = Files.TryGetValue(k, out var s) ? (IsMove(k) ? Chunks(s.Vouchers) : Chunks(s.Rows)) : new JsonArray();
         return sh;
     }
     private string Stamp() => string.Join("|", Files.OrderBy(k => k.Key, StringComparer.Ordinal).Select(kv => kv.Key + ":" + kv.Value.FileName + ":" + kv.Value.LoadedAt + ":" + kv.Value.Rows.Count)) + "|" + (Files.GetValueOrDefault("ketoan")?.Ct?.Vouchers.Count ?? 0);
@@ -189,7 +192,7 @@ public sealed class CkService
         if (meta is null) return false;
         Period = PeriodOf(meta["period"]); Options = OptionsOf(meta["options"]);
         if (meta["sources"] is JsonObject srcs)
-            foreach (var (k, v) in srcs) if (v is JsonObject o && SrcKinds.Contains(k)) Files[k] = FromMeta(k, o, Unchunk<CkRow>(Read(SrcSheet(k))));
+            foreach (var (k, v) in srcs) if (v is JsonObject o && SrcKinds.Contains(k)) { if (IsMove(k)) { var f = FromMeta(k, o, new()); f.Vouchers = Unchunk<CkVoucher>(Read(SrcSheet(k))); Files[k] = f; } else Files[k] = FromMeta(k, o, Unchunk<CkRow>(Read(SrcSheet(k)))); }
         if (Files.TryGetValue("ketoan", out var kt))
         {
             kt.KnownCodes = Unchunk<string>(Read(SMaKt));
@@ -222,7 +225,7 @@ public sealed class CkService
     }
 
     // ------------------------------------------------------------ đọc Excel (số giữ nguyên là số, ngày → số ngày Excel — giống SheetJS raw)
-    public static (Dictionary<string, IReadOnlyList<IReadOnlyList<object?>>> Book, List<string> Names) ReadExcel(string path)
+    public static (Dictionary<string, IReadOnlyList<IReadOnlyList<object?>>> Book, List<string> Names) ReadExcel(string path, bool keepDates = false)
     {
         var ext = Path.GetExtension(path).ToLowerInvariant(); var book = new Dictionary<string, IReadOnlyList<IReadOnlyList<object?>>>(); var names = new List<string>();
         if (ext is ".xls" or ".csv")
@@ -248,7 +251,7 @@ public sealed class CkService
                         try { v = cell.HasFormula ? cell.CachedValue : cell.Value; } catch { arr[c - 1] = cell.GetFormattedString(); continue; }
                         arr[c - 1] = v.Type switch
                         {
-                            XLDataType.Number => v.GetNumber(), XLDataType.DateTime => v.GetDateTime().ToOADate(), XLDataType.Boolean => v.GetBoolean() ? "TRUE" : "FALSE",
+                            XLDataType.Number => v.GetNumber(), XLDataType.DateTime => keepDates ? v.GetDateTime() : v.GetDateTime().ToOADate(), XLDataType.Boolean => v.GetBoolean() ? "TRUE" : "FALSE",
                             XLDataType.Text => v.GetText(), XLDataType.TimeSpan => v.GetTimeSpan().TotalDays, XLDataType.Blank => "", _ => cell.GetFormattedString(),
                         };
                     }
@@ -276,7 +279,62 @@ public sealed class CkService
     {
         if (!CanEdit) throw new BusinessException("Bạn chỉ có quyền xem.");
         var (book, names) = ReadExcel(path);
-        var res = CkImport.ReadWorkbook(book, names, kind, Path.GetFileName(path), new CkImport.ReadOpts { Manual = manual, Prior = Prior(kind) }, sheet);
+        return LoadBook(kind, book, names, Path.GetFileName(path), manual, sheet);
+    }
+
+    // ------------------------------------------------------------ lấy thẳng từ module (file đã nạp ở Tồn kho An An / Tồn kho gửi)
+    private static readonly Dictionary<string, (string Db, string Meta, string Rows, string Label)> ModSrc = new()
+    {
+        ["anan"] = ("ton-kho-an-an", "LoadDataMeta", "LoadData", "module Tồn kho An An"),
+        ["gui"] = ("ton-kho-gui", "FileNap_Meta", "FileNap", "module Tồn kho gửi"),
+    };
+    public static bool HasModuleSource(string kind) => ModSrc.ContainsKey(kind);
+    private JsonObject? ModuleMeta(string kind)
+    {
+        var m = ModSrc[kind];
+        try { var arr = JsonNode.Parse(_src().Read(m.Db, m.Meta)) as JsonArray; var c = arr?.FirstOrDefault()?["data"]?.ToString(); return c is not null && c.StartsWith("__JSON__") ? JsonNode.Parse(c[8..]) as JsonObject : null; } catch { return null; }
+    }
+    /// <summary>Mô tả file đang nạp trong module (để hiện trên nút); null = module chưa có dữ liệu.</summary>
+    public string? ModuleInfo(string kind)
+    {
+        if (!ModSrc.ContainsKey(kind) || ModuleMeta(kind) is not { } m) return null;
+        var fn = AnAnStore.S(m["fileName"]); if (fn.Length == 0) return null;
+        var dd = AnAnStore.S(m["dataDate"]); return fn + (dd.Length > 0 ? " · dữ liệu ngày " + dd : "");
+    }
+    /// <summary>Dựng lại bảng y như file gốc từ dữ liệu module rồi đi qua ĐÚNG bộ đọc file (như loadFromModule của app cũ).</summary>
+    public CkSource LoadFromModule(string kind, Dictionary<string, int>? manual = null)
+    {
+        if (!CanEdit) throw new BusinessException("Bạn chỉ có quyền xem.");
+        var ms = ModSrc[kind]; var meta = ModuleMeta(kind);
+        JsonArray rows; try { rows = JsonNode.Parse(_src().Read(ms.Db, ms.Rows)) as JsonArray ?? new(); } catch { rows = new(); }
+        var nm0 = kind == "anan" ? "Tồn kho An An" : "Tồn kho gửi";
+        if (meta is null || rows.Count == 0) throw new BusinessException(nm0 + ": module chưa có dữ liệu đã nạp — mở module đó và nạp file trước.");
+        static object? Val(JsonNode? n) => n is JsonValue v ? (v.TryGetValue<double>(out var d) ? d : (object?)v.ToString()) : n is null ? "" : n.ToString();
+        var aoa = new List<IReadOnlyList<object?>>();
+        if (kind == "anan")
+        {
+            var H = (meta["headers"] as JsonArray ?? new()).Select(h => AnAnStore.S(h)).ToList();
+            if (H.Count == 0) throw new BusinessException("Module Tồn kho An An chưa lưu tiêu đề cột — nạp lại file ở module đó.");
+            aoa.Add(H.Cast<object?>().ToList());
+            foreach (var o in rows.OfType<JsonObject>()) aoa.Add(Enumerable.Range(0, H.Count).Select(i => Val(o["c" + i])).ToList());
+        }
+        else
+        {
+            var w = (int)(meta["cols"] is JsonValue cv && cv.TryGetValue<double>(out var cd) ? cd : 0);
+            if (w <= 0) throw new BusinessException("Dữ liệu trong module Tồn kho gửi không đọc được.");
+            foreach (var o in rows.OfType<JsonObject>()) aoa.Add(Enumerable.Range(0, w).Select(i => Val(o["c" + i])).ToList());
+        }
+        var sheet = AnAnStore.S(meta["sheet"]); if (sheet.Length == 0) sheet = "Sheet1";
+        var nm = AnAnStore.S(meta["fileName"]); if (nm.Length == 0) nm = nm0 + " (module)";
+        var book = new Dictionary<string, IReadOnlyList<IReadOnlyList<object?>>> { [sheet] = aoa };
+        var res = LoadBook(kind, book, new List<string> { sheet }, nm, manual, null);
+        if (res.Ok) res.FromModule = ms.Label;
+        return res;
+    }
+
+    private CkSource LoadBook(string kind, IReadOnlyDictionary<string, IReadOnlyList<IReadOnlyList<object?>>> book, List<string> names, string fileName, Dictionary<string, int>? manual, string? sheet)
+    {
+        var res = CkImport.ReadWorkbook(book, names, kind, fileName, new CkImport.ReadOpts { Manual = manual, Prior = Prior(kind) }, sheet);
         if (!res.Ok) return res;
         res.LoadedAt = CkHistory.Now();
         Files[kind] = res; Remember(kind, res);
@@ -317,7 +375,9 @@ public sealed class CkService
         var an = Edited("anan"); var kt = Edited("ketoan"); var gui = Files.ContainsKey("gui") ? Edited("gui") : null;
         foreach (var (k, s) in Files) s.PeriodCheck = CkImport.CheckPeriod(s.Period ?? s.PeriodGuess, Period, k);
         if (an is not null) an.PeriodCheck = Files["anan"].PeriodCheck; if (kt is not null) kt.PeriodCheck = Files["ketoan"].PeriodCheck; if (gui is not null) gui.PeriodCheck = Files["gui"].PeriodCheck;
-        var inp = new CkInput { AnAn = an, KeToan = kt, Gui = gui, Ct = Files["ketoan"].Ct?.Vouchers ?? new(), DanhMuc = Files["ketoan"].DanhMuc, Period = Period, Options = Options };
+        var nh = Files.GetValueOrDefault("anan_nhap"); var xu = Files.GetValueOrDefault("anan_xuat");
+        var vouchers = (Files["ketoan"].Ct?.Vouchers ?? new()).Concat(nh?.Vouchers ?? new()).Concat(xu?.Vouchers ?? new()).ToList();
+        var inp = new CkInput { AnAn = an, KeToan = kt, Gui = gui, AnAnNhap = nh, AnAnXuat = xu, Ct = vouchers, DanhMuc = Files["ketoan"].DanhMuc, Period = Period, Options = Options };
         Result = CkEngine.Reconcile(inp);
         Result.Overlay(State);
         return Result;
@@ -336,6 +396,40 @@ public sealed class CkService
     public void Confirm(string ma, string cause, string causeNote, double adjQty, string reason, string? note) { Need(); var it = Result?.ByMa.GetValueOrDefault(ma); Apply(CkHistory.Confirm(State, ma, cause, causeNote, it?.Diff, adjQty, note, Meta(reason))); }
     public void SetStatus(string ma, string status) { Need(); Apply(CkHistory.SetStatus(State, ma, status, Meta())); }
     public void SetNote(string ma, string note) { Need(); Apply(CkHistory.SetNote(State, ma, note, Meta())); }
+    /// <summary>Khóa dòng nguồn cho phần sửa: nguồn theo dòng chứng từ / lô dùng id, nguồn mỗi mã 1 dòng dùng số dòng Excel.</summary>
+    public static string RowKey(string kind, CkRow r) => kind is "gui" or "ct" or "anan_nhap" or "anan_xuat" ? r.Id ?? "" : r.Row.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Sửa 1 ô (field "ma" | "kg") của dòng nguồn — chỉ ghi phần sửa, file nạp giữ nguyên.</summary>
+    public void EditCell(string kind, CkRow row, string field, string after, string reason = "")
+    {
+        Need();
+        var cur = CurrentValue(kind, row, field);
+        var before = cur?.DeepClone();   // như app cũ: before = giá trị đang hiệu lực (lần sửa đầu = giá trị của file)
+        JsonNode? aft;
+        if (field == "kg")
+        {
+            var n = SoKho.SoKhoCore.ParseNum(after);
+            if (n is not { } d || !double.IsFinite(d)) throw new BusinessException($"Số lượng \"{after}\" không đọc được.");
+            aft = JsonValue.Create(R6(d));
+        }
+        else
+        {
+            var ma = Regex.Replace((after ?? "").Normalize(System.Text.NormalizationForm.FormC).ToUpperInvariant(), @"\s+", "");
+            ma = Regex.Replace(ma, "^TPC-", ""); if (ma.Length == 0) throw new BusinessException("Mã hàng không được để trống.");
+            aft = JsonValue.Create(ma);
+        }
+        if (CkHistory.NodeEquals(cur, aft)) throw new BusinessException("Không có gì thay đổi.");
+        Apply(CkHistory.EditCells(State, kind, RowKey(kind, row), new[] { new CkHistory.CellChange(field, before, aft) }, Meta(reason), row.Ma, CkConfig.SourceTitle.GetValueOrDefault(kind, kind), row.Row.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+    }
+    public void RevertCell(string kind, CkRow row, string field) { Need(); Apply(CkHistory.RevertCell(State, kind, RowKey(kind, row), field, Meta(), row.Ma, CkConfig.SourceTitle.GetValueOrDefault(kind, kind), row.Row.ToString(System.Globalization.CultureInfo.InvariantCulture))); }
+    /// <summary>Giá trị đang hiệu lực của ô (đã áp phần sửa, nếu có).</summary>
+    public JsonNode? CurrentValue(string kind, CkRow row, string field)
+    {
+        var key = RowKey(kind, row);
+        var last = State.Edits.Where(e => e.Kind == kind && e.Key == key && e.Field == field && !e.Cancelled).OrderBy(e => e.At, StringComparer.Ordinal).LastOrDefault();
+        if (last is not null) return last.After;
+        return field == "kg" ? JsonValue.Create(row.Kg) : JsonValue.Create(row.Ma);
+    }
+    public bool IsEdited(string kind, CkRow row, string field) { var key = RowKey(kind, row); return State.Edits.Any(e => e.Kind == kind && e.Key == key && e.Field == field && !e.Cancelled); }
     public void Link(string ma, string other) { Need(); Apply(CkHistory.Link(State, ma, other, Meta())); }
     public void Unlink(string ma, string other) { Need(); Apply(CkHistory.Unlink(State, ma, other, Meta())); }
     public void FlagVoucher(string ma, string id, bool on) { Need(); Apply(CkHistory.FlagVoucher(State, ma, id, on, Meta())); }

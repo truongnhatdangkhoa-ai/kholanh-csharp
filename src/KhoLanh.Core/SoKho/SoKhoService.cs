@@ -48,6 +48,7 @@ public sealed class SoKhoService
         var (lines, dropped) = DedupeById(Read(SLedger).OfType<JsonObject>().Select(NormLine));
         Lines = lines; DroppedDup = dropped.Count;
         Norms = Read(SNorms).OfType<JsonObject>().Select(o => new Norm(S(o["id"]), S(o["hopDong"]), S(o["maHang"]), S(o["size"]), N(o["dinhMuc"]), S(o["donVi"]), S(o["ghiChu"]))).ToList();
+        Templates = Read(STemplates).OfType<JsonObject>().Select(SkTemplate.FromStore).ToList(); if (Templates.Count == 0) Templates = new() { SkTemplate.Default() };
         Outputs = Read(SOutputs).OfType<JsonObject>().Select(o => new Output(S(o["id"]), S(o["hopDong"]), N(o["thanhPham"]), S(o["khach"]), S(o["ghiChu"]))).ToList();
         var cfg = Read(SConfig).OfType<JsonObject>().ToDictionary(o => S(o["key"]), o => S(o["value"]));
         Tol = double.TryParse(cfg.GetValueOrDefault("tol"), NumberStyles.Float, CultureInfo.InvariantCulture, out var t) ? t : 3;
@@ -160,6 +161,17 @@ public sealed class SoKhoService
     }
 
     // ------------------------------------------------------------------ định mức / sản lượng / cấu hình
+
+    /// <summary>Mẫu cột (sheet SoKhoMau, dùng chung định dạng app cũ).</summary>
+    public List<SkTemplate> Templates { get; private set; } = new() { SkTemplate.Default() };
+    public SkTemplate TemplateFor(string loai) => SkTemplate.For(Templates, loai);
+    public void SaveTemplates(IEnumerable<SkTemplate> list)
+    {
+        if (!CanEdit) throw new BusinessException("Bạn chỉ có quyền xem.");
+        var l = list.ToList(); if (l.Count == 0) l.Add(SkTemplate.Default());
+        _src().Write(Db, new Dictionary<string, JsonArray?> { [STemplates] = new JsonArray(l.Select(t => (JsonNode)t.ToStore()).ToArray()) });
+        Templates = l;
+    }
 
     public void SaveNorms(IEnumerable<Norm> rows)
     {

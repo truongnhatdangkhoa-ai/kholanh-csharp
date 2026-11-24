@@ -64,7 +64,7 @@ public sealed record CkCheck(string Level, string Text);
 
 public sealed class CkInput
 {
-    public CkSource? AnAn, KeToan, Gui, KiemKe;
+    public CkSource? AnAn, KeToan, Gui, KiemKe, AnAnNhap, AnAnXuat;
     public List<CkVoucher> Ct = new();
     public List<string>? DanhMuc;
     public CkPeriod? Period;
@@ -403,8 +403,8 @@ public static class CkEngine
         var need = new List<string>(); if (input.AnAn is null) need.Add("anan"); if (input.KeToan is null) need.Add("ketoan");
         if (need.Count > 0) outp.Add(new("err", "Chưa nạp: " + string.Join(", ", need.Select(k => CkConfig.SourceTitle[k]))));
         else outp.Add(new("ok", "Đọc dữ liệu thành công"));
-        var srcs = new (string k, CkSource? s)[] { ("anan", input.AnAn), ("ketoan", input.KeToan), ("gui", input.Gui), ("kiemke", input.KiemKe) };
-        var unrec = srcs.Where(x => x.s is not null && x.s.Mapping.Count == 0).ToList();
+        var srcs = new (string k, CkSource? s)[] { ("anan", input.AnAn), ("ketoan", input.KeToan), ("gui", input.Gui), ("kiemke", input.KiemKe), ("anan_nhap", input.AnAnNhap), ("anan_xuat", input.AnAnXuat) };
+        var unrec = srcs.Take(4).Where(x => x.s is not null && x.s.Mapping.Count == 0).ToList();
         if (unrec.Count == 0 && need.Count == 0) outp.Add(new("ok", "Nhận diện cột và định dạng hợp lệ"));
         outp.Add(new(R.Items.Count > 0 ? "ok" : "warn", $"Mã hàng: {Vn(R.Items.Count)} mã" + (R.Kpi.BoQuaBot > 0 ? $" (ẩn {R.Kpi.BoQuaBot} mã Bột)" : "")));
         foreach (var (k, s) in srcs)

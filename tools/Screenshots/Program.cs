@@ -476,6 +476,11 @@ small.Close();
     var idx = Enumerable.Range(0, grid.Model.RowCount).FirstOrDefault(r => grid.Model.Get(r, 0).Contains("VRCOBTNXXXR00009010IM"));
     grid.Select(idx, 0); WaitCk(500);
     Snap(main, "36b-so-lieu-cuoi-ky-chi-tiet");
+    // tab Dữ liệu nguồn: sửa 1 ô số lượng của An An (tô vàng)
+    { var r0 = ck.Files["anan"].Rows[1]; ck.EditCell("anan", r0, "kg", (r0.Kg + 5).ToString(System.Globalization.CultureInfo.InvariantCulture), "kiểm lại sổ"); }
+    main.Navigate("m7ck"); WaitCk(1200);
+    var ckTabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible); ckTabs.SelectedIndex = 1; WaitCk(500);
+    Snap(main, "36c-so-lieu-cuoi-ky-du-lieu-nguon");
     Console.WriteLine($"[CK] {ck.Result!.Kpi.Tong} mã, lệch {ck.Result.Kpi.Lech}, đã xử lý {ck.Result.Kpi.DaXuLy}");
     if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ck") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Số liệu cuối kỳ): " + outDir); return; }
 }
@@ -968,6 +973,19 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     tc.SelectedIndex = 3; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35b-nxt-bot-sot-ton-kho");
     tc.SelectedIndex = 5; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35c-nxt-bot-sot-dinh-muc");
     tc.SelectedIndex = 6; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35d-nxt-bot-sot-so-cai");
+    // mẫu cột: đổi tên Ghi chú, ẩn Hạn dùng, thêm cột phụ "Người giao" cho phiếu nhập
+    {
+        var tp0 = KhoLanh.Core.SoKho.SkTemplate.Default();
+        var cols = tp0.Columns.Select(c => new System.Text.Json.Nodes.JsonObject { ["key"] = c.Key, ["label"] = c.Key == "ghiChu" ? "Ghi chú kho" : c.Label, ["hidden"] = c.Key == "hanDung", ["w"] = c.W }).ToList();
+        cols.Add(new System.Text.Json.Nodes.JsonObject { ["key"] = "x_nguoi_giao", ["label"] = "Người giao", ["type"] = "text", ["w"] = 140 });
+        sk.SaveTemplates(new[] { tp0, KhoLanh.Core.SoKho.SkTemplate.Norm("", "Mẫu phiếu nhập", "nhap", false, cols) });
+    }
+    main.Navigate("lx"); main.Navigate("m3sk"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); }
+    tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    tc.SelectedIndex = 7; for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    { var cb = tc.GetVisualDescendants().OfType<ComboBox>().FirstOrDefault(c => c.IsEffectivelyVisible && c.ItemCount == 4); if (cb is not null) cb.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } }
+    Snap(main, "35e-nxt-bot-sot-mau-cot");
+    tc.SelectedIndex = 0; for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(main, "35f-nxt-bot-sot-phieu-theo-mau");
     // Vị Trí Bột: đưa tồn theo vị trí lên, gõ SL xuất, tạo 1 phiếu
     s.Vtb.Push(KhoLanh.Core.SoKho.VtbService.FromLedger(sk.Lines, D(0)), D(0));
     s.Vtb.Load(); s.Vtb.CreateSlip(new[] { new KhoLanh.Core.SoKho.VtbService.Pick(0, 2) }, "Xuất cho line chiên");
@@ -1004,6 +1022,9 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     main.Navigate("m21"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
     var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
     lb.SelectedIndex = 3; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "38-xu-ly-pdf");
+    lb.SelectedIndex = 2; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+    { var xv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.XuLyTepView>().First(); var t = xv.LoadPdfForTest(Path.Combine(outDir, "smoke-stamp.pdf")); while (!t.IsCompleted) { Thread.Sleep(30); Pump(); } for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } }
+    Snap(main, "38c-xu-ly-pdf-xem-truoc");
     var tcx = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
     tcx.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
     var lb2 = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
@@ -1046,6 +1067,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     sw.SetQuery("VRHLBTNXECR003140"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
     sw.SelectRow(0); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41-tim-nhanh");
     sw.SetQuery("bot"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41b-tim-nhanh-module");
+    sw.SetQuery("26.11"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41c-tim-nhanh-phieu");
     sw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
 }
 s.Lan.Dispose();

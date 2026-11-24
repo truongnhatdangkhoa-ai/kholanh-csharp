@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -85,6 +86,7 @@ public sealed class CuoiKyView : UserControl, IPage
         _tabs.ItemsSource = new[]
         {
             new TabItem { Header = "Đối chiếu", Content = split },
+            new TabItem { Header = "Dữ liệu nguồn", Content = BuildSrcData() },
             new TabItem { Header = "Lịch sử xử lý", Content = new ScrollViewer { Content = _hist } },
             new TabItem { Header = "Kiểm tra dữ liệu", Content = new ScrollViewer { Content = _checks } },
         };
@@ -153,22 +155,108 @@ public sealed class CuoiKyView : UserControl, IPage
     private async void Run() { if (await Ui.Run(this, () => Svc.Run())) { RenderAll(); _status.Text = $"Đã đối chiếu {Svc.Result!.Kpi.Tong} mã."; } }
     private void RunSilent() { try { Svc.Run(); } catch (Exception e) { _status.Text = e.Message; } RenderAll(); }
 
+    // ------------------------------------------------------------ tab Dữ liệu nguồn: xem / sửa ô mã, số lượng (kg)
+    private static readonly (string k, string t)[] SdKinds = { ("anan", "Tồn kho An An"), ("ketoan", "Kế toán (NXT)"), ("gui", "Tồn kho gửi (lô)") };
+    private readonly ComboBox _sdKind = new() { ItemsSource = SdKinds.Select(x => x.t).ToList(), SelectedIndex = 0, MinWidth = 180 };
+    private readonly TextBox _sdQ = new() { Watermark = "Tìm mã / tên…", Width = 220 };
+    private readonly CheckBox _sdOnly = new() { Content = "Chỉ dòng đã sửa" };
+    private readonly GridModel _sdm = new();
+    private SheetGrid? _sdg;
+    private readonly TextBlock _sdInfo = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private List<CkRow> _sdRows = new();
+    private bool _sdPainting;
+    private static readonly IBrush BgEdited = B("#FFF2B3");
+    private string SdKind => SdKinds[Math.Max(0, _sdKind.SelectedIndex)].k;
+
+    private Control BuildSrcData()
+    {
+        _sdg = new SheetGrid(_sdm) { SpareRows = 0, CellBackground = (r, c) => r < _sdRows.Count && (c == 1 && Svc.IsEdited(SdKind, _sdRows[r], "ma") || c == 3 && Svc.IsEdited(SdKind, _sdRows[r], "kg")) ? BgEdited : null };
+        _sdm.Changed += () => { if (!_sdPainting) _ = OnSdEdit(); };
+        _sdKind.SelectionChanged += (_, _) => RenderSrcData();
+        _sdOnly.IsCheckedChanged += (_, _) => RenderSrcData();
+        var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; deb.Tick += (_, _) => { deb.Stop(); RenderSrcData(); };
+        _sdQ.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
+        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        bar.Children.Add(Lb("Nguồn")); bar.Children.Add(_sdKind); bar.Children.Add(_sdQ); bar.Children.Add(_sdOnly);
+        if (Svc.CanEdit) bar.Children.Add(Btn("↺ Trả lại giá trị gốc ô đang chọn", RevertSel, "Hủy mọi lần sửa của ô (Mã hoặc Kg) đang chọn — hoàn tác được ở Lịch sử xử lý"));
+        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(_sdInfo);
+        var dp = new DockPanel(); DockPanel.SetDock(top, Dock.Top); dp.Children.Add(top); dp.Children.Add(Framed(_sdg));
+        return dp;
+    }
+
+    private void RenderSrcData()
+    {
+        if (_sdg is null) return;
+        var f = Svc.Files.GetValueOrDefault(SdKind);
+        var q = Ck.Fold(_sdQ.Text ?? "").Trim();
+        _sdRows = f is null ? new() : f.Rows.Where(r => (q.Length == 0 || Ck.Fold(r.Ma + " " + r.Ten).Contains(q)) && (_sdOnly.IsChecked != true || Svc.IsEdited(SdKind, r, "ma") || Svc.IsEdited(SdKind, r, "kg"))).ToList();
+        string V(JsonNode? n) => n is JsonValue v && v.TryGetValue<double>(out var d) ? Vn(d) : n?.ToString() ?? "";
+        _sdPainting = true;
+        var ro = !Svc.CanEdit;
+        _sdm.Load(new[]
+        {
+            new GridColumn("row", "Dòng Excel", 80, "number") { ReadOnly = true }, new GridColumn("ma", "Mã hàng (sửa được)", 210) { ReadOnly = ro },
+            new GridColumn("ten", "Tên hàng", 260) { ReadOnly = true }, new GridColumn("kg", "Số lượng kg (sửa được)", 150, "number") { ReadOnly = ro },
+            new GridColumn("goc", "Giá trị trong file", 230) { ReadOnly = true },
+        }, _sdRows.Select(r =>
+        {
+            var em = Svc.IsEdited(SdKind, r, "ma"); var ek = Svc.IsEdited(SdKind, r, "kg");
+            var goc = string.Join(" · ", new[] { em ? "mã " + r.Ma : "", ek ? Vn(r.Kg) + " kg" : "" }.Where(x => x.Length > 0));
+            return new[] { r.Row.ToString(CultureInfo.InvariantCulture), V(Svc.CurrentValue(SdKind, r, "ma")), r.Ten, V(Svc.CurrentValue(SdKind, r, "kg")), goc };
+        }));
+        _sdg.Refresh(); _sdPainting = false;
+        var nEd = f?.Rows.Count(r => Svc.IsEdited(SdKind, r, "ma") || Svc.IsEdited(SdKind, r, "kg")) ?? 0;
+        _sdInfo.Text = f is null ? "Chưa nạp nguồn này." : $"{f.FileName} · {f.Rows.Count:#,0} dòng · {nEd} dòng đã sửa. Sửa ô Mã hàng / Số lượng kg rồi Enter: chỉ ghi phần sửa (file nạp giữ nguyên), đối chiếu tự tính lại; ô đã sửa tô vàng, xem / hoàn tác ở Lịch sử xử lý. Thay file khác thì phần sửa không còn khớp dòng sẽ tự bỏ qua.";
+    }
+
+    private string CurText(CkRow row, string field) { var cur = Svc.CurrentValue(SdKind, row, field); return cur is JsonValue v && v.TryGetValue<double>(out var d) ? Vn(d) : cur?.ToString() ?? ""; }
+
+    /// <summary>Tìm ô vừa đổi (so giá trị trên lưới với giá trị hiệu lực) rồi ghi phần sửa — dán nhiều ô cũng được.</summary>
+    private async Task OnSdEdit()
+    {
+        var changes = new List<(CkRow Row, string Field, string Val)>();
+        for (var r = 0; r < _sdRows.Count; r++)
+            foreach (var (c, field) in new[] { (1, "ma"), (3, "kg") })
+            {
+                var val = _sdm.Get(r, c).Trim(); if (val == CurText(_sdRows[r], field)) continue;
+                if (field == "kg" && KhoLanh.Core.SoKho.SoKhoCore.ParseNum(val) is { } nv && Svc.CurrentValue(SdKind, _sdRows[r], "kg") is JsonValue jv && jv.TryGetValue<double>(out var cv) && Math.Abs(nv - cv) < 1e-9) continue;
+                changes.Add((_sdRows[r], field, val));
+            }
+        if (changes.Count == 0) return;
+        var ok = await Ui.Run(this, () => { foreach (var (row, field, val) in changes) Svc.EditCell(SdKind, row, field, val); });
+        if (ok) { _status.Text = changes.Count == 1 ? "Đã sửa ô — đối chiếu tính lại." : $"Đã sửa {changes.Count} ô — đối chiếu tính lại."; if (Svc.Ready) RunSilent(); }
+        RenderSrcData();
+    }
+
+    private async Task RevertSel()
+    {
+        if (_sdg is null || _sdg.Row < 0 || _sdg.Row >= _sdRows.Count || _sdg.Col is not (1 or 3)) { await Ui.Message(this, "Chọn ô Mã hàng hoặc Số lượng kg đã sửa (tô vàng)."); return; }
+        var row = _sdRows[_sdg.Row]; var field = _sdg.Col == 1 ? "ma" : "kg";
+        if (await Ui.Run(this, () => Svc.RevertCell(SdKind, row, field))) { _status.Text = "Đã trả lại giá trị gốc."; if (Svc.Ready) RunSilent(); }
+        RenderSrcData();
+    }
+
     // ------------------------------------------------------------ cột nguồn
     private void RenderSources()
     {
         _srcPanel.Children.Clear();
         _srcPanel.Children.Add(H("Dữ liệu nguồn"));
         _srcPanel.Children.Add(Muted("Nạp file Excel báo cáo; file gốc chỉ đọc, không bao giờ bị ghi. Mọi máy dùng chung dữ liệu kỳ này."));
-        foreach (var k in CkConfig.SourceOrder)
+        foreach (var k in CkConfig.SourceOrder.Concat(MoveKinds))
         {
-            var spec = CkConfig.Sources[k]; var f = Svc.Files.GetValueOrDefault(k);
+            var move = CkService.IsMove(k);
+            var title = move ? CkConfig.SourceTitle[k] : CkConfig.Sources[k].Title;
+            var hint = move ? (k == "anan_nhap" ? "Báo cáo nhập trong kỳ của kho An An (tuỳ chọn — để đối chiếu chứng từ kho ↔ kế toán)." : "Báo cáo xuất trong kỳ của kho An An (tuỳ chọn).") : CkConfig.Sources[k].Hint;
+            var f = Svc.Files.GetValueOrDefault(k);
+            if (k == MoveKinds[0]) _srcPanel.Children.Add(H("Chứng từ kho An An (tuỳ chọn)"));
             var s = new StackPanel { Spacing = 3 };
-            s.Children.Add(new TextBlock { Text = spec.Title + (k == "gui" ? " (không bắt buộc)" : ""), FontWeight = FontWeight.Bold, Foreground = Dark });
-            if (f is null) s.Children.Add(Muted(spec.Hint.Length > 0 ? spec.Hint : "Chưa nạp."));
+            s.Children.Add(new TextBlock { Text = title + (k == "gui" ? " (không bắt buộc)" : ""), FontWeight = FontWeight.Bold, Foreground = Dark });
+            if (f is null) s.Children.Add(Muted(hint.Length > 0 ? hint : "Chưa nạp."));
             else
             {
-                s.Children.Add(new TextBlock { Text = "📄 " + f.FileName, TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
-                s.Children.Add(Muted($"Sheet {f.Sheet} · {f.Rows.Count:#,0} dòng · {Vn(f.Rows.Sum(x => x.Kg))} kg" + (f.LoadedAt.Length > 0 ? " · nạp " + When(f.LoadedAt) : "")));
+                s.Children.Add(new TextBlock { Text = (f.FromModule.Length > 0 ? "🗄 " : "📄 ") + f.FileName + (f.FromModule.Length > 0 ? " (lấy từ " + f.FromModule + ")" : ""), TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+                s.Children.Add(Muted(move ? $"Sheet {f.Sheet} · {f.Vouchers.Count:#,0} chứng từ · {Vn(f.Vouchers.Sum(x => x.Kg))} kg" + (f.LoadedAt.Length > 0 ? " · nạp " + When(f.LoadedAt) : "")
+                    : $"Sheet {f.Sheet} · {f.Rows.Count:#,0} dòng · {Vn(f.Rows.Sum(x => x.Kg))} kg" + (f.LoadedAt.Length > 0 ? " · nạp " + When(f.LoadedAt) : "")));
                 var pc = CkImport.CheckPeriod(f.Period ?? f.PeriodGuess, Svc.Period, k);
                 s.Children.Add(new TextBlock { Text = (pc.State == "ok" ? "✔ " : pc.State == "khac" ? "⚠ " : "• ") + pc.Text, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = pc.State == "ok" ? Green : pc.State == "khac" ? Amber : AppTheme.Muted });
                 if (k == "ketoan") s.Children.Add(Muted(f.Ct is { } ct ? $"Chứng từ: {ct.Vouchers.Count:#,0} dòng (sheet {ct.Sheet})" : "Không có sheet chứng từ" + (f.CtError.Length > 0 ? ": " + f.CtError : "")));
@@ -184,23 +272,45 @@ public sealed class CuoiKyView : UserControl, IPage
             {
                 var bs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
                 var kk = k; bs.Children.Add(Btn(f is null ? "Chọn file…" : "Thay file…", async () => await LoadFile(kk)));
-                if (f is not null) bs.Children.Add(Btn("Bỏ", async () => { if (await Ui.Confirm(this, $"Bỏ file {spec.Title} khỏi kỳ đối chiếu?", yes: "Bỏ")) { await Ui.Run(this, () => Svc.RemoveFile(kk)); RenderSources(); if (Svc.Ready) RunSilent(); else RenderAll(); } }));
+                if (CkService.HasModuleSource(k))
+                {
+                    var info = Svc.ModuleInfo(k);
+                    var mb = Btn("🗄 Lấy từ module", async () => await LoadModule(kk), info is null ? "Module chưa có dữ liệu đã nạp" : "File đang nạp trong module: " + info + ". Số liệu được chụp lúc lấy, không tự đổi khi module đổi.");
+                    mb.IsEnabled = info is not null; bs.Children.Add(mb);
+                }
+                if (f is not null) bs.Children.Add(Btn("Bỏ", async () => { if (await Ui.Confirm(this, $"Bỏ file {title} khỏi kỳ đối chiếu?", yes: "Bỏ")) { await Ui.Run(this, () => Svc.RemoveFile(kk)); RenderSources(); if (Svc.Ready) RunSilent(); else RenderAll(); } }));
                 s.Children.Add(bs);
             }
             _srcPanel.Children.Add(Card(s));
         }
     }
 
+    private static readonly string[] MoveKinds = { "anan_nhap", "anan_xuat" };
+
+    private async Task LoadModule(string kind, Dictionary<string, int>? manual = null)
+    {
+        CkSource? res = null;
+        _status.Text = "Đang lấy số liệu từ module…";
+        if (!await Ui.RunAsync(this, async () => res = await Task.Run(() => Svc.LoadFromModule(kind, manual)))) { _status.Text = ""; return; }
+        if (res is { Ok: false, NeedMap: true }) { var m = await MapDialog(kind, res); if (m is not null) await LoadModule(kind, m); return; }
+        if (res is { Ok: false }) { await Ui.Message(this, res.Error, "Không đọc được dữ liệu module"); _status.Text = ""; return; }
+        _status.Text = $"Đã lấy {res!.FileName} từ {res.FromModule}: {res.Rows.Count:#,0} dòng. Số liệu được chụp lúc lấy — module đổi thì bấm lấy lại.";
+        _loading = true; _from.SelectedDate = D(Svc.Period?.From); _to.SelectedDate = D(Svc.Period?.To); _loading = false;
+        RenderSources(); RenderSrcData();
+        if (Svc.Ready) RunSilent();
+    }
+
     private async Task LoadFile(string kind, Dictionary<string, int>? manual = null, string? path = null, string? sheet = null)
     {
-        path ??= await Ui.OpenFile(this, "Chọn file " + CkConfig.Sources[kind].Title, "xlsx;xlsm;xls;csv", "Excel");
+        path ??= await Ui.OpenFile(this, "Chọn file " + CkConfig.SourceTitle[kind], "xlsx;xlsm;xls;csv", "Excel");
         if (path is null) return;
         CkSource? res = null;
         _status.Text = "Đang đọc " + Path.GetFileName(path) + "…";
         if (!await Ui.RunAsync(this, async () => res = await Task.Run(() => Svc.LoadFile(kind, path, manual, sheet)))) { _status.Text = ""; return; }
         if (res is { Ok: false, NeedMap: true }) { var m = await MapDialog(kind, res); if (m is not null) await LoadFile(kind, m, path, res.Sheet.Length > 0 ? res.Sheet : null); return; }
         if (res is { Ok: false }) { await Ui.Message(this, res.Error, "Không đọc được file"); _status.Text = ""; return; }
-        _status.Text = $"Đã nạp {res!.FileName}: {res.Rows.Count:#,0} dòng" + (res.Ct is { } ct ? $" + {ct.Vouchers.Count:#,0} chứng từ" : "") + ".";
+        _status.Text = $"Đã nạp {res!.FileName}: " + (CkService.IsMove(kind) ? $"{res.Vouchers.Count:#,0} chứng từ" : $"{res.Rows.Count:#,0} dòng") + (res.Ct is { } ct ? $" + {ct.Vouchers.Count:#,0} chứng từ" : "") + ".";
+        RenderSrcData();
         _loading = true; _from.SelectedDate = D(Svc.Period?.From); _to.SelectedDate = D(Svc.Period?.To); _loading = false;
         RenderSources();
         if (Svc.Ready) RunSilent();
@@ -236,6 +346,7 @@ public sealed class CuoiKyView : UserControl, IPage
     // ------------------------------------------------------------ bảng kết quả
     private void RenderAll()
     {
+        RenderSrcData();
         RenderKpi(); RenderChips(); RenderList(); RenderDetail(); RenderHistory(); RenderChecks();
     }
 

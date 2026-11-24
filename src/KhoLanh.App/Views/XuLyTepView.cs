@@ -86,14 +86,38 @@ public sealed class XuLyTepView : UserControl, IPage
         (byte[] pdf, string name, int pages)? cur = null;
         var info = Muted("Chưa chọn file.");
         var pick = new Button { Content = "Chọn file PDF…", Padding = new Thickness(10, 4) };
-        pick.Click += async (_, _) =>
+        var thumbs = new WrapPanel();
+        var strip = new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(6), IsVisible = false, Child = new ScrollViewer { MaxHeight = 250, Content = thumbs } };
+        var seq = 0;
+        async Task Load(string f)
         {
-            var f = (await PickFiles("Chọn file PDF", new[] { "pdf" }, false)).FirstOrDefault(); if (f is null) return;
+            var my = ++seq; thumbs.Children.Clear(); strip.IsVisible = false;
             try { var b = await File.ReadAllBytesAsync(f); var n = await Task.Run(() => PdfRender.Count(b, Path.GetFileName(f))); cur = (b, f, n); info.Text = $"{Path.GetFileName(f)} — {n} trang · {Size(b.Length)}"; }
-            catch (Exception e) { cur = null; info.Text = e.Message; }
-        };
-        return (Row(pick, info), () => cur);
+            catch (Exception e) { cur = null; info.Text = e.Message; return; }
+            // xem trước: tối đa 60 trang đầu, vẽ nền lần lượt
+            var (pdf, _, pages) = cur.Value; strip.IsVisible = true;
+            for (var i = 0; i < Math.Min(pages, MaxThumbs); i++)
+            {
+                if (my != seq) return;
+                Avalonia.Media.Imaging.WriteableBitmap? bmp = null; var idx = i;
+                try { bmp = await Task.Run(() => PdfRender.Render(pdf, idx, 150)); } catch { /* trang lỗi: bỏ ảnh */ }
+                if (my != seq) return;
+                var cell = new StackPanel { Margin = new Thickness(4), Width = 104 };
+                cell.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Background = Avalonia.Media.Brushes.White, Child = bmp is null ? new TextBlock { Text = "?", HorizontalAlignment = HorizontalAlignment.Center } : new Image { Source = bmp, Width = 100, Stretch = Stretch.Uniform } });
+                cell.Children.Add(new TextBlock { Text = "Trang " + (i + 1), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center });
+                thumbs.Children.Add(cell);
+            }
+            if (pages > MaxThumbs) thumbs.Children.Add(Muted($"… còn {pages - MaxThumbs} trang (chỉ xem trước {MaxThumbs} trang đầu)."));
+        }
+        pick.Click += async (_, _) => { var f = (await PickFiles("Chọn file PDF", new[] { "pdf" }, false)).FirstOrDefault(); if (f is not null) await Load(f); };
+        _loadPdf = Load;
+        var box = new StackPanel { Spacing = 6 }; box.Children.Add(Row(pick, info)); box.Children.Add(strip);
+        return (box, () => cur);
     }
+    private const int MaxThumbs = 60;
+    private Func<string, Task>? _loadPdf;
+    /// <summary>Nạp file PDF vào ô chọn file của chức năng đang mở (công cụ chụp màn hình dùng).</summary>
+    public Task LoadPdfForTest(string path) => _loadPdf?.Invoke(path) ?? Task.CompletedTask;
 
     // ============================================================ PDF
     private Control BuildPdf(string k)
@@ -357,17 +381,47 @@ public sealed class XuLyTepView : UserControl, IPage
             case "clean":
             {
                 s.Children.Add(H("Làm sạch dữ liệu"));
-                var (pickUi, getTbl, _) = OneTable(); s.Children.Add(pickUi);
+                var (pickUi, getTbl, colBox) = OneTable(); s.Children.Add(pickUi);
                 var trim = new CheckBox { Content = "Cắt khoảng trắng thừa (đầu / cuối / giữa, ký tự trắng lạ)", IsChecked = true };
                 var blank = new CheckBox { Content = "Bỏ dòng trống", IsChecked = true };
-                var dedupe = new CheckBox { Content = "Bỏ dòng trùng (so mọi cột)", IsChecked = false };
-                var num = new CheckBox { Content = "Đổi số dạng chữ thành số (\"1,234\", \"12,5\", \"(100)\")", IsChecked = true };
-                var date = new CheckBox { Content = "Đưa ngày dạng chữ về dd/mm/yyyy (cột không phải số)", IsChecked = false };
+                var dedupe = new CheckBox { Content = "Bỏ dòng trùng (so các cột được đánh dấu \"so trùng\" bên dưới; không đánh dấu cột nào = so mọi cột)", IsChecked = false };
+                var num = new CheckBox { Content = "Đổi số dạng chữ thành số ở MỌI cột (\"1,234\", \"12,5\", \"(100)\")", IsChecked = true };
+                var date = new CheckBox { Content = "Đưa ngày dạng chữ về dd/mm/yyyy ở mọi cột (khi không đổi số mọi cột)", IsChecked = false };
                 foreach (var c in new[] { trim, blank, dedupe, num, date }) s.Children.Add(c);
+                // tùy chọn riêng từng cột
+                var colOpts = new List<(ComboBox Kind, CheckBox Dup)>(); var colGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto"), Margin = new Thickness(0, 2, 0, 0) };
+                var colWrap = new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), IsVisible = false, Child = new ScrollViewer { MaxHeight = 260, Content = colGrid } };
+                string[] kinds = { "Giữ nguyên (theo tùy chọn chung)", "Đổi thành số", "Đổi thành ngày dd/mm/yyyy", "CHỮ HOA", "chữ thường", "Viết Hoa Đầu Từ" };
+                void BuildCols()
+                {
+                    colGrid.Children.Clear(); colGrid.RowDefinitions.Clear(); colOpts.Clear();
+                    var heads = (colBox.ItemsSource as IEnumerable<string>)?.ToList() ?? new();
+                    colWrap.IsVisible = heads.Count > 0;
+                    for (var i = 0; i < heads.Count; i++)
+                    {
+                        colGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                        var lb = Lb(heads[i]); lb.Margin = new Thickness(0, 2, 12, 2); lb.MaxWidth = 300; lb.TextTrimming = TextTrimming.CharacterEllipsis; Grid.SetRow(lb, i); colGrid.Children.Add(lb);
+                        var k = new ComboBox { ItemsSource = kinds, SelectedIndex = 0, MinWidth = 230, FontSize = 12.5, Margin = new Thickness(0, 2) }; Grid.SetRow(k, i); Grid.SetColumn(k, 1); colGrid.Children.Add(k);
+                        var d = new CheckBox { Content = "so trùng", FontSize = 12.5, Margin = new Thickness(12, 0, 0, 0) }; Grid.SetRow(d, i); Grid.SetColumn(d, 2); colGrid.Children.Add(d);
+                        colOpts.Add((k, d));
+                    }
+                }
+                colBox.SelectionChanged += (_, _) => { if (colBox.SelectedIndex == 0 || colBox.ItemsSource is null) BuildCols(); };
+                s.Children.Add(H("Tùy chọn theo từng cột")); s.Children.Add(Muted("Chọn cách đổi riêng cho cột nào cần (ưu tiên hơn tùy chọn chung). Đánh dấu \"so trùng\" để chỉ so các cột đó khi bỏ dòng trùng."));
+                s.Children.Add(colWrap);
                 s.Children.Add(Btn("Làm sạch & lưu", () => Do("Đang làm sạch…", async () =>
                 {
                     var (t, name) = getTbl() ?? throw new InvalidOperationException("Chưa chọn file / sheet.");
-                    var r = CcBang.CleanTable(t, new CcBang.CleanOpts { Trim = trim.IsChecked == true, BlankRows = blank.IsChecked == true, Dedupe = dedupe.IsChecked == true ? new() : null, NumAll = num.IsChecked == true, DateAll = date.IsChecked == true && num.IsChecked != true });
+                    // tùy chọn chung → đưa về từng cột "Giữ nguyên" để lựa chọn riêng của cột luôn được ưu tiên
+                    bool numAll = num.IsChecked == true, dateAll = date.IsChecked == true && !numAll;
+                    var cols = new Dictionary<int, CcBang.ColOpt>();
+                    for (var i = 0; i < Math.Max(colOpts.Count, t.Head.Count); i++)
+                    {
+                        var k = i < colOpts.Count ? colOpts[i].Kind.SelectedIndex : 0;
+                        cols[i] = k <= 0 ? new CcBang.ColOpt { Num = numAll, Date = dateAll } : new CcBang.ColOpt { Num = k == 1, Date = k == 2, Upper = k == 3, Lower = k == 4, Title = k == 5 };
+                    }
+                    var dupCols = colOpts.Select((o, i) => (o, i)).Where(x => x.o.Dup.IsChecked == true).Select(x => x.i).ToList();
+                    var r = CcBang.CleanTable(t, new CcBang.CleanOpts { Trim = trim.IsChecked == true, BlankRows = blank.IsChecked == true, Dedupe = dedupe.IsChecked == true ? dupCols : null, NumAll = false, DateAll = false, Cols = cols });
                     var path = await Ui.SaveFile(this, "Lưu file đã làm sạch", $"{Base(name)}-sach-{Stamp()}.xlsx", "xlsx", "Excel"); if (path is null) return "Đã hủy.";
                     var log = new CcTable(new[] { "Dòng (trong bảng)", "Cột", "Trước", "Sau", "Thay đổi" }, r.Log.Select(l => new object?[] { (double)(l.R + 1), r.Table.Head.ElementAtOrDefault(l.C) ?? CcBang.ColName(l.C), l.From, l.To, l.Why }));
                     var iss = new CcTable(new[] { "Dòng (trong bảng)", "Cột", "Giá trị", "Vấn đề" }, r.Issues.Select(l => new object?[] { (double)(l.R + 1), r.Table.Head.ElementAtOrDefault(l.C) ?? CcBang.ColName(l.C), l.V, l.Why }));

@@ -49,6 +49,22 @@ public static class Gs
         public List<GsRow> Rows = new();
         public HashSet<string> Tags = new(), Prefixes = new();
         public List<string> Errors = new();
+        /// <summary>Mã hóa sản phẩm (Tổng hợp): tổ hợp → mã → tên.</summary>
+        public Dictionary<int, Dictionary<string, string>> Seg = new();
+    }
+
+    /// <summary>10 đoạn của mã 21 ký tự (giống segmentDefs của Tổng hợp): tổ hợp, vị trí, độ dài, tên.</summary>
+    public static readonly (int Seg, int Start, int Len, string Label)[] SegDefs =
+    {
+        (1, 0, 4, "Tên sản phẩm"), (2, 4, 1, "Cấp đông"), (3, 5, 1, "Đóng gói"), (4, 6, 1, "Hóa chất / phụ gia"), (5, 7, 1, "Thị trường"),
+        (6, 8, 2, "Khách hàng"), (7, 10, 3, "Mạ băng"), (8, 13, 4, "Size"), (9, 17, 2, "Trọng lượng"), (10, 19, 2, "Quy cách đóng thùng"),
+    };
+    /// <summary>Giải mã mã 21 ký tự (bỏ "TPC-"); mã khác độ dài → rỗng. Tên = null khi chưa khai báo.</summary>
+    public static List<(string Label, string Code, string? Name)> Decode(Data d, string ma)
+    {
+        var m = Regex.Replace((ma ?? "").Trim().ToUpperInvariant(), "^TPC-", "");
+        if (m.Length != 21) return new();
+        return SegDefs.Select(x => { var c = m.Substring(x.Start, x.Len); return (x.Label, c, d.Seg.TryGetValue(x.Seg, out var t) && t.TryGetValue(c, out var n) ? n : null); }).ToList();
     }
 
     public static Data Prepare(IEnumerable<GsRow> rows, IEnumerable<string>? errors = null)
@@ -203,8 +219,77 @@ public sealed class GsService
         }
         catch (Exception e) { errors.Add("NXT Bột/Sốt: " + e.Message); }
 
-        return Gs.Prepare(rows, errors);
+        var data = Gs.Prepare(rows, errors);
+        try { data.Seg = ReadMaHoa(); } catch (Exception e) { data.Errors.Add("Mã hóa sản phẩm: " + e.Message); }
+        return data;
+    }
+
+    /// <summary>Mã hóa sản phẩm: danh mục cố định + sheet MaHoa của Tổng hợp (Tổ hợp | Mã | Tên).</summary>
+    private Dictionary<int, Dictionary<string, string>> ReadMaHoa()
+    {
+        var seg = new Dictionary<int, Dictionary<string, string>>();
+        void Add(int k, string code, string name) { code = code.Trim().ToUpperInvariant(); if (code.Length == 0) return; if (!seg.TryGetValue(k, out var t)) seg[k] = t = new(); t[code] = name.Trim(); }
+        foreach (var (k, list) in KhoLanh.Core.TongHop.TongHopService.FixedCatalog()) foreach (var e in list) Add(k, e.Code, e.Name);
+        var arr = JsonNode.Parse(_s.Lan.Read(KhoLanh.Core.TongHop.TongHopService.Db, "MaHoa")) as JsonArray;
+        foreach (var r in arr?.OfType<JsonObject>() ?? Enumerable.Empty<JsonObject>())
+            if (int.TryParse(r["Tổ hợp"]?.ToString(), out var k)) Add(k, r["Mã"]?.ToString() ?? "", r["Tên"]?.ToString() ?? "");
+        return seg;
     }
 
     private static double Num(string? s) => KhoLanh.Core.DoiChieu.DcxEngine.ParseNum(s) ?? 0;
+}
+
+/// <summary>1 phiếu tìm được (Phiếu xuất kho / phiếu vị trí) — như core/tim-nhanh.js của app cũ.</summary>
+public sealed record GsDoc(string Kind, string Id, string Menu, string Title, string Sub, string Hay);
+
+/// <summary>TÌM PHIẾU / LSX / SỐ CONT (chép core/tim-nhanh.js): các từ đều phải có; trùng khít một trường +2, khớp đầu trường +1.</summary>
+public static class GsDocs
+{
+    private static string S(string? v) => (v ?? "").Trim();
+    private static string Dmy(string iso) => Regex.Match(iso, @"^(\d{4})-(\d{2})-(\d{2})") is { Success: true } m ? $"{m.Groups[3]}/{m.Groups[2]}/{m.Groups[1]}" : iso;
+    public static string Fold(string? v) => Regex.Replace(Gs.Norm(S(v)), @"\s+", " ");
+
+    public static List<GsDoc> Build(AppServices s, int max = 6000)
+    {
+        var outp = new List<GsDoc>();
+        try
+        {
+            if (s.Session.Can(KhoLanh.Core.PhieuKho.PhieuKhoService.PermKey, Perm.View))
+            {
+                var pk = s.PhieuKho; if (!pk.Loaded) pk.Load();
+                foreach (var p in pk.List.Take(max))
+                {
+                    if (S(p.Id).Length == 0) continue; var x = p.Xe;
+                    var parts = new[] { S(p.SoPhieu), S(p.Lsx), S(p.Khach), S(x.Cont), S(x.Seal), S(x.Booking), S(x.SoXe), S(p.Ngay) };
+                    outp.Add(new GsDoc("pnx", p.Id, "m13", "Phiếu " + (S(p.SoPhieu).Length > 0 ? S(p.SoPhieu) : p.Id),
+                        string.Join(" · ", new[] { Dmy(S(p.Ngay)), S(p.Khach), S(p.Lsx).Length > 0 ? "LSX " + S(p.Lsx) : "", S(x.Cont).Length > 0 ? "Cont " + S(x.Cont) : "" }.Where(t => t.Length > 0)),
+                        string.Join(" | ", parts.Select(Fold))));
+                }
+            }
+        }
+        catch { /* bỏ qua nguồn lỗi */ }
+        try
+        {
+            if (s.Session.Can(ViTriService.PermKey, Perm.View))
+            {
+                var vt = s.ViTri; if (!vt.Loaded) vt.Load();
+                foreach (var sl in vt.Slips.Take(max))
+                {
+                    if (S(sl.Id).Length == 0) continue;
+                    outp.Add(new GsDoc("vt", sl.Id, "m7", "Phiếu vị trí " + sl.Id + (S(sl.MaPhieu).Length > 0 ? " · " + S(sl.MaPhieu) : ""),
+                        string.Join(" · ", new[] { S(sl.CreatedAt).Length >= 10 ? S(sl.CreatedAt)[..10] : S(sl.CreatedAt), S(sl.NguoiTao), S(sl.GhiChu), sl.Lines.Count + " dòng" }.Where(t => t.Length > 0)),
+                        string.Join(" | ", new[] { sl.Id, sl.MaPhieu, sl.GhiChu, sl.NguoiTao, sl.TieuDe ?? "" }.Select(Fold))));
+                }
+            }
+        }
+        catch { /* bỏ qua nguồn lỗi */ }
+        return outp;
+    }
+
+    public static List<GsDoc> Search(IEnumerable<GsDoc> docs, string q, int lim = 8)
+    {
+        var ws = Fold(q).Split(' ', StringSplitOptions.RemoveEmptyEntries); if (ws.Length == 0) return new();
+        int Score(GsDoc d) { var f = d.Hay.Split(" | "); return ws.Sum(w => f.Any(x => x == w) ? 2 : f.Any(x => x.StartsWith(w, StringComparison.Ordinal)) ? 1 : 0); }
+        return docs.Where(d => ws.All(w => d.Hay.Contains(w, StringComparison.Ordinal))).Select(d => (d, sc: Score(d))).OrderByDescending(x => x.sc).Take(lim).Select(x => x.d).ToList();
+    }
 }

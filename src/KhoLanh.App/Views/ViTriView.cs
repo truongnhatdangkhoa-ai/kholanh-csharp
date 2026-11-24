@@ -168,7 +168,17 @@ public sealed class ViTriView : UserControl, IPage
         _loading = false;
         RenderAll();
         if (Svc.Rows.Count == 0) _tabs.SelectedIndex = 4;
+        if (OpenSlipId is { } id)
+        {
+            OpenSlipId = null; _tabs.SelectedIndex = 1;
+            await Task.Delay(50);
+            var i = _slipRows.FindIndex(x => x.Id == id);
+            if (i >= 0) _sg.Select(i, 0); else _status.Text = $"Phiếu {id} không còn trong danh sách phiếu đang mở (xem tab Lưu trữ theo ngày).";
+        }
     }
+
+    /// <summary>Mở thẳng 1 phiếu (từ Tìm nhanh).</summary>
+    public string? OpenSlipId { get; set; }
 
     /// <summary>Chạy thao tác ghi; máy khác vừa sửa → tải lại.</summary>
     private async Task<bool> Act(Action a, string? ok = null)

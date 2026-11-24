@@ -169,7 +169,7 @@ public sealed class SoSanhBangView : UserControl, IPage
 
     private CcBang.MatchOpts Opts() => new() { IgnoreCase = _case.IsChecked == true, IgnoreDiacritics = _dia.IsChecked == true, Tol = Ui.TryParseNumber(_tol.Text, out var t) ? Math.Abs(t) : 0 };
     private int RowNo(Side s, int i) => s.Hr + 2 + i;
-    private static string Txt(object? v) => CcBang.Str(v);
+    private static string Txt(object? v) => ExcelOps.Show(v);
 
     // ------------------------------------------------------------ SO SÁNH
     public void RunCompare()
