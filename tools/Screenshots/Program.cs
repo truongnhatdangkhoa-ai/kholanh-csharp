@@ -523,6 +523,48 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
     }
     sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
 }
+// Lưu trữ cá nhân (1.59): SHOTS_ONLY=lt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")
+{
+    void WaitLt(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var lt = s.LuuTru.Store;
+    var tmpDir = Path.Combine(Path.GetTempPath(), "kl-lt-demo"); Directory.CreateDirectory(tmpDir);
+    var ngHd = lt.AddNgan("Hợp đồng & báo giá"); var ngSl = lt.AddNgan("Số liệu kho"); var ngCn = lt.AddNgan("Cá nhân");
+    lt.AddNote(ngSl.Id, "Tồn cuối tháng 10 — đối chiếu kế toán", "HLSO 31/40: 1.240 kiện\nPD 41/50: 860 kiện\nChênh lệch: 12 kiện (đã báo kế toán 02/11)", new[] { "tồn kho", "tháng 10" });
+    lt.AddNote(ngSl.Id, "Nhiệt độ kho mát tuần 47", "Kho 1: -18,5 °C · Kho 2: -19,2 °C · Kho 3: -20,1 °C\nĐã kiểm máy nén kho 2.", new[] { "nhiệt độ" });
+    var pin = lt.AddNote(LtStoreDefault(), "Số tài khoản nhận tiền cước xe", "Vietcombank 0071 000 123 456 — CN Cần Thơ", new[] { "quan trọng" });
+    lt.Edit(pin.Id, new KhoLanh.Core.LuuTru.LtStore.Patch(Pinned: true));
+    lt.AddNote(ngHd.Id, "Bảng giá cước lạnh 2026", "Bảng giá mới: https://example.com/bang-gia-cuoc-lanh-2026", new[] { "báo giá" });
+    var img = Path.Combine(tmpDir, "anh-pallet-kho-2.png");
+    using (var bmp = new SkiaSharp.SKBitmap(640, 420))
+    {
+        using var cnv = new SkiaSharp.SKCanvas(bmp); cnv.Clear(new SkiaSharp.SKColor(214, 226, 238));
+        using var p1 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(31, 111, 214) }; using var p2 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(150, 110, 70) };
+        for (var i = 0; i < 4; i++) { cnv.DrawRect(40 + i * 150, 120, 120, 200, p1); cnv.DrawRect(30 + i * 150, 320, 140, 22, p2); }
+        using var im = SkiaSharp.SKImage.FromBitmap(bmp); using var d = im.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90); File.WriteAllBytes(img, d.ToArray());
+    }
+    var pdf = Path.Combine(tmpDir, "Hop dong thue kho 2026.pdf"); File.WriteAllBytes(pdf, new byte[183_000]);
+    var xls = Path.Combine(tmpDir, "Bao gia cuoc thang 11.xlsx"); File.WriteAllBytes(xls, new byte[42_000]);
+    lt.AddFile(ngHd.Id, pdf); lt.AddFile(ngHd.Id, xls);
+    var imgRec = lt.AddFile(ngSl.Id, img, "Pallet kho 2 sau khi xếp lại");
+    lt.AddNote(ngCn.Id, "Việc cần nhớ", "- Gia hạn bảo hiểm xe nâng trước 30/11\n- Hẹn thợ kiểm tra cửa kho 3", new[] { "việc" });
+    var cfg = s.LuuTru.Config; cfg.Email = "kholanh.anan@gmail.com"; cfg.Refresh = KhoLanh.Core.Services.Secret.Protect("demo"); cfg.LastOk = DateTime.Now.AddMinutes(-25);
+    cfg.LastSeq = lt.D.Seq - 2;
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Google", "Đăng nhập kholanh.anan@gmail.com");
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Sao lưu", "Sao lưu: tải lên 3 tệp (225 KB)");
+    cfg.AddRun(DateTime.Now.AddMinutes(-25), true, "Sao lưu", "Tự sao lưu: danh sách mục");
+    s.LuuTru.SaveConfig(cfg);
+    s.LuuTru.ClientOverride = new("123-demo.apps.googleusercontent.com", "demo");
+    main.Navigate("m19"); WaitLt(800); Snap(main, "60-luu-tru-kho");
+    var ltv = main.PageHost.GetVisualDescendants().OfType<LuuTruView>().First();
+    var g = ltv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    var rows = lt.Query();
+    g.Select(rows.FindIndex(r => r.Id == imgRec.Id), 2); WaitLt(500); Snap(main, "60b-luu-tru-anh");
+    var tcl = ltv.GetVisualDescendants().OfType<TabControl>().First();
+    tcl.SelectedIndex = 1; WaitLt(600); Snap(main, "60c-luu-tru-sao-luu");
+    s.Lan.Dispose(); Console.WriteLine("Xong (lt): " + outDir); return;
+}
+static string LtStoreDefault() => KhoLanh.Core.LuuTru.LtStore.DefaultNgan;
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
