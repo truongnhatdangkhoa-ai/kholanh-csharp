@@ -37,6 +37,7 @@ public static class Perm
         new("m21", "Xử lý PDF & Excel", "Công cụ", new[] { Edit }, "Gộp / tách / xoay / đóng dấu PDF, ảnh ↔ PDF; gộp / tách / làm sạch Excel (chỉ tạo file mới)"),
         new("m22", "So sánh & Tra cứu bảng", "Công cụ", new[] { Edit }, "So 2 bảng Excel / CSV theo cột khóa (giống / khác / chỉ có ở A / B); kéo cột từ bảng B sang A kiểu VLOOKUP"),
         new("m15", "Scan tài liệu", "Công cụ", new[] { Edit }, "Quét ảnh / PDF thành bản in sạch; tài liệu lưu riêng từng tài khoản"),
+        new("m19", "Lưu trữ cá nhân", "Công cụ", new[] { Edit }, "Ghi chú, liên kết, ảnh, tệp riêng từng tài khoản; đăng nhập Google cá nhân để sao lưu Drive"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
@@ -47,7 +48,7 @@ public static class Perm
     /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
     /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
     /// </summary>
-    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit, ["m3dm"] = View };
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit, ["m3dm"] = View, ["m19"] = Edit };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 
