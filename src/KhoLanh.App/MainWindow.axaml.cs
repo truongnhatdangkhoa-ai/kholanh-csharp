@@ -71,6 +71,7 @@ public partial class MainWindow : Window
             ("BÁO CÁO", new[]
             {
                 new NavItem("m3", "Tổng hợp", () => new TongHopView()),
+                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m4", "Báo cáo rã đông", () => new RaDongView()),
                 new NavItem("m5", "Đối chiếu hàng ngày", () => new DoiChieuView()),
                 new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),

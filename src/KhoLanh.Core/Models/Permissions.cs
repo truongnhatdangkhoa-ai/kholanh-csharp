@@ -23,6 +23,7 @@ public static class Perm
         new("m3sk", "NXT Bột/Sốt (Sổ kho)", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = lập phiếu nhập / xuất / chuyển, chốt tồn, kiểm kê, định mức, nạp Excel, hoàn tác"),
         new("m8", "Sơ đồ kho", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = cấu hình kho, quy cách, khóa kiểm kê"),
         new("m3", "Tổng hợp", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
+        new("m3dm", "Danh mục mã hàng", "Báo cáo", new[] { View, Export, Edit }, "Sửa = thêm / sửa / xóa mã trong Danh sách mã hàng dùng chung (Tổng hợp), thêm mã đang dùng chưa có"),
         new("m4", "Báo cáo rã đông", "Báo cáo", new[] { View, Export, Edit }, "Sửa = nạp file, lưu số liệu theo ngày"),
         new("m5", "Đối chiếu hàng ngày (báo cáo hàng ngày)", "Báo cáo", new[] { View, Export, Edit }, "Sửa = ghi vào file Excel Kho đã liên kết"),
         new("m9", "Đối chiếu kiểm kê", "Báo cáo", new[] { View, Export, Edit }, "Sửa = chọn trang kiểm kê, số kế toán, chụp tồn, sửa mã, chốt kỳ"),
@@ -46,7 +47,7 @@ public static class Perm
     /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
     /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
     /// </summary>
-    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit };
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit, ["m3dm"] = View };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 
@@ -66,7 +67,7 @@ public static class Perm
         {
             d["backup"] = None; d["audit"] = None; d["lxmail"] = None; d["phone"] = None;
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
-            d["m3"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m7ck"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
+            d["m3"] = Export; d["m3dm"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m7ck"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
         return d;
     }

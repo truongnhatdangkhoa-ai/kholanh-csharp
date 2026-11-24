@@ -448,6 +448,7 @@ Snap(small, "03c-man-hinh-1366");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
 // Số liệu cuối kỳ (dữ liệu mẫu = bộ test đối chiếu lõi JS)
 {
@@ -1091,8 +1092,33 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     s.LichXuat.AutoMode = "list";
     main.Show("m13", new PhieuKhoView(3)); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "43-tu-dong-da-tao");
 }
+// ---------------- Danh mục mã hàng ----------------
+DmScene();
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
+
+void DmScene()
+{
+    s.TongHop.Load();
+    var th = System.Text.Json.Nodes.JsonNode.Parse(s.Lan.Read("tong-hop", "MaDaTao")) as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray();
+    var codes = th.OfType<System.Text.Json.Nodes.JsonObject>().Select(o => o["Mã"]?.ToString() ?? "").Where(c => c.Length == 21).Take(3).ToList();
+    if (codes.Count > 0)
+    {
+        var typo = codes[0][..13] + "9" + codes[0][14..];   // 1 ký tự size gõ sai
+        th.Add(new System.Text.Json.Nodes.JsonObject { ["STT"] = th.Count + 1, ["Mã"] = codes[0], ["Ghi chú"] = "dòng trùng" });
+        th.Add(new System.Text.Json.Nodes.JsonObject { ["STT"] = th.Count + 1, ["Mã"] = typo, ["Ghi chú"] = "" });
+        th.Add(new System.Text.Json.Nodes.JsonObject { ["STT"] = th.Count + 1, ["Mã"] = "ABC123", ["Ghi chú"] = "mã thiếu ký tự" });
+        s.Lan.Write("tong-hop", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["MaDaTao"] = th });
+    }
+    main.Navigate("m3dm"); for (var i = 0; i < 80; i++) { Thread.Sleep(30); Pump(); }
+    var dv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.DanhMucMaView>().First();
+    var ds = s.DanhMuc;
+    Console.WriteLine($"  [DM] {ds.Rows.Count} mã · cần xử lý {ds.XlNow().Count} (thiếu {ds.XlNow().Missing.Count}, trùng {ds.XlNow().Dups.Count}, gõ sai {ds.XlNow().Near.Count})");
+    var dq = dv.GetVisualDescendants().OfType<TextBox>().First(); dq.Text = codes.Count > 0 ? codes[0][..6] : "";
+    var dcb = dv.GetVisualDescendants().OfType<ComboBox>().First(); dcb.SelectedIndex = 1; dcb.SelectedIndex = 0;
+    for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44-danh-muc-ma-hang");
+    var dt = dv.GetVisualDescendants().OfType<TabControl>().First(); dt.SelectedIndex = 1; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44b-danh-muc-can-xu-ly");
+}
 
 static string FindRepo()
 {

@@ -1,0 +1,977 @@
+{
+ "data": [
+  {
+   "STT": 1,
+   "Mã": "VRHLBTNXEC00116201001",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 2,
+   "Mã": "VRHLBTNXEC00121301001",
+   "Ghi chú": "Tôm sú PTO"
+  },
+  {
+   "STT": 3,
+   "Mã": "VRHLBTNXEC00116291001",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 4,
+   "Mã": "VRHLBTNXEC00116201001",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 5,
+   "Mã": "PRHLXXXXXXXXXXXXX0502",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 6,
+   "Mã": "ZZZZBTNXEC00116209901",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 7,
+   "Mã": "ABC123",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 8,
+   "Mã": "",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 9,
+   "Mã": " vrhl btnx ec00121301001 ",
+   "Ghi chú": ""
+  },
+  {
+   "STT": 10,
+   "Mã": "vrhlbtnxec001162010o1",
+   "Ghi chú": ""
+  }
+ ],
+ "maHoa": [
+  {
+   "Tổ hợp": 2,
+   "Mã": "B",
+   "Tên": "Block"
+  },
+  {
+   "Tổ hợp": 3,
+   "Mã": "T",
+   "Tên": "Túi"
+  },
+  {
+   "Tổ hợp": 4,
+   "Mã": "N",
+   "Tên": "Không hóa chất"
+  },
+  {
+   "Tổ hợp": 5,
+   "Mã": "X",
+   "Tên": "Xuất khẩu"
+  },
+  {
+   "Tổ hợp": 6,
+   "Mã": "EC",
+   "Tên": "Ecuador"
+  },
+  {
+   "Tổ hợp": 7,
+   "Mã": "001",
+   "Tên": "Mạ 10%"
+  },
+  {
+   "Tổ hợp": 8,
+   "Mã": "1620",
+   "Tên": "16/20"
+  },
+  {
+   "Tổ hợp": 8,
+   "Mã": "2130",
+   "Tên": "21/30"
+  },
+  {
+   "Tổ hợp": 9,
+   "Mã": "10",
+   "Tên": "1 kg"
+  },
+  {
+   "Tổ hợp": 9,
+   "Mã": "05",
+   "Tên": "0.5 kg"
+  },
+  {
+   "Tổ hợp": 10,
+   "Mã": "01",
+   "Tên": "10 túi / thùng"
+  },
+  {
+   "Tổ hợp": 10,
+   "Mã": "02",
+   "Tên": ""
+  },
+  {
+   "Tổ hợp": 1,
+   "Mã": " PRHL ",
+   "Tên": "Tôm thẻ HLSO"
+  },
+  {
+   "Tổ hợp": 11,
+   "Mã": "Q",
+   "Tên": "bỏ"
+  }
+ ],
+ "fixed": [
+  {
+   "code": "VRHL",
+   "name": "Tôm sú HLSO"
+  },
+  {
+   "code": "vrhl",
+   "name": "Tôm sú HLSO (thường)"
+  }
+ ],
+ "useSrc": {
+  "ton-kho-an-an/LoadData": [
+   {
+    "c0": "VRHLBTNXEC00116201001",
+    "c1": "x"
+   },
+   {
+    "c0": "TPC-VRHLBTNXEC00116201001",
+    "c3": "VRHLBTNXEC00116201001"
+   },
+   {
+    "c0": " newwbtnxec00116201001 "
+   },
+   {
+    "c0": 12345
+   }
+  ],
+  "ton-vi-tri-an-an/ViTri": [
+   {
+    "ma": "VRHLBTNXEC00121301001"
+   },
+   {
+    "ma": "tpc-VRHLBTNXEC00116291001"
+   }
+  ],
+  "ton-kho-an-an/ViTriBot": [
+   {
+    "m": "PRHLXXXXXXXXXXXXX0502"
+   }
+  ],
+  "ton-kho-gui/DuLieuChinh": [
+   {
+    "a": "VRHLBTNXEC00116201001"
+   },
+   {
+    "b": "NEWWBTNXEC00121301001"
+   }
+  ],
+  "nxt-bot-sot/SoCai": [
+   {
+    "maHang": "VRHLBTNXEC00116201001",
+    "ghiChu": "VRHLBTNXEC00116201001"
+   },
+   {
+    "maHang": "ZZZZBTNXEC00116209901"
+   }
+  ]
+ },
+ "codes": [
+  "VRHLBTNXEC00116201001",
+  "VRHLBTNXEC00121301001",
+  "VRHLBTNXEC00116291001",
+  "VRHLBTNXEC00116201001",
+  "PRHLXXXXXXXXXXXXX0502",
+  "ZZZZBTNXEC00116209901",
+  "ABC123",
+  "",
+  "VRHLBTNXEC00121301001",
+  "VRHLBTNXEC001162010O1"
+ ],
+ "decode": [
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "1620",
+    "16/20",
+    true
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "2130",
+    "21/30",
+    true
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "1629",
+    null,
+    false
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "1620",
+    "16/20",
+    true
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "PRHL",
+    "Tôm thẻ HLSO",
+    true
+   ],
+   [
+    2,
+    "X",
+    null,
+    true
+   ],
+   [
+    3,
+    "X",
+    null,
+    true
+   ],
+   [
+    4,
+    "X",
+    null,
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "XX",
+    null,
+    true
+   ],
+   [
+    7,
+    "XXX",
+    null,
+    true
+   ],
+   [
+    8,
+    "XXXX",
+    null,
+    true
+   ],
+   [
+    9,
+    "05",
+    "0.5 kg",
+    true
+   ],
+   [
+    10,
+    "02",
+    "",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "ZZZZ",
+    null,
+    false
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "1620",
+    "16/20",
+    true
+   ],
+   [
+    9,
+    "99",
+    null,
+    false
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "ABC1",
+    null,
+    false
+   ],
+   [
+    2,
+    "2",
+    null,
+    false
+   ],
+   [
+    3,
+    "3",
+    null,
+    false
+   ],
+   [
+    4,
+    "",
+    null,
+    true
+   ],
+   [
+    5,
+    "",
+    null,
+    true
+   ],
+   [
+    6,
+    "",
+    null,
+    true
+   ],
+   [
+    7,
+    "",
+    null,
+    true
+   ],
+   [
+    8,
+    "",
+    null,
+    true
+   ],
+   [
+    9,
+    "",
+    null,
+    true
+   ],
+   [
+    10,
+    "",
+    null,
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "",
+    null,
+    true
+   ],
+   [
+    2,
+    "",
+    null,
+    true
+   ],
+   [
+    3,
+    "",
+    null,
+    true
+   ],
+   [
+    4,
+    "",
+    null,
+    true
+   ],
+   [
+    5,
+    "",
+    null,
+    true
+   ],
+   [
+    6,
+    "",
+    null,
+    true
+   ],
+   [
+    7,
+    "",
+    null,
+    true
+   ],
+   [
+    8,
+    "",
+    null,
+    true
+   ],
+   [
+    9,
+    "",
+    null,
+    true
+   ],
+   [
+    10,
+    "",
+    null,
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "2130",
+    "21/30",
+    true
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "01",
+    "10 túi / thùng",
+    true
+   ]
+  ],
+  [
+   [
+    1,
+    "VRHL",
+    "Tôm sú HLSO (thường)",
+    true
+   ],
+   [
+    2,
+    "B",
+    "Block",
+    true
+   ],
+   [
+    3,
+    "T",
+    "Túi",
+    true
+   ],
+   [
+    4,
+    "N",
+    "Không hóa chất",
+    true
+   ],
+   [
+    5,
+    "X",
+    "Xuất khẩu",
+    true
+   ],
+   [
+    6,
+    "EC",
+    "Ecuador",
+    true
+   ],
+   [
+    7,
+    "001",
+    "Mạ 10%",
+    true
+   ],
+   [
+    8,
+    "1620",
+    "16/20",
+    true
+   ],
+   [
+    9,
+    "10",
+    "1 kg",
+    true
+   ],
+   [
+    10,
+    "O1",
+    null,
+    false
+   ]
+  ]
+ ],
+ "note": [
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 16/20 • 1 kg • 10 túi / thùng",
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 21/30 • 1 kg • 10 túi / thùng",
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 1 kg • 10 túi / thùng",
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 16/20 • 1 kg • 10 túi / thùng",
+  "Tôm thẻ HLSO • Xuất khẩu • 0.5 kg",
+  "Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 16/20 • 10 túi / thùng",
+  "",
+  "",
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 21/30 • 1 kg • 10 túi / thùng",
+  "Tôm sú HLSO (thường) • Block • Túi • Không hóa chất • Xuất khẩu • Ecuador • Mạ 10% • 16/20 • 1 kg"
+ ],
+ "status": [
+  [
+   "err",
+   [
+    "Trùng mã (2 dòng)"
+   ]
+  ],
+  [
+   "err",
+   [
+    "Trùng mã (2 dòng)"
+   ]
+  ],
+  [
+   "warn",
+   [
+    "Đoạn chưa khai báo: 8.1629",
+    "Có thể gõ sai — gần giống VRHLBTNXEC00116201001"
+   ]
+  ],
+  [
+   "err",
+   [
+    "Trùng mã (2 dòng)"
+   ]
+  ],
+  null,
+  [
+   "warn",
+   [
+    "Đoạn chưa khai báo: 1.ZZZZ, 9.99"
+   ]
+  ],
+  [
+   "err",
+   [
+    "Mã phải đủ 21 ký tự (đang 6)"
+   ]
+  ],
+  [
+   "err",
+   [
+    "Thiếu mã hàng"
+   ]
+  ],
+  [
+   "err",
+   [
+    "Trùng mã (2 dòng)"
+   ]
+  ],
+  [
+   "warn",
+   [
+    "Đoạn chưa khai báo: 10.O1",
+    "Có thể gõ sai — gần giống VRHLBTNXEC00116201001"
+   ]
+  ]
+ ],
+ "useText": [
+  "Tồn An An 2 · Tồn gửi 1 · Sổ kho 1",
+  "Tồn An An 1",
+  "Tồn An An 1",
+  "Tồn An An 2 · Tồn gửi 1 · Sổ kho 1",
+  "Tồn An An 1",
+  "Sổ kho 1",
+  "",
+  "",
+  "Tồn An An 1",
+  "",
+  ""
+ ],
+ "useCount": [
+  [
+   "VRHLBTNXEC00116201001",
+   2,
+   1,
+   1
+  ],
+  [
+   "NEWWBTNXEC00116201001",
+   1,
+   0,
+   0
+  ],
+  [
+   "VRHLBTNXEC00121301001",
+   1,
+   0,
+   0
+  ],
+  [
+   "VRHLBTNXEC00116291001",
+   1,
+   0,
+   0
+  ],
+  [
+   "PRHLXXXXXXXXXXXXX0502",
+   1,
+   0,
+   0
+  ],
+  [
+   "NEWWBTNXEC00121301001",
+   0,
+   1,
+   0
+  ],
+  [
+   "ZZZZBTNXEC00116209901",
+   0,
+   0,
+   1
+  ]
+ ],
+ "xl": {
+  "missing": [
+   "NEWWBTNXEC00116201001",
+   "NEWWBTNXEC00121301001"
+  ],
+  "dups": [
+   [
+    "VRHLBTNXEC00116201001",
+    2
+   ],
+   [
+    "VRHLBTNXEC00121301001",
+    2
+   ]
+  ],
+  "near": [
+   [
+    "VRHLBTNXEC00116291001",
+    "VRHLBTNXEC00116201001"
+   ],
+   [
+    "VRHLBTNXEC001162010O1",
+    "VRHLBTNXEC00116201001"
+   ]
+  ],
+  "miss": [
+   "VRHLBTNXEC00116291001",
+   "ZZZZBTNXEC00116209901",
+   "VRHLBTNXEC001162010O1"
+  ]
+ }
+}
