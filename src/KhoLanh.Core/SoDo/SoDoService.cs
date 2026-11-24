@@ -450,11 +450,25 @@ public sealed class SoDoService
         var tpl = EntryService.BuiltIn.First(t => t.Id == "kiem-ke");
         var name = NlName(kho, khu, n) + " " + DateTime.Today.ToString("dd-MM-yyyy", CultureInfo.InvariantCulture);
         var page = _entry.Create(name, tpl);
-        var data = rows.Select(r => (IReadOnlyList<string>)new[]
+        // 1.62: điền theo TÊN cột (mẫu Kiểm kê mới: Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg), Ghi chú, Ngày nhập; mẫu cũ: Tên hàng, Số thùng, Kg)
+        var hs = page.Columns.Select(c => KhoLanh.Core.Grid.GridFilter.Fold(c.Header).Trim()).ToList();
+        int H(params string[] names) => hs.FindIndex(h => names.Contains(h));
+        int cVt = H("vi tri"), cMa = H("ma hang"), cTen = H("ten hang"), cSz = H("size"), cSl = H("so luong", "so thung"), cTl = H("trong luong", "kg"), cGc = H("ghi chu"), cNg = H("ngay nhap");
+        var today = EntryRules.TodayText(DateTime.Today);
+        var data = rows.Select(r =>
         {
-            r.Code, r.Known ? r.Ma : "", r.Known ? r.Ten : "", r.Known ? SizeParts(r.Ma, r.Ten).Size : "",
-            r.Known ? r.Sl0.ToString("R", CultureInfo.InvariantCulture) : "", r.Known && r.Tl != 0 ? r.Tl.ToString("R", CultureInfo.InvariantCulture) : "", "",
-            r.Known && r.Lo.Length > 0 ? "lô " + r.Lo : "",
+            var a = new string[page.Columns.Count]; Array.Fill(a, "");
+            void Put(int c, string v) { if (c >= 0) a[c] = v; }
+            Put(cVt, r.Code);
+            if (r.Known)
+            {
+                Put(cMa, r.Ma); Put(cTen, r.Ten); Put(cSz, SizeParts(r.Ma, r.Ten).Size);
+                Put(cSl, r.Sl0.ToString("R", CultureInfo.InvariantCulture));
+                if (r.Tl != 0) Put(cTl, r.Tl.ToString("R", CultureInfo.InvariantCulture));
+                if (r.Lo.Length > 0) Put(cGc, "lô " + r.Lo);
+            }
+            Put(cNg, today);
+            return (IReadOnlyList<string>)a;
         }).ToList();
         page = _entry.Save(page, page.Columns, data);
         Log("tạo trang Nhập liệu kiểm kê", name);
@@ -471,8 +485,8 @@ public sealed class SoDoService
             ?? throw new BusinessException($"Chưa có trang Nhập liệu tên bắt đầu bằng “{pre}”. Bấm “Chuyển sang Nhập liệu” trước, nhập số thực rồi quay lại.");
         var cols = page.Columns.Select(c => c.Header).ToList();
         int Col(string h) => cols.FindIndex(x => string.Equals(x, h, StringComparison.OrdinalIgnoreCase));
-        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số thùng"), cKg = Col("Kg"), cGc = Col("Ghi chú");
-        if (cVt < 0 || cMa < 0 || cSl < 0) throw new BusinessException($"Trang “{page.Name}” không có đủ cột Vị trí, Mã hàng, Số thùng.");
+        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số lượng") is >= 0 and var sl ? sl : Col("Số thùng"), cKg = Col("Trọng lượng") is >= 0 and var tl ? tl : Col("Kg"), cGc = Col("Ghi chú");
+        if (cVt < 0 || cMa < 0 || cSl < 0) throw new BusinessException($"Trang “{page.Name}” không có đủ cột Vị trí, Mã hàng, Số lượng.");
         var dat = _entry.Load(page);
         var bas = KkRows(B.Pos, kho, khu, n); var idx = new Dictionary<string, KkRow>();
         foreach (var r in bas) { r.Sl = null; idx.TryAdd(r.Code + "|" + (r.Known ? KeyMa(r.Ma) : "") + "|" + (r.Known ? r.Lo : ""), r); }

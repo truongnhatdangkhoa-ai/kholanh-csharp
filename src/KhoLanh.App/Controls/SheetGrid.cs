@@ -406,7 +406,9 @@ public sealed class SheetGrid : UserControl
     internal void SelectV(int r, int c, bool extend = false)
     {
         r = Math.Clamp(r, 0, Math.Max(0, TotalRows - 1));
-        c = Math.Clamp(c, 0, Math.Max(0, Model.ColCount - 1));
+        var lastC = Model.ColCount - 1;
+        while (lastC > 0 && Model.Columns[lastC].Width < 4) lastC--;      // không dừng ở cột ẩn cuối bảng (mã dòng, màu ô…)
+        c = Math.Clamp(c, 0, Math.Max(0, lastC));
         VR = r; Col = c;
         if (!extend) { VA = r; AnchorCol = c; }
         ScrollIntoView(r, c);
@@ -701,6 +703,14 @@ public sealed class SheetGrid : UserControl
                 for (var j = 0; j < data[i].Count && s.C1 + j < Model.ColCount; j++) cells.Add((ToModel(s.R1 + i), s.C1 + j, data[i][j]));
         Model.SetCells(cells);
         SelectRangeV(new CellRange(s.R1, s.C1, Math.Min(VCount - 1, s.R1 + Math.Max(data.Count, s.Rows) - 1), Math.Min(Model.ColCount - 1, s.C1 + Math.Max(data.Max(x => x.Count), s.Cols) - 1)));
+    }
+
+    /// <summary>Thêm mục vào menu chuột phải của bảng (sau một vạch ngăn, cuối menu).</summary>
+    public void AddMenuItems(params Control[] items)
+    {
+        if (_surface.ContextMenu is not ContextMenu menu || items.Length == 0) return;
+        menu.Items.Add(new Separator());
+        foreach (var i in items) menu.Items.Add(i);
     }
 
     private void BuildContextMenu()

@@ -171,7 +171,7 @@ public sealed partial class TongQuanView : UserControl, IPage
     {
         if (!_loaded) return;
         _sub = "Cập nhật " + DateTime.Now.ToString("HH:mm dd/MM/yyyy") + " · lịch xuất container dùng chung với app cũ";
-        if (MainWindow.Of(this) is { } mw) mw.SetSubtitle(_sub);
+        // 1.62: không hiện dòng mô tả cạnh tiêu đề (chỉ còn trong nút ⓘ)
         PaintKpi(); PaintDay(); PaintRecent(); PaintTodo(); PaintQuick(); PaintEmailBadge();
     }
 
