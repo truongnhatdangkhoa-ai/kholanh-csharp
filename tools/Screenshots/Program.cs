@@ -442,10 +442,11 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Chức năng") == true);
-    gb.Flyout!.ShowAt(gb); Pump();
-    Snap(small, "03d-menu-nhom");
-    gb.Flyout.Hide(); Pump();
+    small.SetMini(true, save: false); Pump();
+    var nb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("side") && ToolTip.GetTip(b) is string t && t.StartsWith("Đối chiếu kiểm kê"));
+    ToolTip.SetIsOpen(nb, true); Pump();
+    Snap(small, "03d-menu-thu-gon");
+    ToolTip.SetIsOpen(nb, false); small.SetMini(false, save: false); Pump();
 }
 small.Close();
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
