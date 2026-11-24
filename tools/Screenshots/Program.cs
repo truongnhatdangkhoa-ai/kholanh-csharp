@@ -26,6 +26,55 @@ App.InitServices(data);
 var s = App.Services;
 
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
+void SnapFlyout(Window w, Button anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pres = ((MenuFlyout)anchor.Flyout!).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<MenuFlyoutPresenter>().First();
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(pres);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(pt.X, pt.Y + 2, ps.Width, ps.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
+void SnapPopup(Window w, Control child, Control anchor, string name)
+{
+    Pump();
+    using var frame = w.CaptureRenderedFrame()!;
+    var pt = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), w) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(child.Bounds.Right), (int)Math.Ceiling(child.Bounds.Bottom));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(child);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(child.Bounds.X, child.Bounds.Y, child.Bounds.Width, child.Bounds.Height), new Rect(pt.X, pt.Y, child.Bounds.Width, child.Bounds.Height));
+    }
+    all.Save(Path.Combine(outDir, name + ".png"));
+    Console.WriteLine("  " + name);
+}
+
+/// <summary>Nhập liệu: gõ vào cột Mã hàng → ô gợi ý (popup ghép vào ảnh).</summary>
+void SnapSuggest(Window w, string name)
+{
+    var g = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    for (var i = 0; i < 60 && typeof(EntryView).GetField("_sugs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) { Thread.Sleep(50); Pump(); }
+    var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
+    g.Select(3, mc); g.BeginEdit("VRHO"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    if (pop.IsOpen && pop.Child is Control ch) SnapPopup(w, ch, ed, name); else { Console.WriteLine("  (không mở được gợi ý)"); Snap(w, name); }
+    var esc = new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent };
+    ed.RaiseEvent(esc); ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); Pump();
+}
+
 void Snap(Window w, string name)
 {
     Pump();
@@ -442,13 +491,37 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    small.SetMini(true, save: false); Pump();
-    var nb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("side") && ToolTip.GetTip(b) is string t && t.StartsWith("Đối chiếu kiểm kê"));
-    ToolTip.SetIsOpen(nb, true); Pump();
-    Snap(small, "03d-menu-thu-gon");
-    ToolTip.SetIsOpen(nb, false); small.SetMini(false, save: false); Pump();
+    // menu ngang: mở nhóm "Tồn kho" (popup vẽ riêng rồi ghép vào ảnh cửa sổ)
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Tồn kho"));
+    gb.Flyout!.ShowAt(gb); for (var i = 0; i < 10; i++) Pump();
+    SnapFlyout(small, gb, "03d-menu-tha-xuong");
+    gb.Flyout.Hide(); Pump();
 }
 small.Close();
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
+{
+    foreach (var (k, n) in new[] { ("m6", "ui-nhap-lieu"), ("m7", "ui-vi-tri"), ("m1", "ui-an-an"), ("m2", "ui-gui"), ("m3sk", "ui-nxt") })
+    {
+        main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
+        if (k == "m6") SnapSuggest(main, "ui-nhap-lieu-goi-y");
+        if (k == "m7" && main.PageHost.Content is ViTriView vv)
+        {
+            _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+            var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+            g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
+            for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(pw, "ui-vi-tri-chon");
+            pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "ui-vi-tri-phieu");
+        }
+        foreach (var sg in main.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>())
+        {
+            var tb = typeof(KhoLanh.App.Controls.SheetGrid).GetField("_totals", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg) as Control;
+            var sa = (double?[])typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sumAll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(sg)!;
+            Console.WriteLine($"   [{n}] grid h={sg.Bounds.Height:0} cols={sg.Model.ColCount} totals vis={tb!.IsVisible} h={tb.Bounds.Height:0} sums={string.Join(",", sa.Select(x => x?.ToString() ?? "-"))}");
+        }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
 // Số liệu cuối kỳ (dữ liệu mẫu = bộ test đối chiếu lõi JS)
@@ -600,9 +673,15 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     if (key == "m7")
     {
         var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
-        var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        var vtv = (ViTriView)main.PageHost.Content!;
+        _ = vtv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
+        var pw = vtv.PickerWindow!;
+        var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
         g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
-        Pump(); g.Select(2, 7); Snap(main, "24-vi-tri");
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 7); Snap(pw, "24b0-vi-tri-chon-hang");
+        pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        var dg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        dg.Select(0, 7); Snap(main, "24-vi-tri");
         tc.SelectedIndex = 1; Pump();
         var sg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
         sg.Select(0, 0); Snap(main, "24b-vi-tri-phieu");
@@ -912,6 +991,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
         g.Select(3, 4); g.Select(9, 6, extend: true);
         Snap(main, "20b-nhap-lieu-chon-vung");
+        SnapSuggest(main, "20c-nhap-lieu-goi-y");
     }
 }
 // Kiểm tra nhanh thao tác bàn phím trên lưới (gõ, Enter, Tab, F2, Delete, Ctrl+Z, Ctrl+D)

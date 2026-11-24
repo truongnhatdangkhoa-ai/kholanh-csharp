@@ -32,6 +32,7 @@ public partial class EntryView : UserControl, IPage
     {
         public string Name => Page.Name;
         public string Line => $"{Page.Rows:#,0} dòng · {Short(Page.UpdatedAt)}" + (Page.UpdatedBy.Length > 0 ? " · " + Page.UpdatedBy : "");
+        public override string ToString() => Name;
         private static string Short(string at) => DateTime.TryParse(at, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd/MM HH:mm") : at;
     }
 
@@ -40,6 +41,10 @@ public partial class EntryView : UserControl, IPage
         InitializeComponent();
         _grid = new SheetGrid(_model) { IsVisible = false };
         _grid.Display = FormatCell;
+        _grid.Suggest = SuggestFor;
+        _grid.SuggestionPicked += OnSuggestionPicked;
+        _grid.CellBackground = UnknownCodeBg;
+        AttachedToVisualTree += (_, _) => LoadSuggestions();
         GridHost.Children.Add(_grid);
         _model.Changed += () =>
         {
@@ -58,6 +63,7 @@ public partial class EntryView : UserControl, IPage
         DetachedFromVisualTree += async (_, _) => { if (_dirty) await SaveAsync(quiet: true); };
         var edit = Svc.CanEdit;
         NewButton.IsEnabled = RenameButton.IsEnabled = DeleteButton.IsEnabled = RestoreButton.IsEnabled = edit;
+        Tabs.SelectionChanged += (_, e) => { if (e.Source == Tabs && Tabs.SelectedIndex == 1) Dispatcher.UIThread.Post(() => PageList.ScrollIntoView(PageList.SelectedItem ?? new object())); };
         SaveButton.IsVisible = ImportButton.IsVisible = ColumnsButton.IsVisible = TemplateButton.IsVisible = edit;
         ExportButton.IsVisible = Svc.CanExport;
         _model.ReadOnly = !edit;
@@ -84,9 +90,37 @@ public partial class EntryView : UserControl, IPage
         DeleteButton.Content = trash ? "Xóa hẳn" : "Xóa";
         var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash ? shown.FirstOrDefault() : null);
         if (target is not null) PageList.SelectedItem = target;
+        SyncCombo();
         EmptyText.IsVisible = _page is null;
         EmptyText.Text = trash ? "Chọn một trang trong thùng rác để xem hoặc khôi phục." : "Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống).";
     }
+
+    private bool _syncing;
+    /// <summary>Ô chọn trang trên đầu bảng: các trang đang dùng (không gồm thùng rác), chọn đúng trang đang mở.</summary>
+    private void SyncCombo()
+    {
+        _syncing = true;
+        try
+        {
+            var trash = TrashToggle.IsChecked == true;
+            var list = trash ? new List<Item>() : _items;
+            PageCombo.ItemsSource = list;
+            PageCombo.SelectedItem = list.FirstOrDefault(i => i.Page.Id == _page?.Id);
+            PageCombo.PlaceholderText = trash ? "(đang xem thùng rác)" : list.Count == 0 ? "(chưa có trang)" : "Chọn trang…";
+        }
+        finally { _syncing = false; }
+    }
+
+    private async void OnComboSelected(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || PageCombo.SelectedItem is not Item it || it.Page.Id == _page?.Id) return;
+        if (_dirty && !await SaveAsync(quiet: true)) { SyncCombo(); return; }
+        PageList.SelectedItem = _items.FirstOrDefault(i => i.Page.Id == it.Page.Id);
+        if (_page?.Id != it.Page.Id) Open(it.Page);
+    }
+
+    private void OnOpenPage(object? sender, RoutedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
+    private void OnListDoubleTapped(object? sender, TappedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
 
     private async void OnPageSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -109,7 +143,7 @@ public partial class EntryView : UserControl, IPage
         _grid.IsVisible = true; EmptyText.IsVisible = false;
         _grid.Refresh();
         _grid.Select(0, 0);
-        PageTitle.Text = p.Name;
+        SyncCombo();
         SaveState.Text = p.Deleted ? "Trong thùng rác (chỉ xem)" : $"Đã lưu {p.UpdatedAt}";
         UpdateStatus();
         Dispatcher.UIThread.Post(() => _grid.Focus());
@@ -117,7 +151,7 @@ public partial class EntryView : UserControl, IPage
 
     private void OnTrashToggle(object? sender, RoutedEventArgs e)
     {
-        _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -133,6 +167,7 @@ public partial class EntryView : UserControl, IPage
         if (TrashToggle.IsChecked == true) TrashToggle.IsChecked = false;
         ReloadList(p!.Id);
         Open(p);
+        Tabs.SelectedIndex = 0;
     }
 
     private async void OnRename(object? sender, RoutedEventArgs e)
@@ -142,7 +177,6 @@ public partial class EntryView : UserControl, IPage
         if (string.IsNullOrWhiteSpace(name)) return;
         if (!await Ui.Run(this, () => Svc.Rename(_page.Id, name))) return;
         _page = _page with { Name = name.Trim() };
-        PageTitle.Text = _page.Name;
         ReloadList(_page.Id);
     }
 
@@ -154,7 +188,7 @@ public partial class EntryView : UserControl, IPage
         if (!await Ui.Confirm(this, msg, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
         if (!forever && _dirty) await SaveAsync(quiet: true);
         if (!await Ui.Run(this, () => Svc.Delete(_page.Id, forever))) return;
-        _dirty = false; _page = null; _grid.IsVisible = false; PageTitle.Text = ""; SaveState.Text = ""; StatusText.Text = "";
+        _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
         ReloadList(null);
     }
 
@@ -259,6 +293,7 @@ public partial class EntryView : UserControl, IPage
             TrashToggle.IsChecked = false;
             ReloadList(page!.Id);
             Open(page);
+            Tabs.SelectedIndex = 0;
             return;
         }
         // thêm vào cuối, khớp tên cột (không phân biệt hoa thường); cột không khớp bỏ qua
@@ -309,6 +344,65 @@ public partial class EntryView : UserControl, IPage
         var name = await Ui.Prompt(this, "Tên mẫu (lưu bộ cột của trang này để tạo trang mới sau). Trùng tên mẫu cũ thì thay mẫu cũ.", "Lưu thành mẫu", _page.Name);
         if (string.IsNullOrWhiteSpace(name)) return;
         if (await Ui.Run(this, () => Svc.SaveTemplate(name, _model.Columns))) SaveState.Text = $"Đã lưu mẫu “{name.Trim()}”";
+    }
+
+    // ------------------------------------------------------------------ gợi ý mã hàng (1.54)
+
+    private static List<MaGoiY.Sug>? _sugs;          // dùng chung giữa các lần mở trang; làm mới sau 5 phút
+    private static HashSet<string> _known = new();
+    private static DateTime _sugAt;
+    private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
+
+    /// <summary>Nạp ngầm danh sách gợi ý: mã đang có tồn ở mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
+    private void LoadSuggestions()
+    {
+        if (_sugs is not null && (DateTime.Now - _sugAt).TotalMinutes < 5) return;
+        _sugAt = DateTime.Now;
+        var s = App.Services;
+        Task.Run(() =>
+        {
+            try
+            {
+                var stock = new KhoLanh.Core.TimNhanh.GsService(s).Build().Rows;
+                var list = MaGoiY.Build(stock, MaGoiY.ReadCatalog(s.Lan));
+                Dispatcher.UIThread.Post(() => { _sugs = list; _known = MaGoiY.Known(list); _grid.Refresh(); });
+            }
+            catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
+        });
+    }
+
+    private static bool IsCodeCol(GridColumn c) => KhoLanh.Core.Grid.GridFilter.Fold(c.Header).Trim() is "ma hang" or "ma" or "ma hh" or "ma sp" or "ma san pham" or "item code" or "code";
+    private int ColBy(params string[] names)
+    {
+        for (var i = 0; i < _model.ColCount; i++) if (names.Contains(KhoLanh.Core.Grid.GridFilter.Fold(_model.Columns[i].Header).Trim())) return i;
+        return -1;
+    }
+
+    private IReadOnlyList<SheetGrid.GridSuggestion> SuggestFor(int col, string text)
+    {
+        if (_sugs is null || col >= _model.ColCount || !IsCodeCol(_model.Columns[col])) return Array.Empty<SheetGrid.GridSuggestion>();
+        return MaGoiY.Search(_sugs, text).Select(x => new SheetGrid.GridSuggestion(x.Ma, x.Ma,
+            string.Join(" · ", new[] { x.Ten, x.Size, x.Dt, x.Ton > 0 ? "tồn " + x.Ton.ToString("#,0.###", Ui.Vi) : "", x.Nguon }.Where(t => t.Length > 0)), x)).ToList();
+    }
+
+    /// <summary>Chọn gợi ý → điền thêm Tên hàng / Size / Đặc tính của dòng đó nếu đang trống.</summary>
+    private void OnSuggestionPicked(int row, int col, SheetGrid.GridSuggestion it)
+    {
+        if (it.Tag is not MaGoiY.Sug x || _model.ReadOnly) return;
+        var cells = new List<(int, int, string)>();
+        void Fill(string v, params string[] names) { var c = ColBy(names); if (c >= 0 && v.Length > 0 && _model.Get(row, c).Trim().Length == 0) cells.Add((row, c, v)); }
+        Fill(x.Ten, "ten hang", "ten", "ten san pham", "dien giai");
+        Fill(x.Size, "size", "co", "kich co");
+        Fill(x.Dt, "dac tinh");
+        if (cells.Count > 0) _model.SetCells(cells);
+    }
+
+    /// <summary>Mã gõ tay không có trong tồn lẫn danh mục → tô vàng nhạt để để ý.</summary>
+    private IBrush? UnknownCodeBg(int r, int c)
+    {
+        if (_sugs is null || c >= _model.ColCount || !IsCodeCol(_model.Columns[c])) return null;
+        var v = _model.Get(r, c).Trim();
+        return v.Length > 0 && !_known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
     }
 
     // ------------------------------------------------------------------ hiển thị

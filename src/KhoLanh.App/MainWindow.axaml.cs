@@ -44,7 +44,6 @@ public partial class MainWindow : Window
         {
             if (!e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
             if (e.Key == Avalonia.Input.Key.K) { e.Handled = true; OpenSearch(); return; }
-            if (e.Key == Avalonia.Input.Key.B) { e.Handled = true; SetMini(!_mini); return; }
             if (e.Key is Avalonia.Input.Key.OemPlus or Avalonia.Input.Key.Add) { Zoom(0.1); e.Handled = true; }
             else if (e.Key is Avalonia.Input.Key.OemMinus or Avalonia.Input.Key.Subtract) { Zoom(-0.1); e.Handled = true; }
             else if (e.Key is Avalonia.Input.Key.D0 or Avalonia.Input.Key.NumPad0) { Zoom(0); e.Handled = true; }
@@ -105,23 +104,25 @@ public partial class MainWindow : Window
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
             }),
         };
-        // Thanh bên trái (1.44): nhóm → các mục (biểu tượng + tên + số việc cần xử lý). Thu gọn chỉ còn biểu tượng; rê chuột hiện tên ngay.
+        // Menu ngang 2 tầng (1.54): tầng 2 = nhóm (nhóm 1 mục bấm mở luôn, nhóm nhiều mục thả xuống chỉ có tên module) + số việc cần xử lý.
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
-        BuildSide();
-        SetMini(s.Settings.Get(KeyMini(u.Username)) == "1", save: false);
+        BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
-        SearchButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
-        {
-            Controls.Icon.Make("search", 15), new TextBlock { Text = "Tìm nhanh", VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
-            new Border { BorderBrush = AppTheme.Brush("#CDD5DF"), BorderThickness = new Avalonia.Thickness(1), CornerRadius = new Avalonia.CornerRadius(4), Padding = new Avalonia.Thickness(5, 0),
-                Child = new TextBlock { Text = "Ctrl K", FontSize = 11, Classes = { "muted" } } },
-        } };
+        var sg = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        sg.Children.Add(Controls.Icon.Make("search", 15));
+        sg.Children.Add(new TextBlock { Text = "Tìm mã hàng, LSX, phiếu, vị trí hoặc module…", Margin = new Avalonia.Thickness(9, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis }.Also(t => Grid.SetColumn(t, 1)));
+        sg.Children.Add(new Border { Classes = { "kbd" }, Child = new TextBlock { Text = "Ctrl K", FontSize = 11 } }.Also(t => Grid.SetColumn(t, 2)));
+        SearchButton.Content = sg;
         var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
-            new Border { Width = 28, Height = 28, CornerRadius = new Avalonia.CornerRadius(14), Background = AppTheme.Brush("#E6F0FC"),
-                Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = AppTheme.Brush("#1859AE"), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
-            new TextBlock { Text = u.Username, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+            new Border { Width = 28, Height = 28, CornerRadius = new Avalonia.CornerRadius(14), Background = AppTheme.Brush("#1F6FD6"),
+                Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
+            new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Children =
+            {
+                new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 12.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, MaxWidth = 160, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
+                new TextBlock { Text = u.RoleLabel, FontSize = 10.5, Foreground = AppTheme.Brush("#8FA0B6", "#7A8797") },
+            } },
             Controls.Icon.Make("chevron-down", 13),
         } };
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
@@ -172,7 +173,6 @@ public partial class MainWindow : Window
         if (!lan.Enabled) return;
         LanText.Text = lan.Short;
         LanText.Foreground = AppTheme.Brush("#C8D4E3", "#A9B5C3");
-        if (_mini) ToolTip.SetTip(LanPill, "Mạng LAN: " + lan.Short);
         LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#F0A030" : "#3FB950");
         ToolTip.SetTip(LanPill, lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
@@ -221,7 +221,7 @@ public partial class MainWindow : Window
             AppUpdater.ExitForUpdate();
     }
 
-    // ------------------------------------------------------------------ thanh bên
+    // ------------------------------------------------------------------ menu ngang
 
     /// <summary>Biểu tượng từng module (tên trong <see cref="Controls.Icon.Paths"/>).</summary>
     private static readonly Dictionary<string, string> NavIcons = new()
@@ -233,123 +233,85 @@ public partial class MainWindow : Window
         ["m14"] = "cube", ["m15"] = "scan", ["m21"] = "tool", ["m22"] = "compare",
         ["users"] = "users", ["backup"] = "save", ["lan"] = "network", ["drive"] = "cloud", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
     };
-    private readonly Dictionary<string, (Button B, TextBlock Name, Border Badge, Border Dot, string Label)> _side = new();
-    private readonly List<Control> _groupHeads = new();
-    private bool _mini;
-    private static string KeyMini(string user) => "ui_nav_mini:" + user.ToLowerInvariant();
-
-    private void BuildSide()
+    /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
+    private static readonly Dictionary<string, string> GroupIcons = new()
     {
-        NavPanel.Children.Clear(); _side.Clear(); _groupHeads.Clear(); _buttons.Clear(); _groups.Clear();
-        var first = true;
+        ["TỒN KHO"] = "box", ["CHỨC NĂNG"] = "chart", ["CHỨNG TỪ"] = "doc", ["CÔNG CỤ"] = "tool", ["HỆ THỐNG"] = "gear",
+    };
+    private sealed class NavGroup
+    {
+        public Button Head = null!; public TextBlock Count = null!; public Border CountBox = null!; public List<string> Keys = new();
+    }
+    private readonly Dictionary<string, NavGroup> _navGroups = new();          // key module → nhóm
+    private readonly Dictionary<string, (TextBlock Text, Border Box)> _badges = new();
+    private readonly Dictionary<string, int> _badgeN = new();
+    private readonly Dictionary<string, MenuItem> _menuItems = new();
+
+    private static Border CountBadge(out TextBlock t)
+    {
+        t = new TextBlock { FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White };
+        return new Border { Classes = { "navbadge" }, IsVisible = false, Child = t };
+    }
+
+    private void BuildNav()
+    {
+        NavPanel.Children.Clear(); _buttons.Clear(); _navGroups.Clear(); _badges.Clear(); _menuItems.Clear();
         foreach (var (group, items) in _menu)
         {
             var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
-            // nhóm 1 mục (Tổng quan, Nhập liệu) không cần tiêu đề nhóm
-            if (visible.Count > 1 || !first)
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+            var cnt = CountBadge(out var cntText);
+            if (visible.Count == 1)
             {
-                Control head;
-                if (Accordion.Contains(group))
-                {
-                    // nhóm xếp gọn: bấm tên nhóm để mở / đóng; chỉ mở nhóm chứa màn hình đang dùng
-                    var chev = Controls.Icon.Make("chevron-down", 13);
-                    var cnt = new TextBlock { FontSize = 10.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = AppTheme.Brush("#F0A23A"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 6, 0) };
-                    var hg = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
-                    hg.Children.Add(new TextBlock { Text = group, FontSize = 10.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, LetterSpacing = 0.8, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
-                    Grid.SetColumn(cnt, 1); hg.Children.Add(cnt);
-                    Grid.SetColumn(chev, 2); hg.Children.Add(chev);
-                    var hb = new Button { Classes = { "sidegrphead" }, Content = hg };
-                    var g = group;
-                    hb.Click += (_, _) => { _openGroup = _openGroup == g ? null : g; ApplyAccordion(); };
-                    _groups[group] = (hb, chev, cnt, visible.Select(i => i.Key).ToList());
-                    head = hb;
-                }
-                else head = new TextBlock { Text = group, Classes = { "sidegrp" } };
-                var line = new Border { Classes = { "sideline" } };
-                _groupHeads.Add(head); _groupHeads.Add(line);
-                if (visible.Count > 1) { NavPanel.Children.Add(head); NavPanel.Children.Add(line); }
+                var item = visible[0];
+                row.Children.Add(Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 16));
+                row.Children.Add(new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+                row.Children.Add(cnt);
+                var b = new Button { Classes = { "navtab" }, Content = row };
+                b.Click += (_, _) => Navigate(item.Key);
+                _buttons[item.Key] = b; _badges[item.Key] = (cntText, cnt);
+                NavPanel.Children.Add(b);
+                continue;
             }
-            first = false;
+            row.Children.Add(Controls.Icon.Make(GroupIcons.GetValueOrDefault(group, "menu"), 16));
+            row.Children.Add(new TextBlock { Text = GroupLabel(group), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
+            row.Children.Add(cnt);
+            row.Children.Add(Controls.Icon.Make("chevron-down", 12));
+            var head = new Button { Classes = { "navtab" }, Content = row };
+            var g = new NavGroup { Head = head, Count = cntText, CountBox = cnt, Keys = visible.Select(i => i.Key).ToList() };
+            var fl = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
             foreach (var item in visible)
             {
-                var name = new TextBlock { Text = item.Label, Classes = { "sidelbl" }, Margin = new Avalonia.Thickness(10, 0, 0, 0), TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
-                var badgeText = new TextBlock { FontSize = 11, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White };
-                var badge = new Border { Classes = { "sidebadge" }, IsVisible = false, Child = badgeText };
-                var dot = new Border { Classes = { "sidedot" }, IsVisible = false };
-                var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("22,*,Auto") };
-                var ic = Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 17);
-                grid.Children.Add(new Panel { Children = { ic, dot } });
-                Grid.SetColumn(name, 1); grid.Children.Add(name);
-                Grid.SetColumn(badge, 2); grid.Children.Add(badge);
-                var b = new Button { Classes = { "side" }, Content = grid };
-                ToolTip.SetShowDelay(b, 0); ToolTip.SetPlacement(b, PlacementMode.Right); ToolTip.SetHorizontalOffset(b, 8);
-                b.Click += (_, _) => Navigate(item.Key);
-                _side[item.Key] = (b, name, badge, dot, item.Label);
-                _buttons[item.Key] = b;
-                NavPanel.Children.Add(b);
+                var ib = CountBadge(out var it);
+                var ig = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), MinWidth = 210 };
+                ig.Children.Add(Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 16));
+                ig.Children.Add(new TextBlock { Text = item.Label, Margin = new Avalonia.Thickness(10, 0, 12, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }.Also(t => Grid.SetColumn(t, 1)));
+                Grid.SetColumn(ib, 2); ig.Children.Add(ib);
+                var mi = new MenuItem { Header = ig, Classes = { "navitem" } };
+                mi.Click += (_, _) => Navigate(item.Key);
+                fl.Items.Add(mi);
+                _menuItems[item.Key] = mi; _badges[item.Key] = (it, ib);
+                _buttons[item.Key] = head; _navGroups[item.Key] = g;
             }
+            head.Flyout = fl;
+            NavPanel.Children.Add(head);
         }
         if (_current.Length > 0 && _buttons.TryGetValue(_current, out var cur)) cur.Classes.Add("active");
-        ApplyAccordion();
+        foreach (var (k, n) in _badgeN.ToList()) SetBadge(k, n);
     }
 
-    /// <summary>Nhóm menu xếp gọn (tự thu lại, chỉ mở nhóm chứa màn hình đang dùng). Tổng quan / Nhập liệu / Tồn kho luôn mở.</summary>
-    private static readonly HashSet<string> Accordion = new() { "CHỨC NĂNG", "CHỨNG TỪ", "CÔNG CỤ", "HỆ THỐNG" };
-    private readonly Dictionary<string, (Button Head, Control Chevron, TextBlock Count, List<string> Keys)> _groups = new();
-    private string? _openGroup;
-
-    /// <summary>Ẩn / hiện các mục theo nhóm đang mở. Khi thanh bên thu gọn (chỉ biểu tượng) thì hiện tất cả.</summary>
-    private void ApplyAccordion()
-    {
-        foreach (var (g, x) in _groups)
-        {
-            var open = _mini || g == _openGroup;
-            foreach (var k in x.Keys) if (_side.TryGetValue(k, out var it)) it.B.IsVisible = open;
-            x.Chevron.RenderTransform = open ? null : new Avalonia.Media.RotateTransform(-90);
-            // nhóm đang thu: hiện tổng số việc cần xử lý của các mục bên trong
-            var n = x.Keys.Sum(k => _side.TryGetValue(k, out var it) && it.Badge.Child is TextBlock t && int.TryParse((t.Text ?? "").TrimEnd('+'), out var v) ? v : 0);
-            x.Count.Text = !open && n > 0 ? n.ToString() : "";
-        }
-    }
-
-    /// <summary>Thu gọn (chỉ biểu tượng) / mở rộng thanh bên; lưu theo tài khoản trên máy này.</summary>
-    internal void SetMini(bool mini, bool save = true)
-    {
-        _mini = mini;
-        Side.Width = mini ? 60 : 232;
-        LogoText.IsVisible = !mini;
-        LogoRow.Margin = mini ? new Avalonia.Thickness(15, 14, 0, 10) : new Avalonia.Thickness(14, 14, 10, 10);
-        foreach (var c in _groupHeads) c.Classes.Set("mini", mini);
-        ApplyAccordion();
-        foreach (var (key, x) in _side)
-        {
-            x.Name.IsVisible = !mini;
-            var n = x.Badge.Child is TextBlock t && int.TryParse(t.Text, out var v) ? v : 0;
-            x.Badge.IsVisible = !mini && n > 0; x.Dot.IsVisible = mini && n > 0;
-            ToolTip.SetTip(x.B, mini ? x.Label + (n > 0 ? $" · {n} cần xử lý" : "") : null);
-        }
-        foreach (var c in new Control[] { LanText }) c.IsVisible = !mini;
-        ToolTip.SetShowDelay(LanPill, 0); ToolTip.SetPlacement(LanPill, PlacementMode.Right);
-        CollapseButton.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("22,*"), Children =
-        {
-            Controls.Icon.Make(mini ? "chevron-right" : "chevron-left", 16),
-            new TextBlock { Text = "Thu gọn menu", Classes = { "sidelbl" }, Margin = new Avalonia.Thickness(10, 0, 0, 0), IsVisible = !mini }.Also(t => Grid.SetColumn(t, 1)),
-        } };
-        ToolTip.SetShowDelay(CollapseButton, 0); ToolTip.SetPlacement(CollapseButton, PlacementMode.Right);
-        ToolTip.SetTip(CollapseButton, mini ? "Mở rộng menu (Ctrl + B)" : "Thu gọn menu (Ctrl + B)");
-        if (save) App.Services.Settings.Set(KeyMini(App.Services.Session.Username), mini ? "1" : "");
-    }
-    private void OnCollapseClick(object? sender, RoutedEventArgs e) => SetMini(!_mini);
-
-    /// <summary>Số việc cần xử lý cạnh tên module (0 = ẩn). Khi thu gọn hiện chấm cam trên biểu tượng.</summary>
+    /// <summary>Số việc cần xử lý cạnh tên module (0 = ẩn); nhóm thả xuống hiện tổng số của các mục bên trong.</summary>
     public void SetBadge(string key, int n)
     {
-        if (!_side.TryGetValue(key, out var x)) return;
-        if (x.Badge.Child is TextBlock t) t.Text = n > 0 ? (n > 99 ? "99+" : n.ToString()) : "";
-        x.Badge.IsVisible = !_mini && n > 0; x.Dot.IsVisible = _mini && n > 0;
-        if (_mini) ToolTip.SetTip(x.B, x.Label + (n > 0 ? $" · {n} cần xử lý" : ""));
-        ApplyAccordion();
+        _badgeN[key] = n;
+        if (!_badges.TryGetValue(key, out var x)) return;
+        x.Text.Text = n > 99 ? "99+" : n.ToString(); x.Box.IsVisible = n > 0;
+        if (_navGroups.TryGetValue(key, out var g))
+        {
+            var sum = g.Keys.Sum(k => _badgeN.GetValueOrDefault(k));
+            g.Count.Text = sum > 99 ? "99+" : sum.ToString(); g.CountBox.IsVisible = sum > 0;
+        }
     }
 
     private static string GroupLabel(string group) =>
@@ -368,9 +330,11 @@ public partial class MainWindow : Window
         PageHost.IsVisible = true;
         PageHost.Content = page;
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
-        foreach (var (k, b) in _buttons) { if (k == key) b.Classes.Add("active"); else b.Classes.Remove("active"); }
-        _openGroup = _groups.FirstOrDefault(g => g.Value.Keys.Contains(key)).Key;   // nhóm khác (Tồn kho…) → thu hết các nhóm xếp gọn
-        ApplyAccordion();
+        foreach (var b in _buttons.Values) b.Classes.Remove("active");
+        if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
+        foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
+        var grp = _menu.First(m => m.items.Contains(item)).group;
+        PageGroup.Text = _navGroups.ContainsKey(key) ? GroupLabel(grp) + "  ›" : "";
         _current = key;
     }
 
