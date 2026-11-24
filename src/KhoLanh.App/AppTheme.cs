@@ -119,12 +119,12 @@ public static class AppTheme
     private static readonly (string key, string light, string? dark)[] Res =
     {
         ("BrandDark", "#1A2433", null), ("BrandMid", "#4A5869", null), ("Accent", "#1F6FD6", null), ("AccentStrong", "#1859AE", null), ("AccentSoft", "#E6F0FC", null),
-        ("PageBg", "#F4F6F9", null), ("CardBg", "#FFFFFF", null), ("Surface2", "#F8FAFC", null), ("Border", "#E3E8EF", null), ("BorderStrong", "#CDD5DF", null),
+        ("PageBg", "#F4F6F9", null), ("CardBg", "#FFFFFF", null), ("Surface2", "#F8FAFC", null), ("Border", "#E3E8EF", null), ("BorderStrong", "#B9C3D0", "#4A5563"),
         ("Text", "#1A2433", null), ("Muted", "#5D6B78", null), ("Faint", "#7A8797", null),
         ("InColor", "#1E7B4A", null), ("OutColor", "#C2410C", null), ("Danger", "#B42318", null),
         ("OkSoft", "#E3F4EA", null), ("Ok", "#1E7B4A", null), ("WarnSoft", "#FFF2D6", null), ("Warn", "#9A5B00", null), ("BadSoft", "#FDE8E6", null), ("Bad", "#B42318", null),
         ("InfoSoft", "#EEEBFC", null), ("Info", "#5B4BC4", null),
-        ("NavBg", "#10243D", null), ("NavFg", "#C8D4E3", "#A9B5C3"), ("NavHover", "#1B3452", "#1A212B"), ("NavMuted", "#6F8199", "#5E6B7A"),
+        ("NavBg", "#10243D", null), ("NavFg", "#DCE5F0", "#C2CCD8"), ("NavHover", "#1B3452", "#1A212B"), ("NavMuted", "#8FA0B6", "#7A8797"),
         ("GridLine", "#E3E8EF", null), ("GridHead", "#F1F4F8", null),
     };
 
