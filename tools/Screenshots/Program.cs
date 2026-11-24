@@ -329,7 +329,8 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
         if (idx % 97 == 5) sl -= 3; else if (idx % 131 == 11) sl += 2;
         if (!typoDone && ma == typoMa) { ma = typoTo; typoDone = true; }
         if (ma == stock[10].Ma && idx % 2 == 0) tl += 0.5;
-        return new[] { x.Vt, ma, x.Ten, "", sl.ToString(), tl.ToString(ic), "10/2026", "lô " + x.Lo };
+        // mẫu Kiểm kê 1.62: Vị trí, Mã hàng, Size, Trọng lượng, Số lượng, Net(kg), Ghi chú, Ngày nhập
+        return new[] { x.Vt, ma, "", tl.ToString(ic), sl.ToString(), "", "lô " + x.Lo, DateTime.Today.ToString("dd/MM/yyyy") };
     }
     var all = vtDemo.Select((x, i) => (x, i)).ToList();
     bool Part1(string vt) => vt.StartsWith("TG1.A.") || vt.StartsWith("TG1.B.");
@@ -337,7 +338,7 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     var kp1 = s.Entry.Create($"Kiểm kê TG1 khu A-B {DateTime.Today.AddDays(-1):dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp1, kp1.Columns, all.Where(t => Part1(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList());
     var rest = all.Where(t => !Part1(t.x.Vt) && !Skip(t.x.Vt)).Select(t => (IReadOnlyList<string>)Line(t.x, t.i)).ToList();
-    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "Tôm PD BTP 60/70", "60/70", "18", "10", "10/2026", "hàng lạ, chưa có mã" });
+    rest.Add(new[] { "TG1.C.05.6.4", "TPC-VRHLBTNXEC0006070IMA1", "60/70", "10", "18", "", "hàng lạ, chưa có mã", DateTime.Today.ToString("dd/MM/yyyy") });
     var kp2 = s.Entry.Create($"Kiểm kê TG1 C-D, TG2 {DateTime.Today:dd/MM/yyyy}", kkTpl);
     s.Entry.Save(kp2, kp2.Columns, rest);
 
@@ -523,12 +524,159 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
     }
     sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
 }
+// Lưu trữ cá nhân (1.60): SHOTS_ONLY=lt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")
+{
+    void WaitLt(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var lt = s.LuuTru.Store;
+    var tmpDir = Path.Combine(Path.GetTempPath(), "kl-lt-demo"); Directory.CreateDirectory(tmpDir);
+    var ngHd = lt.AddNgan("Hợp đồng & báo giá"); var ngSl = lt.AddNgan("Số liệu kho"); var ngCn = lt.AddNgan("Cá nhân");
+    lt.AddNote(ngSl.Id, "Tồn cuối tháng 10 — đối chiếu kế toán", "HLSO 31/40: 1.240 kiện\nPD 41/50: 860 kiện\nChênh lệch: 12 kiện (đã báo kế toán 02/11)", new[] { "tồn kho", "tháng 10" });
+    lt.AddNote(ngSl.Id, "Nhiệt độ kho mát tuần 47", "Kho 1: -18,5 °C · Kho 2: -19,2 °C · Kho 3: -20,1 °C\nĐã kiểm máy nén kho 2.", new[] { "nhiệt độ" });
+    var pin = lt.AddNote(LtStoreDefault(), "Số tài khoản nhận tiền cước xe", "Vietcombank 0071 000 123 456 — CN Cần Thơ", new[] { "quan trọng" });
+    lt.Edit(pin.Id, new KhoLanh.Core.LuuTru.LtStore.Patch(Pinned: true));
+    lt.AddNote(ngHd.Id, "Bảng giá cước lạnh 2026", "Bảng giá mới: https://example.com/bang-gia-cuoc-lanh-2026", new[] { "báo giá" });
+    var img = Path.Combine(tmpDir, "anh-pallet-kho-2.png");
+    using (var bmp = new SkiaSharp.SKBitmap(640, 420))
+    {
+        using var cnv = new SkiaSharp.SKCanvas(bmp); cnv.Clear(new SkiaSharp.SKColor(214, 226, 238));
+        using var p1 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(31, 111, 214) }; using var p2 = new SkiaSharp.SKPaint { Color = new SkiaSharp.SKColor(150, 110, 70) };
+        for (var i = 0; i < 4; i++) { cnv.DrawRect(40 + i * 150, 120, 120, 200, p1); cnv.DrawRect(30 + i * 150, 320, 140, 22, p2); }
+        using var im = SkiaSharp.SKImage.FromBitmap(bmp); using var d = im.Encode(SkiaSharp.SKEncodedImageFormat.Png, 90); File.WriteAllBytes(img, d.ToArray());
+    }
+    var pdf = Path.Combine(tmpDir, "Hop dong thue kho 2026.pdf"); File.WriteAllBytes(pdf, new byte[183_000]);
+    var xls = Path.Combine(tmpDir, "Bao gia cuoc thang 11.xlsx"); File.WriteAllBytes(xls, new byte[42_000]);
+    lt.AddFile(ngHd.Id, pdf); lt.AddFile(ngHd.Id, xls);
+    var imgRec = lt.AddFile(ngSl.Id, img, "Pallet kho 2 sau khi xếp lại");
+    lt.AddNote(ngCn.Id, "Việc cần nhớ", "- Gia hạn bảo hiểm xe nâng trước 30/11\n- Hẹn thợ kiểm tra cửa kho 3", new[] { "việc" });
+    var cfg = s.LuuTru.Config; cfg.Email = "kholanh.anan@gmail.com"; cfg.Refresh = KhoLanh.Core.Services.Secret.Protect("demo"); cfg.LastOk = DateTime.Now.AddMinutes(-25);
+    cfg.LastSeq = lt.D.Seq - 2;
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Google", "Đăng nhập kholanh.anan@gmail.com");
+    cfg.AddRun(DateTime.Now.AddDays(-1).AddHours(-3), true, "Sao lưu", "Sao lưu: tải lên 3 tệp (225 KB)");
+    cfg.AddRun(DateTime.Now.AddMinutes(-25), true, "Sao lưu", "Tự sao lưu: danh sách mục");
+    s.LuuTru.SaveConfig(cfg);
+    s.LuuTru.ClientOverride = new("123-demo.apps.googleusercontent.com", "demo");
+    main.Navigate("m19"); WaitLt(800); Snap(main, "60-luu-tru-kho");
+    var ltv = main.PageHost.GetVisualDescendants().OfType<LuuTruView>().First();
+    var g = ltv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    var rows = lt.Query();
+    g.Select(rows.FindIndex(r => r.Id == imgRec.Id), 2); WaitLt(500); Snap(main, "60b-luu-tru-anh");
+    var tcl = ltv.GetVisualDescendants().OfType<TabControl>().First();
+    tcl.SelectedIndex = 1; WaitLt(600); Snap(main, "60c-luu-tru-sao-luu");
+    s.Lan.Dispose(); Console.WriteLine("Xong (lt): " + outDir); return;
+}
+static string LtStoreDefault() => KhoLanh.Core.LuuTru.LtStore.DefaultNgan;
+// Kiểm tra lỗi "ComboBox already has a visual parent WrapPanel" (Trợ lý 24/11): Tồn kho An An › bảng lọc — vẽ lại khung điều kiện
+// nhiều lần (đổi bảng lọc + gọi lại RenderPl) phải không ném lỗi. SHOTS_ONLY=an-loc; thoát mã 1 nếu lỗi.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "an-loc")
+{
+    main.Navigate("m1"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+    var anv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.AnAnView>().First();
+    var plMod = (ComboBox)typeof(KhoLanh.App.Views.AnAnView).GetField("_plMod", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(anv)!;
+    try
+    {
+        anv.RenderPl(); anv.RenderPl();
+        var n = plMod.ItemCount;
+        for (var k = 0; k < Math.Max(2, n) * 2; k++) { plMod.SelectedIndex = k % Math.Max(1, n); Pump(); anv.RenderPl(); }
+        var bar = anv.CfBar();
+        Console.WriteLine($"[AN-LOC] đạt: vẽ lại {Math.Max(2, n) * 2 + 2} lần, thanh Thêm có {bar.Children.Count} ô, trong cây: {bar.GetVisualParent() is not null}");
+        Snap(main, "an-loc");
+    }
+    catch (Exception ex) { Console.WriteLine("[AN-LOC] LỖI: " + ex.GetType().Name + ": " + ex.Message); s.Lan.Dispose(); Environment.Exit(1); }
+    s.Lan.Dispose(); Console.WriteLine("Xong (an-loc): " + outDir); return;
+}
+// 1.69: chuột phải ở bảng có lọc báo "Specified cast is not valid" (menu tìm vạch ngăn theo vị trí). SHOTS_ONLY=menu-phai: mở menu chuột phải
+// ở mọi bảng của Tồn kho gửi + Tồn kho An An (mọi tab); thoát mã 1 nếu lỗi.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu-phai")
+{
+    var n = 0;
+    try { s.AnAn.AssignGroup(new[] { "IQF" }, KhoLanh.Core.TonKho.AnAnData.HlsoColumns[0]); } catch (Exception ex) { Console.WriteLine("[MENU-PHAI] gộp thử: " + ex.Message); }
+    foreach (var key in new[] { "m2", "m1" })
+    {
+        main.Navigate(key); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+        var tabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+        for (var t = 0; t < tabs.ItemCount; t++)
+        {
+            tabs.SelectedIndex = t; for (var i = 0; i < 15; i++) { Thread.Sleep(20); Pump(); }
+            foreach (var sub in main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tabs && x.IsEffectivelyVisible).ToList())
+                for (var u = 0; u < sub.ItemCount; u++)
+                {
+                    sub.SelectedIndex = u; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); }
+                    if (u == 0 && (tabs.Items[t] as TabItem)?.Header?.ToString() is { } th && th.Contains("Đặc", StringComparison.OrdinalIgnoreCase))
+                        Snap(main, $"dac-tinh-khoa-{key}");   // 1.69: đặc tính đã gộp hiện mờ (khóa)
+                    foreach (var g in main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList())
+                    {
+                        var surf = g.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.ContextMenu is not null);
+                        if (surf?.ContextMenu is not { } cm) continue;
+                        try
+                        {
+                            var op = false; cm.Opened += (_, _) => op = true;
+                            surf.RaiseEvent(new ContextRequestedEventArgs());   // như bấm chuột phải
+                            Pump(); if (!op) cm.Open(surf); Pump(); cm.Close(); Pump(); n++;
+                        }
+                        catch (Exception ex) { Console.WriteLine($"[MENU-PHAI] LỖI ({key} tab {t}.{u}): {ex.GetType().Name}: {ex.Message}"); s.Lan.Dispose(); Environment.Exit(1); }
+                    }
+                }
+        }
+    }
+    Console.WriteLine($"[MENU-PHAI] đạt: mở menu chuột phải {n} lần không lỗi");
+    s.Lan.Dispose(); Console.WriteLine("Xong (menu-phai): " + outDir); return;
+}
+// 1.69: tab Báo Cáo (tab 2) của Tồn kho An An (Tổng Tồn + Tồn Kho Gửi + Đối Soát chung 1 tab, cảnh báo lệch) và Tồn kho gửi
+// (Báo Cáo tab 2, Đối Soát có cảnh báo). SHOTS_ONLY=bc
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bc")
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    {   // Tồn kho gửi: 7 dòng mẫu (CKQ / ASCN chưa gộp đặc tính → cảnh báo)
+        var fp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ton-kho-gui-bc 23.11.xlsx");
+        using (var wbk = new ClosedXML.Excel.XLWorkbook())
+        {
+            var ws = wbk.AddWorksheet("Sheet1"); ws.Cell(1, 1).Value = "BÁO CÁO TỒN KHO GỬI";
+            var hh = new[] { "Mã hàng", "Tên hàng", "Số lô", "Size", "Quy cách", "Ngày nhập kho", "Phiếu nhập", "Số kiện", "Trọng lượng", "Số kiện", "Trọng lượng" };
+            for (var c = 0; c < hh.Length; c++) ws.Cell(2, c + 1).Value = hh[c];
+            var gdata = new (string, string, string, string, double, double)[]
+            {
+                ("VRHLBTNXECR003140IME1", "TÔM TCT BTP50, BLOCK, 1.8Kg x 6, 0083", "L1", "BTP50", 10, 108), ("VRHLBTNXECR003141IME1", "TÔM TCT BTP35, IQF, 9Kg x 1, CKQ", "04.04.26 L12 NÂU", "BTP35", 5, 45),
+                ("VRHLBTNXECR003142IME1", "TÔM ECU 41/50, BLOCK, 1.8Kg x 7, ASCN", "ECUADOR-01", "ECU41/50", 8, 100.8), ("VRHLBTNXECR003144IME1", "NL 105, BLOCK, 10kg x 1, 0083", "L5", "NL 105", 4, 40),
+            };
+            var rr = 3; foreach (var x in gdata) { ws.Cell(rr, 1).Value = x.Item1; ws.Cell(rr, 2).Value = x.Item2; ws.Cell(rr, 3).Value = x.Item3; ws.Cell(rr, 4).Value = x.Item4; ws.Cell(rr, 5).Value = "1.8Kg x 6"; ws.Cell(rr, 6).Value = new DateTime(2026, 11, 5); ws.Cell(rr, 7).Value = "PN" + rr; ws.Cell(rr, 8).Value = 99; ws.Cell(rr, 9).Value = 99; ws.Cell(rr, 10).Value = x.Item5; ws.Cell(rr, 11).Value = x.Item6; rr++; }
+            wbk.SaveAs(fp);
+        }
+        s.Gui.Commit(s.Gui.Preview(fp));
+        s.Gui.SaveManual(new[] { ("Tôm EU Nhật", "83.EU-H-M") }); s.Gui.MergeGroup(new[] { "83.EU-H-M" }, "EU");
+    }
+    {   // Tồn kho An An: 12 dòng Thành phẩm + 2 dòng không thuộc bảng nào (→ lệch Load Data); chưa nhập Bột + Sốt + Bếp
+        var hs = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Hợp đồng", "ĐVT", "Tồn cuối", "Trọng lượng", "Size" };
+        var rowsA = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, 14).Select(i => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject
+        { ["c0"] = i < 12 ? "Thành phẩm" : "", ["c1"] = i < 12 ? $"VRHLBTNXECR00{3140 + i}IME1" : $"ZZ-LA-{i}", ["c2"] = $"Tôm thẻ HLSO 31/40 mẫu {i}", ["c3"] = "IQF", ["c4"] = "HD-2611", ["c5"] = "Thùng", ["c6"] = (40 + i).ToString(), ["c7"] = "10", ["c8"] = "31/40" }).ToArray());
+        var mt = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(hs.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO AN AN 23.11.xlsx", ["dataDate"] = DateTime.Today.ToString("yyyy-MM-dd") };
+        s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = rowsA, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + mt.ToJsonString() }) });
+    }
+    foreach (var (win, tag) in new[] { (main, ""), (new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }, "-1366") })
+    {
+        if (win != main) win.Show();
+        win.Navigate("audit"); win.Navigate("m1"); W(50);
+        var at = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[BC] An An tab 2 = {(at.Items[1] as TabItem)?.Header} · tab 3 = {(at.Items[2] as TabItem)?.Header}");
+        at.SelectedIndex = 1; W(30); Snap(win, "40b-an-an-bao-cao-doi-soat" + tag);
+        win.Navigate("m2"); W(50);
+        var gt = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[BC] Gửi tab 2 = {(gt.Items[1] as TabItem)?.Header} · tab 6 = {(gt.Items[5] as TabItem)?.Header}");
+        gt.SelectedIndex = 1; W(30); Snap(win, "41b-gui-bao-cao" + tag);
+        gt.SelectedIndex = 5; W(30); Snap(win, "41c-gui-doi-soat" + tag);
+        if (win != main) win.Close();
+    }
+    var bd = KhoLanh.Core.TonKho.BaoCaoTongTon.CanhBaoXuat(s.AnAn.D);
+    Console.WriteLine($"[BC] cảnh báo xuất Excel: {bd.Count} · " + string.Join(" | ", bd));
+    s.Lan.Dispose(); Console.WriteLine("Xong (bc): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
-    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-sao-luu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
+    // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
+    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-cai-dat"), ("dulieu", "he-du-lieu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("saoluu", "he-sao-luu"), ("dcn", "he-drive-ca-nhan"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
     {
         main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
-        if (k is "users" or "lan")
+        if (k is "users")
         {
             var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
             if (k == "users") main.PageHost.GetVisualDescendants().OfType<DataGrid>().First().SelectedIndex = 1;
@@ -559,6 +707,79 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
         }
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
+// Nhập liệu 1.62: SHOTS_ONLY=nl — mẫu Kiểm kê mới (dán mã → tự điền), tô màu ô, tab Mẫu, hộp Cột…
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
+{
+    void WaitNl(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var codes = s.ViTri.Rows.Select(r => r.Ma).Where(m => m.Length > 0).Distinct().Take(6).ToList();
+    var pg = s.Entry.Create("Kiểm kê kho 1 " + DateTime.Today.ToString("dd/MM/yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    main.Navigate("m6"); WaitNl(600);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    for (var i = 0; i < 100 && typeof(EntryView).GetField("_lookup", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) WaitNl(60);
+    var combo = ev.GetVisualDescendants().OfType<ComboBox>().First();
+    combo.SelectedItem = combo.Items.Cast<object>().First(o => o.ToString() == pg.Name); WaitNl(400);
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var m = g.Model;
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 1, 0, 1), string.Join("\r\n", codes));          // dán cột Mã hàng → Size / Trọng lượng / Ngày nhập tự điền
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 0, 0, 0), string.Join("\r\n", codes.Select((_, i) => $"TG1.A.0{i + 1}.1.1")));
+    m.Paste(new KhoLanh.Core.Grid.CellRange(0, 4, 0, 4), string.Join("\r\n", codes.Select((_, i) => (12 + i * 7).ToString())));
+    g.Select(1, 0); g.Select(2, 5, extend: true);
+    var paint = typeof(EntryView).GetMethod("PaintSelection", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+    paint.Invoke(ev, new object[] { "y" });
+    g.Select(4, 4); g.Select(4, 5, extend: true); paint.Invoke(ev, new object[] { "r" });
+    g.Select(0, 1); WaitNl(300);
+    Snap(main, "20-nhap-lieu");
+    Console.WriteLine("   dòng 1: " + string.Join(" | ", m.Row(0)));
+    var tabs = ev.GetVisualDescendants().OfType<TabControl>().First();
+    tabs.SelectedIndex = 2; WaitNl(500);
+    var ml = ev.GetVisualDescendants().OfType<ListBox>().First(l => l.IsEffectivelyVisible);
+    ml.SelectedIndex = 3; WaitNl(400);
+    Snap(main, "20d-nhap-lieu-mau");
+    s.Lan.Dispose(); Console.WriteLine("Xong (nl): " + outDir); return;
+}
+// Tồn theo vị trí — tìm đúng nhãn size + lọc vị trí đang chọn; Sơ đồ kho — Phiếu In 2 tab (1.63): SHOTS_ONLY=vt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m7"); W(900);
+    var vv = (ViTriView)main.PageHost.Content!;
+    _ = vv.OpenPickerForTest(); W(600);
+    var pw = vv.PickerWindow!;
+    var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+    // vị trí có ≥ 2 mã, lấy nhãn size của 1 mã trong đó
+    var vtRows = s.ViTri.Rows;
+    var multi = vtRows.Where(r => r.Vt.Length > 0 && r.Sl > 0 && s.ViTri.GopLabel(r) is not null).GroupBy(r => r.Vt).First(gr => gr.Select(r => r.Ma).Distinct().Count() >= 2);
+    var label = s.ViTri.GopLabel(multi.First())!;
+    var q = pw.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm: BTP") == true);
+    q.Text = label; W(400);
+    var r0 = Enumerable.Range(0, g.Model.RowCount).First(i => g.Model.Row(i)[0] == multi.Key);
+    g.Model.SetCells(new[] { (r0, 7, "x") }); W(300); g.Select(r0, 7);
+    Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[2]).Distinct())}");
+    Snap(pw, "24b1-vi-tri-tim-dung-size");
+    var pos = pw.GetVisualDescendants().OfType<CheckBox>().First(c => c.Content as string == "Lọc vị trí đang chọn");
+    pos.IsChecked = true; W(400);
+    Snap(pw, "24b2-vi-tri-loc-vi-tri-dang-chon");
+    pw.Close(); W(300);
+    main.Navigate("m8"); W(900);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    tc.SelectedIndex = 4; W(600);
+    Snap(main, "25f-so-do-phieu-in");
+    var sub = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t != tc && t.Items.Count == 2 && t.IsEffectivelyVisible);
+    sub.SelectedIndex = 1; W(600);
+    Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
+    s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
+}
+// Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
+{
+    main.Navigate("m13"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); }
+    PxScene(); s.Lan.Dispose(); Console.WriteLine("Xong (px): " + outDir); return;
+}
+// 1.62: popup kéo giãn / phóng to, Tồn kho gửi 1 tab Load Data, Báo cáo rã đông tích ngày gộp ảnh: SHOTS_ONLY=bt
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bt")
+{
+    BtScene(); s.Lan.Dispose(); Console.WriteLine("Xong (bt): " + outDir); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
@@ -848,26 +1069,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "23b-xuat-kiem");
         tcx.SelectedIndex = 0; Pump();
     }
-    if (key == "m13")
-    {
-        var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        lb.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "30-phieu-xuat-kho");
-        var tcPk = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        tcPk.SelectedIndex = 1; Pump(); Snap(main, "30b-phieu-xuat-kho-email");
-        tcPk.SelectedIndex = 0; Pump();
-        // tab Cargo list
-        var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        top.SelectedIndex = 2; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        var clb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        clb.SelectedIndex = 0; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31-cargo-nhap");
-        var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible && x != top).First();
-        inner.SelectedIndex = 1; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31b-cargo-phieu-xem-truoc");
-        inner.SelectedIndex = 2; Pump(); Snap(main, "31c-cargo-danh-muc");
-        top.SelectedIndex = 0; Pump();
-    }
+    if (key == "m13") PxScene();
     if (key == "m1")
     {
         // Tồn kho An An (C#): duyệt 6 tab, rồi thử thao tác tạo phiếu xuất + ghi chú Theo Dõi Tồn bằng giao diện thật.
@@ -989,8 +1191,8 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         s.Gui.SaveManual(new[] { ("Tôm EU Nhật", "83.EU-H-M") }); s.Gui.MergeGroup(new[] { "83.EU-H-M" }, "EU");
         main.Navigate("audit"); main.Navigate("m2"); for (var i = 0; i < 14; i++) { Thread.Sleep(30); Pump(); }
         var gtabs = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        for (var t = 0; t < 7; t++) { gtabs.SelectedIndex = t; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"41-gui-tab{t + 1}"); }
-        // Phiếu xuất: gõ SL xuất vào dòng đầu rồi tạo phiếu
+        for (var t = 0; t < gtabs.ItemCount; t++) { gtabs.SelectedIndex = t; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, $"41-gui-tab{t + 1}"); }
+        // Phiếu xuất (1.69: tab 3 — Báo Cáo lên tab 2): gõ SL xuất vào dòng đầu rồi tạo phiếu
         gtabs.SelectedIndex = 2; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var pg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
         var before = s.Gui.Slips.Count; var kien0 = s.Gui.D.Rows[0].SoKien;
@@ -1022,7 +1224,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         }
         Console.WriteLine($"[GUI] gộp đặc tính: {nGroupedBefore} -> {s.Gui.D.DtGroupMap.Count} đặc tính đã gộp");
         Snap(main, "41-gui-dac-tinh-sau-gop");
-        gtabs.SelectedIndex = 5; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "41-gui-bao-cao-sau-gop");
+        gtabs.SelectedIndex = 1; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "41-gui-bao-cao-sau-gop");
         Console.WriteLine($"[GUI] bảng tổng hợp: {s.Gui.D.ComputePivot().Grand.Tong} kg");
     }
     if (key == "m6")
@@ -1243,6 +1445,45 @@ DmScene();
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
 
+void PxScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    TabControl Sub() => main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top);
+    KhoLanh.App.Controls.SheetGrid Grid() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    // Phiếu xuất khẩu: tab Danh sách → bấm đúp phiếu → tab Nhập liệu (Soạn phiếu / Nội dung email)
+    top.SelectedIndex = 0; W(10);
+    var sub = Sub(); sub.SelectedIndex = 0; W(8);
+    var g = Grid(); g.Select(0, 0); W(4); Snap(main, "30-phieu-xuat-khau-danh-sach");
+    g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(12);
+    Console.WriteLine($"[PX] xuất khẩu: tab con sau bấm đúp = {sub.SelectedIndex}");
+    Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
+    var em = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub);
+    em.SelectedIndex = 1; W(4); Snap(main, "30c-phieu-xuat-khau-email"); em.SelectedIndex = 0; W(2);
+    // Phiếu xuất nội địa: tab Danh sách cont → bấm đúp → Nhập liệu (Nhập Cargo / Phiếu xem trước) · Danh mục
+    top.SelectedIndex = 2; W(14);
+    var sub2 = Sub(); sub2.SelectedIndex = 0; W(8);
+    var g2 = Grid(); g2.Select(0, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");
+    g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
+    Console.WriteLine($"[PX] nội địa: tab con sau bấm đúp = {sub2.SelectedIndex}");
+    Snap(main, "31b-phieu-noi-dia-nhap-lieu");
+    {   // 1.67: lưới mục hàng Cargo hiện ≥ 10 dòng, gõ vào dòng trống thì thêm dòng (vẫn còn ≥ 3 dòng trống, lưới cao thêm)
+        var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
+        var cgg = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12);
+        int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Height;
+        var rowsFit = (int)((cgg.Bounds.Height - KhoLanh.App.Controls.SheetGrid.HeadH) / KhoLanh.App.Controls.SheetGrid.RowH);
+        cgg.Model.Set(t0 - 1, 2, "01.08 L9"); W(4);   // gõ vào dòng trống cuối cùng
+        Console.WriteLine($"[CARGO] dòng: {n0} có số liệu, hiện {t0} (vừa khung ~{rowsFit}); gõ dòng {t0} → {cgg.Model.RowCount} dòng, hiện {cgg.TotalRows}, cao {h0:0} → {cgg.Height:0}");
+        if (t0 < KhoLanh.App.Views.CargoView.MinRows || cgg.TotalRows < cgg.Model.RowCount + KhoLanh.App.Views.CargoView.MinSpare) { Console.WriteLine("[CARGO] LỖI: thiếu dòng trống"); Environment.Exit(1); }
+        Snap(main, "31b2-phieu-noi-dia-them-dong");
+        cgg.Model.Undo(); W(2);
+    }
+    var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
+    pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
+    sub2.SelectedIndex = 2; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");
+    top.SelectedIndex = 0; Pump();
+}
+
 void DmScene()
 {
     s.TongHop.Load();
@@ -1308,4 +1549,36 @@ static string FindRepo()
     var d = new DirectoryInfo(AppContext.BaseDirectory);
     while (d is not null && !File.Exists(Path.Combine(d.FullName, "Directory.Build.props"))) d = d.Parent;
     return d?.FullName ?? Directory.GetCurrentDirectory();
+}
+
+void BtScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    Window Dlg() { for (var i = 0; i < 60 && main.OwnedWindows.Count == 0; i++) W(1); return main.OwnedWindows.Last(); }
+    object? Call(object o, string m) => o.GetType().GetMethod(m, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(o, null);
+    main.Navigate("m2"); W(40); Snap(main, "41-ton-kho-gui");
+    {   // hộp thoại có bảng (cùng khuôn "Lịch sử nạp Excel"): dựng bằng Ui.Dialog + Ui.Show như các màn hình
+        var gm = new KhoLanh.Core.Grid.GridModel { ReadOnly = true };
+        gm.Load(new[] { new KhoLanh.Core.Grid.GridColumn("t", "Lúc nạp", 140), new KhoLanh.Core.Grid.GridColumn("f", "File", 260), new KhoLanh.Core.Grid.GridColumn("r", "Dòng", 80, "number") },
+            Enumerable.Range(1, 30).Select(i => new[] { $"{i:00}/11/2026 08:00", $"TON KHO {i:00}.11.xlsx", (3000 + i * 17).ToString() }));
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new Border { BorderThickness = new Thickness(1), BorderBrush = Avalonia.Media.Brushes.Gray, Child = new KhoLanh.App.Controls.SheetGrid(gm) { SpareRows = 0, Height = 340 } });
+        var cl = new Button { Content = "Đóng" }; body.Children.Add(Ui.Buttons(cl));
+        _ = Ui.Show(main, Ui.Dialog("Lịch sử nạp Excel · Tồn kho An An", body, 1000));
+    }
+    var h = Dlg(); W(10);
+    Console.WriteLine($"[BT] lịch sử nạp: CanResize={h.CanResize} {h.Bounds.Width:0}x{h.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap");
+    h.Width = 1300; h.Height = 760; W(10);
+    var hg = h.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    Console.WriteLine($"[BT] sau kéo giãn: {h.Bounds.Width:0}x{h.Bounds.Height:0} bảng cao {hg.Bounds.Height:0}");
+    Snap(h, "bt-lich-su-nap-gian"); h.Close(); W(4);
+    main.Navigate("m4"); W(40);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 1; W(10);
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var heads = Enumerable.Range(0, g.Model.RowCount).Where(r => g.Model.Get(r, 0).StartsWith("▾")).Take(2).ToList();
+    g.SetChecked(heads, true); W(10); Snap(main, "22c-ra-dong-tich-ngay");
+    _ = Call(main.PageHost.Content!, "DayImage"); var d = Dlg(); W(10);
+    Console.WriteLine($"[BT] ảnh gộp: {d.Title} CanResize={d.CanResize} {d.Bounds.Width:0}x{d.Bounds.Height:0}");
+    Snap(d, "22d-ra-dong-anh-gop"); d.Close(); W(4);
 }

@@ -23,7 +23,8 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "lan" or "drive" or "troly" ? Roles.IsAdmin(App.Services.Session.Role) : App.Services.Session.Can(i.Key);
+    private static bool Allowed(NavItem i) => i.Key is "users" or "troly" ? Roles.IsAdmin(App.Services.Session.Role)
+        : i.Key == "dulieu" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -93,15 +94,15 @@ public partial class MainWindow : Window
             {
                 new NavItem("m14", "Container 3D", () => new C3dView()),
                 new NavItem("m15", "Scan tài liệu", () => new ScanView()),
+                new NavItem("m19", "Lưu trữ cá nhân", () => new LuuTruView()),
                 new NavItem("m21", "Xử lý PDF & Excel", () => new XuLyTepView()),
                 new NavItem("m22", "So sánh & Tra cứu bảng", () => new SoSanhBangView()),
             }),
             ("HỆ THỐNG", new[]
             {
                 new NavItem("users", "Tài khoản", () => new UsersView()),
-                new NavItem("backup", "Sao lưu và cài đặt", () => new BackupView()),
-                new NavItem("lan", "Mạng LAN", () => new LanView()),
-                new NavItem("drive", "Đồng bộ Google Drive", () => new DriveSyncView()),
+                new NavItem("dulieu", "Dữ liệu & sao lưu", () => new DuLieuView()),
+                new NavItem("backup", "Cài đặt máy", () => new BackupView()),
                 new NavItem("phone", "Đồng bộ điện thoại", () => new PhoneSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
@@ -111,11 +112,6 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
-        var sg = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
-        sg.Children.Add(Controls.Icon.Make("search", 15));
-        sg.Children.Add(new TextBlock { Text = "Tìm mã hàng, LSX, phiếu, vị trí hoặc module…", Margin = new Avalonia.Thickness(9, 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis }.Also(t => Grid.SetColumn(t, 1)));
-        sg.Children.Add(new Border { Classes = { "kbd" }, Child = new TextBlock { Text = "Ctrl K", FontSize = 11 } }.Also(t => Grid.SetColumn(t, 2)));
-        SearchButton.Content = sg;
         var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
@@ -147,6 +143,9 @@ public partial class MainWindow : Window
         s.LichXuat.AutoMade += OnAutoMade;
         Closed += (_, _) => s.LichXuat.AutoMade -= OnAutoMade;
         Closed += (_, _) => s.LichXuat.StopAutoEmail();
+        // Lưu trữ cá nhân: tự sao lưu Google Drive theo lịch của tài khoản (chỉ chạy khi đã đăng nhập Google trong module).
+        if (s.LuuTru.CanUse) { s.LuuTru.StartAuto(); Closed += (_, _) => s.LuuTru.StopAuto(); }
+        if (s.DriveCaNhan.CanUse) { s.DriveCaNhan.StartAuto(); Closed += (_, _) => s.DriveCaNhan.StopAuto(); }
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {
@@ -168,18 +167,17 @@ public partial class MainWindow : Window
     private readonly Avalonia.Threading.DispatcherTimer _lanTimer = new() { Interval = TimeSpan.FromSeconds(5) };
     private void OnLanChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(ShowLan);
 
-    /// <summary>Ô trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
+    /// <summary>Dấu chấm trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
     private void ShowLan()
     {
         var lan = App.Services.Lan;
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
-        LanText.Text = lan.Short;
-        LanText.Foreground = AppTheme.Brush("#C8D4E3", "#A9B5C3");
-        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#F0A030" : "#3FB950");
-        ToolTip.SetTip(LanPill, lan.Health == 2
+        // 1.65: chỉ còn dấu chấm (xanh = có kết nối, đỏ = mất máy chủ / làm riêng); chữ trạng thái chuyển vào chú thích khi rê chuột.
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : "#3FB950");
+        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
-            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : ""));
+            : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
 
     private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
@@ -233,8 +231,8 @@ public partial class MainWindow : Window
         ["m1"] = "box", ["m2"] = "warehouse", ["m7"] = "pin", ["m3sk"] = "list", ["m1vtb"] = "map", ["m8"] = "grid",
         ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
-        ["m14"] = "cube", ["m15"] = "scan", ["m21"] = "tool", ["m22"] = "compare",
-        ["users"] = "users", ["backup"] = "save", ["lan"] = "network", ["drive"] = "cloud", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
+        ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
+        ["users"] = "users", ["backup"] = "gear", ["dulieu"] = "save", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
     };
     /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
     private static readonly Dictionary<string, string> GroupIcons = new()
@@ -326,13 +324,16 @@ public partial class MainWindow : Window
     /// <summary>Mở một màn hình; nếu truyền sẵn control thì dùng control đó.</summary>
     public void Show(string key, Control? page)
     {
+        // 1.68: Mạng LAN / Đồng bộ Google Drive / sao lưu gom vào "Dữ liệu & sao lưu" — giữ khóa cũ để các nút / Trợ lý mở đúng tab
+        if (key is "lan" or "drive" or "saoluu" or "dcn") { page ??= new DuLieuView(key); key = "dulieu"; }
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
         if (!Allowed(item)) return;
         page ??= item.Create();
         PageHost.IsVisible = true;
         PageHost.Content = page;
-        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
+        // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
+        if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = ""; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
         foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
@@ -361,12 +362,12 @@ public partial class MainWindow : Window
     internal Flyout ShowHelp()
     {
         var hints = PageHost.Content is Avalonia.Visual v ? Controls.HintTrim.Collect(v) : new List<string>();
+        if (PageHost.Content is IPage { Subtitle: { Length: > 0 } sub }) hints.Insert(0, sub);
         var fl = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = Controls.HintTrim.Panel(hints) };
         fl.ShowAt(HelpButton);
         return fl;
     }
 
-    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
     private Views.TimNhanhWindow? _search;
     /// <summary>Tìm nhanh toàn app (Ctrl + K).</summary>
     public Views.TimNhanhWindow OpenSearch(string text = "")
@@ -394,7 +395,7 @@ public partial class MainWindow : Window
         var size = new ComboBox { ItemsSource = scales.Select(x => $"{x * 100:0} %" + (x == 1.0 ? " (chuẩn)" : "")).ToList(), SelectedIndex = Math.Max(0, Array.FindIndex(scales, x => Math.Abs(x - scale0) < 0.001)), MinWidth = 160 };
         void Preview() { AppTheme.SetDensity(AppTheme.Densities[Math.Max(0, dens.SelectedIndex)].Key); AppTheme.Apply(dark.IsChecked == true ? AppTheme.Mode.Dark : AppTheme.Mode.Light, scales[Math.Max(0, size.SelectedIndex)]); ApplyZoom(); }
         light.IsCheckedChanged += (_, _) => Preview(); size.SelectionChanged += (_, _) => Preview(); dens.SelectionChanged += (_, _) => Preview();
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 10 };
         body.Children.Add(new TextBlock { Text = "Bộ màu", FontWeight = Avalonia.Media.FontWeight.SemiBold }); body.Children.Add(light); body.Children.Add(dark);
         body.Children.Add(new TextBlock { Text = "Cỡ chữ (thu phóng toàn bộ màn hình)", FontWeight = Avalonia.Media.FontWeight.SemiBold, Margin = new Avalonia.Thickness(0, 6, 0, 0) }); body.Children.Add(size);

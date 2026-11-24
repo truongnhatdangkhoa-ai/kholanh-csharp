@@ -769,7 +769,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
             void Row(int r, string l, Control c) { var t = new TextBlock { Text = l, VerticalAlignment = VerticalAlignment.Center }; Grid.SetRow(t, r); Grid.SetRow(c, r); Grid.SetColumn(c, 1); grid.Children.Add(t); grid.Children.Add(c); }
             Row(0, "Ngày", ngay); Row(1, "Mã hàng", ma); Row(2, "Tên hàng", ten); Row(3, "Số lượng", sl); Row(4, "Trọng lượng", tl);
             var ok = new Button { Content = "Ghi vào file", IsDefault = true, Classes = { "primary" } };
-            var no = new Button { Content = "Thôi", IsCancel = true };
+            var no = new Button { Content = "Đóng", IsCancel = true };
             no.Click += (_, _) => Close();
             ok.Click += (_, _) =>
             {
@@ -811,7 +811,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
             }
             var add = new Button { Content = $"Thêm {p.NMoi} ngày mới", Classes = { "primary" }, IsEnabled = p.NMoi > 0 };
             var rep = new Button { Content = $"Thay {p.NKhac} ngày khác số", IsEnabled = p.NKhac > 0 };
-            var no = new Button { Content = "Thôi", IsCancel = true };
+            var no = new Button { Content = "Đóng", IsCancel = true };
             add.Click += (_, _) => { Replace = false; Close(); };
             rep.Click += (_, _) => { Replace = true; Close(); };
             no.Click += (_, _) => Close();

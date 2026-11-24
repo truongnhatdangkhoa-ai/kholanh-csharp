@@ -10,7 +10,7 @@
 var MA_DOC = '__MA_DOC__';           // máy có mã này: đọc danh sách tài khoản để đăng nhập
 var MA_QUAN_TRI = '__MA_QUAN_TRI__'; // chỉ máy quản trị: được thêm / sửa tài khoản, phân quyền
 var TAB = 'TaiKhoan';
-var COT = ['username', 'ho_ten', 'vai_tro', 'dang_dung', 'quyen', 'mat_khau_bam', 'muoi', 'cap_nhat_luc', 'cap_nhat_boi', 'email_google']; // email_google: 1.59 (đăng nhập Google)
+var COT = ['username', 'ho_ten', 'vai_tro', 'dang_dung', 'quyen', 'mat_khau_bam', 'muoi', 'cap_nhat_luc', 'cap_nhat_boi', 'email_google']; // email_google: 1.70 (đăng nhập Google)
 
 function doGet() {
   return out_({ ok: true, app: 'kholanh-taikhoan', v: 1 });

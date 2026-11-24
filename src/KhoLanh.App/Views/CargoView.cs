@@ -31,7 +31,13 @@ public sealed class CargoView : UserControl
     private CargoProfile _prof = Profiles[0];
     private CargoRec? _cur;
     private List<CargoRec> _list = new();
-    private readonly ListBox _lb = new();
+    // 1.61: danh sách cont và nhập liệu cont là 2 tab con riêng (không chung 1 màn hình).
+    private readonly GridModel _cm = new() { ReadOnly = true };
+    private readonly SheetGrid _cg;
+    private readonly TextBlock _listInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _curTitle = new() { FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
+    private readonly TabControl _inner;
+    private readonly TabItem _editTab;
     private readonly StackPanel _editor = new() { Spacing = 8 };
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _totals = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
@@ -50,7 +56,9 @@ public sealed class CargoView : UserControl
     {
         _edit = Svc.CanEdit; _export = Svc.CanExport;
         _pg = new SheetGrid(_pm) { SpareRows = 0 };
-        _lb.SelectionChanged += async (_, _) => await OnPick();
+        _cg = new SheetGrid(_cm) { SpareRows = 0 };
+        _cg.DoubleTapped += async (_, _) => await OpenSelected();
+        _cg.AddHandler(KeyDownEvent, async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; await OpenSelected(); } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         foreach (var p in Profiles)
         {
@@ -72,22 +80,27 @@ public sealed class CargoView : UserControl
             {
                 new TabItem { Header = "Nhập Cargo", Content = new ScrollViewer { Content = new Border { Padding = new Thickness(0, 6, 12, 12), Child = _editor }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } },
                 new TabItem { Header = "Phiếu xem trước", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = Framed(_pg) } },
-                new TabItem { Header = "Danh mục", Content = BuildCfgTab() },
             },
         };
         _tabs.SelectionChanged += (_, _) => { if (_tabs.SelectedIndex == 1) RenderPreview(); };
 
-        var leftTop = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
-        if (_edit) leftTop.Children.Add(Btn("➕ Cont mới", async () => await NewCont(), primary: true));
-        var left = new DockPanel { Width = 270 };
-        DockPanel.SetDock(leftTop, Dock.Top); left.Children.Add(leftTop); left.Children.Add(Framed(_lb));
+        // Tab con 1: chọn loại (Thuận Phước · Gia công · Gửi kho) + bảng danh sách cont; bấm đúp / Enter / "Mở cont" → tab nhập liệu.
+        var listTools = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 0, 0, 6) };
+        listTools.Children.Add(_kindBar);
+        if (_edit) listTools.Children.Add(Btn("➕ Cont mới", async () => await NewCont(), primary: true));
+        listTools.Children.Add(Btn("Mở cont đang chọn", async () => await OpenSelected()));
+        listTools.Children.Add(_listInfo);
+        var listPage = new DockPanel();
+        DockPanel.SetDock(listTools, Dock.Top); listPage.Children.Add(listTools); listPage.Children.Add(Framed(_cg));
 
+        // Tab con 2: nhập liệu cont đang mở (Nhập Cargo / Phiếu xem trước).
         var head = new StackPanel { Spacing = 4 };
-        head.Children.Add(_kindBar); head.Children.Add(bar); head.Children.Add(_problems); head.Children.Add(_totals); head.Children.Add(_stockInfo); head.Children.Add(_ksInfo); head.Children.Add(_status);
-        var right = new DockPanel { Margin = new Thickness(10, 0, 0, 0) };
-        DockPanel.SetDock(head, Dock.Top); right.Children.Add(head); right.Children.Add(_tabs);
-        var root = new DockPanel(); DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
-        Content = root;
+        head.Children.Add(_curTitle); head.Children.Add(bar); head.Children.Add(_problems); head.Children.Add(_totals); head.Children.Add(_stockInfo); head.Children.Add(_ksInfo); head.Children.Add(_status);
+        var editPage = new DockPanel();
+        DockPanel.SetDock(head, Dock.Top); editPage.Children.Add(head); editPage.Children.Add(_tabs);
+        _inner = Ui.SubTabs(("Danh sách phiếu nội địa", listPage), ("Nhập liệu phiếu", editPage), ("Danh mục", BuildCfgTab()));
+        _editTab = (TabItem)_inner.Items[1]!;
+        Content = _inner;
         ShowEditor();
         AttachedToVisualTree += async (_, _) => await LoadAsync();
     }
@@ -151,24 +164,37 @@ public sealed class CargoView : UserControl
     private void RenderList(string? keepId = null)
     {
         keepId ??= _cur?.Id;
-        _loading = true;
-        _lb.ItemsSource = _list.Select(c => $"{(c.SoPhieu.Length > 0 ? c.SoPhieu : "(chưa số)")}  ·  {(c.Ngay.Length >= 10 ? c.Ngay[8..10] + "/" + c.Ngay[5..7] : "")}  ·  {c.Blocks.Sum(b => b.Lines.Sum(LineTotal)):#,0.##} kiện").ToList();
-        _lb.SelectedIndex = keepId is null ? -1 : _list.FindIndex(c => c.Id == keepId);
-        _loading = false;
+        _cm.Load(new[]
+        {
+            new GridColumn("so", "Số phiếu", 130), new GridColumn("ngay", "Ngày xuất", 95), new GridColumn("cont", "Cont số", 80), new GridColumn("nhan", "Người nhận hàng", 190),
+            new GridColumn("xe", "Cont / Xe", 150), new GridColumn("seal", "Seal", 110), new GridColumn("kho", "Kho xuất", 120), new GridColumn("kien", "Tổng kiện", 90, "number"),
+        }, _list.Select(c => new[]
+        {
+            c.SoPhieu.Length > 0 ? c.SoPhieu : "(chưa số)", c.Ngay.Length >= 10 ? $"{c.Ngay[8..10]}/{c.Ngay[5..7]}/{c.Ngay[..4]}" : c.Ngay, c.ContSo, c.NguoiNhan,
+            c.ContXe, c.Seal, c.Kho, c.Blocks.Sum(b => b.Lines.Sum(LineTotal)).ToString("#,0.##", Ui.Vi),
+        }));
+        _cg.Refresh();
+        var i = keepId is null ? -1 : _list.FindIndex(c => c.Id == keepId);
+        if (i >= 0) _cg.Select(i, 0);
+        _listInfo.Text = $"{_list.Count:#,0} cont {_prof.Ten.Replace("Cargo ", "")} · bấm đúp (hoặc Enter) để mở sang tab Nhập liệu";
     }
 
-    private async Task OnPick()
+    private async Task OpenSelected()
     {
-        if (_loading) return; var i = _lb.SelectedIndex; if (i < 0 || i >= _list.Count) return;
-        if (_dirty && _cur is not null && _cur.Id != _list[i].Id && !await Ui.Confirm(this, "Cont đang soạn chưa lưu. Bỏ thay đổi và mở cont khác?", "Chưa lưu", "Bỏ thay đổi")) { RenderList(_cur.Id); return; }
-        _cur = CargoCore.Clone(_list[i]); _dirty = false; ShowEditor();
+        var i = _cg.Row; if (i < 0 || i >= _list.Count) return;
+        var rec = _list[i];
+        if (_dirty && _cur is not null && _cur.Id == rec.Id) { _inner.SelectedIndex = 1; return; }   // đang soạn đúng cont này → giữ thay đổi
+        if (_dirty && _cur is not null && !await Ui.Confirm(this, "Cont đang soạn chưa lưu. Bỏ thay đổi và mở cont khác?", "Chưa lưu", "Bỏ thay đổi")) return;
+        _cur = CargoCore.Clone(rec); _dirty = false; ShowEditor();
+        _inner.SelectedIndex = 1;
     }
 
     private async Task NewCont()
     {
         if (_dirty && !await Ui.Confirm(this, "Cont đang soạn chưa lưu. Bỏ thay đổi và tạo cont mới?", "Chưa lưu", "Bỏ thay đổi")) return;
         _cur = Svc.NewRec(_prof, _list); _dirty = true;
-        _loading = true; _lb.SelectedIndex = -1; _loading = false; ShowEditor();
+        ShowEditor();
+        _inner.SelectedIndex = 1;
     }
 
     // ------------------------------------------------------------------ form
@@ -177,7 +203,7 @@ public sealed class CargoView : UserControl
     {
         _editor.Children.Clear(); _blocks.Clear(); _soBox = null;
         _del.IsEnabled = _edit && _cur is { Id.Length: > 0 };
-        if (_cur is null) { _editor.Children.Add(new TextBlock { Text = _edit ? "Chọn một cont ở danh sách bên trái, hoặc bấm “Cont mới”." : "Chọn một cont ở danh sách bên trái.", Classes = { "muted" } }); RefreshAll(); return; }
+        if (_cur is null) { _editor.Children.Add(new TextBlock { Text = _edit ? "Chưa mở cont nào. Bấm đúp một cont ở tab “Danh sách phiếu nội địa”, hoặc bấm “Cont mới” ở đó." : "Chưa mở cont nào. Bấm đúp một cont ở tab “Danh sách phiếu nội địa”.", Classes = { "muted" } }); RefreshAll(); return; }
         _loading = true; var c = _cur;
         var g1 = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
         var date = new CalendarDatePicker { Width = 140, SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy", IsEnabled = _edit };
@@ -253,7 +279,7 @@ public sealed class CargoView : UserControl
         }
         for (var d = 1; d <= NDay; d++) cols.Add(Day(d));
         gm.Load(cols, b.Lines.Select(l => RowOfLine(l, ks)));
-        var grid = new SheetGrid(gm) { SpareRows = 2 };
+        var grid = new SheetGrid(gm) { SpareRows = MinSpare };
         grid.Display = (r, col, raw) =>
         {
             if (r >= b.Lines.Count) return raw;
@@ -268,8 +294,14 @@ public sealed class CargoView : UserControl
             var ln = b.Lines[r]; if (LineTotal(ln) <= 0 && ln.Sn.Trim().Length == 0) return null;
             var res = ResolveLine(Svc.Cfg, b, ln, Svc.Ks); return res.Errors.Count > 0 ? BadBg : (res.Market.Length > 0 ? OkBg : null);
         };
-        // 1.53: cao theo dòng thật (trước tính 24 px/dòng < 26 px thật → hụt dòng), tối đa 560; ⤢ ở góc mở cửa sổ lớn
-        void FixH() => grid.Height = SheetGrid.FitHeight(Math.Max(gm.RowCount, 1) + grid.SpareRows, 560);
+        // 1.53: cao theo dòng thật (trước tính 24 px/dòng < 26 px thật → hụt dòng), tối đa 560; ⤢ ở góc mở cửa sổ lớn.
+        // 1.67: luôn hiện ít nhất 10 dòng (dòng có số liệu + dòng trống để gõ thêm), còn ≥ 3 dòng trống ở cuối. Trước đây chỉ
+        // 1 dòng + 2 dòng trống, thanh cuộn ngang che dòng cuối, Enter xuống dòng mới không thấy → tưởng không thêm dòng được.
+        void FixH()
+        {
+            grid.SpareRows = Math.Max(MinSpare, MinRows - gm.RowCount);
+            grid.Height = SheetGrid.FitHeight(gm.RowCount + grid.SpareRows, 560) + ScrollH;
+        }
         FixH();
         gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); FixH(); Dirty(); };
         _blocks.Add((b, gm));
@@ -281,6 +313,8 @@ public sealed class CargoView : UserControl
         return Section($"Mục hàng {bi + 1} — {(ks ? "kháng sinh" : "khác")}", body);
     }
     private readonly Dictionary<int, Button> _capsBtn = new();
+    /// <summary>Lưới mục hàng: tối thiểu số dòng hiện (kể cả dòng trống), số dòng trống luôn có ở cuối, chỗ cho thanh cuộn ngang.</summary>
+    internal const int MinRows = 10, MinSpare = 3; private const double ScrollH = 14;
 
     private static string[] RowOfLine(CargoLine l, bool ks)
     {
@@ -326,8 +360,17 @@ public sealed class CargoView : UserControl
 
     // ------------------------------------------------------------------ tổng hợp / xem trước
 
+    private void RefreshTitle()
+    {
+        var so = _cur is null ? "" : _cur.SoPhieu.Trim().Length > 0 ? _cur.SoPhieu.Trim() : "(chưa số)";
+        _curTitle.Text = _cur is null ? "" : $"{_prof.Ten}{(_cur.Id.Length == 0 ? " · cont mới" : "")} · {so}{(_dirty ? " ●" : "")}";
+        _curTitle.IsVisible = _cur is not null;
+        _editTab.Header = _cur is null ? "Nhập liệu phiếu" : "Nhập liệu phiếu · " + so + (_dirty ? " ●" : "");
+    }
+
     private void RefreshAll()
     {
+        RefreshTitle();
         if (_cur is null) { _totals.Text = ""; _problems.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _ksInfo.Text = ""; _stockInfo.Text = ""; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export;
         var chk = Svc.CheckRec(_prof, _cur);

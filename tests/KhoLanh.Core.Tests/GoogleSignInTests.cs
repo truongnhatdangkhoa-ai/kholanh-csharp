@@ -9,7 +9,7 @@ using Xunit;
 
 namespace KhoLanh.Core.Tests;
 
-/// <summary>Đăng nhập bằng Google (1.59): luồng trình duyệt → 127.0.0.1 → đổi mã lấy id_token, giả lập Google.</summary>
+/// <summary>Đăng nhập bằng Google (1.70): luồng trình duyệt → 127.0.0.1 → đổi mã lấy id_token, giả lập Google.</summary>
 public class GoogleSignInTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "klcs-gg-" + Guid.NewGuid().ToString("N"));

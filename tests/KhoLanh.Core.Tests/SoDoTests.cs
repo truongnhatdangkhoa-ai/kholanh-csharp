@@ -202,6 +202,13 @@ public class SoDoTests : IDisposable
         Assert.Equal(1, SoDoService.Merge(k2));
         Assert.Equal("17 kiện", k2.Pages[0].Rows.First(r => r.Code == "TG1.A.02.1.1").Sl);
 
+        // tab "Vị trí có hàng": không hiện / in dòng trống (vẫn giữ làm đích chuyển); tab "Vị trí trống": chỉ ô không có hàng
+        Assert.Equal(4, k.Visible().Count());
+        var rong = Sd.BuildKk("TG1", "A", 1, "rong");
+        Assert.Equal(new[] { "TG1.A.01.1.3", "TG1.A.01.1.4", "TG1.A.01.2.3", "TG1.A.01.2.4" }.Length, rong.Pages[0].Rows.Count);
+        Assert.All(rong.Pages[0].Rows, r => Assert.True(r.Ma.Length == 0 && r.Sl.Length == 0 && !k.Pages[0].Rows.Any(x => x.Code == r.Code && x.Ma != "trống")));
+        Assert.True(rong.Blank);
+
         var all = Sd.BuildKk("TG1", "A", 0, "trong");
         Assert.Equal(2, all.Pages.Count);
         Assert.Equal(6, all.Pages[1].Rows.Count);
@@ -217,6 +224,8 @@ public class SoDoTests : IDisposable
         Assert.StartsWith("PHIẾU IN VỊ TRÍ", ws.Cell(1, 1).GetString());
         Assert.Equal("TG1.A.01.1.1", ws.Cell(4, 1).GetString());
         Assert.Equal(XLPaperSize.A4Paper, ws.PageSetup.PaperSize);
+        Assert.DoesNotContain(Enumerable.Range(4, 10).Select(r => ws.Cell(r, 2).GetString()), v => v == "trống");
+        Assert.Equal(4 + k.Visible().Count(), ws.LastRowUsed()!.RowNumber() + 1);
     }
 
     [Fact]
@@ -228,7 +237,7 @@ public class SoDoTests : IDisposable
         var rows = _s.Entry.Load(page);
         Assert.Equal(8, rows.Count);
         var cols = page.Columns.Select(c => c.Header).ToList();
-        int cVt = cols.IndexOf("Vị trí"), cMa = cols.IndexOf("Mã hàng"), cSl = cols.IndexOf("Số thùng"), cGc = cols.IndexOf("Ghi chú");
+        int cVt = cols.IndexOf("Vị trí"), cMa = cols.IndexOf("Mã hàng"), cSl = cols.IndexOf("Số lượng"), cGc = cols.IndexOf("Ghi chú");
         Assert.Equal("lô L1", rows[0][cGc]);
         Assert.Equal("50", rows[0][cSl]);
 

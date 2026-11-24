@@ -47,6 +47,10 @@ public sealed class SheetGrid : UserControl
     public Func<int, int, string, string>? Display { get; set; }
     /// <summary>Màu nền riêng từng ô (null = mặc định).</summary>
     public Func<int, int, IBrush?>? CellBackground { get; set; }
+    /// <summary>Màu chữ riêng từng ô (null = mặc định) — vd dòng đã khóa hiện mờ.</summary>
+    public Func<int, int, IBrush?>? CellForeground { get; set; }
+    /// <summary>Dòng nào được cộng vào dòng Tổng cuối bảng (null = mọi dòng trừ dòng tổng có sẵn) — vd bảng có dòng nhóm + dòng chi tiết thì chỉ cộng dòng chi tiết.</summary>
+    public Func<int, bool>? TotalsRowFilter { get; set; }
     public event Action? SelectionChanged;
     /// <summary>Đổi bộ lọc cột (dòng tìm kiếm / danh sách lọc).</summary>
     public event Action? FilterChanged;
@@ -316,8 +320,8 @@ public sealed class SheetGrid : UserControl
         if (_editing) Commit(0, 0);
         var g = new SheetGrid(Model)
         {
-            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest,
+            SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol;
@@ -406,7 +410,9 @@ public sealed class SheetGrid : UserControl
     internal void SelectV(int r, int c, bool extend = false)
     {
         r = Math.Clamp(r, 0, Math.Max(0, TotalRows - 1));
-        c = Math.Clamp(c, 0, Math.Max(0, Model.ColCount - 1));
+        var lastC = Model.ColCount - 1;
+        while (lastC > 0 && Model.Columns[lastC].Width < 4) lastC--;      // không dừng ở cột ẩn cuối bảng (mã dòng, màu ô…)
+        c = Math.Clamp(c, 0, Math.Max(0, lastC));
         VR = r; Col = c;
         if (!extend) { VA = r; AnchorCol = c; }
         ScrollIntoView(r, c);
@@ -703,6 +709,14 @@ public sealed class SheetGrid : UserControl
         SelectRangeV(new CellRange(s.R1, s.C1, Math.Min(VCount - 1, s.R1 + Math.Max(data.Count, s.Rows) - 1), Math.Min(Model.ColCount - 1, s.C1 + Math.Max(data.Max(x => x.Count), s.Cols) - 1)));
     }
 
+    /// <summary>Thêm mục vào menu chuột phải của bảng (sau một vạch ngăn, cuối menu).</summary>
+    public void AddMenuItems(params Control[] items)
+    {
+        if (_surface.ContextMenu is not ContextMenu menu || items.Length == 0) return;
+        menu.Items.Add(new Separator());
+        foreach (var i in items) menu.Items.Add(i);
+    }
+
     private void BuildContextMenu()
     {
         MenuItem Item(string header, Action a, string? gesture = null)
@@ -732,23 +746,25 @@ public sealed class SheetGrid : UserControl
         };
         var big = Item("Mở bảng ra cửa sổ lớn", async () => await OpenLarge(), "F11");
         var selAll = Item("Chọn tất cả", () => SelectRangeV(new CellRange(0, 0, Math.Max(0, VCount - 1), Math.Max(0, Model.ColCount - 1))), "Ctrl+A");
-        menu.Items.Insert(0, big); menu.Items.Insert(1, new Separator());
+        // 1.69: giữ thẳng các vạch ngăn (trước đây tìm theo vị trí menu.Items[1] / [2] / [6] — vị trí [2] là mục "Lọc cột này…" chứ không phải
+        // vạch ngăn → InvalidCastException "Specified cast is not valid" mỗi lần chuột phải ở bảng có lọc, vd Tồn kho gửi › Gộp đặc tính).
+        var sepBig = new Separator(); var sepFilter = new Separator(); var sepSum = new Separator();
+        menu.Items.Insert(0, big); menu.Items.Insert(1, sepBig);
         menu.Items.Add(new Separator()); menu.Items.Add(selAll);
         var fMenu = Item("Lọc cột này…", () => OpenFilterMenu(Col), "Alt+Down");
         var fClear = Item("Bỏ mọi bộ lọc", ClearFilters);
-        menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, new Separator());
+        menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, sepFilter);
         var sumItem = new MenuItem { ToggleType = MenuItemToggleType.CheckBox };
         sumItem.Click += (_, _) => { if (Col >= 0 && Col < Model.ColCount) { ToggleSum(Model.Columns[Col].Header); } };
-        menu.Items.Insert(5, sumItem); menu.Items.Insert(6, new Separator());
+        menu.Items.Insert(5, sumItem); menu.Items.Insert(6, sepSum);
         menu.Opening += (_, _) =>
         {
-            big.IsVisible = CanEnlarge; ((Separator)menu.Items[1]!).IsVisible = CanEnlarge;
-            fMenu.IsVisible = fClear.IsVisible = _filterable;
+            big.IsVisible = sepBig.IsVisible = CanEnlarge;
+            fMenu.IsVisible = fClear.IsVisible = sepFilter.IsVisible = _filterable;
             fClear.IsEnabled = _map is not null;
             fClear.Header = _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
-            ((Separator)menu.Items[2]!).IsVisible = _filterable;
             var okc = ShowTotals && Col >= 0 && Col < Model.ColCount;
-            sumItem.IsVisible = okc; ((Separator)menu.Items[6]!).IsVisible = okc;
+            sumItem.IsVisible = sepSum.IsVisible = okc;
             if (okc) { sumItem.Header = $"Cộng cột “{Model.Columns[Col].Header}” ở dòng Tổng"; sumItem.IsChecked = SumCol(Col); }
         };
         _surface.ContextMenu = menu;
@@ -794,12 +810,12 @@ public sealed class SheetGrid : UserControl
         if (!_sumDirty && ver == _sumVer) return;
         _sumDirty = false; _sumVer = ver;
         var rows = ShownRows;
-        _sumAll = GridTotals.Sum(Model, rows, SumCol);
+        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter);
         _chkCount = 0;
         if (HasCheck)
         {
             _chkCount = rows.Count(IsChecked);
-            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, IsChecked) : Array.Empty<double?>();
+            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false) : Array.Empty<double?>();
         }
         else _sumChk = Array.Empty<double?>();
     }
@@ -948,7 +964,7 @@ public sealed class SheetGrid : UserControl
                         if (shown.Length == 0) continue;
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
-                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, Text);
+                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, _g.CellForeground?.Invoke(mr, c) ?? Text);
                         var num = m.Columns[c].Type == "number" || (m.Columns[c].Type == "text" && LooksNumber(raw));
                         var tx = num ? cx + cw - ft.Width - 6 : cx + 6;
                         using (dc.PushClip(rect.Deflate(new Thickness(2, 0))))

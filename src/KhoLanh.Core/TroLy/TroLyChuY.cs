@@ -116,14 +116,14 @@ public static class TroLyChuY
             if (inp.LanHealth == 2) items.Add(new("lan-mat-may-chu", "do", "Mạng LAN", "Không nối được máy chủ LAN",
                 "Máy này đang làm riêng" + (inp.LanPending > 0 ? $", {inp.LanPending} bảng chờ gửi lên" : "") + ". Kiểm tra máy chủ còn bật và cùng mạng.", "lan"));
             else if (inp.LanPending > 0 && inp.LanPendingAgeMin > 30) items.Add(new("lan-so-cho", "vang", "Mạng LAN", $"{inp.LanPending} bảng chờ gửi lên máy chủ quá 30 phút",
-                $"Lâu nhất {Math.Round(inp.LanPendingAgeMin)} phút — mở Mạng LAN xem máy chủ có nhận không.", "lan"));
+                $"Lâu nhất {Math.Round(inp.LanPendingAgeMin)} phút — mở Dữ liệu & sao lưu › Đồng bộ › Máy chủ LAN xem máy chủ có nhận không.", "lan"));
             if (inp.LanConflicts > 0) items.Add(new("lan-xung-dot", "vang", "Mạng LAN", $"{inp.LanConflicts} xung đột gộp dữ liệu chờ Quản trị xem",
                 "Hai máy cùng sửa một bảng: chọn giữ bản máy chủ / dùng bản máy con, hoặc đánh dấu đã xem.", "lan"));
         }
 
         // 4) Sao lưu tự động hôm nay chưa có
         if (!inp.HasBackupToday) items.Add(new("sao-luu-hom-nay", "vang", "Sao lưu", "Hôm nay chưa có bản sao lưu tự động",
-            "App tự sao lưu mỗi ngày lúc mở. Mở Sao lưu và cài đặt để sao lưu ngay (hoặc xem vì sao bản tự động lỗi).", "backup"));
+            "App tự sao lưu mỗi ngày lúc mở. Mở Dữ liệu & sao lưu › Sao lưu để sao lưu ngay (hoặc xem vì sao bản tự động lỗi).", "saoluu"));
 
         // 5) Bảng tồn lâu chưa nạp file mới
         foreach (var d in inp.Data)

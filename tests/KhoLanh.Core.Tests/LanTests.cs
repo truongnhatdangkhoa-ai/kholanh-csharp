@@ -203,6 +203,50 @@ public class LanTests : IDisposable
         Until(() => Local(cli, "W") == "w1,w2-con" || Names(cli.Lan.Read(Db, "W")) == "w1,w2-con", "máy con thấy bản đã chọn");
     }
 
+    /// <summary>
+    /// Lỗi CI cũ (S thành "a,b,c,a,b"): lượt Pull tải lại toàn bộ (since = 0) nhận phản hồi TRƯỚC khi máy con ghi "a,b",
+    /// áp sau → xóa bảng vừa ghi ở database riêng → mất máy chủ, sổ chờ lấy bản gốc rỗng → gộp 3 bên thêm "a,b" lần nữa.
+    /// Chặn đúng khe đó để tái hiện chắc chắn.
+    /// </summary>
+    [Fact]
+    public async Task Stale_pull_response_does_not_undo_a_write_made_while_it_was_in_flight()
+    {
+        var (srv, cli, ms, _) = Pair();
+        cli.Lan.Write(Db, One("R", Rows("r1")));
+        Until(() => cli.Lan.PendingCount() == 0, "ghi R");
+
+        var arrived = new TaskCompletionSource();
+        var release = new TaskCompletionSource();
+        var armed = 1;
+        cli.Lan.TestAfterPullResponse = async () =>
+        {
+            if (Interlocked.Exchange(ref armed, 0) == 0) return;
+            arrived.TrySetResult();
+            await release.Task;
+        };
+        cli.Settings.Set("lan_sync_epoch", ""); // lượt Pull sau tải lại toàn bộ
+        await arrived.Task.WaitAsync(TimeSpan.FromSeconds(15));
+
+        // phản hồi đã có (máy chủ chưa có S, R = r1) — giờ máy con ghi
+        cli.Lan.Write(Db, One("S", Rows("a", "b")));
+        cli.Lan.Write(Db, One("R", Rows("r1", "r2")));
+        Assert.Equal(0, cli.Lan.PendingCount());
+        var before = cli.Lan.PullsApplied;
+        release.SetResult();
+        Until(() => cli.Lan.PullsApplied > before, "lượt Pull bị chặn áp xong");
+        Assert.Equal("a,b", Local(cli, "S"));
+        Assert.Equal("r1,r2", Local(cli, "R"));
+
+        Stop(srv);
+        cli.Lan.Write(Db, One("S", Rows("a", "b", "c")));
+        Assert.False(cli.Lan.Online);
+        var srv2 = Boot(ms);
+        Until(() => cli.Lan.PendingCount() == 0 && cli.Lan.Online, "máy con gửi sổ chờ");
+        Assert.Equal("a,b,c", Local(srv2, "S"));
+        Assert.Equal("r1,r2", Local(srv2, "R"));
+        Assert.DoesNotContain(srv2.Lan.Conflicts(), c => c.Sheet == "S");
+    }
+
     [Fact]
     public void Client_learns_standby_from_a_write_before_its_next_pull()
     {

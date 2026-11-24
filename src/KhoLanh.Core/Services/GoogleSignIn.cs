@@ -7,15 +7,17 @@ using System.Text.Json.Nodes;
 namespace KhoLanh.Core.Services;
 
 /// <summary>
-/// Đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt (1.59) — OAuth 2.0 cho ứng dụng máy tính, cùng cách Drive cá nhân
+/// Đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt (1.70) — OAuth 2.0 cho ứng dụng máy tính, cùng cách Drive cá nhân
 /// của app cũ (core/drive-ca-nhan.js): mở trình duyệt mặc định, Google gọi lại http://127.0.0.1:&lt;cổng ngẫu nhiên&gt;/, PKCE (S256),
 /// kiểm tra state. Chỉ xin quyền <c>openid email profile</c> — chỉ biết email + tên, không đụng Drive / Gmail.
 /// Mã OAuth: dùng lại mã Desktop của dự án Google Cloud "kholanhcloud" (app cũ đã tạo cho Drive cá nhân); Client secret do quản trị
-/// nhập ở máy (Hệ thống › Tài khoản › Đăng nhập Google), cất bằng <see cref="Secret"/>.
+/// nhập ở máy (Hệ thống › Tài khoản › Đăng nhập Google, hoặc ô mã OAuth của Drive cá nhân / Lưu trữ cá nhân — cùng 1 chỗ lưu), cất bằng <see cref="Secret"/>.
 /// </summary>
 public sealed class GoogleSignIn
 {
-    public const string KeyClientId = "google_client_id", KeyClientSecret = "google_client_secret";
+    /// <summary>Dùng CHUNG mã OAuth với Lưu trữ cá nhân / Drive cá nhân (1.60 / 1.68: <c>lt_google_id</c> / <c>lt_google_secret</c>) —
+    /// nhập 1 lần ở một chỗ là cả đăng nhập Google lẫn sao lưu Drive cá nhân dùng được.</summary>
+    public const string KeyClientId = KhoLanh.Core.LuuTru.LuuTruService.SetClientId, KeyClientSecret = KhoLanh.Core.LuuTru.LuuTruService.SetClientSecret;
     /// <summary>Mã Desktop "kholanhanan" của dự án kholanhcloud (Client ID không phải mật khẩu).</summary>
     public const string DefaultClientId = "688518280070-s9dd35p3ouff2nqpscs5stt76gmis8m3.apps.googleusercontent.com";
     public const string AuthEndpoint = "https://accounts.google.com/o/oauth2/v2/auth", TokenEndpoint = "https://oauth2.googleapis.com/token";
@@ -33,7 +35,7 @@ public sealed class GoogleSignIn
         clientId = clientId.Trim();
         if (clientId.Length > 0 && !clientId.EndsWith(".apps.googleusercontent.com", StringComparison.OrdinalIgnoreCase))
             throw new BusinessException("Client ID phải có dạng ….apps.googleusercontent.com");
-        _settings.Set(KeyClientId, clientId == DefaultClientId ? "" : clientId);
+        _settings.Set(KeyClientId, clientId.Length > 0 ? clientId : DefaultClientId);
         if (clientSecret.Trim().Length > 0) _settings.Set(KeyClientSecret, Secret.Protect(clientSecret.Trim())); // để trống = giữ secret cũ
     }
     public void ClearSecret() => _settings.Set(KeyClientSecret, "");

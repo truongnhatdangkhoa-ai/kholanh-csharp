@@ -98,7 +98,7 @@ public class Database
         }
         if (version < 6)
         {
-            // v6 (1.59): email Google của tài khoản — đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt.
+            // v6 (1.70): email Google của tài khoản — đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt.
             using var tx = c.BeginTransaction();
             c.Execute("ALTER TABLE users ADD COLUMN google_email TEXT NOT NULL DEFAULT '';", transaction: tx);
             c.Execute("PRAGMA user_version = 6;", transaction: tx);

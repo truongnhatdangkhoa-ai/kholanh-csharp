@@ -33,7 +33,7 @@ public class User
     public bool IsActive { get; set; } = true;
     /// <summary>Quyền chỉnh riêng (JSON {mục: mức}); rỗng = theo vai trò.</summary>
     public string Permissions { get; set; } = "";
-    /// <summary>Email Google dùng để "Đăng nhập bằng Google" (1.59); rỗng = chưa gán. null chỉ dùng khi đọc từ Sheet cũ chưa có cột.</summary>
+    /// <summary>Email Google dùng để "Đăng nhập bằng Google" (1.70); rỗng = chưa gán. null chỉ dùng khi đọc từ Sheet cũ chưa có cột.</summary>
     public string? GoogleEmail { get; set; } = "";
     public string RoleLabel => Roles.Label(Role) + (Role != Roles.Admin && Permissions.Length > 0 ? " (riêng)" : "");
     public string StatusLabel => IsActive ? "Đang dùng" : "Đã khóa";

@@ -47,7 +47,7 @@ assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'replaceAll', 
 l = post({ token: 'doc1', action: 'list' });
 assert.deepStrictEqual(l.users.map(x => x.username), ['x']);
 assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'replaceAll', users: [] }).ok, false);
-// 1.59: cột email_google — lưu / đọc được, Sheet tạo bằng bản cũ (9 cột) tự thêm tiêu đề cột mới, dữ liệu cũ giữ nguyên.
+// 1.70: cột email_google — lưu / đọc được, Sheet tạo bằng bản cũ (9 cột) tự thêm tiêu đề cột mới, dữ liệu cũ giữ nguyên.
 assert.strictEqual(post({ token: 'doc1', adminKey: 'qt1', action: 'save', user: { ...u('NV9'), email_google: 'nv9@gmail.com' } }).ok, true);
 assert.strictEqual(post({ token: 'doc1', action: 'list' }).users.find(x => x.username === 'NV9').email_google, 'nv9@gmail.com');
 for (const r of sheet.cells) r.length = 9;

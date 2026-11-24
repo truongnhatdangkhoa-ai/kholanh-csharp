@@ -6,7 +6,7 @@ App không đăng nhập Google; nó chỉ đọc / ghi một **thư mục của
 
 ## Cài đặt
 1. Cài **Google Drive for Desktop** trên cả hai máy, cùng một tài khoản Google (hoặc chia sẻ thư mục cho nhau). Chọn một thư mục, ví dụ `G:\My Drive\KhoLanh`.
-2. **Máy chính:** menu *Hệ thống › Đồng bộ Google Drive* → vai **Máy chính** → chọn thư mục → **Lưu** → **Chép mã đồng bộ** (`KLDRV1-…`).
+2. **Máy chính:** menu *Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Thư mục / Google Drive dùng chung* → vai **Máy chính** → chọn thư mục → **Lưu** → **Chép mã đồng bộ** (`KLDRV1-…`).
 3. **Máy xa:** *Đồng bộ Google Drive* → vai **Máy xem từ xa** → chọn thư mục (cùng thư mục đã đồng bộ về máy) → dán mã đồng bộ → **Lưu**.
    Máy xa đang dùng LAN thì chuyển về “Máy đơn” trước.
 
@@ -38,7 +38,7 @@ Ban đêm máy công ty tắt; các **máy ở nhà** làm việc **độc lập
 - Máy chính, theo chu kỳ (mặc định 5 phút): nếu dữ liệu đổi thì chụp toàn bộ bảng dữ liệu → `KhoLanh-Sync/snap/s-NNNNNN.klsync` + `latest.json` (giữ 4 bản gần nhất).
 - Máy xa, theo chu kỳ: thấy bản mới → tải về và thay các bảng (bảng nào máy xa đang sửa dở thì giữ nguyên).
 - Máy xa sửa dữ liệu → vào **sổ chờ** → gửi `in/<máy>-….klsync`. Máy chính gộp bằng đúng cơ chế của máy con LAN: không ai đụng nhau thì lấy thẳng,
-  khác dòng thì tự gộp, trùng dòng thì ghi vào **Xung đột** để Quản trị chọn (Hệ thống › Mạng LAN). Kết quả trả về `out/<máy>.klsync`; máy chính chụp lại và máy xa nhận bản đã gộp.
+  khác dòng thì tự gộp, trùng dòng thì ghi vào **Xung đột** để Quản trị chọn (Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Máy chủ LAN). Kết quả trả về `out/<máy>.klsync`; máy chính chụp lại và máy xa nhận bản đã gộp.
 - Máy xa mất mạng vẫn làm việc với bản đã tải; nối lại tự gửi.
 - Tốc độ phụ thuộc Google Drive đồng bộ (vài giây đến vài phút) — **không tức thời**.
 

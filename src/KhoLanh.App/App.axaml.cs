@@ -79,7 +79,9 @@ public partial class App : Application
                     try { if (AppUpdater.ApplyAndRestart()) { AppUpdater.ExitForUpdate(); return; } }
                     catch { /* không thay được exe: chạy tiếp bản hiện tại */ }
                 }
-                try { Services.Backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ }
+                // Sao lưu mỗi ngày chạy NGẦM (trước 1.59 chép cả CSDL trước khi hiện màn hình đăng nhập).
+                var backup = Services.Backup;
+                _ = Task.Run(() => { try { backup.DailyAutoBackup(); } catch { /* sao lưu tự động lỗi không chặn mở app */ } });
                 WindowsStartup.Refresh();
                 StartLan(desktop);
                 ShowLogin(desktop);
@@ -142,6 +144,25 @@ public partial class App : Application
         });
     }
 
+    /// <summary>
+    /// Đã vào bằng danh sách tài khoản lưu trong máy, danh sách mới còn đang tải ngầm: tải xong mà tài khoản bị khóa / đổi mật khẩu
+    /// ở máy khác thì báo và đăng xuất (quyền mới đã tự cập nhật vào phiên).
+    /// </summary>
+    private static async void WatchAccounts(MainWindow main, KhoLanh.Core.Services.LoginFlow.Result r)
+    {
+        try { await r.Pending!; } catch { return; }   // lỗi mạng: giữ bản lưu như trước
+        try
+        {
+            if (main.IsLoggingOut || Services.Session.CurrentUser?.Id != r.User.Id) return;
+            var why = KhoLanh.Core.Services.LoginFlow.Recheck(Services.Db, r.User, r.PasswordHash);
+            if (why is null) return;
+            Services.Remember.Forget();
+            await Ui.Message(main, why, "Đăng nhập lại");
+            if (!main.IsLoggingOut && Services.Session.CurrentUser?.Id == r.User.Id) main.Logout();
+        }
+        catch { /* kiểm lại thất bại: giữ phiên hiện tại */ }
+    }
+
     public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop, bool afterLogout = false)
     {
         var login = new LoginWindow { AfterLogout = afterLogout };
@@ -158,6 +179,7 @@ public partial class App : Application
             main.Closed += (_, _) => { if (!main.IsLoggingOut) desktop.Shutdown(); };
             desktop.MainWindow = main;
             main.Show();
+            if (login.Result is { Pending: not null } r) WatchAccounts(main, r);
             login.Close();
         };
         login.Closed += (_, _) => { if (!login.Succeeded) desktop.Shutdown(); };

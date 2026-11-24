@@ -46,8 +46,8 @@ public sealed class AnAnView : UserControl, IPage
             Items =
             {
                 new TabItem { Header = "Load Data", Content = BuildLoad() },
+                new TabItem { Header = "Báo Cáo", Content = BuildBc() },   // 1.69: Báo Cáo ngay sau Load Data
                 new TabItem { Header = "Phân Loại", Content = BuildPl() },
-                new TabItem { Header = "Báo Cáo", Content = BuildBc() },
                 new TabItem { Header = "Theo Dõi Tồn", Content = BuildTd() },
                 new TabItem { Header = "Đặc Tính", Content = BuildDt() },
                 new TabItem { Header = "Tổng Hợp", Content = BuildTh() },
@@ -158,8 +158,8 @@ public sealed class AnAnView : UserControl, IPage
             switch (_tabs.SelectedIndex)
             {
                 case 0: RenderLoad(); break;
-                case 1: RenderPl(); break;
-                case 2: RenderBc(); break;
+                case 1: RenderBc(); break;
+                case 2: RenderPl(); break;
                 case 3: RenderTd(); break;
                 case 4: RenderDt(); break;
                 case 5: RenderTh(); break;
@@ -463,7 +463,7 @@ public sealed class AnAnView : UserControl, IPage
         await Act(() => Svc.MoveRows(rows, mods[r.Value.Index].Id), $"Đã chuyển {rows.Count} dòng sang {mods[r.Value.Index].Label}");
     }
 
-    private void RenderPl()
+    internal void RenderPl()
     {
         if (_plMod.ItemsSource is null) { _plMod.ItemsSource = AnAnData.FilterModules.Select(m => m.Label).ToList(); _plMod.SelectedIndex = 0; }
         _plThBox.IsVisible = PlId == "tpc";
@@ -538,10 +538,20 @@ public sealed class AnAnView : UserControl, IPage
         }
         _cfCol.ItemsSource = D.Headers.Count > 0 ? D.Headers.ToList() : AnAnData.FilterColumns.ToList();
         if (_cfCol.SelectedIndex < 0) _cfCol.SelectedIndex = 0;
-        var add = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
-        add.Children.Add(Label("Thêm:")); add.Children.Add(_cfCol); add.Children.Add(_cfOp); add.Children.Add(_cfVal); add.Children.Add(_cfFrom); add.Children.Add(_cfTo);
-        add.Children.Add(Btn("＋ Thêm điều kiện", async () => await AddCf(id), primary: true));
-        _plRules.Children.Add(add);
+        _plRules.Children.Add(CfBar());
+    }
+
+    // Thanh "Thêm:" dựng MỘT lần rồi dùng lại. Trước 1.65 mỗi lần vẽ lại tạo WrapPanel mới và thêm lại các ô _cfCol / _cfOp… vốn vẫn
+    // nằm trong WrapPanel cũ (Clear() của _plRules chỉ gỡ WrapPanel cũ khỏi _plRules, không gỡ các ô khỏi nó) → InvalidOperationException
+    // "ComboBox already has a visual parent WrapPanel" khi đổi bảng lọc / thêm / xóa điều kiện (báo cáo Trợ lý 24/11).
+    private WrapPanel? _cfBar;
+    internal WrapPanel CfBar()
+    {
+        if (_cfBar is not null) return _cfBar;
+        _cfBar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        _cfBar.Children.Add(Label("Thêm:")); _cfBar.Children.Add(_cfCol); _cfBar.Children.Add(_cfOp); _cfBar.Children.Add(_cfVal); _cfBar.Children.Add(_cfFrom); _cfBar.Children.Add(_cfTo);
+        _cfBar.Children.Add(Btn("＋ Thêm điều kiện", async () => await AddCf(PlId), primary: true));
+        return _cfBar;
     }
 
     private async Task AddCf(string id)
@@ -570,34 +580,63 @@ public sealed class AnAnView : UserControl, IPage
     private readonly GridModel _bcm = new() { ReadOnly = true };
     private readonly GridModel _bdm = new() { ReadOnly = true };
     private readonly GridModel _bhm = new() { ReadOnly = true };
-    private SheetGrid _bcg = null!, _bhg = null!;
-    private readonly TextBlock _bcKhoGui = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
+    private SheetGrid _bcg = null!, _bdg = null!, _bhg = null!;
+    private readonly TextBlock _bcKhoGui = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Classes = { "muted" }, Tag = "keep" };
     private readonly TextBlock _bcRecon = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly ContentControl _bcAlert = new();
     private List<AnAnData.HlsoRow> _bhRows = new();
+    private List<BaoCaoTongTon.Dong> _bcRows = new();
+    private HashSet<string> _bdLech = new();
+    private List<string> _bdKeys = new();
+    private static readonly IBrush MissBg = AppTheme.Brush("#FFF2D6"), BadBg = AppTheme.Brush("#FDE8E6"), KhoGuiBg = AppTheme.Brush("#EEEBFC");
 
     private Control BuildBc()
     {
-        _bcg = new SheetGrid(_bcm) { SpareRows = 0, Filterable = false, CellBackground = (r, _) => r == _bcm.RowCount - 1 ? TotalBg : r == 0 ? ManualBg : null };
+        _bcg = new SheetGrid(_bcm)
+        {
+            SpareRows = 0, Filterable = false, ShowTotals = false,   // bảng đã có dòng TỔNG
+            CellBackground = (r, _) => r >= _bcRows.Count ? null : _bcRows[r].Kind switch
+            {
+                "total" or "grand" => TotalBg,
+                "khogui" => _bcRows[r].Weight is null ? MissBg : KhoGuiBg,
+                "manual" => BaoCaoTongTon.ManualMissing(D) ? MissBg : ManualBg,
+                _ => null,
+            },
+        };
+        _bdg = new SheetGrid(_bdm)
+        {
+            SpareRows = 0, Filterable = false, ShowTotals = false,
+            CellBackground = (r, _) => r < _bdKeys.Count && _bdLech.Contains(_bdKeys[r]) ? (_bdKeys[r] == "diff" ? BadBg : MissBg) : null,
+        };
         _bhg = new SheetGrid(_bhm) { SpareRows = 0, CellBackground = (r, _) => r < _bhRows.Count && _bhRows[r].Kind == "group-title" ? TitleBg : null };
         var bar = Bar();
         if (_export)
         {
-            bar.Children.Add(Btn("⬇ Xuất excel tổng tồn", async () => { var d = await AskReportDate(); if (d is not null) await SaveXlsx(AnAnExport.BaoCaoAll(D, d), $"BaoCao_TongTon_7Module_{AnAnExport.Stamp(DateTime.Now)}.xlsx"); }, tip: "Một file Excel chung: tổng tồn + Kho Gửi"));
+            bar.Children.Add(Btn("⬇ Xuất excel tổng tồn", async () => await ExportTongTon(), tip: "Một file Excel chung: tổng tồn + Kho Gửi"));
             bar.Children.Add(Btn("⬇ Xuất excel HLSO", async () => await ExportHlso(), tip: "Cùng cấu trúc file, chỉ gồm Tôm HLSO, Tôm Gia Công, Tôm Nhập Khẩu, Tôm Nguyên Liệu, Tôm Giám Sát"));
             bar.Children.Add(Btn("⬇ Xuất Bảng Tổng Hợp HLSO", async () => await SaveXlsx(AnAnExport.HlsoSummary(D, D.DataDate.Length > 0 ? D.DataDate : Today), $"BangTongHopHLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
         }
         if (_edit) bar.Children.Add(Btn("Lấy Kho Gửi từ Tồn kho gửi", async () => await PullKhoGui()));
-        // 1.57: 3 bảng (Tổng Tồn · Đối soát · Tổng Hợp HLSO) tách thành 3 tab con — màn hình nhỏ mỗi bảng có đủ chỗ
-        _bcg.ShowTotals = false;   // bảng đã có dòng TỔNG CỘNG
-        var tong = new DockPanel();
-        DockPanel.SetDock(_bcKhoGui, Dock.Bottom); _bcKhoGui.Margin = new Thickness(0, 6, 0, 0);
-        tong.Children.Add(_bcKhoGui); tong.Children.Add(Framed(_bcg));
-        var doiSoat = new DockPanel();
-        DockPanel.SetDock(_bcRecon, Dock.Bottom); _bcRecon.Margin = new Thickness(0, 6, 0, 0);
-        doiSoat.Children.Add(_bcRecon);
-        doiSoat.Children.Add(Framed(new SheetGrid(_bdm) { SpareRows = 0, Filterable = false, ShowTotals = false, CellBackground = (r, _) => r is 2 or 4 && _bdm.Get(r, 1) is { Length: > 0 } s && s != "0.00" && s != "-0.00" ? WarnBg : null }));
-        var tabs = Ui.SubTabs(("Báo Cáo Tổng Tồn", tong), ("Đối Soát: 8 Module vs Load Data", doiSoat), ("Bảng Tổng Hợp HLSO", Framed(_bhg)));
+        // 1.69: Báo Cáo Tổng Tồn (gồm Tồn Kho Gửi) + Đối Soát chung 1 tab con, 2 bảng cạnh nhau như app cũ (PC 5.35; màn hình hẹp tự xuống dòng);
+        // Bảng Tổng Hợp HLSO tab riêng
+        var left = new StackPanel { Width = 580, Spacing = 4 };
+        left.Children.Add(Label("Báo Cáo Tổng Tồn", true, 13.5)); left.Children.Add(Framed(_bcg)); left.Children.Add(_bcKhoGui);
+        var right = new StackPanel { Width = 600, Spacing = 4 };
+        right.Children.Add(Label("Đối Soát: 8 Module vs Load Data", true, 13.5)); right.Children.Add(_bcAlert); right.Children.Add(Framed(_bdg)); right.Children.Add(_bcRecon);
+        var both = new WrapPanel { ItemSpacing = 20, LineSpacing = 14, Children = { left, right } };
+        var tabs = Ui.SubTabs(("Báo Cáo Tổng Tồn & Đối Soát", new ScrollViewer { Content = both, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled }), ("Bảng Tổng Hợp HLSO", Framed(_bhg)));
         return Page(bar, tabs);
+    }
+
+    private static double GridH(int rows) => SheetGrid.HeadH + SheetGrid.RowH * Math.Max(1, rows) + 40;   // + thanh cuộn ngang, không cần cuộn dọc
+
+    /// <summary>Xuất Excel tổng tồn: Bột + Sốt + Bếp / Kho Gửi chưa có số → nhắc trước (vẫn xuất được).</summary>
+    private async Task ExportTongTon()
+    {
+        var warn = BaoCaoTongTon.CanhBaoXuat(D);
+        if (warn.Count > 0 && !await Ui.Confirm(this, "Báo cáo tổng tồn còn thiếu số liệu:\n\n" + string.Join("\n", warn.Select(w => "• " + w)) + "\n\nVẫn xuất file Excel?", "Thiếu số liệu", "Vẫn xuất")) return;
+        var d = await AskReportDate();
+        if (d is not null) await SaveXlsx(AnAnExport.BaoCaoAll(D, d), $"BaoCao_TongTon_7Module_{AnAnExport.Stamp(DateTime.Now)}.xlsx");
     }
 
     private async Task<string?> AskReportDate()
@@ -618,7 +657,7 @@ public sealed class AnAnView : UserControl, IPage
         var boxes = AnAnExport.HlsoExportIds.Select(id => new CheckBox { Content = AnAnData.LabelOf(id), IsChecked = true, Tag = id }).ToList();
         foreach (var b in boxes) body.Children.Add(b);
         var ok = false;
-        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Thôi", IsCancel = true };
+        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Đóng", IsCancel = true };
         body.Children.Add(Ui.Buttons(n, y));
         var w = Ui.Dialog("Xuất excel HLSO", body, 360);
         y.Click += (_, _) => { ok = true; w.Close(); }; n.Click += (_, _) => w.Close();
@@ -643,19 +682,26 @@ public sealed class AnAnView : UserControl, IPage
 
     private void RenderBc()
     {
-        var rows = D.TongTonRows();
-        double? total = null; foreach (var r in rows) if (r.Weight is double w && !double.IsNaN(w)) total = (total ?? 0) + w;
-        _bcm.Load(new[] { new GridColumn("l", "Tên hàng", 300, "text"), new GridColumn("w", "Trọng lượng (kg)", 190, "number") },
-            rows.Select(r => new[] { r.Label, Kg(r.Weight) }).Append(new[] { "TỔNG CỘNG", Kg(total) }));
-        _bcg.Refresh();
-        _bcKhoGui.Text = $"Báo Cáo Kho Gửi: {(D.KhoGui is double kg ? Kg(kg) + " kg" : "—")} · “Bột + Sốt + Bếp” sửa ở tab Tổng Hợp › Báo cáo ngoài sổ sách.";
-        var all = D.TotalWeightAll(); var (hl, hasHl) = D.HlsoGrandTotal();
-        double? Diff(double? a, double? b) => a is double x && b is double y ? x - y : null;
-        _bdm.Load(new[] { new GridColumn("l", "", 250), new GridColumn("v", "Trọng lượng (kg)", 130, "number") }, new[]
+        _bcRows = BaoCaoTongTon.Bang(D);
+        string Lbl(BaoCaoTongTon.Dong r) => r.Kind switch
         {
-            new[] { "Tổng toàn bộ dữ liệu Load Data", Kg(all) }, new[] { "Tổng cộng 8 module (bảng bên trái)", Kg(total) }, new[] { "Chênh lệch", Kg(Diff(total, all)) },
-            new[] { "Tổng Bảng Tổng Hợp HLSO", hasHl ? Kg(hl) : "—" }, new[] { "Chênh lệch (HLSO vs 8 module)", hasHl ? Kg(Diff(hl, total)) : "—" },
-        });
+            "manual" => r.Label + (BaoCaoTongTon.ManualMissing(D) ? "  (chưa nhập)" : ""),
+            "total" => "TỔNG TỒN KHO", "khogui" => "Tồn Kho Gửi (Kho Transimex Long An)" + (r.Weight is null ? "  (chưa có số liệu)" : ""),
+            _ => r.Label,
+        };
+        _bcm.Load(new[] { new GridColumn("l", "Tên hàng", 320, "text"), new GridColumn("w", "Tổng trọng lượng (kg)", 170, "number") },
+            _bcRows.Select(r => new[] { Lbl(r), r.Kind == "khogui" && r.Weight is null ? "—" : Kg(r.Weight) }));
+        _bcg.Height = GridH(_bcRows.Count);
+        _bcg.Refresh();
+        _bcKhoGui.Text = $"Tồn Kho Gửi KHÔNG cộng vào TỔNG TỒN KHO (tự lấy từ Tồn kho gửi) · “{AnAnData.ManualLabel}” và Kho Gửi sửa ở tab Tổng Hợp › Báo cáo ngoài sổ sách.";
+        var ds = BaoCaoTongTon.DoiSoat(D);
+        _bdKeys = ds.Rows.Select(r => r.Key).ToList();
+        _bdLech = ds.CanhBao.Select(c => c.Key).ToHashSet();
+        _bdm.Load(new[] { new GridColumn("l", "", 370), new GridColumn("v", "Trọng lượng (kg)", 170, "number") },
+            ds.Rows.Select(r => new[] { r.Label, r.Has ? Kg(r.Value) : "—" }));
+        _bdg.Height = GridH(ds.Rows.Count);
+        _bdg.Refresh();
+        _bcAlert.Content = D.HasData ? Ui.CanhBaoBox(ds.CanhBao, "Đối soát khớp: tổng 8 bảng Phân Loại = Load Data, Bảng Tổng Hợp HLSO = tổng tồn kho.") : null;
         var rc = D.Reconcile();
         _bcRecon.Text = rc is null ? "" : $"Dòng thuộc từ 2 bảng trở lên: {N(rc.Overlap.Count)} (đếm dư {Kg(rc.OverlapExcess)} kg) · Dòng không thuộc bảng nào: {N(rc.Orphan.Count)} ({Kg(rc.OrphanWeight)} kg)"
             + (D.HlsoGap() is { } gap && gap.Rows.Count > 0 ? $" · Dòng HLSO chưa gộp đặc tính: {N(gap.Rows.Count)} ({Kg(gap.Weight)} kg)" : "")
@@ -767,19 +813,31 @@ public sealed class AnAnView : UserControl, IPage
     private List<AnAnData.DtRow> _dtRows = new();
     private readonly TextBlock _dtStats = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
 
+    private static readonly IBrush LockedBg = AppTheme.Brush("#EEF1F5"), LockedFg = AppTheme.Brush("#9AA5B1");
+
     private Control BuildDt()
     {
-        _dtg = new SheetGrid(_dtm) { SpareRows = 0, CellBackground = (r, _) => r < _dtRows.Count && !_dtRows[r].Present ? WarnBg : r < _dtRows.Count && D.GroupOf(_dtRows[r].Label) is not null ? ManualBg : null };
+        // 1.69: đặc tính đã gộp = KHÓA (nền xám, chữ mờ; "Gộp dòng chọn" bỏ qua) — "Bỏ gộp dòng chọn" để mở khóa
+        bool Locked(int r) => r < _dtRows.Count && D.GroupOf(_dtRows[r].Label) is not null;
+        _dtg = new SheetGrid(_dtm)
+        {
+            SpareRows = 0,
+            CellBackground = (r, _) => r < _dtRows.Count && !_dtRows[r].Present ? WarnBg : Locked(r) ? LockedBg : null,
+            CellForeground = (r, _) => Locked(r) ? LockedFg : null,
+        };
         var bar = Bar();
         if (_edit)
         {
             bar.Children.Add(Btn("Gộp dòng chọn vào nhóm…", async () =>
             {
-                var labels = SelectedDt();
-                if (labels.Count == 0) { await Ui.Message(this, "Bôi đen các đặc tính cần gộp."); return; }
+                var sel = SelectedDt();
+                if (sel.Count == 0) { await Ui.Message(this, "Bôi đen các đặc tính cần gộp."); return; }
+                var labels = sel.Where(l => D.GroupOf(l) is null).ToList();
+                if (labels.Count == 0) { await Ui.Message(this, "Các đặc tính đã chọn đều ĐÃ GỘP (đang khóa, hiện mờ). Muốn gộp lại vào nhóm khác: bấm “Bỏ gộp dòng chọn” trước."); return; }
+                var skip = sel.Count - labels.Count;
                 var r = await Ui.Choose(this, $"Gộp {labels.Count} đặc tính vào nhóm:", "Gộp đặc tính", AnAnData.HlsoColumns.ToList());
                 if (r is null) return;
-                await Act(() => Svc.AssignGroup(labels, AnAnData.HlsoColumns[r.Value.Index]), $"Đã gộp {labels.Count} đặc tính vào {AnAnData.HlsoColumns[r.Value.Index]}");
+                await Act(() => Svc.AssignGroup(labels, AnAnData.HlsoColumns[r.Value.Index]), $"Đã gộp {labels.Count} đặc tính vào {AnAnData.HlsoColumns[r.Value.Index]}" + (skip > 0 ? $" (bỏ qua {skip} đặc tính đã gộp — đang khóa)" : ""));
             }, primary: true));
             bar.Children.Add(Btn("Bỏ gộp dòng chọn", async () =>
             {
@@ -817,7 +875,7 @@ public sealed class AnAnView : UserControl, IPage
         _dtm.Load(new[] { new GridColumn("l", "Đặc Tính", 220), new GridColumn("n", "Số dòng", 75, "number"), new GridColumn("w", "Trọng lượng (kg)", 130, "number"), new GridColumn("g", "Nhóm đã gộp", 200) },
             _dtRows.Select(r => new[] { r.Label, r.Present ? N(r.Count) : "", r.HasWeight ? Kg(r.Weight) : "", D.GroupOf(r.Label) ?? "" }));
         _dtg.Refresh();
-        _dtStats.Text = $"{N(_dtRows.Count)} đặc tính · {N(_dtRows.Count(r => D.GroupOf(r.Label) is not null))} đã gộp · nền cam = không còn trong dữ liệu hiện tại, xanh = đã gộp";
+        _dtStats.Text = $"{N(_dtRows.Count)} đặc tính · {N(_dtRows.Count(r => D.GroupOf(r.Label) is not null))} đã gộp · nền cam = không còn trong dữ liệu hiện tại, xám mờ = đã gộp (đang khóa — bỏ gộp để sửa)";
         var rows = new List<string[]>();
         foreach (var g in AnAnData.HlsoColumns)
         {

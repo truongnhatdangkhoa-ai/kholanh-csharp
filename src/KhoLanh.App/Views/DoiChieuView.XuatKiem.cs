@@ -142,7 +142,7 @@ public sealed partial class DoiChieuView
             new GridColumn("cu", "Tên hiện có", 330) { ReadOnly = true }, new GridColumn("moi", "Tên mới", 330) { ReadOnly = true }, new GridColumn("src", "Nguồn", 130) { ReadOnly = true },
         }, shown.Select(x => new[] { "x", XuatKiem.Dmy(x.Ngay), x.Ma, x.Cu.Length > 0 ? x.Cu : "(trống)", x.Moi, x.Src }));
         var grid = new SheetGrid(gm) { SpareRows = 0, Height = 340 };
-        var ok = new Button { Content = "Áp dụng", Classes = { "primary" } }; var close = new Button { Content = "Hủy", IsCancel = true };
+        var ok = new Button { Content = "Áp dụng", Classes = { "primary" } }; var close = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 6 };
         body.Children.Add(new TextBlock
         {

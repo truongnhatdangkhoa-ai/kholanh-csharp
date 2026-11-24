@@ -35,7 +35,7 @@ public sealed class DriveSyncView : UserControl, IPage
     private readonly ComboBox _every = new() { ItemsSource = DriveSyncService.Intervals.Select(x => x.Label).ToList(), MinWidth = 330 };
     private readonly ListBox _bk = new() { Height = 150 };
     private readonly TextBlock _bkMsg = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
-    private Button _bkNow = null!, _bkRestore = null!;
+    private Button _bkNow = null!, _bkRestore = null!, _copyRemote = null!;
     private List<DriveSyncService.DriveBackup> _bkList = new();
 
     public DriveSyncView()
@@ -64,8 +64,16 @@ public sealed class DriveSyncView : UserControl, IPage
         });
         ToolTip.SetTip(copyCode, "Mã chứa khóa bí mật — đừng gửi nơi công khai.");
         _mainPanel.Children.Add(copyCode);
+        // 1.68: máy xem từ xa (đã có mã) cũng chép lại được mã — máy chính hỏng / mất mã thì lấy từ máy này
+        _copyRemote = Btn("Chép mã đồng bộ (máy này đang giữ)", async () =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) await cb.SetTextAsync(Svc.Code());
+            _msg.Text = "Đã chép mã đồng bộ. Cất ở nơi an toàn (trình quản lý mật khẩu / giấy niêm phong) — mất mã thì không mở được các bản sao lưu đã mã hóa trên Drive.";
+        });
+        ToolTip.SetTip(_copyRemote, "Mã chứa khóa bí mật — đừng gửi nơi công khai.");
         var buttons = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         buttons.Children.Add(Btn("Lưu", async () => await Save(), primary: true));
+        buttons.Children.Add(_copyRemote);
         buttons.Children.Add(Btn("Đồng bộ ngay", async () => await SyncNow()));
         // ----- phân vai theo tài khoản
         _planOn = new CheckBox { Content = "Bật: vai Drive theo tài khoản đăng nhập" };
@@ -125,6 +133,7 @@ public sealed class DriveSyncView : UserControl, IPage
         if (_bkList.Count > 0) _bk.SelectedIndex = 0;
         _bkNow.IsVisible = Svc.Mode == DriveSyncService.ModeMain;
         _bkRestore.IsVisible = Svc.Mode == DriveSyncService.ModeRemote;
+        _copyRemote.IsVisible = Svc.Mode == DriveSyncService.ModeRemote && Svc.Enabled;
         _bkMsg.Text = !Svc.Enabled ? "Bật đồng bộ Drive để dùng sao lưu trên Drive." : _bkList.Count == 0 ? "Chưa có bản sao lưu nào trên Drive (máy chính tự tạo ở lượt đồng bộ đầu tiên trong ngày)." : $"{_bkList.Count} bản · mới nhất {_bkList[0].Day:dd/MM/yyyy}.";
     }
 

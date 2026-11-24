@@ -30,8 +30,13 @@ public sealed class PhieuKhoView : UserControl, IPage
     private bool _loading, _dirty;
     private Phieu? _cur;
     private List<Phieu> _shown = new();
-    private readonly ListBox _list = new() { MinWidth = 280 };
-    private readonly TextBox _search = new() { Watermark = "Tìm số phiếu, LSX, khách…" };
+    // 1.61: danh sách phiếu và nhập liệu phiếu là 2 tab con riêng (không chung 1 màn hình).
+    private readonly GridModel _lm = new() { ReadOnly = true };
+    private readonly SheetGrid _lg;
+    private readonly TextBlock _listInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _curTitle = new() { FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
+    private readonly TabControl _inner;
+    private readonly TabItem _editTab;
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _err = new() { FontSize = 12.5, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _totals = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
@@ -42,7 +47,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     private readonly List<(MatHang M, GridModel Gm)> _blocks = new();
     private readonly Button _save, _del, _exp, _copy;
 
-    private readonly string? _openId;
+    private string? _openId;
     private readonly ListSxView _lsxView;
     private readonly PnxAutoView _autoView;
     private readonly TabItem _autoTab = new() { Header = "⚡ Tự động đã tạo" };
@@ -53,10 +58,9 @@ public sealed class PhieuKhoView : UserControl, IPage
     {
         _openId = openPhieuId;
         _edit = Svc.CanEdit; _export = Svc.CanExport;
-        _list.SelectionChanged += async (_, _) => await OnPick();
-        var deb = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        deb.Tick += (_, _) => { deb.Stop(); RenderList(); };
-        _search.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
+        _lg = new SheetGrid(_lm) { SpareRows = 0 };
+        _lg.DoubleTapped += async (_, _) => await OpenSelected();
+        _lg.AddHandler(KeyDownEvent, async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; await OpenSelected(); } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         _save = Btn("💾 Lưu phiếu", async () => await DoSave(), primary: true); _save.IsEnabled = _edit;
         _del = Btn("Xóa phiếu", async () => await DoDelete(), danger: true); _del.IsEnabled = _edit;
@@ -77,20 +81,23 @@ public sealed class PhieuKhoView : UserControl, IPage
         };
         _tabs.SelectionChanged += (_, _) => RefreshMail();
 
-        var leftTop = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
-        if (_edit) leftTop.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
-        if (_export) leftTop.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
-        leftTop.Children.Add(_search);
-        leftTop.Children.Add(new TextBlock { Text = "Phiếu xuất khẩu theo LSX. Thuận Phước · Gia công · Gửi kho làm ở tab “Phiếu xuất nội địa”.", Classes = { "muted" }, FontSize = 11.5, TextWrapping = TextWrapping.Wrap });
-        var left = new DockPanel { Width = 300 };
-        DockPanel.SetDock(leftTop, Dock.Top); left.Children.Add(leftTop); left.Children.Add(Framed(_list));
+        // Tab con 1: bảng danh sách phiếu xuất khẩu (lọc / tìm theo từng cột của lưới), bấm đúp / Enter / "Mở phiếu" → tab nhập liệu.
+        var listTools = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 0, 0, 6) };
+        if (_edit) listTools.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
+        listTools.Children.Add(Btn("Mở phiếu đang chọn", async () => await OpenSelected()));
+        if (_export) listTools.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
+        listTools.Children.Add(_listInfo);
+        var listPage = new DockPanel();
+        DockPanel.SetDock(listTools, Dock.Top); listPage.Children.Add(listTools); listPage.Children.Add(Framed(_lg));
 
+        // Tab con 2: nhập liệu phiếu đang mở.
         var head = new StackPanel { Spacing = 4 };
-        head.Children.Add(bar); head.Children.Add(_err); head.Children.Add(_totals); head.Children.Add(_status);
-        var right = new DockPanel { Margin = new Thickness(10, 0, 0, 0) };
-        DockPanel.SetDock(head, Dock.Top); right.Children.Add(head); right.Children.Add(_tabs);
-        var root = new DockPanel();
-        DockPanel.SetDock(left, Dock.Left); root.Children.Add(left); root.Children.Add(right);
+        head.Children.Add(_curTitle); head.Children.Add(bar); head.Children.Add(_err); head.Children.Add(_totals); head.Children.Add(_status);
+        var editPage = new DockPanel();
+        DockPanel.SetDock(head, Dock.Top); editPage.Children.Add(head); editPage.Children.Add(_tabs);
+        _inner = Ui.SubTabs(("Danh sách phiếu xuất khẩu", listPage), ("Nhập liệu phiếu", editPage));
+        _editTab = (TabItem)_inner.Items[1]!;
+        var root = _inner;
         // 2 phần của module: phiếu xuất khẩu theo LSX (List sản xuất) và Cargo list (hàng tạm: Thuận Phước · Gia công · Gửi kho)
         _lsxView = new ListSxView(openListLsx, OpenFromList);
         _autoView = new PnxAutoView(OpenFromList, lsx => { _outer!.SelectedIndex = 1; _lsxView.SelectLsx(lsx); });
@@ -155,7 +162,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
         _status.Text = "";
         RenderList();
-        if (_openId is not null && _shown.FindIndex(p => p.Id == _openId) is var i && i >= 0) _list.SelectedIndex = i;
+        if (_openId is not null && _shown.Find(p => p.Id == _openId) is { } op) { _openId = null; await OpenPhieu(op); }
     }
 
     /// <summary>List sản xuất → phiếu vừa tạo / phiếu đã có: chuyển sang tab phiếu và mở phiếu đó.</summary>
@@ -163,36 +170,51 @@ public sealed class PhieuKhoView : UserControl, IPage
     {
         await LoadAsync();
         _outer.SelectedIndex = 0;
-        if (_shown.FindIndex(p => p.Id == phieuId) is var i && i >= 0) _list.SelectedIndex = i;
+        if (_shown.Find(p => p.Id == phieuId) is { } op) await OpenPhieu(op);
     }
 
     private void RenderList(string? keepId = null)
     {
         keepId ??= _cur?.Id;
-        var q = StripLower(_search.Text ?? "");
-        _shown = Svc.List.Where(p => p.Loai == "xuat_khau" && (q.Length == 0 || StripLower(p.SoPhieu + " " + p.Lsx + " " + p.Khach + " " + p.Ngay).Contains(q))).ToList();
-        _loading = true;
-        _list.ItemsSource = _shown.Select(p => $"{(PhieuKhoService.TagOf(p) is null ? "" : Svc.IsNew(p) ? "⚡ MỚI · " : "⚡ ")}{(p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)")}  ·  {Dm(p.Ngay)}{(p.Lsx.Length > 0 ? "  ·  " + p.Lsx : "")}{(p.Khach.Length > 0 ? " " + p.Khach : "")}{(p.XuatLuc.Length > 0 ? "  ✓ đã xuất" : "")}").ToList();
+        _shown = Svc.List.Where(p => p.Loai == "xuat_khau").ToList();
+        _lm.Load(new[]
+        {
+            new GridColumn("so", "Số phiếu", 120), new GridColumn("ngay", "Ngày xuất", 95), new GridColumn("lsx", "LSX", 110), new GridColumn("khach", "Khách hàng", 190),
+            new GridColumn("cont", "Số cont", 130), new GridColumn("kien", "Tổng kiện", 90, "number"), new GridColumn("kg", "Tổng kg", 110, "number"),
+            new GridColumn("tt", "Trạng thái", 170),
+        }, _shown.Select(p =>
+        {
+            var t = TotalsOf(p);
+            var tt = string.Join(" · ", new[] { PhieuKhoService.TagOf(p) is null ? "" : Svc.IsNew(p) ? "⚡ Tự động (mới)" : "⚡ Tự động", p.XuatLuc.Length > 0 ? "✓ Đã xuất Excel" : "" }.Where(x => x.Length > 0));
+            return new[] { p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)", p.Ngay.Length >= 10 ? $"{p.Ngay[8..10]}/{p.Ngay[5..7]}/{p.Ngay[..4]}" : p.Ngay, p.Lsx, p.Khach, p.Xe.Cont, Fmt(t.Kien), Fmt(t.Kg), tt };
+        }));
+        _lg.Refresh();
         var i = keepId is null ? -1 : _shown.FindIndex(p => p.Id == keepId);
-        _list.SelectedIndex = i;
-        _loading = false;
+        if (i >= 0) _lg.Select(i, 0);
+        _listInfo.Text = $"{_shown.Count:#,0} phiếu · bấm đúp (hoặc Enter) để mở phiếu sang tab Nhập liệu";
     }
     private static string StripLower(string s) => KhoLanh.Core.ChungTu.ChungTuService.StripAccents(s);
 
-    private async Task OnPick()
+    private async Task OpenSelected()
     {
-        if (_loading) return;
-        var i = _list.SelectedIndex;
+        var i = _lg.Row;
         if (i < 0 || i >= _shown.Count) return;
-        if (_dirty && _cur is not null && _cur.Id != _shown[i].Id && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và mở phiếu khác?", "Chưa lưu", "Bỏ thay đổi"))
-        { RenderList(_cur.Id); return; }
-        _cur = Clone(_shown[i]); _dirty = false;
+        await OpenPhieu(_shown[i]);
+    }
+
+    /// <summary>Mở phiếu sang tab Nhập liệu (phiếu đang mở có thay đổi chưa lưu thì hỏi trước).</summary>
+    private async Task OpenPhieu(Phieu p)
+    {
+        if (_dirty && _cur is not null && _cur.Id == p.Id) { _inner.SelectedIndex = 1; return; }   // đang soạn đúng phiếu này → giữ thay đổi
+        if (_dirty && _cur is not null && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và mở phiếu khác?", "Chưa lưu", "Bỏ thay đổi")) return;
+        _cur = Clone(p); _dirty = false;
         ShowEditor();
-        if (PhieuKhoService.TagOf(_shown[i]) is { } tag)
+        _inner.SelectedIndex = 1;
+        if (PhieuKhoService.TagOf(p) is { } tag)
         {
             var ng = tag.NgayLich.Length >= 10 ? $" từ lịch xuất ngày {tag.NgayLich[8..10]}/{tag.NgayLich[5..7]}/{tag.NgayLich[..4]}" : "";
             _status.Text = "⚡ Phiếu do hệ thống tự tạo" + ng + " — kiểm tra lại Tên hàng, Mã hàng, số kiện, Theo hợp đồng… rồi mới xuất Excel.";
-            if (Svc.IsNew(_shown[i])) { var id = _shown[i].Id; _ = Task.Run(() => { try { Svc.MarkSeen('p', id); } catch { } }); }
+            if (Svc.IsNew(p)) { var id = p.Id; _ = Task.Run(() => { try { Svc.MarkSeen('p', id); } catch { } }); }
         }
     }
 
@@ -200,8 +222,8 @@ public sealed class PhieuKhoView : UserControl, IPage
     {
         if (_dirty && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và tạo phiếu mới?", "Chưa lưu", "Bỏ thay đổi")) return;
         _cur = Svc.NewPhieu(); _dirty = true;
-        _loading = true; _list.SelectedIndex = -1; _loading = false;
         ShowEditor();
+        _inner.SelectedIndex = 1;
     }
 
     // ------------------------------------------------------------------ form soạn phiếu
@@ -212,7 +234,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         _del.IsEnabled = _edit && _cur is { Id.Length: > 0 };
         if (_cur is null)
         {
-            _editor.Children.Add(new TextBlock { Text = _edit ? "Chọn một phiếu ở danh sách bên trái, hoặc bấm “Phiếu xuất khẩu mới”." : "Chọn một phiếu ở danh sách bên trái.", Classes = { "muted" } });
+            _editor.Children.Add(new TextBlock { Text = _edit ? "Chưa mở phiếu nào. Bấm đúp một phiếu ở tab “Danh sách phiếu xuất khẩu”, hoặc bấm “Phiếu xuất khẩu mới” ở đó." : "Chưa mở phiếu nào. Bấm đúp một phiếu ở tab “Danh sách phiếu xuất khẩu”.", Classes = { "muted" } });
             RefreshAll(); return;
         }
         _loading = true;
@@ -358,8 +380,17 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (RefreshNumbers(Svc.List, _cur)) { _loading = true; _soBox.Text = _cur.SoPhieu; if (_o40Box is not null) _o40Box.Text = _cur.O40; _loading = false; }
     }
 
+    private void RefreshTitle()
+    {
+        var so = _cur is null ? "" : _cur.SoPhieu.Trim().Length > 0 ? _cur.SoPhieu.Trim() : "(chưa có số)";
+        _curTitle.Text = _cur is null ? "" : (_cur.Id.Length == 0 ? "Phiếu xuất khẩu mới · " : "Phiếu xuất khẩu · ") + so + (_cur.Lsx.Length > 0 ? " · LSX " + _cur.Lsx : "") + (_dirty ? " ●" : "");
+        _curTitle.IsVisible = _cur is not null;
+        _editTab.Header = _cur is null ? "Nhập liệu phiếu" : "Nhập liệu phiếu · " + so + (_dirty ? " ●" : "");
+    }
+
     private void RefreshAll()
     {
+        RefreshTitle();
         if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _mail.Text = ""; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export; _copy.IsEnabled = true;
         var t = TotalsOf(_cur); var unit = _cur.DonVi == "bdl" ? "bdl" : "kiện";
@@ -409,7 +440,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) return;
         var errs = Validate(Clone(_cur));
         if (errs.Count > 0) { await Ui.Message(this, string.Join("\n", errs.Take(6)) + (errs.Count > 6 ? $"\n(+{errs.Count - 6} lỗi nữa)" : ""), "Phiếu chưa đủ để xuất"); return; }
-        if (_cur.Xe.Cont.Trim().Length == 0 && !await Ui.Confirm(this, "Phiếu chưa có SỐ CONT.\n\nXuất file vẫn được; bấm “Vẫn xuất” để tiếp tục, “Thôi” để quay lại nhập.", "Thiếu số cont", "Vẫn xuất")) return;
+        if (_cur.Xe.Cont.Trim().Length == 0 && !await Ui.Confirm(this, "Phiếu chưa có SỐ CONT.\n\nXuất file vẫn được; bấm “Vẫn xuất” để tiếp tục, “Đóng” để quay lại nhập.", "Thiếu số cont", "Vẫn xuất")) return;
         var cur = Clone(_cur);
         var path = await Ui.SaveFile(this, "Xuất Phiếu xuất kho", FileName(cur), "xlsm", "Excel có macro (.xlsm)");
         if (path is null) return;

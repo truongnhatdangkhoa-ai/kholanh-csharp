@@ -58,7 +58,7 @@ public class AuthService
         return u;
     }
 
-    /// <summary>Đăng nhập bằng email Google đã xác minh (1.59): tìm tài khoản đang dùng được gán đúng email đó.</summary>
+    /// <summary>Đăng nhập bằng email Google đã xác minh (1.70): tìm tài khoản đang dùng được gán đúng email đó.</summary>
     public User LoginGoogle(string email)
     {
         email = GoogleSignIn.NormEmail(email);

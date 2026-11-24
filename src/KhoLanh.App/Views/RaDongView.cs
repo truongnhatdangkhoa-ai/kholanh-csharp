@@ -66,13 +66,16 @@ public sealed class RaDongView : UserControl, IPage
     private List<string> _sRowDay = new();
     private List<string[]> _sSnap = new();
     private string _selYear = "", _selMonth = "0";
+    private readonly HashSet<string> _imgSel = new();   // ngày đã tích để gộp ảnh (như app cũ: ô vuông đầu dòng ngày)
+    private readonly Button _imgBtn, _imgClear;
+    private const int PickCol = 6;                       // cột ẩn rộng 0 gắn ô tích đầu dòng
 
     public RaDongView()
     {
         _edit = Svc.CanEdit;
         _gGrid = new SheetGrid(_gm) { SpareRows = 0, Display = NumDisplay, CellBackground = GroupBg };
         _rGrid = new SheetGrid(_rm) { SpareRows = 0, Display = NumDisplay };
-        _sGrid = new SheetGrid(_sm) { SpareRows = 0, Display = NumDisplay, CellBackground = SavedBg };
+        _sGrid = new SheetGrid(_sm) { SpareRows = 0, Display = NumDisplay, CellBackground = SavedBg, CheckCol = PickCol, CheckFill = _ => "1" };
         _gm.Changed += () => { if (!_loading) OnGroupGridChanged(); };
         _rm.Changed += () => { if (!_loading) OnRawGridChanged(); };
         _sm.Changed += () => { if (!_loading) OnSavedGridChanged(); };
@@ -80,13 +83,15 @@ public sealed class RaDongView : UserControl, IPage
         _undoUpd = Btn("↶ Hoàn tác cập nhật", async () => await UndoUpdate());
         _delMonth = Btn("Xóa tháng", async () => await DeleteMonth());
         _exportYear = Btn("Xuất Excel năm…", async () => await ExportYear(), primary: true);
+        _imgBtn = Btn("🖼 Ảnh ngày đã chọn…", async () => await DayImage());
+        _imgClear = Btn("Bỏ tích", () => { _imgSel.Clear(); ShowBang3(); });
 
         var tabs = new TabControl
         {
             Items =
             {
-                new TabItem { Header = "Bảng 2 — Báo cáo rã đông", Content = BuildBang2() },
-                new TabItem { Header = "Bảng 3 — Dữ liệu đã lưu", Content = BuildBang3() },
+                new TabItem { Header = "Số liệu nạp (gộp theo ngày)", Content = BuildBang2() },
+                new TabItem { Header = "Số liệu đã lưu theo ngày", Content = BuildBang3() },
             },
         };
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
@@ -126,7 +131,7 @@ public sealed class RaDongView : UserControl, IPage
         catch (Exception ex)
         {
             _status.Text = "Không đọc được dữ liệu — tạm khóa việc ghi.";
-            await Ui.Message(this, (ex is BusinessException ? ex.Message : Ui.Describe(ex)) + "\n\nTạm khóa việc ghi để không mất số liệu cũ. Bấm \"Tải lại\" ở Bảng 3 để thử lại.");
+            await Ui.Message(this, (ex is BusinessException ? ex.Message : Ui.Describe(ex)) + "\n\nTạm khóa việc ghi để không mất số liệu cũ. Bấm \"Tải lại\" ở tab Số liệu đã lưu để thử lại.");
             return;
         }
         _ready = true;
@@ -170,7 +175,7 @@ public sealed class RaDongView : UserControl, IPage
             bar.Children.Add(Btn("Xóa dữ liệu đã nhập", async () =>
             {
                 if (Svc.Bang1.Rows.Count == 0) return;
-                if (!await Ui.Confirm(this, "Xóa toàn bộ dữ liệu đã nhập và Bảng 2? (Dữ liệu đã lưu ở Bảng 3 KHÔNG bị xóa.) Có thể bấm \"Hoàn tác\".", "Xóa dữ liệu", "Xóa")) return;
+                if (!await Ui.Confirm(this, "Xóa toàn bộ dữ liệu đã nạp và bảng gộp? (Số liệu đã lưu theo ngày KHÔNG bị xóa.) Có thể bấm \"Hoàn tác\".", "Xóa dữ liệu", "Xóa")) return;
                 await Act(Svc.ClearBang1, b2: true);
             }));
         }
@@ -191,7 +196,7 @@ public sealed class RaDongView : UserControl, IPage
                 await Act(() => Svc.RevertGroups(keys), b2: true);
             }));
             bar.Children.Add(_undoBtn);
-            bar.Children.Add(Btn("Lưu vào Bảng 3…", async () => await SaveToBang3(), primary: true));
+            bar.Children.Add(Btn("Lưu vào Số liệu đã lưu…", async () => await SaveToBang3(), primary: true));
         }
         var hint = new TextBlock
         {
@@ -443,7 +448,7 @@ public sealed class RaDongView : UserControl, IPage
 
     private async Task ImportFile(bool update, string? given = null)
     {
-        if (!_ready) { await Ui.Message(this, "Chưa đọc được dữ liệu đã lưu. Bấm \"Tải lại\" ở Bảng 3 rồi thử lại."); return; }
+        if (!_ready) { await Ui.Message(this, "Chưa đọc được dữ liệu đã lưu. Bấm \"Tải lại\" ở tab Số liệu đã lưu rồi thử lại."); return; }
         var path = given ?? await Ui.OpenFile(this, update ? "Chọn file cập nhật (cùng mẫu báo cáo kho)" : "Chọn file báo cáo kho", "xlsx", "Excel");
         if (path is null) return;
         RaDongService.Data? d = null;
@@ -455,14 +460,14 @@ public sealed class RaDongView : UserControl, IPage
             await OpenPlan(d!, "update");
             return;
         }
-        if (Svc.Bang1.Rows.Count > 0 && !await Ui.Confirm(this, $"Thay dữ liệu đang có ({Svc.Bang1.Rows.Count:#,0} dòng) bằng {d!.Rows.Count:#,0} dòng của file {d.FileName}? Số sửa tay ở Bảng 2 cũ sẽ bỏ.", "Nạp file", "Thay")) return;
+        if (Svc.Bang1.Rows.Count > 0 && !await Ui.Confirm(this, $"Thay dữ liệu đang có ({Svc.Bang1.Rows.Count:#,0} dòng) bằng {d!.Rows.Count:#,0} dòng của file {d.FileName}? Số sửa tay ở bảng gộp cũ sẽ bỏ.", "Nạp file", "Thay")) return;
         if (!await Act(() => Svc.SetBang1(d!), b2: true)) return;
         await OpenPlan(Svc.Bang1, "replace");
     }
 
     private async Task SaveToBang3()
     {
-        if (Svc.Bang1.Rows.Count == 0) { await Ui.Message(this, "Chưa có dữ liệu Bảng 2. Bấm \"Nạp file Excel…\" trước."); return; }
+        if (Svc.Bang1.Rows.Count == 0) { await Ui.Message(this, "Chưa có số liệu nạp. Bấm \"Nạp file Excel…\" trước."); return; }
         await OpenPlan(Svc.Bang1, "replace");
     }
 
@@ -482,7 +487,7 @@ public sealed class RaDongView : UserControl, IPage
         if (res!.NoChange) _status.Text = "Không có thay đổi nào — số liệu đã lưu đã khớp với file.";
         else
         {
-            _status.Text = $"Đã lưu {res.Days} ngày vào Bảng 3: +{res.NewRows} dòng mới · ~{res.Changed} dòng đổi số.";
+            _status.Text = $"Đã lưu {res.Days} ngày vào Số liệu đã lưu: +{res.NewRows} dòng mới · ~{res.Changed} dòng đổi số.";
             var first = plan.Where(p => RaDongService.IsoOk(p.Date)).Select(p => p.Date).DefaultIfEmpty("").Max()!;
             if (first.Length > 0) { _selYear = first[..4]; ShowBang3(); }
         }
@@ -515,7 +520,7 @@ public sealed class RaDongView : UserControl, IPage
             bar.Children.Add(_delMonth);
         }
         bar.Children.Add(Btn("Kiểm ngày thiếu", async () => await CheckMissingDays()));
-        bar.Children.Add(Btn("🖼 Ảnh ngày đã chọn…", async () => await DayImage()));
+        bar.Children.Add(_imgBtn); bar.Children.Add(_imgClear);
         if (Svc.CanExport) bar.Children.Add(_exportYear);
 
         var add = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
@@ -530,7 +535,7 @@ public sealed class RaDongView : UserControl, IPage
 
         var hint = new TextBlock
         {
-            Text = "Sửa thẳng ô Mã hàng / Size / Số lượng / Net (ô hồng = đã sửa tay hoặc nhập tay). Sửa Số lượng mà để nguyên Net → Net tự tính lại theo kg/đơn vị. Bôi đen nhiều dòng để xóa hoặc xuất ảnh nhiều ngày.",
+            Text = "Sửa thẳng ô Mã hàng / Size / Số lượng / Net (ô hồng = đã sửa tay hoặc nhập tay). Sửa Số lượng mà để nguyên Net → Net tự tính lại theo kg/đơn vị. Bôi đen nhiều dòng để xóa. Tích ô vuông đầu dòng các ngày cần gộp thành 1 ảnh (ngày cũ ở trên) rồi bấm “Gộp ảnh”; không tích thì xuất ảnh ngày đang chọn.",
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
         var head = new StackPanel();
@@ -573,6 +578,7 @@ public sealed class RaDongView : UserControl, IPage
             new("d", "Ngày", 130) { ReadOnly = true }, new("m", "Mã hàng", 220) { ReadOnly = !_edit }, new("s", "Size", 100) { ReadOnly = !_edit },
             new("sl", "Số lượng", 100, "number") { ReadOnly = !_edit }, new("n", "Net (kg)", 130, "number") { ReadOnly = !_edit },
             new("src", "Nạp từ / ghi chú", 320) { ReadOnly = true },
+            new("pk", "", 0),   // ô tích gộp ảnh (không lưu, chỉ trong phiên)
         };
         var rows = new List<string[]>(); _sRowItem = new(); _sRowDay = new();
         foreach (var d in days)
@@ -580,20 +586,30 @@ public sealed class RaDongView : UserControl, IPage
             var rs = d.ToList();
             var last = rs.OrderByDescending(r => r.At, StringComparer.Ordinal).First();
             var sl = RaDongService.SlSum(rs);
-            rows.Add(new[] { $"▾ {RaDongService.Dmy(d.Key)}", $"{rs.Count} dòng", "", sl is null ? "" : Inv(sl.Value), Inv(RaDongService.DaySum(rs)), last.Src + (last.At.Length > 0 ? " · " + At(last.At) : "") });
+            var pk = _imgSel.Contains(d.Key) ? "1" : "";
+            rows.Add(new[] { $"▾ {RaDongService.Dmy(d.Key)}", $"{rs.Count} dòng", "", sl is null ? "" : Inv(sl.Value), Inv(RaDongService.DaySum(rs)), last.Src + (last.At.Length > 0 ? " · " + At(last.At) : ""), pk });
             _sRowItem.Add(null); _sRowDay.Add(d.Key);
             foreach (var r in rs)
             {
-                rows.Add(new[] { RaDongService.Dmy(r.Date), r.Ma, r.Size, r.Sl is null ? "" : Inv(r.Sl.Value), Inv(r.Net), r.Edited ? (r.Src == "Nhập tay" ? "nhập tay" : "đã sửa tay " + At(r.EditAt)) : "" });
+                rows.Add(new[] { RaDongService.Dmy(r.Date), r.Ma, r.Size, r.Sl is null ? "" : Inv(r.Sl.Value), Inv(r.Net), r.Edited ? (r.Src == "Nhập tay" ? "nhập tay" : "đã sửa tay " + At(r.EditAt)) : "", pk });
                 _sRowItem.Add(r); _sRowDay.Add(d.Key);
             }
         }
         _loading = true;
-        _sm.ReadOnly = !_edit;
+        _sm.ReadOnly = false;   // tài khoản chỉ xem vẫn tích ngày để gộp ảnh; các cột số liệu khóa theo quyền
         _sm.Load(cols, rows);
         _sSnap = _sm.Snapshot();
         _loading = false;
         _sGrid.Refresh();
+        PaintImgBtn();
+    }
+
+    private void PaintImgBtn()
+    {
+        _imgSel.RemoveWhere(d => !Svc.SavedRows.Any(r => r.Date == d));
+        var n = _imgSel.Count;
+        _imgBtn.Content = n >= 2 ? $"🖼 Gộp ảnh {n} ngày đã tích…" : n == 1 ? "🖼 Ảnh ngày đã tích…" : "🖼 Ảnh ngày đã chọn…";
+        _imgClear.IsVisible = n > 0;
     }
 
     private static string At(string iso) =>
@@ -616,10 +632,16 @@ public sealed class RaDongView : UserControl, IPage
         {
             var before = r < _sSnap.Count ? _sSnap[r] : new string[now[r].Length];
             if (now[r].SequenceEqual(before)) continue;
+            string Pk(string[] x) => x.Length > PickCol ? (x[PickCol] ?? "").Trim() : "";
+            if (r < _sRowDay.Count && Pk(now[r]) != Pk(before))
+            {   // tích / bỏ tích ngày để gộp ảnh — cả ngày đổi theo, không ghi dữ liệu
+                if (Pk(now[r]).Length > 0) _imgSel.Add(_sRowDay[r]); else _imgSel.Remove(_sRowDay[r]);
+            }
+            if (now[r].Take(PickCol).SequenceEqual(before.Take(PickCol))) continue;
             if (r >= _sRowItem.Count || _sRowItem[r] is null) { bad = true; continue; }
             edits.Add((_sRowItem[r]!.Id, now[r]));
         }
-        if (edits.Count == 0) { ShowBang3(); return; }
+        if (edits.Count == 0 || !_edit) { ShowBang3(); return; }
         await Act(() => { foreach (var (id, row) in edits) Svc.EditRow(id, row[1], row[2], row[3], row[4]); }, b3: true);
         if (bad) _status.Text = "Dòng tiêu đề ngày không sửa được — đã bỏ qua.";
     }
@@ -697,8 +719,9 @@ public sealed class RaDongView : UserControl, IPage
     private async Task DayImage()
     {
         var (_, days) = SavedSelection();
+        if (_imgSel.Count > 0) days = _imgSel.ToList();   // đã tích ngày → gộp đúng các ngày đã tích (như app cũ)
         days = days.Where(d => Svc.SavedRows.Any(r => r.Date == d)).OrderBy(d => d, StringComparer.Ordinal).ToList();
-        if (days.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) một dòng của ngày cần xuất ảnh (bôi đen qua nhiều ngày để gộp nhiều ngày thành 1 ảnh) rồi bấm lại."); return; }
+        if (days.Count == 0) { await Ui.Message(this, "Tích ô vuông đầu dòng các ngày cần gộp ảnh, hoặc chọn một dòng của ngày cần xuất ảnh, rồi bấm lại."); return; }
         var parts = days.Select(d => (d, Svc.SavedRows.Where(r => r.Date == d).ToList())).ToList();
         var bmp = DayImageRenderer.Render(parts);
         string Dash(string d) => $"{d[8..10]}-{d[5..7]}-{d[..4]}";
@@ -708,13 +731,9 @@ public sealed class RaDongView : UserControl, IPage
         var save = new Button { Content = "Lưu ảnh PNG…", Classes = { "primary" }, IsDefault = true };
         var close = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
-        body.Children.Add(new ScrollViewer
-        {
-            MaxHeight = 560, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = new Border { BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), Child = new Image { Source = bmp, Width = bmp.Size.Width / 2, Stretch = Stretch.Uniform } },
-        });
+        body.Children.Add(Ui.ImagePreview(bmp));
         body.Children.Add(Ui.Buttons(close, save));
-        var w = Ui.Dialog(title, body, Math.Min(900, bmp.Size.Width / 2 + 80));
+        var w = Ui.Dialog(title, body, Ui.ImageDialogWidth(bmp));
         close.Click += (_, _) => w.Close();
         save.Click += async (_, _) =>
         {
@@ -745,14 +764,14 @@ public sealed class RaDongView : UserControl, IPage
         {
             _svc = svc; _plan = plan; FileName = fileName; _defaultMode = defaultMode;
             _dup = hash.Length > 0 ? svc.SeenBefore(hash) : null;
-            Title = update ? "Cập nhật số liệu từ file" : "Lưu số liệu đã nạp vào Bảng 3";
+            Title = update ? "Cập nhật số liệu từ file" : "Lưu số liệu đã nạp theo ngày";
             Width = 860; Height = 640; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = AppTheme.Card;
             var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
             head.Children.Add(new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap, FontSize = 12.5,
                 Text = $"File: {fileName} · {plan.Count} ngày. " + (update
-                    ? "Mặc định \"Cập nhật\": giữ mọi dòng cũ, chỉ thêm dòng mới và sửa dòng khác số; dòng bạn đã sửa tay được giữ. Bảng 2 không bị đổi."
+                    ? "Mặc định \"Cập nhật\": giữ mọi dòng cũ, chỉ thêm dòng mới và sửa dòng khác số; dòng bạn đã sửa tay được giữ. Bảng gộp ở tab Số liệu nạp không bị đổi."
                     : "Ngày đã có số liệu cũ: mặc định THAY THẾ (nạp lại cùng một ngày thường là số đã chỉnh, cộng dồn sẽ bị tính đúp). Có thể chọn Cập nhật để giữ dòng cũ và dòng đã sửa tay."),
             });
             if (_dup is not null)

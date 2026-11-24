@@ -27,13 +27,21 @@ public class AccountSyncTests : IDisposable
         public string Token = "", Admin = "";
         public readonly List<Dictionary<string, string>> Rows = new();
         public bool Down;
+        /// <summary>Đặt thì lệnh "list" chờ tới khi mở (giả lập Apps Script trả lời chậm).</summary>
+        public TaskCompletionSource? Gate;
+        public int Lists;
         public readonly List<string> Bodies = new();
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
         {
             if (Down) throw new HttpRequestException("mất mạng");
             var text = await req.Content!.ReadAsStringAsync(ct);
-            Bodies.Add(text);
             var r = JsonNode.Parse(text)!.AsObject();
+            if (r["action"]?.ToString() == "list") { Interlocked.Increment(ref Lists); if (Gate is { } g) await g.Task.WaitAsync(ct); }
+            lock (Rows) return Handle(text, r);
+        }
+        private HttpResponseMessage Handle(string text, JsonObject r)
+        {
+            Bodies.Add(text);
             JsonObject res;
             if (r["token"]?.ToString() != Token) res = new() { ["ok"] = false, ["error"] = "Sai mã kết nối." };
             else if (r["action"]?.ToString() == "list")
@@ -150,7 +158,7 @@ public class AccountSyncTests : IDisposable
     public async Task Admin_password_unlocks_writing_on_any_machine()
     {
         var a = await AdminMachine();
-        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1");          // máy gốc đăng nhập lại → đưa gói khóa (mã hóa bằng mật khẩu) lên Sheet
+        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1"); await a.Accounts.PublishTask;          // máy gốc đăng nhập lại → đưa gói khóa (mã hóa bằng mật khẩu) lên Sheet
         var blobRow = _web.Rows.Single(r => r["username"] == AccountSyncService.KeyRowName);
         Assert.DoesNotContain(_web.Admin, blobRow["quyen"]);        // mã quản trị không bao giờ ở dạng chữ trên Sheet
         Assert.StartsWith("{\"admin\":\"v1:", blobRow["quyen"]);
@@ -233,7 +241,7 @@ public class AccountSyncTests : IDisposable
         Assert.Contains("chưa có khóa ghi", ex.Message);
         await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.UnlockAsync(a.Accounts.ConnectionCode(false)));   // mã nhân viên không đủ
 
-        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1");          // máy gốc đăng nhập → gói khóa lên Sheet
+        a.Auth.Logout(); a.Auth.Login("admin", "matkhau1"); await a.Accounts.PublishTask;          // máy gốc đăng nhập → gói khóa lên Sheet
         await b.Accounts.UnlockAsync("matkhau1");                    // máy B không cần đăng nhập lại: tải gói mới nhất rồi mở
         Assert.True(b.Accounts.CanWrite);
         b.Auth.CreateUser("nv7", "X", "matkhau7", Roles.Staff);
@@ -331,4 +339,73 @@ public class AccountSyncTests : IDisposable
         Assert.Equal("=Tên", back.FullName);
         Assert.Equal(Convert.ToBase64String(new byte[32]), back.PasswordHash);
     }
+
+    // ---------------- đăng nhập nhanh (1.59): tải danh sách ngầm, không bắt chờ Google Sheet ----------------
+
+    private async Task<(AppServices a, AppServices b)> TwoMachines()
+    {
+        var a = await AdminMachine();
+        a.Auth.CreateUser("nv1", "NV", "matkhau2", Roles.Staff);
+        var b = Machine("B");
+        _code = a.Accounts.ConnectionCode(false);
+        await b.Accounts.ConnectAsync(_code);
+        return (a, b);
+    }
+
+    [Fact]
+    public async Task Slow_sheet_does_not_block_login_and_locked_account_is_caught_after()
+    {
+        var (a, b) = await TwoMachines();
+        _web.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = await LoginFlow.LoginAsync(b.Auth, b.Accounts, "nv1", "matkhau2", TimeSpan.FromMilliseconds(200));
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3), "không được chờ Google Sheet");
+        Assert.NotNull(r.Pending);
+        Assert.Equal("nv1", b.Session.Username);
+
+        // Trong lúc đó Quản trị khóa nv1 trên Sheet → lượt tải ngầm xong thì báo để đăng xuất.
+        var id = a.Auth.ListUsers().Single(x => x.Username == "nv1").Id;
+        a.Auth.UpdateUser(id, "NV", Roles.Staff, isActive: false);
+        _web.Gate.SetResult();
+        await r.Pending!;
+        Assert.Contains("khóa", LoginFlow.Recheck(b.Db, r.User, r.PasswordHash));
+    }
+
+    [Fact]
+    public async Task Account_new_on_sheet_waits_for_the_pull()
+    {
+        var (a, b) = await TwoMachines();
+        a.Auth.CreateUser("nv2", "NV 2", "matkhau3", Roles.Staff);   // máy B chưa có nv2 trong bản lưu
+        _web.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var login = LoginFlow.LoginAsync(b.Auth, b.Accounts, "nv2", "matkhau3", TimeSpan.FromMilliseconds(100));
+        await Task.Delay(300);
+        Assert.False(login.IsCompleted);                              // bản lưu không có → chờ danh sách mới
+        _web.Gate.SetResult();
+        var r = await login;
+        Assert.Null(r.Pending);
+        Assert.Equal("nv2", b.Session.Username);
+        Assert.Null(LoginFlow.Recheck(b.Db, r.User, r.PasswordHash));
+    }
+
+    [Fact]
+    public async Task Prefetch_is_shared_and_offline_falls_back_to_cache()
+    {
+        var (_, b) = await TwoMachines();
+        var before = _web.Lists;
+        var p = b.Accounts.PrefetchAsync();
+        await p;
+        var r = await LoginFlow.LoginAsync(b.Auth, b.Accounts, "nv1", "matkhau2");
+        Assert.Equal(before + 1, _web.Lists);                         // lần bấm Đăng nhập dùng lại lượt tải lúc mở cửa sổ
+        Assert.Null(r.Pending); Assert.Equal("", r.Note);
+        b.Auth.Logout();
+
+        var c = Machine("C");
+        await c.Accounts.ConnectAsync(_code!);
+        _web.Down = true;
+        var r2 = await LoginFlow.LoginAsync(c.Auth, c.Accounts, "nv1", "matkhau2");
+        Assert.Contains("dùng bản lưu", r2.Note);
+        Assert.Equal("nv1", c.Session.Username);
+    }
+
+    private string? _code;
 }

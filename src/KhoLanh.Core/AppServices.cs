@@ -42,6 +42,10 @@ public class AppServices
     public KhoLanh.Core.TonKhoGui.GuiService Gui { get; }
     public KhoLanh.Core.Container3D.C3dService C3d { get; }
     public KhoLanh.Core.Scan.ScanStore Scan { get; }
+    /// <summary>Lưu trữ cá nhân (ghi chú / tệp riêng từng tài khoản + sao lưu Google Drive cá nhân).</summary>
+    public KhoLanh.Core.LuuTru.LuuTruService LuuTru { get; }
+    /// <summary>Sao lưu database lên Google Drive cá nhân (đăng nhập Gmail) — Dữ liệu &amp; sao lưu › Sao lưu.</summary>
+    public KhoLanh.Core.SaoLuu.DriveCaNhanService DriveCaNhan { get; }
     public SoDoService SoDo { get; }
     public KiemKeService KiemKe { get; }
     public KhangSinhService KhangSinh { get; }
@@ -94,6 +98,8 @@ public class AppServices
         Pxht = new PxhtService(() => Lan, Session);
         C3d = new KhoLanh.Core.Container3D.C3dService(() => Lan, Session);
         Scan = new KhoLanh.Core.Scan.ScanStore(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "scan"), Session);
+        LuuTru = new KhoLanh.Core.LuuTru.LuuTruService(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "luu-tru"), Session, Settings);
+        DriveCaNhan = new KhoLanh.Core.SaoLuu.DriveCaNhanService(Settings, Session, Backup, () => Lan);
         PhieuKho = new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));

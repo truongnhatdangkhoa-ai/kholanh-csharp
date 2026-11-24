@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using KhoLanh.Core.Services;
 
 namespace KhoLanh.App;
@@ -109,7 +110,7 @@ public static class Ui
     {
         var result = false;
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(Buttons(n, y));
@@ -126,7 +127,7 @@ public static class Ui
         var box = new TextBox { Text = initial, Margin = new Thickness(0, 10, 0, 0) };
         if (password) box.PasswordChar = '•';
         var y = new Button { Content = "Đồng ý", IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(box);
@@ -139,7 +140,7 @@ public static class Ui
         return result;
     }
 
-    /// <summary>Chọn một mục trong danh sách (kèm ô nhập chữ nếu có <paramref name="inputLabel"/>). Null = bấm Thôi.</summary>
+    /// <summary>Chọn một mục trong danh sách (kèm ô nhập chữ nếu có <paramref name="inputLabel"/>). Null = bấm Đóng.</summary>
     public static async Task<(int Index, string Text)?> Choose(Visual v, string text, string title, IList<string> items, int selected = 0,
         string? inputLabel = null, string inputInitial = "", string yes = "Đồng ý")
     {
@@ -147,7 +148,7 @@ public static class Ui
         var list = new ComboBox { ItemsSource = items, SelectedIndex = Math.Clamp(selected, 0, Math.Max(0, items.Count - 1)), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Margin = new Thickness(0, 10, 0, 0) };
         var box = new TextBox { Text = inputInitial, Margin = new Thickness(0, 4, 0, 0) };
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
-        var n = new Button { Content = "Thôi", IsCancel = true };
+        var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
         body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(list);
@@ -180,9 +181,75 @@ public static class Ui
     public static async Task Show(Visual v, Window w)
     {
         ApplyZoom(w);
+        AllowResize(w);
         if (Owner(v) is { } owner) await w.ShowDialog(owner);
         else { var tcs = new TaskCompletionSource(); w.Closed += (_, _) => tcs.TrySetResult(); w.Show(); await tcs.Task; }
     }
+
+    /// <summary>1.62: hộp thoại có bảng dữ liệu (nút ⤢) / ảnh / vùng cuộn thì KHÔNG khóa cỡ: kéo giãn + phóng to được;
+    /// phần nội dung lớn nhất (bảng / vùng cuộn có chiều cao cố định) giãn theo cửa sổ, nút giữ ở đáy.</summary>
+    public static void AllowResize(Window w)
+    {
+        if (w.CanResize || w.Content is not Control) return;
+        w.Opened += (_, _) =>
+        {
+            if (w.Content is not Control root) return;
+            var all = root.GetVisualDescendants().OfType<Control>().ToList();
+            if (!all.Any(c => c is Controls.SheetGrid or DataGrid or Image || c is ScrollViewer { MaxHeight: < double.PositiveInfinity })) return;
+            // phần giãn: bảng có Height cố định, hoặc vùng cuộn có MaxHeight — lấy cái cao nhất
+            Control? grow = all.Where(c => c is Controls.SheetGrid or DataGrid && !double.IsNaN(c.Height))
+                .Concat(all.Where(c => c is ScrollViewer && c.MaxHeight < double.PositiveInfinity))
+                .OrderByDescending(c => c.Bounds.Height).FirstOrDefault();
+            w.CanResize = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                var h0 = w.ClientSize.Height; var sc = AppTheme.Scale <= 0 ? 1 : AppTheme.Scale;
+                if (w.SizeToContent != SizeToContent.Manual) { w.Height = h0; w.SizeToContent = SizeToContent.Manual; }
+                if (w.MinHeight <= 0) w.MinHeight = Math.Min(h0, 240);
+                if (w.MinWidth <= 0) w.MinWidth = Math.Min(w.Bounds.Width, 360);
+                if (grow is null) return;
+                var isMax = grow is ScrollViewer; var g0 = isMax ? grow.MaxHeight : grow.Height;
+                w.GetObservable(Window.ClientSizeProperty).Subscribe(new Watch(sz =>
+                {
+                    var v2 = Math.Max(Math.Min(g0, 120), g0 + (sz.Height - h0) / sc);
+                    if (isMax) grow.MaxHeight = v2; else grow.Height = v2;
+                }));
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        };
+    }
+
+    private sealed class Watch(Action<Size> on) : IObserver<Size>
+    {
+        public void OnNext(Size v) => on(v);
+        public void OnError(Exception e) { }
+        public void OnCompleted() { }
+    }
+
+    /// <summary>Ảnh xem trước của RenderTargetBitmap độ nét ×2: chép sang Bitmap thường (ảnh 192 dpi vẽ thẳng bị cắt còn 1/4 góc trên trái
+    /// trên Windows), hiện rộng tối đa <paramref name="maxWidth"/>, co theo cửa sổ.</summary>
+    public static Control ImagePreview(Avalonia.Media.Imaging.Bitmap bmp, double maxWidth = 860, double maxHeight = 560)
+    {
+        Avalonia.Media.Imaging.Bitmap src = bmp;
+        if (bmp is Avalonia.Media.Imaging.RenderTargetBitmap)
+        {
+            using var ms = new MemoryStream(); bmp.Save(ms); ms.Position = 0;
+            src = new Avalonia.Media.Imaging.Bitmap(ms);
+        }
+        var natural = src.PixelSize.Width / 2.0;   // ảnh vẽ ×2 → cỡ thật
+        return new ScrollViewer
+        {
+            MaxHeight = maxHeight, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            Content = new Border
+            {
+                BorderBrush = AppTheme.Brush("#D3D3D3"), BorderThickness = new Thickness(1), HorizontalAlignment = HorizontalAlignment.Center,
+                MaxWidth = Math.Min(natural, maxWidth) + 2,
+                Child = new Image { Source = src, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly },
+            },
+        };
+    }
+
+    /// <summary>Độ rộng hộp thoại vừa ảnh xem trước.</summary>
+    public static double ImageDialogWidth(Avalonia.Media.Imaging.Bitmap bmp, double maxWidth = 860) => Math.Max(420, Math.Min(bmp.PixelSize.Width / 2.0, maxWidth) + 70);
 
     public static async Task<string?> SaveFile(Visual v, string title, string suggestedName, string ext, string typeName)
     {
@@ -232,6 +299,27 @@ public static class Ui
         var ok = await Run(v, () => { try { exportToXlsx(tmp); html = XlsxHtml.WritePage(tmp, title, dir); } finally { try { File.Delete(tmp); } catch { } } });
         if (ok) OpenExternal(html);
         return ok;
+    }
+
+    /// <summary>
+    /// Khung cảnh báo đối soát (1.69 — Tồn kho An An / Tồn kho gửi): có lệch → khung nền nhạt đỏ (lỗi) / vàng (cần kiểm tra), mỗi cảnh báo 1 dòng;
+    /// không lệch → nhãn xanh "khớp". Chữ không mờ để <c>HintTrim</c> không ẩn.
+    /// </summary>
+    public static Control CanhBaoBox(IReadOnlyList<KhoLanh.Core.TonKho.CanhBao> list, string okText)
+    {
+        if (list.Count == 0)
+            return new Border { Classes = { "pill", "ok" }, Margin = new Thickness(0, 6, 0, 6), Padding = new Thickness(10, 3), Child = new TextBlock { Text = "✓ " + okText, FontSize = 12.5 } };
+        var loi = list.Any(x => x.Loi);
+        var fg = AppTheme.Brush(loi ? "#B42318" : "#9A5B00");
+        var sp = new StackPanel { Spacing = 3 };
+        sp.Children.Add(new TextBlock { Text = loi ? "⚠ CÓ SAI LỆCH SỐ LIỆU — kiểm tra trước khi báo cáo" : "⚠ Cần kiểm tra số liệu", FontWeight = FontWeight.Bold, FontSize = 13.5, Foreground = fg });
+        foreach (var c in list)
+            sp.Children.Add(new TextBlock { Text = "• " + c.Text, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Foreground = AppTheme.Brush(c.Loi ? "#B42318" : "#9A5B00"), FontWeight = c.Loi ? FontWeight.SemiBold : FontWeight.Normal });
+        return new Border
+        {
+            Background = AppTheme.Brush(loi ? "#FDE8E6" : "#FFF2D6"), BorderBrush = fg, BorderThickness = new Thickness(1, 1, 1, 1),
+            CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 7), Margin = new Thickness(0, 6, 0, 6), Child = sp,
+        };
     }
 
     /// <summary>

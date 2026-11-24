@@ -243,7 +243,7 @@ public sealed class C3dView : UserControl, IPage
     private async Task OpenPaste()
     {
         var ta = new TextBox { AcceptsReturn = true, Height = 220, TextWrapping = TextWrapping.NoWrap, Watermark = "VRHLCK\t31/40\t15/09/2026\t420\t520\t280\t190\t10", FontFamily = new FontFamily("Consolas, monospace") };
-        var ok = new Button { Content = "Thêm vào danh sách", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Thêm vào danh sách", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(Muted($"Copy các ô trong Excel rồi dán vào đây. Thứ tự cột: Mã hàng · Size · Date · Số lượng thùng · Dài · Rộng · Cao ({St.Unit}) · kg/thùng · Cho xoay · Cho nằm · Giữ cao gốc · Sole · Tầng tối đa (5 cột cuối không bắt buộc; x / 1 / có = bật)."));
         body.Children.Add(ta); body.Children.Add(Ui.Buttons(no, ok));
@@ -343,7 +343,7 @@ public sealed class C3dView : UserControl, IPage
         }
         string? result = null;
         var add = new Button { Content = "+ Thêm nhóm cột" }; add.Click += (_, _) => { specs.Add(("nam", 1, 0)); Paint(); };
-        var ok = new Button { Content = "Áp dụng", Classes = { "primary" }, IsDefault = true }; var clr = new Button { Content = "Bỏ dãy mẫu (tự động)" }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Áp dụng", Classes = { "primary" }, IsDefault = true }; var clr = new Button { Content = "Bỏ dãy mẫu (tự động)" }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(Muted("Trong 1 lớp của 1 dãy xếp cạnh nhau (trái → phải, nhìn từ cửa). Mỗi cột chồng tới red line (hoặc số tầng ghi riêng). Các dãy của mặt hàng lặp lại mẫu này."));
         body.Children.Add(rows); body.Children.Add(add); body.Children.Add(prev); body.Children.Add(stats); body.Children.Add(Ui.Buttons(no, clr, ok));
@@ -760,7 +760,7 @@ public sealed class C3dView : UserControl, IPage
         var auto = _openedAuto is null ? null : Svc.Plans.FirstOrDefault(x => x.Id == _openedAuto && x.IsAuto);
         var def = auto?.Name ?? $"{St.Cont!.Name} {DateTime.Now:dd/MM HH:mm}";
         var name = new TextBox { Text = def }; var over = new CheckBox { Content = "Ghi đè phương án tự động đang mở và khóa lại (lịch xuất không tính đè nữa)", IsChecked = true, IsVisible = auto is not null };
-        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Thôi", IsCancel = true };
+        var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var no = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(new TextBlock { Text = "Tên phương án" }); body.Children.Add(name); body.Children.Add(over);
         body.Children.Add(Muted("Lưu container, danh sách hàng và tuỳ chọn; kết quả được tính lại khi mở (cùng dữ liệu → cùng phương án)."));

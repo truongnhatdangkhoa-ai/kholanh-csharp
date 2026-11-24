@@ -9,6 +9,13 @@ public static class UpdateScript
 {
     public const int WaitSelfMs = 60000, WaitOthersSec = 30;
 
+    /// <summary>Tên tiến trình của exe (bỏ thư mục + đuôi .exe; tách được cả đường dẫn kiểu Windows khi chạy kiểm thử trên Linux).</summary>
+    internal static string ProcName(string exe)
+    {
+        var f = exe[(exe.LastIndexOfAny(new[] { '\\', '/' }) + 1)..];
+        return f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? f[..^4] : f;
+    }
+
     public static string Build(string exe, int pid, bool rollback, string log)
     {
         static string Q(string x) => "'" + x.Replace("'", "''") + "'";
@@ -30,17 +37,17 @@ public static class UpdateScript
         return $$"""
             $ErrorActionPreference = 'Stop'
             $exe = {{Q(exe)}}; $moi = $exe + '.moi'; $cu = $exe + '.cu'; $doi = $exe + '.doi'; $log = {{Q(log)}}
-            function Retry([scriptblock]$b) { for ($i = 0; $i -lt 30; $i++) { try { & $b; return } catch { Start-Sleep -Milliseconds 500 } }; & $b }
-            function Others { @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne {{pid}} -and $(try { $_.Path -eq $exe } catch { $false }) }) }
+            function Retry([scriptblock]$b) { for ($i = 0; $i -lt 60; $i++) { try { & $b; return } catch { Start-Sleep -Milliseconds 250 } }; & $b }
+            function Others { @(Get-Process -Name {{Q(ProcName(exe))}} -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne {{pid}} -and $(try { $_.Path -eq $exe } catch { $false }) }) }
             try {
               $p = Get-Process -Id {{pid}} -ErrorAction SilentlyContinue
               if ($p) { if (-not $p.WaitForExit({{WaitSelfMs}})) { throw 'KhoLanh.exe chưa thoát sau 60 giây' } }
               $han = (Get-Date).AddSeconds({{WaitOthersSec}})
               while ((Others).Count -gt 0) {
                 if ((Get-Date) -gt $han) { throw ('Còn ' + (Others).Count + ' cửa sổ KhoLanh.exe khác đang mở — chưa thay file; đóng hết rồi cập nhật lại') }
-                Start-Sleep -Milliseconds 500
+                Start-Sleep -Milliseconds 300
               }
-              Start-Sleep -Milliseconds 700
+              Start-Sleep -Milliseconds 200
             {{swap}}
               Start-Process -FilePath $exe -ArgumentList $arg -WorkingDirectory (Split-Path -LiteralPath $exe)
             } catch {
