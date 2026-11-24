@@ -63,6 +63,12 @@ public sealed class SheetGrid : UserControl
     internal double TopH => HeadH + (ShowFilterRow ? FilterH : 0);
     /// <summary>Dòng tìm kiếm chỉ hiện khi bảng đủ cao (≥ 6 dòng sau khi thêm) — bảng con thấp / cố định chiều cao không bị mất dòng
     /// (1.51: sau 1.49 nhiều bảng con chỉ còn thấy 1 dòng). Bảng thấp vẫn lọc được bằng nút ▾ ở tiêu đề; đang lọc bằng chữ thì luôn hiện.</summary>
+    /// <summary>Chiều cao để thấy đủ <paramref name="rows"/> dòng (kèm thanh cuộn ngang; từ 6 dòng kèm cả dòng tìm kiếm cột), tối đa <paramref name="max"/>.</summary>
+    public static double FitHeight(int rows, double max = double.PositiveInfinity)
+    {
+        rows = Math.Max(1, rows);
+        return Math.Min(max, HeadH + RowH * rows + 22 + (rows >= 6 ? FilterH : 0));
+    }
     internal bool ShowFilterRow => _filterable && (_surface.Bounds.Height <= 0 || _surface.Bounds.Height >= HeadH + FilterH + RowH * 6
         || _filters.Values.Any(f => f.Text.Trim().Length > 0));
     internal double NumW => Math.Max(44, (Math.Max(Model.RowCount + SpareRows, 1).ToString().Length) * 8 + 18);

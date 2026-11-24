@@ -530,15 +530,22 @@ public sealed partial class KhangSinhView : UserControl, IPage
         var p = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
         p.Children.Add(Muted("Dùng khi đã có sẵn danh sách lô (có thể đã có kết quả) trong file Excel. Mỗi sheet được coi là dữ liệu của 1 ngày (đoán từ tên sheet, sửa được), hoặc lấy Ngày từ cột Ngày nếu file có. App tự bỏ dòng công ty / tiêu đề phía trên để tìm đúng dòng tiêu đề cột. File PDF (phiếu kết quả hoặc bảng): dùng tab Nạp PDF phiếu."));
         p.Children.Add(HRow(Btn("Chọn file Excel…", async () => await PickExcel(), primary: true), _xInfo));
-        _xBody.Children.Add(Label("Danh sách sheet (mỗi sheet = 1 ngày) — sửa Dòng tiêu đề / Ngày nếu cần; sheet không có Ngày sẽ bị bỏ qua", bold: true));
-        _xBody.Children.Add(new Border { Height = 170, BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _sg });
-        _xBody.Children.Add(Label("Khớp cột dữ liệu (dùng chung cho mọi sheet) — Mã lô hàng là bắt buộc", bold: true));
-        _xBody.Children.Add(_mapPanel);
-        _xBody.Children.Add(Label("Xem trước sheet đang chọn", bold: true));
-        _xBody.Children.Add(new Border { Height = 260, BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _pg });
+        // 1.53: tách 2 tab con (trước 2 bảng nhỏ 170 / 260 px chồng nhau trong một trang cuộn)
+        var t1 = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+        t1.Children.Add(Label("Danh sách sheet (mỗi sheet = 1 ngày) — sửa Dòng tiêu đề / Ngày nếu cần; sheet không có Ngày sẽ bị bỏ qua", bold: true));
+        t1.Children.Add(new Border { Height = 300, BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _sg });
+        t1.Children.Add(Label("Khớp cột dữ liệu (dùng chung cho mọi sheet) — Mã lô hàng là bắt buộc", bold: true));
+        t1.Children.Add(_mapPanel);
+        var t2 = new StackPanel { Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
+        t2.Children.Add(Label("Xem trước sheet đang chọn (chọn sheet ở tab 1)", bold: true));
+        t2.Children.Add(new Border { Height = 520, BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _pg });
         var run = Wrap(_skipDup);
         if (_edit) run.Children.Add(Btn("Nhập toàn bộ vào Dữ liệu", async () => await RunImport(), primary: true));
-        _xBody.Children.Add(run);
+        t2.Children.Add(run);
+        _xBody.Children.Add(new TabControl
+        {
+            Items = { new TabItem { Header = "1. Sheet & khớp cột", Content = t1 }, new TabItem { Header = "2. Xem trước & nhập", Content = t2 } },
+        });
         p.Children.Add(_xBody);
         foreach (var t in ImportTargets)
         {

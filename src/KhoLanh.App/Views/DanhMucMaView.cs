@@ -66,7 +66,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         };
         var top = new StackPanel(); top.Children.Add(bar); top.Children.Add(help);
         var p1 = new DockPanel(); DockPanel.SetDock(top, Dock.Top); p1.Children.Add(top);
-        p1.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Margin = new Thickness(0, 6, 0, 0), Child = _g });
+        p1.Children.Add(new DetailPane(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _g }, _g, "Chi tiết mã") { Margin = new Thickness(0, 6, 0, 0) });   // 1.53
         _tabs.Items.Add(new TabItem { Header = "Mã hàng", Content = p1 });
 
         _mg = new SheetGrid(_mm) { SpareRows = 0 }; _ng = new SheetGrid(_nm) { SpareRows = 0 }; _dg = new SheetGrid(_dm) { SpareRows = 0 };

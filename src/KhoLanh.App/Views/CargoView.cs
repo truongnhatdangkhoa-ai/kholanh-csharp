@@ -268,7 +268,8 @@ public sealed class CargoView : UserControl
             var ln = b.Lines[r]; if (LineTotal(ln) <= 0 && ln.Sn.Trim().Length == 0) return null;
             var res = ResolveLine(Svc.Cfg, b, ln, Svc.Ks); return res.Errors.Count > 0 ? BadBg : (res.Market.Length > 0 ? OkBg : null);
         };
-        void FixH() => grid.Height = Math.Min(480, 24 * (Math.Max(gm.RowCount, 1) + grid.SpareRows) + 34);
+        // 1.53: cao theo dòng thật (trước tính 24 px/dòng < 26 px thật → hụt dòng), tối đa 560; ⤢ ở góc mở cửa sổ lớn
+        void FixH() => grid.Height = SheetGrid.FitHeight(Math.Max(gm.RowCount, 1) + grid.SpareRows, 560);
         FixH();
         gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); FixH(); Dirty(); };
         _blocks.Add((b, gm));
@@ -434,15 +435,22 @@ public sealed class CargoView : UserControl
 
     private Control BuildCfgTab()
     {
-        _lg = new SheetGrid(_lm) { SpareRows = 2, Height = 120 }; _qg = new SheetGrid(_qm) { SpareRows = 3, Height = 260 };
+        // 1.53: bảng Size-quy cách chiếm hết phần còn lại của trang (trước cố định 260 px trong khung cuộn); Loại hàng cao theo số dòng
+        _lg = new SheetGrid(_lm) { SpareRows = 2 }; _qg = new SheetGrid(_qm) { SpareRows = 3 };
+        _lm.Changed += () => _lg.Height = SheetGrid.FitHeight(_lm.RowCount + _lg.SpareRows, 220);
         var save = Btn("💾 Lưu danh mục", async () => await SaveCfgAsync(), primary: true); save.IsEnabled = _edit;
-        var s = new StackPanel { Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
-        s.Children.Add(new TextBlock { Text = "Mã hàng = tiền tố 13 ký tự (theo Loại + số quy cách) + Size 4 số + Mã gói 4 ký tự + số kết quả kháng sinh 4 số. Mã gói = ký tự 18–21 của mã hàng (trọng lượng + quy cách đóng thùng trong Tổng hợp › Mã hóa sản phẩm).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
-        s.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…)", Framed(_lg)));
-        s.Children.Add(Section("Size-quy cách (số quy cách = số cuối của 0040-6; cột tiền tố theo từng loại hàng ở trên)", Framed(_qg)));
+        var top = new StackPanel { Spacing = 8, Margin = new Thickness(0, 6, 0, 8) };
+        top.Children.Add(new TextBlock { Text = "Mã hàng = tiền tố 13 ký tự (theo Loại + số quy cách) + Size 4 số + Mã gói 4 ký tự + số kết quả kháng sinh 4 số. Mã gói = ký tự 18–21 của mã hàng (trọng lượng + quy cách đóng thùng trong Tổng hợp › Mã hóa sản phẩm).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Classes = { "muted" } });
+        top.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…)", Framed(_lg)));
+        top.Children.Add(new TextBlock { Text = "Size-quy cách (số quy cách = số cuối của 0040-6; cột tiền tố theo từng loại hàng ở trên)", FontWeight = FontWeight.SemiBold });
         var sug = Btn("🪄 Gợi ý Mã gói + Tiền tố", async () => { SuggestCfg(); await Task.CompletedTask; }); sug.IsEnabled = _edit;
-        s.Children.Add(_cfgMsg); s.Children.Add(new WrapPanel { ItemSpacing = 8, Children = { save, sug } });
-        return new ScrollViewer { Content = s, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var bottom = new StackPanel { Spacing = 6, Margin = new Thickness(0, 8, 0, 0) };
+        bottom.Children.Add(_cfgMsg); bottom.Children.Add(new WrapPanel { ItemSpacing = 8, Children = { save, sug } });
+        var root = new DockPanel();
+        DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
+        DockPanel.SetDock(bottom, Dock.Bottom); root.Children.Add(bottom);
+        root.Children.Add(Framed(_qg));
+        return root;
     }
 
     private void RenderCfg()

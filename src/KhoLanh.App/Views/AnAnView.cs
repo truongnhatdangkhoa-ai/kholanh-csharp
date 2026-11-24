@@ -203,7 +203,7 @@ public sealed class AnAnView : UserControl, IPage
         _ldQ.TextChanged += (_, _) => { if (!_loading) RenderLoad(); };
         var bar2 = Bar(); bar2.Children.Add(_ldQ); bar2.Children.Add(_ldSheets);
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(bar2); head.Children.Add(_ldStats);
-        return Page(head, Framed(_ldg));
+        return Page(head, new DetailPane(Framed(_ldg), _ldg, "Chi tiết dòng"));   // 1.53: khung chi tiết bên phải
     }
 
     private List<int> LdRows()
@@ -434,7 +434,7 @@ public sealed class AnAnView : UserControl, IPage
         var exp = new Expander { Header = "Điều kiện lọc của bảng này", Content = new ScrollViewer { Content = _plRules, MaxHeight = 320 }, HorizontalAlignment = HorizontalAlignment.Stretch, Margin = new Thickness(0, 6, 0, 0) };
         var p = new DockPanel();
         DockPanel.SetDock(head, Dock.Top); DockPanel.SetDock(exp, Dock.Bottom);
-        p.Children.Add(head); p.Children.Add(exp); p.Children.Add(Framed(_plg));
+        p.Children.Add(head); p.Children.Add(exp); p.Children.Add(new DetailPane(Framed(_plg), _plg, "Chi tiết dòng"));
         return p;
     }
 
@@ -718,7 +718,7 @@ public sealed class AnAnView : UserControl, IPage
         if (_export) bar.Children.Add(Btn("⬇ Xuất Excel", async () => { if (_tdRes is not null) await SaveXlsx(TheoDoiTon.Export(_tdRes, _tdItems), TheoDoiTon.FileName(D)); }));
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(_tdStats);
         head.Children.Add(Muted(_edit ? "Gõ lý do còn tồn vào cột “Lý do còn tồn / ghi chú ✎” (Enter để lưu; xóa trắng = bỏ ghi chú). Ghi chú giữ qua các lần nạp." : "Chỉ xem."));
-        return Page(head, Framed(_tdg));
+        return Page(head, new DetailPane(Framed(_tdg), _tdg, "Chi tiết dòng"));
     }
 
     private void RenderTd()
