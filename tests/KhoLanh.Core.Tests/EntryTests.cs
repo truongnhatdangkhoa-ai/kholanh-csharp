@@ -72,27 +72,29 @@ public class EntryTests : IDisposable
         var kk = e.Templates().First(t => t.Id == "kiem-ke");
         Assert.False(kk.Edited);
         var cols = kk.Columns.Select(c => c.Clone()).ToList();
-        cols.Add(new GridColumn("c8", "Tổng 2", 90, "number") { Formula = "=[Net(kg)]*2" });
+        cols.Add(new GridColumn("c20", "Tổng 2", 90, "number") { Formula = "=[Tổng Net(kg)]*2" });
         e.SaveTemplate("Kiểm kê", cols, "kiem-ke");
         var edited = e.Templates().Single(t => t.Id == "kiem-ke");
         Assert.True(edited.BuiltIn && edited.Edited);
-        Assert.Equal("=[Net(kg)]*2", edited.Columns[^1].Formula);
+        Assert.Equal("=[Tổng Net(kg)]*2", edited.Columns[^1].Formula);
         Assert.Equal(EntryRules.Today, edited.Columns.Single(c => c.Header == "Ngày nhập").Auto);
         Assert.Throws<BusinessException>(() => e.SaveTemplate("X", new[] { new GridColumn("c0", "A") { Formula = "=SUM(" } }));
 
         // trang tạo từ mẫu: lưu tính lại công thức, giữ màu ô (bỏ màu của cột không còn)
         var p = e.Create("KK", edited);
-        var row = new[] { "A1", "MA", "", "10", "3", "", "", "", "", "c1:y,c5:r,c99:g" };
+        var row = new[] { "A1", "MA", "", "10", "3", "", "", "", "", "", "", "", "", "c1:y,c5:r,c99:g" };
         p = e.Save(p, p.Columns, new List<string[]> { row });
         var back = e.LoadWithColors(p)[0];
         Assert.Equal("30", back[5]);
-        Assert.Equal("60", back[8]);
-        Assert.Equal("c1:y,c5:r", back[9]);
-        Assert.Equal(9, e.Load(p)[0].Length);
+        Assert.Equal("3", back[9]);       // số lượng còn lại
+        Assert.Equal("30", back[10]);     // net còn lại
+        Assert.Equal("60", back[12]);
+        Assert.Equal("c1:y,c5:r", back[13]);
+        Assert.Equal(13, e.Load(p)[0].Length);
 
         e.DeleteTemplate("kiem-ke");                    // về mặc định
         Assert.False(e.Templates().Single(t => t.Id == "kiem-ke").Edited);
-        Assert.Equal(8, e.Templates().Single(t => t.Id == "kiem-ke").Columns.Count);
+        Assert.Equal(12, e.Templates().Single(t => t.Id == "kiem-ke").Columns.Count);
     }
 
     [Fact]

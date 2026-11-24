@@ -63,4 +63,30 @@ public class GridSortTests
         Assert.Equal(NumFmt.Cls.None, NumFmt.ClassOf("Ngày nhập"));
         Assert.Equal(NumFmt.Cls.None, NumFmt.ClassOf("Size"));
     }
+
+    [Fact]
+    public void Trang_kiem_ke_cu_tu_them_cot_moi()
+    {
+        var old = new List<GridColumn>
+        {
+            new("c0", "Vị trí"), new("c1", "Mã hàng"), new("c2", "Size"), new("c3", "Trọng lượng", 100, "number"), new("c4", "Số lượng", 90, "number"),
+            new("c5", "Net(kg)", 100, "number") { Formula = "=[Số lượng]*[Trọng lượng]" }, new("c6", "Ghi chú"), new("c7", "Ngày nhập", 100, "date"),
+        };
+        var up = KhoLanh.Core.Entry.EntryService.UpgradeKiemKe(old);
+        Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Ghi chú", "Ngày nhập", "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" }, up.Select(c => c.Header));
+        Assert.Equal(new[] { "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11" }, up.Select(c => c.Key));
+        Assert.Equal(12, KhoLanh.Core.Entry.EntryService.UpgradeKiemKe(up).Count);   // chạy lại không thêm nữa
+    }
+
+    [Fact]
+    public void Doi_chieu_kiem_ke_dung_so_luong_con_lai()
+    {
+        var cols = new List<string> { "Vị trí", "Mã hàng", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" };
+        var page = new KhoLanh.Core.KiemKe.KiemKeCore.Page { Id = "p", Name = "KK 24-11-2026", Ngay = "2026-11-24", Columns = cols,
+            Rows = new() { new[] { "A1", "MA1", "10", "5", "50", "2", "3", "30", "24/11/2026" }, new[] { "A2", "MA2", "2", "4", "8", "", "", "", "" } } };
+        var x = KhoLanh.Core.KiemKe.KiemKeCore.ExtractRows(new[] { page });
+        Assert.Equal(new[] { 3.0, 4.0 }, x.Rows.Select(r => r.Kien));
+        Assert.Equal(new double?[] { 30, 8 }, x.Rows.Select(r => r.Kg));
+        Assert.Empty(x.Mv);                                                    // SL xuất đã trừ sẵn — không thành phát sinh
+    }
 }

@@ -496,7 +496,7 @@ public sealed class SoDoService
             ?? throw new BusinessException($"Chưa có trang Nhập liệu tên bắt đầu bằng “{pre}”. Bấm “Chuyển sang Nhập liệu” trước, nhập số thực rồi quay lại.");
         var cols = page.Columns.Select(c => c.Header).ToList();
         int Col(string h) => cols.FindIndex(x => string.Equals(x, h, StringComparison.OrdinalIgnoreCase));
-        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số lượng") is >= 0 and var sl ? sl : Col("Số thùng"), cKg = Col("Trọng lượng") is >= 0 and var tl ? tl : Col("Kg"), cGc = Col("Ghi chú");
+        int cVt = Col("Vị trí"), cMa = Col("Mã hàng"), cSl = Col("Số lượng còn lại") is >= 0 and var sc ? sc : Col("Số lượng") is >= 0 and var sl ? sl : Col("Số thùng"), cKg = Col("Trọng lượng") is >= 0 and var tl ? tl : Col("Kg"), cGc = Col("Ghi chú");
         if (cVt < 0 || cMa < 0 || cSl < 0) throw new BusinessException($"Trang “{page.Name}” không có đủ cột Vị trí, Mã hàng, Số lượng.");
         var dat = _entry.Load(page);
         var bas = KkRows(B.Pos, kho, khu, n); var idx = new Dictionary<string, KkRow>();

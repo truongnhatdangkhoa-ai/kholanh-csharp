@@ -51,9 +51,11 @@ public static class KiemKeCore
     {
         ["ma"] = new[] { "mahang", "mahh", "ma" }, ["ten"] = new[] { "tenhang", "ten" }, ["vt"] = new[] { "vitri" },
         ["tl"] = new[] { "trongluong", "kgthung", "kgkien", "tlthung", "kg" }, ["sk"] = new[] { "sokien", "sothung", "soluong", "kien", "thung", "sl" },
-        ["net"] = new[] { "net", "nettl", "netkg", "tongkg" }, ["hd"] = new[] { "hopdong" }, ["lo"] = new[] { "lo", "lobatch", "solo" },
+        ["net"] = new[] { "net", "nettl", "netkg", "tongkg", "tongnetkg", "tongnet" }, ["hd"] = new[] { "hopdong" }, ["lo"] = new[] { "lo", "lobatch", "solo" },
         ["dt"] = new[] { "dactinh" }, ["gc"] = new[] { "ghichu" },
         ["xd"] = new[] { "ngayxuat" }, ["xs"] = new[] { "slxuat", "soluongxuat", "sokienxuat" }, ["nd"] = new[] { "ngaynhap" }, ["ns"] = new[] { "slnhap", "soluongnhap", "sokiennhap" },
+        // 1.71 mẫu kiểm kê mới: Số lượng còn lại (= Số lượng − SL xuất) là SỐ ĐỐI CHIẾU; Tổng Net(kg) còn lại
+        ["sc"] = new[] { "soluongconlai", "slconlai", "sokienconlai" }, ["nc"] = new[] { "tongnetkgconlai", "netconlai", "netkgconlai", "tongnetconlai" },
     };
     public static Dictionary<string, int> PageCols(IEnumerable<string> columns)
     {
@@ -112,6 +114,16 @@ public static class KiemKeCore
                 var where = $"{p.Name} · dòng {r + 1}";
                 if (ma.Length == 0) { o.KhongMa++; if (o.Samples.Count < 12) o.Samples.Add(where + ": có số nhưng không có mã"); continue; }
                 double? kien = Num(skR), net = Num(netR), tl = Num(tlR);
+                var conLai = C.ContainsKey("sc");   // 1.71: trang có "Số lượng còn lại" → đối chiếu theo số còn lại, SL xuất đã trừ sẵn (không tính phát sinh xuất nữa)
+                if (conLai && hasNum)
+                {
+                    var xq = Num(xsR) is { } xv && !double.IsNaN(xv) ? xv : 0;
+                    var sc = Num(Cell(row, "sc"));
+                    var k0 = kien is { } kk0 && !double.IsNaN(kk0) ? kk0 : (double?)null;
+                    kien = sc is { } scv && !double.IsNaN(scv) ? scv : k0 is { } kv ? kv - xq : null;
+                    var nc = Num(Cell(row, "nc"));
+                    net = nc is { } ncv && !double.IsNaN(ncv) ? ncv : tl is { } tv && !double.IsNaN(tv) && kien is { } kn ? kn * tv : (xq == 0 ? net : null);
+                }
                 if ((kien is { } a && double.IsNaN(a)) || (net is { } b && double.IsNaN(b)) || (tl is { } c && double.IsNaN(c))) { o.SoLoi++; if (o.Samples.Count < 12) o.Samples.Add(where + ": số không đọc được"); }
                 if (kien is { } k1 && double.IsNaN(k1)) kien = null; if (net is { } n1 && double.IsNaN(n1)) net = null; if (tl is { } t1 && double.IsNaN(t1)) tl = null;
                 if (hasMv)
@@ -119,7 +131,7 @@ public static class KiemKeCore
                     var uw = tl is > 0 ? tl : (kien is > 0 && net is >= 0 ? net / kien : null);
                     foreach (var (type, dRaw, sRaw) in new[] { ("x", xdR, xsR), ("n", ndR, nsR) })
                     {
-                        if (sRaw.Length == 0) continue; var q = Num(sRaw);
+                        if (sRaw.Length == 0 || (conLai && type == "x")) continue; var q = Num(sRaw);
                         if (q is null || double.IsNaN(q.Value) || q <= 0) { o.SoLoi++; if (o.Samples.Count < 12) o.Samples.Add(where + ": số phát sinh không đọc được"); continue; }
                         var d = PhatSinh.ParseNgay(dRaw, nearYear, chotDate);
                         o.Mv.Add(new PhatSinh.Mv { Type = type, PageId = p.Id, Page = p.Name, PageNgay = PhatSinh.IsoOk(p.Ngay) ? p.Ngay : "", Dong = r + 1, Ma = Regex.Replace(ma.ToUpperInvariant(), @"\s+", ""), Key = NormKey(ma), Ten = Cell(row, "ten"), Vt = Cell(row, "vt"), Hd = Cell(row, "hd"), Gc = Cell(row, "gc"), NgayRaw = dRaw, Ngay = d.Iso, DateBlank = d.Blank, DateBad = d.Bad, Kien = q.Value, Kg = uw is { } w ? q.Value * w : null });

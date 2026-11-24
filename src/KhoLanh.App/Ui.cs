@@ -20,21 +20,13 @@ public static class Ui
 
     public static string Num(double d) => d.ToString("#,0.##", Vi);
 
-    /// <summary>Đọc số người dùng gõ: chấp nhận "1,5", "1.5", "1.234,5", "1,234.5".</summary>
+    /// <summary>Đọc số người dùng gõ — 1 kiểu duy nhất (1.71): "1,500.00" = một nghìn năm trăm, "1.5" = một phẩy năm; ô trống = 0.</summary>
     public static bool TryParseNumber(string? text, out double value)
     {
         value = 0;
         var s = (text ?? "").Trim().Replace(" ", "");
         if (s.Length == 0) return true;
-        int lastDot = s.LastIndexOf('.'), lastComma = s.LastIndexOf(',');
-        if (lastDot >= 0 && lastComma >= 0)
-        {
-            var dec = lastDot > lastComma ? '.' : ',';
-            var thou = dec == '.' ? "," : ".";
-            s = s.Replace(thou, "").Replace(dec, '.');
-        }
-        else s = s.Replace(',', '.');
-        return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+        return KhoLanh.Core.Grid.NumFmt.TryParse(s, out value);
     }
 
     public static double ParseNumber(string? text, string field)

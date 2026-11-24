@@ -370,6 +370,14 @@ public partial class EntryView : UserControl, IPage
     private static List<MaGoiY.Sug>? _sugs;          // dùng chung giữa các lần mở trang; làm mới sau 5 phút
     private static HashSet<string> _known = new();
     private static Dictionary<string, EntryRules.Info>? _lookup;
+    // 1.71: trang KIỂM KÊ chỉ gợi ý / tự điền theo Tồn kho An An (ưu tiên) rồi Danh mục mã hàng — không lấy Tồn kho gửi hay module khác
+    private static List<MaGoiY.Sug>? _sugsKk;
+    private static HashSet<string> _knownKk = new();
+    private static Dictionary<string, EntryRules.Info>? _lookupKk;
+    private bool IsKk => _page is not null && (_page.Template == "kiem-ke" || KhoLanh.Core.KiemKe.KiemKeCore.IsKiemKe(_page.Columns.Select(c => c.Header)));
+    private List<MaGoiY.Sug>? Sugs => IsKk ? _sugsKk : _sugs;
+    private HashSet<string> Known => IsKk ? _knownKk : _known;
+    private Dictionary<string, EntryRules.Info>? Look => IsKk ? _lookupKk : _lookup;
     private static DateTime _sugAt;
     private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
 
@@ -386,7 +394,14 @@ public partial class EntryView : UserControl, IPage
                 var data = new KhoLanh.Core.TimNhanh.GsService(s).Build();
                 var list = MaGoiY.Build(data.Rows, MaGoiY.ReadCatalog(s.Lan), data.Seg);
                 var look = MaGoiY.Lookup(list);
-                Dispatcher.UIThread.Post(() => { _sugs = list; _known = MaGoiY.Known(list); _lookup = look; FillPending(); _grid.Refresh(); });
+                var kk = MaGoiY.Build(data.Rows.Where(r => r.Src == "M01"), MaGoiY.ReadCatalog(s.Lan), data.Seg);   // Tồn kho An An → Danh mục
+                var lookKk = MaGoiY.Lookup(kk);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    _sugs = list; _known = MaGoiY.Known(list); _lookup = look;
+                    _sugsKk = kk; _knownKk = MaGoiY.Known(kk); _lookupKk = lookKk;
+                    FillPending(); _grid.Refresh();
+                });
             }
             catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
         });
@@ -401,8 +416,8 @@ public partial class EntryView : UserControl, IPage
 
     private IReadOnlyList<SheetGrid.GridSuggestion> SuggestFor(int col, string text)
     {
-        if (_sugs is null || col >= _model.ColCount || !IsCodeCol(_model.Columns[col])) return Array.Empty<SheetGrid.GridSuggestion>();
-        return MaGoiY.Search(_sugs, text).Select(x => new SheetGrid.GridSuggestion(x.Ma, x.Ma,
+        if (Sugs is not { } sugs || col >= _model.ColCount || !IsCodeCol(_model.Columns[col])) return Array.Empty<SheetGrid.GridSuggestion>();
+        return MaGoiY.Search(sugs, text).Select(x => new SheetGrid.GridSuggestion(x.Ma, x.Ma,
             string.Join(" · ", new[] { x.Ten, x.Size, x.Dt, x.Ton > 0 ? "tồn " + x.Ton.ToString("#,0.###", Ui.Vi) : "", x.Nguon }.Where(t => t.Length > 0)), x)).ToList();
     }
 
@@ -426,9 +441,9 @@ public partial class EntryView : UserControl, IPage
         var bg = _model.Get(r, ColorCol);
         if (bg.Length > 0 && CellColors.Codes(bg).TryGetValue(col.Key, out var code) && CellColors.Hex(code) is { } hex) return AppTheme.Brush(hex);
         if (col.Formula.Length > 0) return FormulaBg;
-        if (_sugs is null || !IsCodeCol(col)) return null;
+        if (Sugs is null || !IsCodeCol(col)) return null;
         var v = _model.Get(r, c).Trim();
-        return v.Length > 0 && !_known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
+        return v.Length > 0 && !Known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
     }
     private static readonly IBrush FormulaBg = AppTheme.Brush("#F3F5F8");
 
@@ -437,14 +452,14 @@ public partial class EntryView : UserControl, IPage
     private readonly HashSet<int> _pending = new();   // dòng đổi mã khi bảng tra chưa nạp xong
 
     private EntryRules.Info? Lookup(string ma) =>
-        _lookup is not null && _lookup.TryGetValue(KhoLanh.Core.TimNhanh.Gs.MaKey(ma), out var i) ? i : null;
+        Look is { } lk && lk.TryGetValue(KhoLanh.Core.TimNhanh.Gs.MaKey(ma), out var i) ? i : null;
 
     private IEnumerable<(int r, int c, string v)> DeriveCells(IReadOnlyList<(int r, int c, string before, string after)> changed)
     {
         var cols = PageCols;
         var ch = changed.Where(x => x.c < cols.Count).ToList();
         if (ch.Count == 0) return Array.Empty<(int, int, string)>();
-        if (_lookup is null)
+        if (Look is null)
         {
             var code = EntryRules.CodeCol(cols);
             foreach (var x in ch) if (x.c == code) _pending.Add(x.r);
