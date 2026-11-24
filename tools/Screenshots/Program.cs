@@ -633,6 +633,12 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
     Snap(main, "20d-nhap-lieu-mau");
     s.Lan.Dispose(); Console.WriteLine("Xong (nl): " + outDir); return;
 }
+// Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
+{
+    main.Navigate("m13"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); }
+    PxScene(); s.Lan.Dispose(); Console.WriteLine("Xong (px): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "menu") { s.Lan.Dispose(); Console.WriteLine("Xong (chỉ khung menu): " + outDir); return; }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "dm") { DmScene(); s.Lan.Dispose(); Console.WriteLine("Xong (chỉ Danh mục mã hàng): " + outDir); return; }
 
@@ -921,26 +927,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "23b-xuat-kiem");
         tcx.SelectedIndex = 0; Pump();
     }
-    if (key == "m13")
-    {
-        var lb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        lb.SelectedIndex = 0; for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "30-phieu-xuat-kho");
-        var tcPk = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        tcPk.SelectedIndex = 1; Pump(); Snap(main, "30b-phieu-xuat-kho-email");
-        tcPk.SelectedIndex = 0; Pump();
-        // tab Cargo list
-        var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
-        top.SelectedIndex = 2; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        var clb = main.PageHost.GetVisualDescendants().OfType<ListBox>().First(x => x.IsEffectivelyVisible);
-        clb.SelectedIndex = 0; for (var i = 0; i < 12; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31-cargo-nhap");
-        var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible && x != top).First();
-        inner.SelectedIndex = 1; for (var i = 0; i < 6; i++) { Thread.Sleep(30); Pump(); }
-        Snap(main, "31b-cargo-phieu-xem-truoc");
-        inner.SelectedIndex = 2; Pump(); Snap(main, "31c-cargo-danh-muc");
-        top.SelectedIndex = 0; Pump();
-    }
+    if (key == "m13") PxScene();
     if (key == "m1")
     {
         // Tồn kho An An (C#): duyệt 6 tab, rồi thử thao tác tạo phiếu xuất + ghi chú Theo Dõi Tồn bằng giao diện thật.
@@ -1315,6 +1302,34 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
 DmScene();
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);
+
+void PxScene()
+{
+    void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    TabControl Sub() => main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top);
+    KhoLanh.App.Controls.SheetGrid Grid() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    // Phiếu xuất khẩu: tab Danh sách → bấm đúp phiếu → tab Nhập liệu (Soạn phiếu / Nội dung email)
+    top.SelectedIndex = 0; W(10);
+    var sub = Sub(); sub.SelectedIndex = 0; W(8);
+    var g = Grid(); g.Select(0, 0); W(4); Snap(main, "30-phieu-xuat-khau-danh-sach");
+    g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(12);
+    Console.WriteLine($"[PX] xuất khẩu: tab con sau bấm đúp = {sub.SelectedIndex}");
+    Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
+    var em = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub);
+    em.SelectedIndex = 1; W(4); Snap(main, "30c-phieu-xuat-khau-email"); em.SelectedIndex = 0; W(2);
+    // Phiếu xuất nội địa: tab Danh sách cont → bấm đúp → Nhập liệu (Nhập Cargo / Phiếu xem trước) · Danh mục
+    top.SelectedIndex = 2; W(14);
+    var sub2 = Sub(); sub2.SelectedIndex = 0; W(8);
+    var g2 = Grid(); g2.Select(0, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");
+    g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
+    Console.WriteLine($"[PX] nội địa: tab con sau bấm đúp = {sub2.SelectedIndex}");
+    Snap(main, "31b-phieu-noi-dia-nhap-lieu");
+    var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
+    pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
+    sub2.SelectedIndex = 2; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");
+    top.SelectedIndex = 0; Pump();
+}
 
 void DmScene()
 {
