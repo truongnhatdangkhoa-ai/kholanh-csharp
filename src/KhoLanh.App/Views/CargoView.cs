@@ -419,7 +419,7 @@ public sealed class CargoView : UserControl
         var chk = Svc.CheckRec(_prof, _cur);
         double kg;
         if (_prof.Gk) kg = BuildGk(Svc.Cfg, _cur, Svc.Ks).Kg; else kg = BuildPhieu(Svc.Cfg, _cur, Svc.Ks).Kg;
-        _totals.Text = $"Tổng: {chk.Kien:#,0.##} kiện · {kg:#,0.###} kg · {DayCount(_cur)} dãy" + (chk.Kien > 0 ? "  —  " + PhieuKhoCore.DocSo(chk.Kien) + " kiện" : "");
+        _totals.Text = $"Tổng: {chk.Kien:#,0.##} kiện · {kg:#,0.00} kg · {DayCount(_cur)} dãy" + (chk.Kien > 0 ? "  —  " + PhieuKhoCore.DocSo(chk.Kien) + " kiện" : "");
         _problems.IsVisible = chk.Problems.Count > 0;
         _problems.Text = chk.Problems.Count == 0 ? "" : $"Cần xử lý trước khi xuất ({chk.Problems.Count}): " + string.Join(" · ", chk.Problems.Take(3)) + (chk.Problems.Count > 3 ? " …" : "");
         var sc = Svc.StockCheck(_cur); var bad = sc.Where(x => x.St != "ok").ToList();

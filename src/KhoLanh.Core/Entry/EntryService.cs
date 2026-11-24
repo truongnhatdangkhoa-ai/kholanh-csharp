@@ -209,7 +209,15 @@ public sealed class EntryService
     {
         Require(Perm.View);
         var keys = p.Columns.Select(c => c.Key).ToList();
-        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+        return Fill(p, ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList());
+    }
+
+    /// <summary>1.71: trang kiểm kê cũ vừa được thêm cột công thức (Số lượng còn lại…) → tính sẵn khi mở, không phải đợi lưu lại.</summary>
+    private static List<string[]> Fill(PageInfo p, List<string[]> rows)
+    {
+        if (p.Template != "kiem-ke" || rows.Count == 0) return rows;
+        foreach (var (r, c, v) in EntryRules.RecomputeAll(p.Columns, rows)) if (c < rows[r].Length) rows[r][c] = v;
+        return rows;
     }
 
     /// <summary>Như <see cref="Load"/> nhưng mỗi dòng thêm 1 phần tử cuối = màu tô ô của dòng (<see cref="ColorKey"/>).</summary>
@@ -217,7 +225,7 @@ public sealed class EntryService
     {
         Require(Perm.View);
         var keys = p.Columns.Select(c => c.Key).Append(ColorKey).ToList();
-        return ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList();
+        return Fill(p, ReadArr(DataSheet(p.Id)).OfType<JsonObject>().Select(o => keys.Select(k => S(o[k])).ToArray()).ToList());
     }
 
     /// <summary>

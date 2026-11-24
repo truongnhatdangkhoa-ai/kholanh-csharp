@@ -353,7 +353,7 @@ public sealed class KiemKeService
             new(Lines.Count > 0 ? $"Có số liệu kiểm kê ({Chosen.Count} trang, {Lines.Count:#,0} dòng)" : "Chưa chọn trang kiểm kê nào", Lines.Count > 0 ? "ok" : "block"),
             new(Stock.Count > 0 ? (StockSrc == "snap" ? "Đối chiếu với bản chụp tồn: " + SnapInfo : $"Đối chiếu với Tồn kho An An hiện tại ({StockFile}, ngày {StockDate})") : "Chưa có Tồn kho An An", Stock.Count > 0 ? "ok" : "block"),
             new(Kt.Map.Count > 0 ? $"Có số Kế toán ({Kt.Map.Count:#,0} mã)" : "Chưa có số Kế toán (không bắt buộc)", Kt.Map.Count > 0 ? "ok" : "warn"),
-            new(Summary.Open == 0 ? "Không còn mã lệch tồn kho" : $"Còn {Summary.Open} mã lệch ({Summary.KgLech:#,0.##} kg) — vẫn chốt được, bản chốt ghi “chốt còn chênh” kèm lý do", Summary.Open == 0 ? "ok" : "warn"),
+            new(Summary.Open == 0 ? "Không còn mã lệch tồn kho" : $"Còn {Summary.Open} mã lệch ({Summary.KgLech:#,0.00} kg) — vẫn chốt được, bản chốt ghi “chốt còn chênh” kèm lý do", Summary.Open == 0 ? "ok" : "warn"),
             new(Ex.KhongMa + Ex.SoLoi == 0 ? "Dữ liệu kiểm kê không có dòng lỗi" : $"{Ex.KhongMa} dòng có số nhưng thiếu mã, {Ex.SoLoi} dòng số không đọc được", Ex.KhongMa + Ex.SoLoi == 0 ? "ok" : "warn"),
             new(Recounts.Count == 0 ? "Không có vị trí bị đếm ở 2 ngày" : $"{Recounts.Count} nhóm vị trí · mã bị đếm ở ≥ 2 ngày" + (LatestOnly ? " (đang chỉ lấy lần mới nhất)" : " — cân nhắc “Chỉ lấy lần đếm mới nhất”"), Recounts.Count == 0 || LatestOnly ? "ok" : "warn"),
             new(Locked ? $"Kỳ đã chốt (bản v{CurrentChot!.Ver})" : "Kỳ chưa chốt", Locked ? "block" : "ok"),
@@ -451,7 +451,7 @@ public sealed class KiemKeService
         if (GuiOn && Gui.Detail.Count > 0)
             Table(wb.AddWorksheet("Kho gui"), 3, new[] { "Mã kho gửi", "Mã 21 ký tự", "Cách đổi", "Tên hàng", "Số lô", "Size", "Số kiện", "Trọng lượng (kg)", "Ghi chú" },
                 Gui.Detail.Select(x => new object?[] { x.MaGui, x.Ma.Length == 21 ? x.Ma : "", x.Via == "tay" ? "Bảng chuyển đổi" : x.Via == "auto" ? "Tự động · " + x.Rule : "Không đổi được", x.Ten, x.Lo, x.Size, x.Kien, x.Kg, x.Why }),
-                $"TỒN KHO GỬI (đổi mã 19 → 21 ký tự) · {GuiInfo} · không đổi được: {Gui.Bad.Count} dòng / {Gui.KgBad:#,0.##} kg (không tính vào tổng)");
+                $"TỒN KHO GỬI (đổi mã 19 → 21 ký tự) · {GuiInfo} · không đổi được: {Gui.Bad.Count} dòng / {Gui.KgBad:#,0.00} kg (không tính vào tổng)");
         if (hasMv)
             Table(wb.AddWorksheet("Phat sinh"), 3, new[] { "Ngày", "Loại", "Mã hàng", "Vị trí", "Số kiện", "Trang", "Dòng", "Xử lý", "Ghi chú" },
                 Adj.List.Select(x => new object?[] { x.M.Ngay.Length > 0 ? x.M.Ngay : x.M.NgayRaw, x.M.Type == "x" ? "Xuất" : "Nhập", x.M.Ma, x.M.Vt, x.M.Kien, x.M.Page, x.M.Dong, x.Label, x.Note.Trim() }),

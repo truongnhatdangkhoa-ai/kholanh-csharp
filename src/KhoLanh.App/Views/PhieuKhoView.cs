@@ -394,7 +394,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _mail.Text = ""; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export; _copy.IsEnabled = true;
         var t = TotalsOf(_cur); var unit = _cur.DonVi == "bdl" ? "bdl" : "kiện";
-        _totals.Text = $"Tổng: {t.Kien:#,0.##} {unit} (An An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}) · {t.Kg:#,0.###} kg" + (t.Kien > 0 ? "  —  " + DocSo(t.Kien) + " " + unit : "");
+        _totals.Text = $"Tổng: {t.Kien:#,0.##} {unit} (An An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}) · {t.Kg:#,0.00} kg" + (t.Kien > 0 ? "  —  " + DocSo(t.Kien) + " " + unit : "");
         var errs = Validate(Clone(_cur));
         _err.IsVisible = errs.Count > 0;
         _err.Text = errs.Count == 0 ? "" : "Cần sửa trước khi xuất file: " + string.Join(" ", errs.Take(3)) + (errs.Count > 3 ? $" (+{errs.Count - 3} lỗi nữa)" : "");
