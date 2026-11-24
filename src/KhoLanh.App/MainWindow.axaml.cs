@@ -112,21 +112,28 @@ public partial class MainWindow : Window
         {
             var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
+            var icon = GroupIcon.GetValueOrDefault(group, "");
             if (visible.Count == 1)
             {
                 var item = visible[0];
-                var b = new Button { Content = item.Label, Classes = { "topnav" } };
+                var b = new Button { Content = icon + "  " + item.Label, Classes = { "navtab" } };
+                ToolTip.SetTip(b, ItemDesc.GetValueOrDefault(item.Key));
                 b.Click += (_, _) => Navigate(item.Key);
                 _buttons[item.Key] = b;
                 NavPanel.Children.Add(b);
                 continue;
             }
-            var groupButton = new Button { Content = GroupLabel(group) + "  ▾", Classes = { "topnav" } };
-            _groupLabels[groupButton] = GroupLabel(group);
+            var groupButton = new Button { Content = icon + "  " + GroupLabel(group) + "  ▾", Classes = { "navtab" } };
+            _groupLabels[groupButton] = icon + "  " + GroupLabel(group);
             var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
             foreach (var item in visible)
             {
-                var mi = new MenuItem { Header = item.Label };
+                // mục menu 2 dòng: tên module + mô tả ngắn
+                var head = new StackPanel { Spacing = 1, Margin = new Avalonia.Thickness(2, 3), MinWidth = 280 };
+                head.Children.Add(new TextBlock { Text = item.Label, FontSize = 14, FontWeight = Avalonia.Media.FontWeight.SemiBold });
+                if (ItemDesc.TryGetValue(item.Key, out var desc))
+                    head.Children.Add(new TextBlock { Text = desc, FontSize = 11.5, Classes = { "muted" } });
+                var mi = new MenuItem { Header = head };
                 mi.Click += (_, _) => Navigate(item.Key);
                 flyout.Items.Add(mi);
                 _items[item.Key] = mi;
@@ -135,7 +142,9 @@ public partial class MainWindow : Window
             groupButton.Flyout = flyout;
             NavPanel.Children.Add(groupButton);
         }
-        UserButton.Content = $"{u.Username}  ▾";
+        var shown = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName;
+        UserInitial.Text = shown.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?[..1].ToUpperInvariant() ?? "?";
+        UserName.Text = shown; UserRole.Text = u.RoleLabel;
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
         UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
         // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
@@ -186,6 +195,43 @@ public partial class MainWindow : Window
     private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
 
     private static bool _autoStarted;
+
+    private static readonly Dictionary<string, string> GroupIcon = new()
+    {
+        ["TỔNG QUAN"] = "🏠", ["TỒN KHO"] = "📦", ["BÁO CÁO"] = "📊", ["PHIẾU & CHỨNG TỪ"] = "🧾", ["CÔNG CỤ"] = "🧰", ["NHẬP LIỆU"] = "✏", ["HỆ THỐNG"] = "⚙",
+    };
+    /// <summary>Mô tả ngắn hiện dưới tên module trong menu thả xuống.</summary>
+    private static readonly Dictionary<string, string> ItemDesc = new()
+    {
+        ["lx"] = "Lịch xuất hôm nay, việc cần làm, số liệu nhanh",
+        ["m1"] = "Load Data An An: tồn theo mã, hợp đồng, phiếu xuất",
+        ["m2"] = "Hàng gửi kho ngoài: số kiện, trọng lượng, phiếu xuất",
+        ["m7"] = "Tồn theo vị trí kệ, phiếu vị trí, xuất theo lô",
+        ["m3sk"] = "Sổ kho bột / sốt: nhập, xuất FIFO, tồn theo lô",
+        ["m1vtb"] = "Tồn bột / sốt theo vị trí, phiếu PC và điện thoại",
+        ["m8"] = "Sơ đồ mặt bằng kho, ô kệ và hàng đang chứa",
+        ["m3"] = "Mã hóa sản phẩm, danh sách mã, bảng tổng hợp",
+        ["m4"] = "Báo cáo rã đông theo ngày, xuất ảnh / Excel",
+        ["m5"] = "Đối chiếu xuất kiểm hàng ngày giữa các nguồn",
+        ["m9"] = "So kiểm kê thực tế với tồn sổ sách",
+        ["m7ck"] = "Tồn cuối kỳ: kho với kế toán, nguyên nhân chênh",
+        ["m10"] = "Tra cứu và lưu kết quả kiểm kháng sinh",
+        ["m13"] = "Phiếu xuất khẩu theo LSX, List sản xuất, Cargo list",
+        ["m12"] = "In phiếu nhập / xuất / chứng từ kho",
+        ["m11"] = "Phiếu xuất từ hệ thống, đối chiếu và in",
+        ["m14"] = "Xếp hàng vào container, mô phỏng 3D",
+        ["m15"] = "Quét giấy tờ thành PDF / ảnh",
+        ["m21"] = "Gộp, tách, xoay, đánh số PDF; xử lý Excel",
+        ["m22"] = "So sánh 2 bảng, tra cứu kiểu VLOOKUP",
+        ["m6"] = "Nhập liệu nhanh theo mẫu",
+        ["users"] = "Tài khoản và phân quyền",
+        ["backup"] = "Sao lưu, phục hồi, cài đặt chung",
+        ["lan"] = "Máy chủ / máy trạm trong mạng LAN",
+        ["drive"] = "Đồng bộ dữ liệu qua Google Drive",
+        ["phone"] = "Đẩy tồn, nhận phiếu từ điện thoại",
+        ["audit"] = "Ai làm gì, lúc nào",
+        ["troly"] = "Quét lỗi dữ liệu, cảnh báo cần xử lý",
+    };
 
     private void OnTroLyScanned(KhoLanh.Core.TroLy.TroLyService.ScanResult r) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
@@ -243,11 +289,12 @@ public partial class MainWindow : Window
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = p.Subtitle; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         foreach (var (gb, label) in _groupLabels) gb.Content = label + "  ▾";
+        var grp = _menu.FirstOrDefault(m => m.items.Any(i => i.Key == key)).group ?? "";
+        PageGroup.Text = grp.Length > 0 && grp != "TỔNG QUAN" ? GroupLabel(grp) + "  ›" : "";
         foreach (var (k, mi) in _items) mi.FontWeight = k == key ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
         if (_buttons.TryGetValue(key, out var now))
         {
             now.Classes.Add("active");
-            if (_groupLabels.TryGetValue(now, out var gl) && key is not ("users" or "backup" or "lan" or "audit" or "troly")) now.Content = $"{gl}: {item.Label}  ▾";
         }
         _current = key;
     }

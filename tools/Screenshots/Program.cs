@@ -442,7 +442,7 @@ var small = new MainWindow { Width = 1366, Height = 768, WindowState = WindowSta
 small.Show();
 Snap(small, "03c-man-hinh-1366");
 {
-    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.StartsWith("Báo cáo") == true);
+    var gb = small.GetVisualDescendants().OfType<Button>().First(b => (b.Content as string)?.Contains("Báo cáo") == true);
     gb.Flyout!.ShowAt(gb); Pump();
     Snap(small, "03d-menu-nhom");
     gb.Flyout.Hide(); Pump();
@@ -1090,6 +1090,28 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     catch (Exception e) { Console.WriteLine("[AUTO] lỗi: " + e.Message); }
     s.LichXuat.AutoMode = "list";
     main.Show("m13", new PhieuKhoView(3)); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "43-tu-dong-da-tao");
+}
+// ---------------- Menu ngang 2 tầng (mẫu) ----------------
+{
+    main.Navigate("m3sk"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44-menu-ngang");
+    var gb = main.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && (b.Content?.ToString() ?? "").Contains("Tồn kho"));
+    gb.Flyout!.ShowAt(gb); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); }
+    var pres = ((MenuFlyout)gb.Flyout).Items.OfType<MenuItem>().First().GetVisualAncestors().OfType<Control>().Last();
+    using var frame = main.CaptureRenderedFrame()!;
+    var pt = gb.TranslatePoint(new Point(0, gb.Bounds.Height), main) ?? new Point(0, 0);
+    var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
+    using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(pres);
+    using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+    using (var ctx = all.CreateDrawingContext())
+    {
+        ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+        ctx.DrawImage(pop, new Rect(pt.X, pt.Y + 2, ps.Width, ps.Height));
+    }
+    all.Save(Path.Combine(outDir, "44b-menu-ngang-tha-xuong.png")); Console.WriteLine("  44b-menu-ngang-tha-xuong");
+    gb.Flyout.Hide();
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Dark, 1.0);
+    main.Navigate("lx"); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(main, "44c-menu-ngang-toi");
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Light, 1.0);
 }
 s.Lan.Dispose();
 Console.WriteLine("Xong: " + outDir);

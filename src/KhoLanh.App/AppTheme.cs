@@ -71,6 +71,7 @@ public static class AppTheme
         ("PageBg", "#F3F6F9", "#181A1E"), ("CardBg", "#FFFFFF", null), ("Border", "#D9E2EA", "#3A3F46"), ("Muted", "#5D6B78", "#9AA4AF"),
         ("InColor", "#1E8E3E", null), ("OutColor", "#C2410C", null), ("Danger", "#B42318", null),
         ("NavBg", "#0B2A45", "#101418"), ("GridLine", "#E8EEF3", null), ("GridHead", "#EAF2F8", null),
+        ("NavText", "#2B3A48", null), ("NavHover", "#EEF4F9", null), ("SearchBg", "#16405F", "#1E252D"),
     };
 
     /// <summary>Gắn brush dùng chung vào tài nguyên ứng dụng (gọi 1 lần sau khi nạp App.axaml).</summary>
