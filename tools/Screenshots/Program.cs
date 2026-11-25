@@ -833,7 +833,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v184")
     void P(int n = 15) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
     var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show();
     w.Navigate("m13"); P(40);
-    var tc = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 2; P(25);
+    var tc = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 1;   // 1.96: Phiếu xuất nội địa là tab thứ 2 P(25);
     var inner = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x != tc && x.IsEffectivelyVisible); inner.SelectedIndex = 1; P(30);
     Snap(w, "47-bang-toi-thieu-8-dong");
     var fs = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.FillScroll>().First();
@@ -879,6 +879,35 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
         if (main.CurrentKey != "lx") ok = false;
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
+// 1.96: SHOTS_ONLY=v196 — Phiếu xuất kho: tab Phiếu xuất nội địa đứng thứ 2 (mở theo số tab cũ vẫn đúng); Tồn kho An An › Báo Cáo: bấm dòng Bột + Sốt + Bếp / Tồn Kho Gửi → Tổng Hợp › Báo cáo ngoài sổ sách. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v196")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    string Heads(TabControl t) => string.Join(" | ", t.Items.OfType<TabItem>().Select(i => KhoLanh.App.Controls.Icon.TextOf(i.Header)));
+    main.Show("m13", new PhieuKhoView(PhieuKhoView.TabNd)); P(40);
+    var pt = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    Console.WriteLine($"[v196] Phiếu xuất kho: {Heads(pt)} · mở tab Nội địa → đang ở “{KhoLanh.App.Controls.Icon.TextOf(((TabItem)pt.SelectedItem!).Header)}”");
+    if (!Heads(pt).StartsWith("Phiếu xuất khẩu (theo LSX) | Phiếu xuất nội địa | List sản xuất") || pt.SelectedIndex != 1) ok = false;
+    Snap(main, "30d-phieu-xuat-tab-noi-dia-thu-2");
+    main.Show("m13", new PhieuKhoView(PhieuKhoView.TabLsx)); P(30);
+    pt = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    if (pt.SelectedIndex != 2) { ok = false; Console.WriteLine("[v196] mở tab List sản xuất sai: " + pt.SelectedIndex); }
+    main.Navigate("m1"); P(40);
+    var at = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(); at.SelectedIndex = 1; P(30);
+    var bg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 2 && x.Model.Columns[0].Header == "Tên hàng");
+    var rows = Enumerable.Range(0, bg.Model.RowCount).Select(r => bg.Model.Get(r, 0)).ToList();
+    Console.WriteLine("[v196] Báo cáo tổng tồn: " + string.Join(" · ", rows.Where(x => x.Contains('↗'))));
+    Snap(main, "40e-an-an-bao-cao-lien-ket");
+    var rKg = rows.FindIndex(x => x.StartsWith("Tồn Kho Gửi"));
+    bg.RowClicked!(rKg); P(20);
+    var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t => t != at && t.IsEffectivelyVisible && t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Báo cáo ngoài sổ sách"));
+    var foc = main.FocusManager?.GetFocusedElement() as TextBox;
+    Console.WriteLine($"[v196] bấm dòng Tồn Kho Gửi → tab {at.SelectedIndex} / {at.ItemCount - 1}, tab con {(inner is null ? "?" : KhoLanh.App.Controls.Icon.TextOf(((TabItem)inner.SelectedItem!).Header))}, ô đang chọn = {foc?.Text ?? "(không)"}");
+    if (at.SelectedIndex != at.ItemCount - 1 || inner is null || inner.SelectedIndex != 2 || rows.Count(x => x.Contains('↗')) != 2) ok = false;
+    Snap(main, "40f-an-an-ngoai-so-sach");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v196) — ĐẠT: " : "Xong (v196) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.94: SHOTS_ONLY=v194 — bấm chuột thật ở Nhập liệu: tiêu đề cột = bôi đen cả cột (không sắp xếp), số dòng = bôi đen cả dòng, Ctrl+C chép cả dòng; bảng Nhập liệu không ô tích. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v194")
@@ -2134,7 +2163,7 @@ void PxScene()
     W(10); if (main.PageTabs is null) Fail("đóng phiếu: tab đầu trang không kéo lên lại hàng tên trang");
     Console.WriteLine("[PX] ← Danh sách: đã về danh sách");
     // Phiếu xuất nội địa
-    top.SelectedIndex = 2; W(14);
+    top.SelectedIndex = 1; W(14);   // 1.96: Phiếu xuất nội địa là tab thứ 2
     var sub2 = Sub(); sub2.SelectedIndex = 0; W(8);
     var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
     var g2 = Grid(); g2.Select(1, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");

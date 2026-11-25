@@ -65,6 +65,11 @@ public sealed class PhieuKhoView : UserControl, IPage
     internal Control? FullContent => _full.Child;
 
     /// <summary>Mở module: <paramref name="tab"/> 0 = Phiếu xuất khẩu · 1 = List sản xuất · 2 = Cargo list; <paramref name="openPhieuId"/> / <paramref name="openListLsx"/> = mở thẳng phiếu / List đó.</summary>
+    /// <summary>Số tab dùng khi mở từ nơi khác (giữ như cũ): 0 = Phiếu xuất khẩu, 1 = List sản xuất, 2 = Phiếu xuất nội địa, 3 = Tự động đã tạo.</summary>
+    public const int TabXk = 0, TabLsx = 1, TabNd = 2, TabAuto = 3;
+    /// <summary>1.96: thứ tự hiện = Phiếu xuất khẩu · Phiếu xuất nội địa · List sản xuất · Tự động đã tạo.</summary>
+    private static int TabIndex(int tab) => tab switch { TabLsx => 2, TabNd => 1, TabAuto => 3, _ => 0 };
+
     public PhieuKhoView(int tab = 0, string? openPhieuId = null, string? openListLsx = null)
     {
         _openId = openPhieuId;
@@ -105,7 +110,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         _editPage = page;
 
         _lsxView = new ListSxView(openListLsx, OpenFromList);
-        _autoView = new PnxAutoView(OpenFromList, lsx => { _outer!.SelectedIndex = 1; _lsxView.SelectLsx(lsx); });
+        _autoView = new PnxAutoView(OpenFromList, lsx => { _outer!.SelectedIndex = TabIndex(TabLsx); _lsxView.SelectLsx(lsx); });
         _autoView.UnseenChanged += n => _autoTab.Header = n > 0 ? $"⚡ Tự động đã tạo ({n} mới)" : "⚡ Tự động đã tạo";
         _autoTab.Content = _autoView;
         var cargo = new CargoView { FullHost = ShowFull };
@@ -114,11 +119,11 @@ public sealed class PhieuKhoView : UserControl, IPage
             Items =
             {
                 new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = listPage },
+                new TabItem { Header = "Phiếu xuất nội địa", Content = cargo },   // 1.96: lên thứ 2 (người dùng), trước là thứ 3
                 new TabItem { Header = "List sản xuất", Content = _lsxView },
-                new TabItem { Header = "Phiếu xuất nội địa", Content = cargo },
                 _autoTab,
             },
-            SelectedIndex = Math.Clamp(tab, 0, 3),
+            SelectedIndex = TabIndex(tab),
         };
         var root = new Panel(); root.Children.Add(_outer); root.Children.Add(_full);
         Content = root;

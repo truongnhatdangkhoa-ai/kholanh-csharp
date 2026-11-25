@@ -95,4 +95,38 @@ public class DanhMucTests : IDisposable
         using var wb = new XLWorkbook(path); var ws = wb.Worksheet(1);
         Assert.Equal("Mã hàng", ws.Cell(1, 2).GetString()); Assert.Equal("16/20", ws.Cell(4, 4).GetString()); Assert.Equal("Tồn An An 1", ws.Cell(4, 6).GetString());
     }
+    [Fact]
+    public void Gop_Danh_sach_ma_hang_vao_Danh_muc_Tong_hop_khong_ghi_de()
+    {   // 1.95: Tổng hợp › Danh sách mã hàng và Danh mục mã hàng cùng sheet tong-hop/MaDaTao → chỉ sửa ở Danh mục; Tổng hợp lưu không xóa mã nơi khác vừa thêm
+        Directory.CreateDirectory(_dir);
+        var s = _s = new AppServices(Path.Combine(_dir, "kho.db"));
+        s.Auth.CreateFirstAdmin("admin", "QT", "matkhau1"); s.Auth.Login("admin", "matkhau1");
+        const string a = "VRHLBTNXEC00116201001", b = "VRHLBTNXEC00121301001";
+        s.Lan.Write("tong-hop", new Dictionary<string, JsonArray?>
+        {
+            ["MaDaTao"] = new JsonArray(new JsonObject { ["STT"] = 1, ["Mã"] = a, ["Ghi chú"] = "Tôm sú ,  16/20 ,," }, new JsonObject { ["STT"] = 2, ["Mã"] = a, ["Ghi chú"] = "trùng" }),
+            ["MaHoa"] = new JsonArray(new JsonObject { ["Tổ hợp"] = 8, ["Mã"] = "1620", ["Tên"] = "16/20" }),
+        });
+        var th = s.TongHop; th.Load();
+        var before = th.Results.Count;
+        // "máy khác" thêm mã b thẳng vào MaDaTao trong lúc Tổng hợp đang mở
+        var cur = JsonNode.Parse(s.Lan.Read("tong-hop", "MaDaTao"))!.AsArray();
+        var keep = cur.Select(x => x!.DeepClone()).ToList(); keep.Add(new JsonObject { ["STT"] = 99, ["Mã"] = b, ["Ghi chú"] = "" });
+        s.Lan.Write("tong-hop", new Dictionary<string, JsonArray?> { ["MaDaTao"] = new JsonArray(keep.ToArray()) });
+        th.Save();   // Tổng hợp lưu (vd sửa Mã hóa sản phẩm) — danh sách mã của nó không đổi → không ghi MaDaTao
+        Assert.Contains(JsonNode.Parse(s.Lan.Read("tong-hop", "MaDaTao"))!.AsArray(), x => x!["Mã"]!.ToString() == b);
+
+        var dm = s.DanhMuc; dm.Load();
+        Assert.Equal(1, dm.RemoveDups(true));
+        Assert.Equal(1, dm.RemoveDups(false));
+        Assert.Equal(1, dm.CleanNotes(false));
+        Assert.Equal(KhoLanh.Core.TongHop.TongHopService.CleanNote("Tôm sú ,  16/20 ,,"), dm.Rows[0].Note);
+        var (added, dup) = dm.ImportCodes(new[] { (a, ""), ("vrhl btnx ec00 1213 01002", "Mới") });
+        Assert.Equal((1, 1), (added, dup));
+        Assert.True(dm.FillNotes() >= 1);                                   // mã b đang trống diễn giải → tự ghép
+        Assert.Equal(0, dm.AddDefaults());                                  // Tổng hợp nạp lần đầu đã tự thêm danh sách mặc định
+        Assert.Equal(dm.Rows.Count, s.TongHop.Results.Count);               // Tổng hợp đang mở nhận bản mới, lưu lại không ghi đè
+        th.Save(); dm.Load();
+        Assert.Contains(dm.Rows, r => r.Code == "VRHLBTNXEC00121301002");
+    }
 }
