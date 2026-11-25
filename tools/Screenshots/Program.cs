@@ -714,6 +714,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")
         (dark ? rb[1] : rb[0]).IsChecked = true; P(10);
         Console.WriteLine($"[Giao diện] chọn {(dark ? "Tối" : "Sáng")} → đang {AppTheme.Current} · nền thẻ {AppTheme.Brush("#FFFFFF").Color} · thanh tiêu đề {KhoLanh.App.TitleBar.ColorsFor(main).Caption}");
         if (AppTheme.Current != (dark ? AppTheme.Mode.Dark : AppTheme.Mode.Light)) ok = false;
+        // 1.78: thanh tiêu đề cửa sổ CHÍNH theo giao diện (Sáng = không bật chế độ tối → thanh trắng; Tối = thanh tối)
+        if (KhoLanh.App.TitleBar.ColorsFor(main).Dark != dark) { Console.WriteLine("[Thanh tiêu đề] LỖI: cửa sổ chính không theo giao diện"); ok = false; }
         tw.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Lưu").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(20);
     }
     ThemeTo(true); Snap(main, "v174-toi");
