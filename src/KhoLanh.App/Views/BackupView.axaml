@@ -74,6 +74,14 @@
           <StackPanel Spacing="8">
             <TextBlock Text="Tài khoản dùng chung (Google Sheet)" Classes="section"/>
             <TextBlock x:Name="AcctStatus" TextWrapping="Wrap" Tag="keep"/>
+            <!-- 1.104: 1 Google Sheet cho cả tài khoản lẫn điện thoại -->
+            <Border x:Name="AcctMovePanel" Classes="pill info" Padding="10,8" CornerRadius="6" HorizontalAlignment="Stretch">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Tag="keep"
+                           Text="Gọn hơn: dùng luôn Google Sheet điện thoại cho tài khoản — chỉ còn 1 Sheet + 1 Apps Script (cần Code.gs điện thoại bản mới). Các máy khác tự chuyển theo."/>
+                <Button Grid.Column="1" x:Name="AcctMoveButton" Content="Dùng chung Sheet điện thoại" Click="OnAcctMove" VerticalAlignment="Center"/>
+              </Grid>
+            </Border>
             <StackPanel x:Name="AcctSetupPanel" Spacing="6">
               <Expander Header="Hướng dẫn kết nối lần đầu" HorizontalAlignment="Stretch">
                 <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
@@ -89,7 +97,7 @@
               <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
               <Button Content="Tạo bộ cài cho máy mới…" Click="OnAcctBundle"/>
               <Button Content="Chép mã máy nhân viên" Click="OnAcctCodeStaff"/>
-              <Button Content="Cập nhật mã Apps Script" Click="OnAcctUpgrade" ToolTip.Tip="Mã Apps Script bản mới, giữ nguyên mã kết nối (1.70: thêm cột Email Google). Dán đè rồi Triển khai › Quản lý triển khai › Phiên bản mới."/>
+              <Button x:Name="AcctUpgradeButton" Content="Cập nhật mã Apps Script" Click="OnAcctUpgrade" ToolTip.Tip="Mã Apps Script bản mới, giữ nguyên mã kết nối (1.70: thêm cột Email Google). Dán đè rồi Triển khai › Quản lý triển khai › Phiên bản mới."/>
               <Button x:Name="AcctCodeAdminButton" Content="Chép mã máy quản trị" Click="OnAcctCodeAdmin"/>
               <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
             </WrapPanel>

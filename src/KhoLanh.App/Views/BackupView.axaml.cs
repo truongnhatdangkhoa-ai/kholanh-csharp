@@ -48,6 +48,10 @@ public partial class BackupView : UserControl, IPage
         AcctSetupPanel.IsVisible = admin && !a.Enabled;
         AcctOnPanel.IsVisible = admin && a.Enabled;
         AcctCodeAdminButton.IsVisible = a.CanWrite;
+        // 1.104: đã dùng Sheet điện thoại thì KHÔNG đưa mã TaiKhoan.gs (dán vào Sheet điện thoại sẽ làm hỏng đồng bộ điện thoại — lỗi 25/11/2026).
+        AcctUpgradeButton.IsVisible = !a.OnPhoneSheet;
+        AcctMovePanel.IsVisible = admin && !a.OnPhoneSheet && s.Phone.Token.Length > 0;
+        if (a.OnPhoneSheet) AcctStatus.Text += " Dùng chung Google Sheet điện thoại (1 Sheet + 1 Apps Script cho cả tài khoản lẫn điện thoại). Cập nhật Apps Script: dán Code.gs của app điện thoại.";
         AcctScriptButton.Content = a.HasPendingScript ? "Tạo lại mã Apps Script (mã cũ sẽ hết dùng)" : "Tạo mã Apps Script (tự chép vào bộ nhớ)";
     }
 
@@ -76,6 +80,22 @@ public partial class BackupView : UserControl, IPage
         try { File.WriteAllText(file, script!); } catch { }
         await Copy(script!);
         AcctMsg.Text = $"Đã chép mã Apps Script bản mới (giữ nguyên mã kết nối; lưu ở {file}). Mở Apps Script của Google Sheet tài khoản, xóa mã cũ, dán, Lưu, rồi Triển khai › Quản lý triển khai › ✏ › Phiên bản mới › Triển khai. Đường dẫn giữ nguyên.";
+    }
+
+    private async void OnAcctMove(object? sender, RoutedEventArgs e)
+    {
+        var a = App.Services.Accounts;
+        var msg = a.Enabled
+            ? "Chép toàn bộ tài khoản từ Google Sheet tài khoản hiện tại sang Google Sheet điện thoại (giữ nguyên mã, các máy khác tự chuyển theo ở lần đăng nhập sau). "
+            : "Đưa tài khoản của máy này lên Google Sheet điện thoại để mọi máy dùng chung. ";
+        msg += "Cần Apps Script của Sheet điện thoại là bản mới (đã có phần tài khoản). Tiếp tục?";
+        if (!await Ui.Confirm(this, msg, "Dùng chung Sheet điện thoại", "Chuyển")) return;
+        AcctMsg.Text = "Đang chuyển sang Google Sheet điện thoại…";
+        AccountSyncService.MoveResult? r = null;
+        if (!await Ui.RunAsync(this, async () => r = await a.MoveToPhoneSheetAsync(App.Services.Phone))) { AcctMsg.Text = ""; ShowAccounts(); return; }
+        AcctMsg.Text = $"Đã chuyển: {r!.Users} tài khoản dùng chung qua Google Sheet điện thoại."
+            + (r.OldMarked ? " Các máy khác tự chuyển theo ở lần đăng nhập sau (máy đã cập nhật bản 1.104). Giữ Sheet tài khoản cũ vài ngày rồi mới xóa." : "");
+        ShowAccounts();
     }
 
     private async void OnAcctConnect(object? sender, RoutedEventArgs e)
