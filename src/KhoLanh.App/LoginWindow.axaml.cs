@@ -165,6 +165,7 @@ public partial class LoginWindow : Window
 
     private async Task DoLogin(bool auto)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();   // 1.100: thời gian đăng nhập (bấm → cửa sổ chính hiện)
         ErrorText.Text = "";
         var s = App.Services;
         try
@@ -191,6 +192,7 @@ public partial class LoginWindow : Window
             s.Remember.Save(user, pass, RememberBox.IsChecked == true, AutoBox.IsChecked == true);
             Succeeded = true;
             LoggedIn?.Invoke();
+            KhoLanh.Core.TroLy.PerfMonitor.Mark(KhoLanh.Core.TroLy.PerfMonitor.MarkDangNhap, sw.ElapsedMilliseconds);
         }
         catch (BusinessException ex)
         {

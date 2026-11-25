@@ -880,6 +880,41 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v200")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var st = new KhoLanh.Core.TroLy.PerfStore(Path.Combine(KhoLanh.App.App.DataFolder, KhoLanh.Core.TroLy.PerfStore.FileName));
+    var now = DateTime.Now; var rnd = new Random(7);
+    for (var i = 24 * 60; i >= 0; i -= 2)
+    {
+        var t = now.AddMinutes(-i); var h = t.Hour + t.Minute / 60.0;
+        var work = h is >= 7.5 and <= 17 ? 1.0 : 0.25;
+        var cpu = Math.Clamp(12 + 30 * work + 18 * Math.Sin(i / 37.0) * work + rnd.NextDouble() * 10 + (i is > 300 and < 330 ? 45 : 0), 2, 99);
+        st.Add(new KhoLanh.Core.TroLy.PerfStore.Sample(t, Math.Round(cpu, 1), Math.Round(cpu * 0.22 + rnd.NextDouble() * 2, 1), Math.Round(58 + 14 * work + rnd.NextDouble() * 4, 1),
+            Math.Round(380 + 120 * work, 1), 41.3, 237.9, i % 10 == 0 ? 8 + rnd.NextDouble() * 6 : null, i % 10 == 0 ? 85 + rnd.NextDouble() * 60 : null));
+    }
+    foreach (var (k, ms) in new[] { ("mo-app", 3400.0), ("mo-app", 2900), ("mo-app", 3100), ("dang-nhap", 1450), ("dang-nhap", 980), ("dong-bo-lan", 420), ("dong-bo-lan", 610), ("dong-bo-drive", 5200), ("dong-bo-dien-thoai", 2700) })
+        st.AddMark(k, ms, now.AddMinutes(-rnd.Next(30, 3000)));
+    KhoLanh.Core.TroLy.Perf.Record("Mở module", "Tồn kho An An", 4800, 0); KhoLanh.Core.TroLy.Perf.Record("Mở module", "Tồn kho An An", 3600, 0);
+    KhoLanh.Core.TroLy.Perf.Record("Đọc file Excel", "Tồn theo vị trí (chi tiết)", 9200, 55000);
+    KhoLanh.Core.TroLy.Perf.Record("Đồng bộ thư mục / Drive", "", 12600, 0);
+    KhoLanh.Core.TroLy.Perf.Record("Lưu trang Nhập liệu", "Kiểm kê TG1", 2300, 327);
+    main.Navigate("troly"); P(40);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Hiệu năng"));
+    tc.SelectedItem = tc.Items.OfType<TabItem>().First(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Hiệu năng"); P(40);
+    var hv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.HieuNangView>().First();
+    hv.Refresh(); P(20);
+    var kpis = hv.GetVisualDescendants().OfType<Border>().Count(b => b.Width == 250);
+    var chart = hv.GetVisualDescendants().OfType<KhoLanh.App.Controls.PerfChart>().First();
+    var bars = hv.GetVisualDescendants().OfType<TextBlock>().Count(t => t.Text?.Contains(" lần") == true);
+    Console.WriteLine($"[v200] thẻ số {kpis} · biểu đồ {chart.Bounds.Width:0}×{chart.Bounds.Height:0} · dòng có số lần {bars} · mẫu {st.Count()}");
+    Snap(main, "v200-hieu-nang");
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Dark, 1.0); hv.Refresh(); P(30); Snap(main, "v200-hieu-nang-toi");
+    KhoLanh.App.AppTheme.Apply(KhoLanh.App.AppTheme.Mode.Light, 1.0); P(10);
+    var ok = kpis == 4 && chart.Bounds.Height > 200 && bars >= 4;
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v200) — ĐẠT: " : "Xong (v200) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.99: SHOTS_ONLY=v199 — xuất file xong không tự mở: chỉ hiện thông báo "Đã lưu file" góc phải dưới (bấm = mở thư mục). Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v199")
 {

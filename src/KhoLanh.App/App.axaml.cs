@@ -49,6 +49,7 @@ public partial class App : Application
             try
             {
                 InitServices(dataFolder);
+                StartPerf();
                 // Bản mới đã tải ngầm từ lần trước → áp dụng ngay trước khi hiện cửa sổ (không cần cài lại).
                 AppUpdater.Cleanup();
                 AppUpdater.Warmup();
@@ -164,9 +165,23 @@ public partial class App : Application
         catch { /* kiểm lại thất bại: giữ phiên hiện tại */ }
     }
 
+    /// <summary>1.100: bộ đo hiệu năng chạy ngầm (mỗi phút; lưu hieu-nang.db trong thư mục dữ liệu, giữ 30 ngày).</summary>
+    public static KhoLanh.Core.TroLy.PerfMonitor? Perf;
+    private static bool _openMarked;
+    private static void StartPerf()
+    {
+        try { Perf ??= new KhoLanh.Core.TroLy.PerfMonitor(DataFolder, () => Services?.Lan.ServerAddress); Perf.Start(); }
+        catch { /* không đo được thì thôi */ }
+    }
+
     public static void ShowLogin(IClassicDesktopStyleApplicationLifetime desktop, bool afterLogout = false)
     {
         var login = new LoginWindow { AfterLogout = afterLogout };
+        if (!_openMarked)
+        {   // thời gian mở app = từ lúc tiến trình chạy tới khi cửa sổ đăng nhập hiện
+            _openMarked = true;
+            login.Opened += (_, _) => { try { KhoLanh.Core.TroLy.PerfMonitor.Mark(KhoLanh.Core.TroLy.PerfMonitor.MarkMoApp, (DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime).TotalMilliseconds); } catch { } };
+        }
         login.LoggedIn += () =>
         {
             var main = new MainWindow();
