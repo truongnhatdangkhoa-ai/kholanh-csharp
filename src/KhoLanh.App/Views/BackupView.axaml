@@ -33,7 +33,7 @@
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
-                    ToolTip.Tip="Chép Tồn kho An An, Tồn kho gửi, Tổng hợp, Báo cáo rã đông, Tồn theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê, Kết quả kháng sinh từ app cũ (app › database › engine › khokhanh.db). Chỉ đọc file cũ; dữ liệu các bảng đó ở app mới được thay bằng bản chép."/>
+                    ToolTip.Tip="Chép dữ liệu MỌI module của app cũ (Tồn kho, Lịch xuất, NXT Bột/Sốt, Phiếu xuất kho, Nhập liệu, Kiểm kê, Tổng hợp, Kháng sinh…) từ app › database › engine › khokhanh.db — chọn từng module trước khi chép. Chỉ đọc file cũ."/>
           </Grid>
         </Border>
       </StackPanel>

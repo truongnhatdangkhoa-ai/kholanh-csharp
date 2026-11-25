@@ -37,20 +37,31 @@ public class ModuleTests : IDisposable
                 CREATE TABLE cols(tab TEXT NOT NULL, key TEXT NOT NULL, title TEXT, width INTEGER, ord INTEGER, PRIMARY KEY(tab,key));
                 CREATE TABLE rows(tab TEXT NOT NULL, id TEXT NOT NULL, cells TEXT NOT NULL, meta TEXT NOT NULL, seq INTEGER NOT NULL, del INTEGER NOT NULL DEFAULT 0, born REAL NOT NULL, PRIMARY KEY(tab,id));
                 CREATE TABLE sheets(tab TEXT PRIMARY KEY, ord INTEGER NOT NULL DEFAULT 0);
-                INSERT INTO sheets VALUES('ton-kho-gui/DuLieuChinh',0),('nxt-bot-sot/X',0);
+                INSERT INTO sheets VALUES('ton-kho-gui/DuLieuChinh',0),('nxt-bot-sot/X',0),('lichxuat/LichXuatCont',0),('settings/CaiDat',0);
                 INSERT INTO cols VALUES('ton-kho-gui/DuLieuChinh','b','b',0,1),('ton-kho-gui/DuLieuChinh','a','a',0,0);
                 INSERT INTO rows VALUES('ton-kho-gui/DuLieuChinh','r2','{"a":2,"z":"thêm"}','{}',1,0,2.0),
                                        ('ton-kho-gui/DuLieuChinh','r1','{"b":"x","a":1}','{}',1,0,1.0),
                                        ('ton-kho-gui/DuLieuChinh','r3','{"a":3}','{}',1,1,0.5),
-                                       ('nxt-bot-sot/X','q','{"a":1}','{}',1,0,1.0);
+                                       ('nxt-bot-sot/X','q','{"a":1}','{}',1,0,1.0),
+                                       ('lichxuat/LichXuatCont','l1','{"ngay":"2026-11-25","lsx":"26.11.020"}','{}',1,0,1.0),
+                                       ('settings/CaiDat','s','{"token":"bi-mat"}','{}',1,0,1.0);
                 """;
             cmd.ExecuteNonQuery();
         }
         SqliteConnection.ClearAllPools();
+        // 1.79: xem trước + chọn module — chép MỌI module (trước chỉ vài module nên Lịch xuất / NXT không sang), bỏ cài đặt máy cũ
+        var g = _s.Legacy.Scan(old);
+        Assert.Equal(new[] { "ton-kho-gui", "nxt-bot-sot", "lichxuat" }, g.Select(x => x.Db));
+        Assert.Equal(2, g.First(x => x.Db == "ton-kho-gui").Rows);                       // bỏ dòng đã xóa
+        var only = _s.Legacy.Import(old, new[] { "lichxuat" });
+        Assert.Equal(1, only.Sheets);
+        Assert.Contains("26.11.020", _s.Lan.Read("lichxuat", "LichXuatCont"));
+        Assert.Empty(JsonNode.Parse(_s.Lan.Read("ton-kho-gui", "DuLieuChinh"))!.AsArray());  // không chọn → không chép
         var r = _s.Legacy.Import(old);
-        Assert.Equal(1, r.Sheets);
+        Assert.Equal(3, r.Sheets);
         var d = JsonNode.Parse(_s.Lan.Read("ton-kho-gui", "DuLieuChinh"))!;
         Assert.Equal("""[{"a":1,"b":"x"},{"a":2,"b":"","z":"thêm"}]""", d.ToJsonString(new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
-        Assert.Empty(JsonNode.Parse(_s.Lan.Read("nxt-bot-sot", "X"))!.AsArray());
+        Assert.Single(JsonNode.Parse(_s.Lan.Read("nxt-bot-sot", "X"))!.AsArray());       // NXT Bột/Sốt giờ cũng sang
+        Assert.Empty(JsonNode.Parse(_s.Lan.Read("settings", "CaiDat"))!.AsArray());       // cài đặt / mã của app cũ không chép
     }
 }
