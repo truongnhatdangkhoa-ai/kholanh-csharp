@@ -92,16 +92,49 @@ public sealed class SheetGrid : UserControl
     private int _checkCol = -1;
     /// <summary>Giá trị điền vào cột <see cref="CheckCol"/> khi tích dòng (dòng dữ liệu → chữ).</summary>
     public Func<int, string>? CheckFill { get; set; }
-    internal bool HasCheck => _checkCol >= 0 && _checkCol < Model.ColCount && !Model.ReadOnly && !Model.Columns[_checkCol].ReadOnly;
+    internal bool HasCheckCol => _checkCol >= 0 && _checkCol < Model.ColCount && !Model.ReadOnly && !Model.Columns[_checkCol].ReadOnly;
+    internal bool HasCheck => HasCheckCol || TickMode;
+
+    // 1.93: ô tích CHỌN DÒNG (không ghi vào dữ liệu) — mọi bảng sửa được tự có (bảng chỉ xem thì không), ô tiêu đề = tích hết.
+    // Dòng đã tích: dòng "Đã chọn" ở đáy bảng, chuột phải › Xóa / Chép dòng đã tích, View đọc CheckedRows (vd In chứng từ › ngày in).
+    /// <summary>Ô tích chọn dòng: null = tự (bảng sửa được thì có), true / false = ép bật / tắt. Bảng có <see cref="CheckCol"/> dùng cột đó.</summary>
+    public bool? RowChecks { get => _rowChecks; set { _rowChecks = value; _sumDirty = true; UpdateScroll(); Redraw(); } }
+    private bool? _rowChecks;
+    internal bool TickMode => _checkCol < 0 && (_rowChecks ?? !Model.ReadOnly) && Model.ColCount > 0;
+    internal HashSet<int> _ticks = new();
+    private (int Loads, int Rows) _tickVer = (-1, -1);
+    /// <summary>Đổi dòng đã tích (chế độ ô tích chọn dòng).</summary>
+    public event Action? ChecksChanged;
+    /// <summary>Các dòng dữ liệu đã tích (theo thứ tự dòng).</summary>
+    public IReadOnlyList<int> CheckedRows => Enumerable.Range(0, Model.RowCount).Where(IsChecked).ToList();
+    /// <summary>Nạp dữ liệu mới / thêm / xóa dòng → bỏ tích (chỉ số dòng đã đổi).</summary>
+    private void SyncTicks()
+    {
+        var v = (Model.Loads, Model.RowCount);
+        if (v == _tickVer) return;
+        _tickVer = v;
+        if (_ticks.Count > 0) { _ticks.Clear(); ChecksChanged?.Invoke(); }
+    }
+    /// <summary>Phím cách = tích: bảng có cột tích, hoặc bảng chỉ xem có ô tích (bảng sửa được: phím cách để gõ).</summary>
+    private bool SpaceTicks => HasCheckCol || (TickMode && Model.ReadOnly);
     internal bool IsChecked(int m)
     {
         if (m < 0 || m >= Model.RowCount) return false;
+        if (TickMode) { SyncTicks(); return _ticks.Contains(m); }
         var v = Model.Get(m, _checkCol).Trim();
         return v.Length > 0 && v != "0" && !(GridFilter.TryNumber(v, out var n) && n <= 0);
     }
     /// <summary>Tích / bỏ tích các dòng dữ liệu (1 lần hoàn tác).</summary>
     public void SetChecked(IEnumerable<int> rows, bool on)
     {
+        if (TickMode)
+        {
+            SyncTicks();
+            var ch = false;
+            foreach (var m in rows) if (m >= 0 && m < Model.RowCount && (on ? _ticks.Add(m) : _ticks.Remove(m))) ch = true;
+            if (ch) { _sumDirty = true; Redraw(); ChecksChanged?.Invoke(); }
+            return;
+        }
         if (!HasCheck) return;
         Model.SetCells(rows.Where(m => m >= 0 && m < Model.RowCount && IsChecked(m) != on)
             .Select(m => (m, _checkCol, on ? (CheckFill?.Invoke(m) ?? "1") : "")).ToList());
@@ -391,7 +424,8 @@ public sealed class SheetGrid : UserControl
             CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
-        g.CheckCol = CheckCol;
+        g.CheckCol = CheckCol; g.RowChecks = RowChecks; g._ticks = _ticks; g._tickVer = _tickVer;   // cửa sổ lớn dùng chung dòng đã tích
+        g.ChecksChanged += () => { _sumDirty = true; Redraw(); ChecksChanged?.Invoke(); };
         foreach (var (k, f) in _filters) g._filters[k] = new ColumnFilter { Text = f.Text, Allowed = f.Allowed is null ? null : new HashSet<string>(f.Allowed) };
         var title = LargeTitle ?? owner.Title ?? "Bảng";
         var close = new Button { Content = "Đóng", IsCancel = true, MinWidth = 90, HorizontalContentAlignment = HorizontalAlignment.Center };
@@ -556,7 +590,7 @@ public sealed class SheetGrid : UserControl
             case Key.Enter: Move((VR + (shift ? -1 : 1), Col), false); break;
             case Key.F2: BeginEdit(null); break;
             case Key.F11 when CanEnlarge: _ = OpenLarge(); break;
-            case Key.Space when HasCheck && !ctrl: ToggleRows(SelModelRows().Where(m => m < Model.RowCount).ToList()); break;
+            case Key.Space when SpaceTicks && !ctrl: ToggleRows(SelModelRows().Where(m => m < Model.RowCount).ToList()); break;
             case Key.Delete: ClearSelection(); break;
             case Key.Back: BeginEdit(""); break;
             case Key.A when ctrl: VA = 0; AnchorCol = 0; VR = Math.Max(0, VCount - 1); Col = Model.ColCount - 1; Redraw(); SelectionChanged?.Invoke(); break;
@@ -644,7 +678,7 @@ public sealed class SheetGrid : UserControl
     internal void OnText(string text)
     {
         if (string.IsNullOrEmpty(text) || char.IsControl(text[0])) return;
-        if (text == " " && HasCheck) return;   // phím cách = tích dòng
+        if (text == " " && SpaceTicks) return;   // phím cách = tích dòng
         BeginEdit(text);
     }
 
@@ -870,6 +904,16 @@ public sealed class SheetGrid : UserControl
         var sepBig = new Separator(); var sepFilter = new Separator(); var sepSum = new Separator();
         menu.Items.Insert(0, big); menu.Items.Insert(1, sepBig);
         menu.Items.Add(new Separator()); menu.Items.Add(selAll);
+        // 1.93: thao tác với dòng đã tích (ô tích chọn dòng)
+        var sepTick = new Separator();
+        var tDel = Item("Xóa dòng đã tích", () => { var rows = CheckedRows.OrderByDescending(m => m).ToList(); SetChecked(rows, false); foreach (var m in rows) Model.DeleteRows(m, m); });
+        var tCopy = Item("Chép dòng đã tích", async () =>
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is not { } cb) return;
+            await cb.SetTextAsync(string.Concat(CheckedRows.Select(m => Model.CopyText(new CellRange(m, 0, m, Model.ColCount - 1)))));
+        });
+        var tClear = Item("Bỏ tích tất cả", () => SetChecked(CheckedRows, false));
+        menu.Items.Add(sepTick); menu.Items.Add(tCopy); menu.Items.Add(tDel); menu.Items.Add(tClear);
         var fMenu = Item("Lọc cột này…", () => OpenFilterMenu(Col), "Alt+Down");
         var fClear = Item("Bỏ mọi bộ lọc", ClearFilters);
         menu.Items.Insert(2, fMenu); menu.Items.Insert(3, fClear); menu.Items.Insert(4, sepFilter);
@@ -879,6 +923,9 @@ public sealed class SheetGrid : UserControl
         menu.Opening += (_, _) =>
         {
             big.IsVisible = sepBig.IsVisible = CanEnlarge;
+            var nt = TickMode ? CheckedRows.Count : 0;
+            sepTick.IsVisible = tCopy.IsVisible = tClear.IsVisible = nt > 0; tDel.IsVisible = nt > 0 && !Model.ReadOnly;
+            tCopy.Header = $"Chép {nt:N0} dòng đã tích"; tDel.Header = $"Xóa {nt:N0} dòng đã tích";
             fMenu.IsVisible = fClear.IsVisible = sepFilter.IsVisible = _filterable;
             fClear.IsEnabled = _filterOn;
             fClear.Header = !_filterOn || _map is null ? "Bỏ mọi bộ lọc" : $"Bỏ mọi bộ lọc (đang hiện {_map.Count:N0} / {Model.RowCount:N0} dòng)";
