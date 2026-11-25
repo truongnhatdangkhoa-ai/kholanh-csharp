@@ -117,6 +117,14 @@ public sealed class SoDoService
         _labelCache.Clear();
     }
 
+    /// <summary>1.73 (K2): mã mọi vị trí theo Sơ đồ kho (cấu hình + vị trí có trong dữ liệu) — không xét quyền, cho Nhập liệu báo "vị trí lạ".
+    /// Rỗng khi chưa có cấu hình lẫn dữ liệu vị trí.</summary>
+    public HashSet<string> AllCodes()
+    {
+        if (!Loaded) LoadForRead();
+        return B.Pos.Select(p => p.Code).ToHashSet(StringComparer.Ordinal);
+    }
+
     public void Rebuild()
     {
         (Rows, LockDiff) = ApplyLocks(Live, Locks, Snaps);

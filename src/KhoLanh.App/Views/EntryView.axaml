@@ -25,10 +25,12 @@
           </Grid>
         </Border>
         <Border DockPanel.Dock="Bottom" Padding="8,5" Margin="0,6,0,0">
-          <Grid ColumnDefinitions="*,Auto">
+          <Grid ColumnDefinitions="*,Auto,Auto">
             <TextBlock x:Name="HintText" Classes="muted" FontSize="12" TextWrapping="Wrap"
                        Text="Gõ là sửa · F2 / nhấp đúp sửa tiếp · Enter / Tab di chuyển · Ctrl+C / Ctrl+V chép dán với Excel · Delete xóa · Ctrl+Z hoàn tác · Ctrl+D điền xuống · chuột phải để chèn / xóa dòng"/>
-            <TextBlock Grid.Column="1" x:Name="StatusText" FontSize="12" Margin="12,0,0,0"/>
+            <Button Grid.Column="1" x:Name="KkCheckButton" IsVisible="False" Padding="10,2" Margin="12,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    Click="OnKkNext" ToolTip.Tip="Kiểm tra trang kiểm kê (chỉ báo, không chặn lưu) — bấm để nhảy tới ô có vấn đề kế tiếp"/>
+            <TextBlock Grid.Column="2" x:Name="StatusText" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"/>
           </Grid>
         </Border>
         <Panel x:Name="GridHost">

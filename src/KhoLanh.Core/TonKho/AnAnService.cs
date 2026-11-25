@@ -163,6 +163,7 @@ public sealed class AnAnService
         D.NapId = id;
         ApplySheet(pv.Sheet, pv.Prepared);
         SaveLoadData();
+        MauFile.Luu(src, AnAnStore.Db, MauFile.Of(pv, UserName));   // 1.73: nhớ mẫu file
         _openNapId = id;
         var info = CurrentSnapshot() ?? new NapExcel.Snapshot(0, 0, 0, "");
         var log = NapExcel.ReadLog(src, AnAnStore.Db);
