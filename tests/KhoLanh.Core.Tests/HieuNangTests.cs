@@ -114,4 +114,33 @@ public class HieuNangTests : IDisposable
         Assert.Equal((0, 1, 2, 0), (PerfLevel.Net(20, true), PerfLevel.Net(300, true), PerfLevel.Net(null, true), PerfLevel.Net(null, true, expected: false)));
         Assert.Equal((0, 1), (PerfLevel.Net(300, false), PerfLevel.Net(900, false)));
     }
+
+    [Fact]
+    public void Canh_bao_hieu_nang_cpu_ram_o_day_cham_sau_cap_nhat()
+    {
+        var now = new DateTime(2026, 11, 25, 10, 0, 0);
+        var hot = Enumerable.Range(0, 40).Select(i => new PerfStore.Sample(now.AddMinutes(-i), 92, 10, 96, 1700, 20, 240, null, null)).ToList();
+        var f = PerfChecks.CheckMachine(hot, hot[0], now);
+        Assert.Contains(f, x => x.Title.StartsWith("CPU cao kéo dài") && x.Sev == "vang" && x.Detail.Contains("chương trình KHÁC"));
+        Assert.Contains(f, x => x.Title.StartsWith("RAM gần đầy") && x.Sev == "do");
+        Assert.Contains(f, x => x.Title.StartsWith("KhoLanh đang giữ"));
+        Assert.Contains(f, x => x.Title.StartsWith("Ổ chứa dữ liệu sắp đầy") && x.Sev == "vang");
+        var few = hot.Take(5).ToList();                                                            // 5 phút cao → chưa "kéo dài"
+        Assert.DoesNotContain(PerfChecks.CheckMachine(few, few[0], now), x => x.Title.StartsWith("CPU"));
+        var calm = Enumerable.Range(0, 40).Select(i => new PerfStore.Sample(now.AddMinutes(-i), 30, 5, 60, 400, 200, 500, null, null)).ToList();
+        Assert.Empty(PerfChecks.CheckMachine(calm, calm[0], now));
+
+        Perf.Entry E(string op, long ms, string ver) => new(now, op, "", ms, 0, "PC", ver);
+        var slow = new[] { E("Mở module", 3000, "1.99.0"), E("Mở module", 3200, "1.99.0"), E("Mở module", 7000, "1.100.0"), E("Mở module", 8000, "1.100.0"),
+            E("Đọc file Excel", 5000, "1.99.0"), E("Đọc file Excel", 5000, "1.99.0"), E("Đọc file Excel", 5500, "1.100.0"), E("Đọc file Excel", 5600, "1.100.0") };
+        var u = PerfChecks.CheckSlowAfterUpdate(slow);
+        Assert.Single(u);
+        Assert.Contains("1.100.0", u[0].Detail); Assert.Equal("Mở module", u[0].Mod);
+
+        var marks = new List<PerfStore.Mark>();
+        foreach (var d in new[] { 10, 12, 15, 20 }) marks.Add(new(now.AddDays(-d), PerfMonitor.MarkMoApp, 2500));
+        marks.Add(new(now.AddDays(-1), PerfMonitor.MarkMoApp, 6000)); marks.Add(new(now.AddHours(-2), PerfMonitor.MarkMoApp, 6500));
+        var t = PerfChecks.CheckStartupTrend(marks, now);
+        Assert.Single(t); Assert.StartsWith("Mở app chậm dần", t[0].Title);
+    }
 }
