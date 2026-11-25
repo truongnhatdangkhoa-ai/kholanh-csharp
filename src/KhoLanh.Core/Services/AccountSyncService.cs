@@ -497,6 +497,35 @@ public class AccountSyncService
         _settings.Set(KeyGhSig, sig);
     }
     private const string KeyGhSig = "gh_maymoi_sig";
+    /// <summary>
+    /// 1.112 (ảnh người dùng: máy khác đăng nhập Gmail sao lưu báo "client_secret is missing"): Client ID / secret OAuth Google dùng chung
+    /// (Gmail sao lưu, Lưu trữ cá nhân, Đăng nhập Google) đi qua Google Sheet chung — lệnh Code.gs có sẵn <c>pc.driveClientSet</c> / <c>pc.driveClientGet</c>
+    /// (Thuộc tính tập lệnh DRIVE_CLIENT_ID / DRIVE_CLIENT_SECRET, cần PC_TOKEN). Máy đã có secret → đẩy lên (khi đổi); máy thiếu → lấy về.
+    /// </summary>
+    public async Task SyncGoogleClientAsync(CancellationToken ct = default)
+    {
+        if (Phone is not { Enabled: true } ph) return;
+        var id = _settings.Get(KhoLanh.Core.LuuTru.LuuTruService.SetClientId).Trim();
+        var sec = Secret.Unprotect(_settings.Get(KhoLanh.Core.LuuTru.LuuTruService.SetClientSecret)).Trim();
+        if (sec.Length > 0)
+        {
+            if (id.Length == 0) id = GoogleSignIn.DefaultClientId;
+            var sig = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ph.Url + "|" + id + "|" + sec)))[..16];
+            if (_settings.Get(KeyGClientSig) == sig) return;
+            await ph.CallAsync("pc.driveClientSet", new JsonObject { ["clientId"] = id, ["clientSecret"] = sec }, 30, ct);
+            _settings.Set(KeyGClientSig, sig);
+            return;
+        }
+        var r = await ph.CallAsync("pc.driveClientGet", null, 30, ct);
+        string gid = (r["clientId"]?.ToString() ?? "").Trim(), gsec = (r["clientSecret"]?.ToString() ?? "").Trim();
+        if (gsec.Length == 0) return;
+        _settings.Set(KhoLanh.Core.LuuTru.LuuTruService.SetClientId, gid.Length > 0 ? gid : (id.Length > 0 ? id : GoogleSignIn.DefaultClientId));
+        _settings.Set(KhoLanh.Core.LuuTru.LuuTruService.SetClientSecret, Secret.Protect(gsec));
+    }
+    private const string KeyGClientSig = "gclient_sig";
+    /// <summary>Lượt đồng bộ Client OAuth ngầm gần nhất (để kiểm thử chờ).</summary>
+    internal Task GClientTask { get; private set; } = Task.CompletedTask;
+
     /// <summary>Lượt đẩy mã GitHub ngầm gần nhất (để kiểm thử chờ).</summary>
     internal Task GhTask { get; private set; } = Task.CompletedTask;
 
@@ -727,6 +756,7 @@ public class AccountSyncService
     public void AfterLogin(User u, string password)
     {
         _sessionKey = "";
+        GClientTask = Task.Run(async () => { try { await SyncGoogleClientAsync(); } catch { /* lần đăng nhập sau thử lại */ } });   // 1.112: mọi tài khoản
         if (!Enabled || u.Role != Roles.Admin) return;
         GhTask = Task.Run(async () => { try { await PushGithubForNewMachinesAsync(); } catch { /* lần đăng nhập sau thử lại */ } });
         try

@@ -135,6 +135,16 @@ public class CodeGsThatTests : IDisposable
         Assert.False(g.Session.CanManageAccounts);
         Assert.Throws<BusinessException>(() => g.Auth.CreateUser("khong", "x", "x1234567", Roles.Staff));
 
+        // 10. 1.112: Client OAuth Google (Gmail sao lưu / Lưu trữ cá nhân / Đăng nhập Google) — máy Quản trị có secret, máy khác tự lấy về qua Sheet chung.
+        new GoogleSignIn(a.Settings).SaveConfig(GoogleSignIn.DefaultClientId, "GOCSPX-bimat-dung-chung");
+        await LoginFlow.LoginAsync(a.Auth, a.Accounts, "admin", "matkhau1");
+        await a.Accounts.GClientTask;
+        var (h, _) = May("H", "");
+        await LoginFlow.LoginAsync(h.Auth, h.Accounts, "khoa", "moi12345");
+        await h.Accounts.GClientTask;
+        Assert.Equal("GOCSPX-bimat-dung-chung", h.DriveCaNhan.Client.Secret);
+        Assert.True(new GoogleSignIn(h.Settings).Ready);
+
         // Máy khác thấy cả các tài khoản vừa tạo.
         var (f, _) = May("F", "");
         Assert.Equal("tu_may_e", (await LoginFlow.LoginAsync(f.Auth, f.Accounts, "tu_may_e", "emay1234")).User.Username);

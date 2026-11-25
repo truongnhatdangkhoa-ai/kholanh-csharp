@@ -104,8 +104,13 @@ public sealed class LuuTruService
 
     // ------------------------------------------------------------------ đăng nhập Google
 
+    /// <summary>1.112: lấy Client ID / secret OAuth dùng chung từ Google Sheet chung khi máy này còn thiếu (gắn ở AppServices).</summary>
+    public Func<CancellationToken, Task>? EnsureClient { get; set; }
+
     public async Task<string> SignInAsync(Action<string> openBrowser, CancellationToken ct)
     {
+        if ((!Client.Ok || Client.Secret.Trim().Length == 0) && EnsureClient is { } ensure) { try { await ensure(ct); } catch { /* báo ở dưới */ } }
+        if (Client.Ok && Client.Secret.Trim().Length == 0) throw new BusinessException("Máy này chưa có Client secret Google (mã OAuth dùng chung cho Gmail sao lưu / Lưu trữ cá nhân / Đăng nhập Google). Ở máy đã nhập Client secret, mở app (đăng nhập bất kỳ) để app tự chia sẻ lên Google Sheet chung rồi thử lại ở máy này — hoặc nhập Client secret ngay trên máy này.");
         var s = Store;
         var cfg = LtConfig.Load(CfgFile(s));
         var res = await Google.SignInAsync(Client, openBrowser, ct, cfg.Email.Length > 0 ? cfg.Email : null);
