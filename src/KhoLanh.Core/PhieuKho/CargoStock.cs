@@ -82,6 +82,98 @@ public static class CargoStock
         return o.OrderBy(r => r.St == "ok" ? 1 : 0).ThenBy(r => r.Ma, StringComparer.Ordinal).ToList();
     }
 
+    // ------------------------------------------------------------------ 1.88: cảnh báo từng dòng (chỉ cảnh báo, không chặn lưu / xuất)
+
+    /// <summary>Cảnh báo của 1 dòng mục hàng kháng sinh. Bad = Size-quy cách sai (đỏ), còn lại = tồn kho (vàng).</summary>
+    public sealed record LineWarn(int Block, int Line, bool Bad, string Text);
+
+    private static string K21(string ma) { var k = Key(ma); return k.Length >= 21 ? k[..21] : ""; }
+
+    /// <summary>
+    /// Dò từng dòng đã gõ Size-quy cách (mục kháng sinh) với Tồn kho An An:
+    /// Size-quy cách sai / chưa ghép được mã (dòng chưa có kiện — dòng có kiện đã vào "Cần xử lý trước khi xuất") ·
+    /// mã (size + quy cách) không có trong tồn · có mã nhưng tồn = 0 · size còn hàng nhưng đặc tính (KQ kháng sinh) đó không còn ·
+    /// vượt tồn (cộng mọi dòng cùng mã của cả cont). Không có tồn (chưa nạp) → chỉ cảnh báo Size-quy cách.
+    /// </summary>
+    public static List<LineWarn> LineWarnings(CargoCfg cfg, CargoRec rec, CargoCore.KsIndex? ks, IReadOnlyList<Item> stock)
+    {
+        var o = new List<LineWarn>();
+        var res = new List<(int Bi, int Li, CargoCore.Resolved R)>();
+        for (var bi = 0; bi < rec.Blocks.Count; bi++)
+        {
+            var b = rec.Blocks[bi]; if (b.Loai == "khac") continue;
+            for (var li = 0; li < b.Lines.Count; li++)
+            {
+                var ln = b.Lines[li];
+                if (ln.Sn.Trim().Length == 0 && CargoCore.LineTotal(ln) <= 0) continue;
+                res.Add((bi, li, CargoCore.ResolveLine(cfg, b, ln, ks)));
+            }
+        }
+        foreach (var (bi, li, r) in res)
+        {
+            if (r.Kien > 0) continue;   // dòng có kiện: lỗi đã nằm trong Problems của CheckRec
+            if (r.SizeErrs > 0) o.Add(new LineWarn(bi, li, true, string.Join(" ", r.Errors.Take(r.SizeErrs))));
+            else if (r.Sn is not null && r.Ma.Length == 0) o.Add(new LineWarn(bi, li, true, $"Chưa ghép được mã hàng (loại {r.Loai}, quy cách {r.Sn.Digit}) — Size-quy cách / Loại không có trong danh mục."));
+        }
+        if (stock.Count == 0) return o;
+
+        var by21 = new Dictionary<string, List<Item>>();
+        foreach (var it in stock) { var k = K21(it.Ma); if (k.Length == 0) continue; if (!by21.TryGetValue(k, out var l)) by21[k] = l = new(); l.Add(it); }
+        var needMa = new Dictionary<string, double>(); var need21 = new Dictionary<string, double>();
+        foreach (var (_, _, r) in res)
+        {
+            if (r.Kien <= 0 || r.Ma.Length < 21) continue;
+            need21[K21(r.Ma)] = need21.GetValueOrDefault(K21(r.Ma)) + r.Kien;
+            if (r.Ma.Length > 21) needMa[Key(r.Ma)] = needMa.GetValueOrDefault(Key(r.Ma)) + r.Kien;
+        }
+        string N(double v) => v.ToString("#,0.##", System.Globalization.CultureInfo.CurrentCulture);
+        string DtOf(Item x)
+        {
+            if (x.Dt.Trim().Length > 0) return x.Dt.Trim();
+            var st = Split(x.Ma).Ks; return st > 0 ? (CargoCore.KsLabel(CargoCore.KsRule(st)) is { Length: > 0 } l ? l : "KQ " + st) : "(không đặc tính)";
+        }
+        string Lbl(string ma21)
+        {
+            var (_, _, pack4, _) = Split(ma21);
+            var qc = cfg.Qc.FirstOrDefault(q => q.Pack.Length > 0 && string.Equals(q.Pack, pack4, StringComparison.OrdinalIgnoreCase));
+            return (CargoCore.SizeLabel(ma21) is { Length: > 0 } sl ? sl : ma21.Substring(13, 4)) + (qc is not null && qc.Label.Length > 0 ? " " + qc.Label : " gói " + pack4);
+        }
+        string Near(string k21)
+        {
+            // còn hàng, chỉ khác 1 phần (loại hàng / size / quy cách) → gợi ý chỗ gõ sai
+            var a = new[] { k21[..13], k21.Substring(13, 4), k21.Substring(17, 4) };
+            var sim = by21.Where(kv => kv.Value.Sum(x => Math.Max(0, x.Ton)) > 0)
+                .Select(kv => (kv.Key, Ton: kv.Value.Sum(x => Math.Max(0, x.Ton)), D: new[] { kv.Key[..13], kv.Key.Substring(13, 4), kv.Key.Substring(17, 4) }.Where((p, i) => p != a[i]).Count()))
+                .Where(x => x.D == 1).OrderByDescending(x => x.Ton).Take(3).ToList();
+            return sim.Count == 0 ? "" : " — tồn còn: " + string.Join("; ", sim.Select(x => $"{Lbl(x.Key)} ({N(x.Ton)} kiện)"));
+        }
+        foreach (var (bi, li, r) in res)
+        {
+            if (r.SizeErrs > 0 || r.Ma.Length < 21) continue;
+            var k21 = K21(r.Ma); var lbl = r.Size + (r.Pack.Length > 0 ? " " + r.Pack : "");
+            if (!by21.TryGetValue(k21, out var grp)) { o.Add(new LineWarn(bi, li, false, $"{lbl}: mã {k21} không có trong Tồn kho An An" + Near(k21) + ".")); continue; }
+            var ton21 = grp.Sum(x => Math.Max(0, x.Ton));
+            if (ton21 <= 0) { o.Add(new LineWarn(bi, li, false, $"{lbl}: Tồn kho An An đã hết hàng (tồn 0)" + Near(k21) + ".")); continue; }
+            var kqStock = grp.Where(x => Key(x.Ma).Length > 21).ToList();
+            if (r.Ks is not null && r.Ma.Length > 21 && kqStock.Count > 0)
+            {
+                var full = Key(r.Ma); var it = kqStock.FirstOrDefault(x => Key(x.Ma) == full);
+                if (it is null || !(it.Ton > 0))
+                {
+                    var con = kqStock.Where(x => x.Ton > 0).OrderByDescending(x => x.Ton).Take(4).Select(x => $"{DtOf(x)} ({N(x.Ton)})");
+                    o.Add(new LineWarn(bi, li, false, $"{lbl}: đặc tính {r.KsText} không còn hàng — tồn còn: {string.Join("; ", con)}."));
+                    continue;
+                }
+                var need = needMa.GetValueOrDefault(full);
+                if (need > it.Ton + 1e-9) o.Add(new LineWarn(bi, li, false, $"{lbl} · {r.KsText}: vượt tồn — cả cont cần {N(need)} kiện, tồn An An còn {N(it.Ton)}."));
+                continue;
+            }
+            var n21 = need21.GetValueOrDefault(k21);
+            if (n21 > ton21 + 1e-9) o.Add(new LineWarn(bi, li, false, $"{lbl}: vượt tồn — cả cont cần {N(n21)} kiện, tồn An An còn {N(ton21)}."));
+        }
+        return o.OrderBy(w => w.Block).ThenBy(w => w.Line).ToList();
+    }
+
     // ------------------------------------------------------------------ 1.72: "Chọn từ tồn" — gộp tồn theo SIZE + ĐẶC TÍNH (+ quy cách), không tách lô
 
     /// <summary>

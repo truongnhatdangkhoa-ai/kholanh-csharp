@@ -313,6 +313,8 @@ public static class CargoCore
         public KsInfo? Ks;
         public bool ChuaCoKQ, Other;
         public SnParse? Sn;
+        /// <summary>Số lỗi đầu của <see cref="Errors"/> thuộc về Size-quy cách / Loại (trước phần lô, kết quả kháng sinh).</summary>
+        public int SizeErrs;
     }
 
     public static Resolved ResolveLine(CargoCfg cfg, CargoBlock block, CargoLine ln, KsIndex? ks)
@@ -326,11 +328,12 @@ public static class CargoCore
         }
         var first = cfg.Loai[0].Code;
         var sn = ParseSn(ln.Sn, ln.Loai, cfg); r.Loai = sn.Loai.Length > 0 ? sn.Loai : first;
-        if (!sn.Ok) { if (r.Kien > 0 || ln.Sn.Trim().Length > 0) r.Errors.Add(sn.Err); return r; }
+        if (!sn.Ok) { if (r.Kien > 0 || ln.Sn.Trim().Length > 0) r.Errors.Add(sn.Err); r.SizeErrs = r.Errors.Count; return r; }
         var must = LoaiTheoQuyCach(cfg, sn.Digit); var mism = must.Length > 0 && sn.Loai != must;
         if (mism) r.Errors.Add($"Quy cách {PackLabel(cfg, sn.Digit)} là hàng {must} nhưng Loại đang là {(sn.Loai.Length > 0 ? sn.Loai : first)} — đổi Loại sang {must} hoặc sửa quy cách.");
         r.Pack = PackLabel(cfg, sn.Digit);
         if (r.Pack.Length == 0) r.Errors.Add($"Số quy cách {sn.Digit} chưa có trong danh mục (thêm ở tab “Danh mục” → Size-quy cách).");
+        r.SizeErrs = r.Errors.Count;
         var lo = ParseLo(ln.Lo); KsInfo? k = null;
         if (ln.KsTay.Trim().Length > 0)
         {

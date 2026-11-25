@@ -564,6 +564,7 @@ public sealed class SheetGrid : UserControl
             case Key.Z when ctrl: Model.Undo(); break;
             case Key.Y when ctrl: Model.Redo(); break;
             case Key.D when ctrl: FillDownSelection(); break;
+            case Key.R when ctrl: FillRightSelection(); break;
             default: return;
         }
         e.Handled = true;
@@ -581,13 +582,34 @@ public sealed class SheetGrid : UserControl
         Model.SetCells(SelModelRows().Where(m => m < Model.RowCount).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c, ""))));
     }
 
+    /// <summary>Ctrl+D như Excel: chép ô trên cùng của vùng chọn xuống các ô còn lại (chọn 1 ô → lấy ô ngay trên).
+    /// 1.88: vùng chọn chỉ 1 dòng nhiều cột (vd hàng KIỆN / DÃY) → chép ô đầu tiên sang phải (= Ctrl+R).</summary>
     private void FillDownSelection()
     {
-        if (_map is null) { Model.FillDown(Selection); return; }
-        var s = VSel; if (s.Rows < 2) return;
+        if (Model.ReadOnly) return;
+        var s = VSel;
+        if (s.Rows < 2 && s.Cols > 1) { FillRightSelection(); return; }
+        if (s.Rows < 2)
+        {   // 1 ô: lấy giá trị ô ngay trên (Excel)
+            if (s.R1 < 1) return;
+            int up = ToModel(s.R1 - 1), me = ToModel(s.R1);
+            Model.SetCells(Enumerable.Range(s.C1, s.Cols).Where(c => Writable(c)).Select(c => (me, c, Model.Get(up, c))));
+            return;
+        }
         var src = ToModel(s.R1);
-        Model.SetCells(SelModelRows().Skip(1).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c, Model.Get(src, c)))));
+        Model.SetCells(SelModelRows().Skip(1).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Where(c => Writable(c)).Select(c => (m, c, Model.Get(src, c)))));
     }
+
+    /// <summary>Ctrl+R như Excel: chép ô trái nhất của vùng chọn sang phải (từng dòng); chọn 1 ô → lấy ô ngay bên trái.</summary>
+    private void FillRightSelection()
+    {
+        if (Model.ReadOnly) return;
+        var s = VSel;
+        int from = s.Cols > 1 ? s.C1 : s.C1 - 1, start = s.Cols > 1 ? s.C1 + 1 : s.C1;
+        if (from < 0) return;
+        Model.SetCells(SelModelRows().SelectMany(m => Enumerable.Range(start, s.C2 - start + 1).Where(c => Writable(c)).Select(c => (m, c, Model.Get(m, from)))));
+    }
+    private bool Writable(int c) => c >= 0 && c < Model.ColCount && !Model.Columns[c].ReadOnly;
 
     private void DeleteSelectedRows()
     {
@@ -834,6 +856,7 @@ public sealed class SheetGrid : UserControl
                 Item("Xóa nội dung", ClearSelection, "Delete"),
                 new Separator(),
                 Item("Điền xuống", FillDownSelection, "Ctrl+D"),
+                Item("Điền sang phải", FillRightSelection, "Ctrl+R"),
                 Item("Hoàn tác", () => Model.Undo(), "Ctrl+Z"),
                 Item("Làm lại", () => Model.Redo(), "Ctrl+Y"),
             },

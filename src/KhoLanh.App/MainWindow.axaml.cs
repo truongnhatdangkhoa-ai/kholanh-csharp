@@ -73,7 +73,17 @@ public partial class MainWindow : Window
         }, Avalonia.Interactivity.RoutingStrategies.Bubble);
         VersionItem.Header = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
         ToolTip.SetTip(LogoImage, "KHO LẠNH · " + s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho"));
-        PageHost.LayoutUpdated += (_, _) => { if (_pageTabs is { } t && !t.IsAttachedToVisualTree() && !_alignQueued) QueueAlign(); };
+        PageHost.LayoutUpdated += (_, _) =>
+        {
+            if (_alignQueued) return;
+            if (_pageTabs is { } t)
+            {
+                if (!t.IsAttachedToVisualTree()) QueueAlign();
+                // 1.88: dải tab đã kéo lên bị ẩn (vd mở khung soạn phiếu chiếm cả trang) → trang lại nằm sát đầu, đè lên tên trang → xếp lại
+                else if (!t.IsEffectivelyVisible) { _hiddenTabs = t; QueueAlign(); }
+            }
+            else if (_hiddenTabs is { } h && h.IsAttachedToVisualTree() && h.IsEffectivelyVisible) { _hiddenTabs = null; QueueAlign(); }   // hiện lại → kéo tab lên như cũ
+        };
 
         _menu = new()
         {
@@ -393,7 +403,7 @@ public partial class MainWindow : Window
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
         foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
-        QueueAlign();
+        _hiddenTabs = null; QueueAlign();
         if (!_goingBack && _current.Length > 0 && _current != key)
         {
             _back.Remove(key);                       // mở lại màn hình đã có trong lịch sử → không lặp
@@ -434,6 +444,7 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ 1.83: tab đầu trang chung hàng với tên trang
     private TabControl? _pageTabs;
+    private TabControl? _hiddenTabs;
     private bool _alignQueued;
     private int _alignRetry;
     // phần đầu trang (dòng trạng thái / nút chung) đã chuyển lên hàng tên trang — trả lại chỗ cũ khi đổi trang
