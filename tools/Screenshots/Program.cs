@@ -104,6 +104,17 @@ pickWin.Close();
 var first = new LoginWindow();
 first.Show();
 Snap(first, "01-thiet-lap-lan-dau");
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v206")
+{
+    // 1.106: máy mới = màn Đăng nhập thường (không mã); nút "Máy đầu tiên" mở form tạo Quản trị.
+    var okL = first.Heading.Text == "Đăng nhập" && !first.FullNamePanel.IsVisible && first.SetupButton.IsVisible;
+    Console.WriteLine($"[v206] máy mới: tiêu đề \"{first.Heading.Text}\", ô họ tên {(first.FullNamePanel.IsVisible ? "hiện" : "ẩn")}, nút máy đầu tiên {(first.SetupButton.IsVisible ? "có" : "không")}");
+    Snap(first, "v206-may-moi-dang-nhap");
+    first.SetupButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent)); Pump();
+    okL &= first.FullNamePanel.IsVisible && first.Heading.Text == "Thiết lập lần đầu";
+    Snap(first, "v206-may-dau-tien");
+    if (!okL) { Console.WriteLine("        HỎNG: màn đăng nhập máy mới"); Environment.ExitCode = 1; }
+}
 first.Close();
 
 // Dữ liệu mẫu
@@ -1246,6 +1257,22 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v184")
         Snap(hw, n);
     }
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v184) — ĐẠT: " : "Xong (v184) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v206")
+{
+    // 1.106: LAN theo tài khoản — Giữa các máy › Mạng LAN: không cài tay IP / mã, Quản trị bật / tắt máy chủ.
+    void Wait6(int n = 40) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.Settings.Set("acct_url", KhoLanh.Core.Services.PhoneWebApp.DefaultUrl); s.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("mau"));
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show();
+    w.Navigate("lan"); Wait6(60);
+    var lv = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().FirstOrDefault();
+    var ok6 = lv is not null && !lv.ManualCard.IsVisible && lv.ClaimButton.IsVisible;
+    Console.WriteLine($"[v206] Mạng LAN: cài tay {(lv?.ManualCard.IsVisible == true ? "hiện" : "ẩn")}, nút \"{lv?.ClaimButton.Content}\" {(lv?.ClaimButton.IsVisible == true ? "hiện" : "ẩn")}");
+    if (lv is not null) { lv.LanTabs.SelectedIndex = 1; Wait6(30); }
+    CheckUnderNav(w, "v206-lan-theo-tai-khoan"); Snap(w, "v206-lan-theo-tai-khoan");
+    s.Lan.Dispose();
+    if (!ok6 || Environment.ExitCode != 0) { Console.WriteLine("Xong (v206) — CHƯA ĐẠT"); Environment.Exit(1); }
+    Console.WriteLine("Xong (v206) — ĐẠT: " + outDir); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
 {

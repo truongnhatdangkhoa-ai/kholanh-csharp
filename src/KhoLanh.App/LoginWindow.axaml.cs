@@ -26,16 +26,7 @@ public partial class LoginWindow : Window
         foreach (var tb in new[] { SubHeading, ErrorText, DataPathText })
             tb.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) tb.IsVisible = !string.IsNullOrWhiteSpace(tb.Text); };
         ToolTip.SetTip(VersionText, "Dữ liệu: " + s.Db.FilePath);
-        if (_firstRun)
-        {
-            Heading.Text = "Thiết lập lần đầu";
-            SubHeading.Text = "Chưa có tài khoản nào. Tạo tài khoản Quản trị để bắt đầu dùng phần mềm.";
-            FullNamePanel.IsVisible = true;
-            ConfirmPanel.IsVisible = true;
-            LoginButton.Content = "Tạo tài khoản và vào phần mềm";
-            UserBox.Text = "admin";
-            JoinButton.IsVisible = true;
-        }
+        if (_firstRun) ShowNewMachine();
         else
         {
             // Tải danh sách tài khoản NGẦM ngay khi mở cửa sổ (song song kiểm tra cập nhật / gõ mật khẩu) — 1.59.
@@ -46,13 +37,13 @@ public partial class LoginWindow : Window
             Opened += async (_, _) => await StartupAsync();
             GoogleButton.IsVisible = s.Google.Ready;   // máy đã cài mã OAuth (Hệ thống › Tài khoản › Đăng nhập Google)
         }
-        Opened += (_, _) => (_firstRun ? FullNameBox : (UserBox.Text ?? "").Length > 0 ? PassBox : UserBox).Focus();
+        Opened += (_, _) => (_firstRun && _setupAdmin ? FullNameBox : (UserBox.Text ?? "").Length > 0 ? PassBox : UserBox).Focus();
         // Bộ cài cho máy mới (KhoLanh.exe + ket-noi.txt): tự nhận tài khoản từ Google Sheet, chỉ cần đăng nhập.
         if (_firstRun && AccountSyncService.BundledCode() is { } code)
         {
             Heading.Text = "Đăng nhập";
             SubHeading.Text = "Đang nhận danh sách tài khoản từ Google Sheet…";
-            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = JoinButton.IsVisible = false;
+            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = JoinButton.IsVisible = SetupButton.IsVisible = false;
             LoginButton.IsEnabled = false;
             LoginButton.Content = "Đăng nhập";
             UserBox.Text = "";
@@ -172,7 +163,19 @@ public partial class LoginWindow : Window
         {
             var user = UserBox.Text ?? "";
             var pass = PassBox.Text ?? "";
-            if (_firstRun)
+            if (_firstRun && !_setupAdmin)
+            {
+                // 1.106: máy mới — tên + mật khẩu được cấp → Google Sheet chung kiểm mật khẩu, trả mã để máy tự kết nối (không dán mã).
+                LoginButton.IsEnabled = false;
+                LoginButton.Content = "Đang kết nối Google Sheet chung…";
+                try { await s.Accounts.JoinByPasswordAsync(user, pass); }
+                finally { LoginButton.IsEnabled = true; LoginButton.Content = "Đăng nhập"; }
+                _firstRun = false;
+                JoinButton.IsVisible = SetupButton.IsVisible = false;
+                SubHeading.Text = "";
+                Result = await LoginFlow.LoginAsync(s.Auth, s.Accounts, user, pass);
+            }
+            else if (_firstRun)
             {
                 if (pass != (Pass2Box.Text ?? "")) throw new BusinessException("Hai lần nhập mật khẩu không khớp.");
                 s.Auth.CreateFirstAdmin(user, FullNameBox.Text ?? "", pass);
@@ -203,6 +206,38 @@ public partial class LoginWindow : Window
         }
     }
 
+    /// <summary>true = đang ở màn "Máy đầu tiên: tạo Quản trị"; false = máy mới đăng nhập bằng tài khoản được cấp (1.106).</summary>
+    private bool _setupAdmin;
+
+    /// <summary>1.106: máy mới mở app = màn Đăng nhập thường; tên + mật khẩu được cấp là đủ (app tự kết nối Google Sheet chung).</summary>
+    private void ShowNewMachine()
+    {
+        _setupAdmin = false;
+        Heading.Text = "Đăng nhập";
+        SubHeading.Text = "Máy mới: nhập tên đăng nhập và mật khẩu đã được cấp. App tự kết nối Google Sheet chung, không cần mã.";
+        FullNamePanel.IsVisible = ConfirmPanel.IsVisible = false;
+        LoginButton.Content = "Đăng nhập";
+        UserBox.Text = "";
+        JoinButton.Content = "Có mã kết nối KLKN1-? Dán mã…";
+        JoinButton.IsVisible = SetupButton.IsVisible = true;
+        SetupButton.Content = "Máy đầu tiên của công ty: tạo tài khoản Quản trị";
+    }
+
+    private void OnSetup(object? sender, RoutedEventArgs e)
+    {
+        if (_setupAdmin) { ShowNewMachine(); ErrorText.Text = ""; UserBox.Focus(); return; }
+        _setupAdmin = true;
+        ErrorText.Text = "";
+        Heading.Text = "Thiết lập lần đầu";
+        SubHeading.Text = "Chỉ dùng cho MÁY ĐẦU TIÊN của công ty: tạo tài khoản Quản trị để bắt đầu dùng phần mềm.";
+        FullNamePanel.IsVisible = ConfirmPanel.IsVisible = true;
+        LoginButton.Content = "Tạo tài khoản và vào phần mềm";
+        UserBox.Text = "admin";
+        JoinButton.IsVisible = false;
+        SetupButton.Content = "← Quay lại: máy mới đăng nhập bằng tài khoản được cấp";
+        FullNameBox.Focus();
+    }
+
     private async Task AutoJoin(string code)
     {
         try
@@ -218,13 +253,13 @@ public partial class LoginWindow : Window
         catch (BusinessException ex)
         {
             // Không nhận được (mất mạng…): cho thử lại, hoặc thiết lập tay như máy đầu tiên.
-            Heading.Text = "Thiết lập lần đầu";
-            SubHeading.Text = "Chưa nhận được tài khoản từ Google Sheet: " + ex.Message + " Kiểm tra Internet rồi bấm nút dưới để thử lại.";
+            Heading.Text = "Đăng nhập";
+            SubHeading.Text = "Chưa nhận được tài khoản từ Google Sheet: " + ex.Message + " Kiểm tra Internet rồi bấm nút dưới để thử lại, hoặc đăng nhập bằng tài khoản được cấp.";
             JoinButton.IsVisible = true;
             JoinButton.Content = "Thử nhận tài khoản lại";
             _retryCode = code;
         }
-        finally { LoginButton.IsEnabled = true; if (_firstRun) { FullNamePanel.IsVisible = ConfirmPanel.IsVisible = true; LoginButton.Content = "Tạo tài khoản và vào phần mềm"; } }
+        finally { LoginButton.IsEnabled = true; if (_firstRun) SetupButton.IsVisible = true; }
     }
 
     private string? _retryCode;
@@ -243,7 +278,7 @@ public partial class LoginWindow : Window
             _firstRun = false;
             Heading.Text = "Đăng nhập";
             SubHeading.Text = $"Đã nhận {r.Users} tài khoản từ Google Sheet. Nhập tài khoản được cấp để vào phần mềm.";
-            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = JoinButton.IsVisible = false;
+            FullNamePanel.IsVisible = ConfirmPanel.IsVisible = JoinButton.IsVisible = SetupButton.IsVisible = false;
             LoginButton.Content = "Đăng nhập";
             UserBox.Text = ""; PassBox.Text = "";
             UserBox.Focus();

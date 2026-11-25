@@ -17,7 +17,6 @@
             <DataGridTextColumn Header="Họ tên" Binding="{Binding FullName}" Width="*"/>
             <DataGridTextColumn Header="Vai trò" Binding="{Binding RoleLabel}" Width="170"/>
             <DataGridTextColumn Header="Email Google" Binding="{Binding GoogleEmail}" Width="220"/>
-            <DataGridTextColumn Header="Vai máy LAN" Binding="{Binding LanLabel}" Width="150"/>
             <DataGridTextColumn Header="Trạng thái" Binding="{Binding StatusLabel}" Width="120"/>
           </DataGrid.Columns>
         </DataGrid>
@@ -45,7 +44,7 @@
                 <ComboBoxItem Content="Quản trị" Tag="admin"/>
               </ComboBox>
             </StackPanel>
-            <StackPanel x:Name="LanPanel" Width="160" Spacing="3">
+            <StackPanel x:Name="LanPanel" Width="160" Spacing="3" IsVisible="False">
               <TextBlock x:Name="LanLabelText" Text="Vai máy LAN" Classes="label"/>
               <ComboBox x:Name="LanBox" HorizontalAlignment="Stretch">
                 <ComboBoxItem Content="Máy con" Tag="client"/>

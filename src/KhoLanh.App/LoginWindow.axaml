@@ -39,6 +39,8 @@
             ToolTip.Tip="Dùng tài khoản Google đang đăng nhập trên trình duyệt — Quản trị gán Gmail cho từng tài khoản ở Hệ thống › Tài khoản"/>
     <Button x:Name="JoinButton" Content="Dùng chung tài khoản với máy khác…" IsVisible="False"
             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnJoin"/>
+    <Button x:Name="SetupButton" Content="Máy đầu tiên của công ty: tạo tài khoản Quản trị" IsVisible="False" Classes="ghost"
+            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnSetup"/>
     <StackPanel x:Name="UpdatePanel" IsVisible="False" Spacing="4" Margin="0,6,0,0">
       <TextBlock x:Name="UpdText" Classes="muted" TextWrapping="Wrap"/>
       <ProgressBar x:Name="UpdBar" Minimum="0" Maximum="100" Height="5" IsIndeterminate="True"/>
