@@ -349,6 +349,42 @@ public sealed partial class PhoneSyncService
     }
     private static double N0(JsonNode? v) { var s = S(v).Replace(",", ""); return s.Length == 0 ? 0 : double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) && double.IsFinite(d) ? d : 0; }
     private static bool Off(JsonObject s) => s["deducted"] is JsonValue v && v.TryGetValue<bool>(out var b) && !b;
+    // ---- 1.72 (B6): phiếu PC lưu / sửa / hủy → đẩy riêng 2 bảng phiếu PC lên điện thoại ngay (không chờ lượt đồng bộ định kỳ)
+    /// <summary>Sheet chứa phiếu xuất PC (nguồn của <see cref="CollectPcSlips"/>).</summary>
+    public static readonly (string Db, string Sheet)[] PcSlipSheets =
+        { ("ton-kho-an-an", "PhieuXuat"), ("ton-vi-tri-an-an", "ViTriPhieuDienThoai"), ("ton-kho-an-an", "ViTriBotPhieuDienThoai"), ("ton-kho-gui", "PhieuXuat"), ("ton-kho-gui", "PhieuXuatItems") };
+    public static bool IsPcSlipWrite(string db, IEnumerable<string> sheets) => sheets.Any(sh => PcSlipSheets.Any(x => x.Db == db && x.Sheet == sh));
+    public string LastSlipPush { get; private set; } = "";
+    /// <summary>Đẩy riêng PhieuXuat_PC / PhieuXuatItems_PC. Lỗi (mất mạng…) → ghi lại, lượt đồng bộ định kỳ sẽ đẩy lại cả bảng.</summary>
+    public async Task<int> PushPcSlipsAsync(CancellationToken ct = default)
+    {
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đẩy phiếu PC lên điện thoại");
+        var (ph, it, _) = CollectPcSlips();
+        await W.WriteTableAsync(Tab.PxPc, ph.Count > 0 ? PcHeaders : Array.Empty<string>(), ph.Select(r => (IDictionary<string, JsonNode?>)r), ct);
+        await W.WriteTableAsync(Tab.PxPci, it.Count > 0 ? PcItemHeaders : Array.Empty<string>(), it.Select(r => (IDictionary<string, JsonNode?>)r), ct);
+        LastSlipPush = $"Đã đẩy {ph.Count} phiếu PC lên điện thoại lúc {DateTime.Now:HH:mm:ss}";
+        return ph.Count;
+    }
+    private CancellationTokenSource? _slipCts;
+    private bool _slipHooked;
+    /// <summary>Bật đẩy phiếu ngay: nghe ghi CSDL module, gom 3 giây rồi đẩy (chỉ khi đã kết nối điện thoại và tài khoản được xem các bảng tồn).</summary>
+    public void StartInstantSlipPush()
+    {
+        if (_slipHooked) return; _slipHooked = true;
+        _s.Modules.Written += (db, sheets) =>
+        {
+            if (!W.Enabled || !IsPcSlipWrite(db, sheets) || !Pick.Any(t => t is "M01" or "M01VT" or "M01VTB" or "M02" or "M03")) return;
+            _slipCts?.Cancel();
+            var cts = _slipCts = new CancellationTokenSource();
+            _ = Task.Run(async () =>
+            {
+                try { await Task.Delay(3000, cts.Token); await PushPcSlipsAsync(cts.Token); }
+                catch (OperationCanceledException) { }
+                catch (Exception e) { LastSlipPush = $"Chưa đẩy được phiếu lúc {DateTime.Now:HH:mm:ss} ({e.Message}) — sẽ đẩy lại ở lượt đồng bộ sau"; }
+            });
+        };
+    }
+
     public (List<Dictionary<string, JsonNode?>> Phieu, List<Dictionary<string, JsonNode?>> Items, List<string> Errors) CollectPcSlips()
     {
         var sources = new List<(string K, Func<List<PcSlip>> F)>
@@ -411,6 +447,7 @@ public sealed partial class PhoneSyncService
     /// <summary>Đẩy các bảng chọn (mặc định: bảng đã tick) + phiếu PC + Meta (ghi SAU CÙNG).</summary>
     public async Task<PushResult> PushAsync(IEnumerable<string>? tables = null, CancellationToken ct = default)
     {
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đẩy lên điện thoại", tables is null ? "mọi bảng đã chọn" : string.Join(", ", tables));
         var pick = (tables ?? Pick).Where(SyncTables.Contains).Where(CanTable).Distinct().ToList();
         var res = new PushResult(pick, new(), new());
         if (pick.Count == 0) return res;
@@ -533,6 +570,7 @@ public sealed partial class PhoneSyncService
     /// <summary>Kéo phiếu rồi đẩy lại bảng đã tick + bảng vừa nhận phiếu (điện thoại thấy tồn mới ngay).</summary>
     public async Task<(PullResult Pull, PushResult Push)> SyncAsync(bool pull = true, CancellationToken ct = default)
     {
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đồng bộ điện thoại", pull ? "kéo + đẩy" : "đẩy");
         var p = pull ? await PullAsync(ct) : new PullResult(0, 0, new(), new(), new());
         if (pull)
         {

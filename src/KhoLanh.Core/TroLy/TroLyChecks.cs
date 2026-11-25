@@ -54,6 +54,7 @@ public static class TroLyChecks
         ["dong-bo"] = new[] { "src/KhoLanh.Core/Lan/LanService.cs", "src/KhoLanh.Core/Lan/SheetMerge.cs", "src/KhoLanh.Core/Lan/DriveSync.cs" },
         ["csdl"] = new[] { "src/KhoLanh.Core/Data/Database.cs", "src/KhoLanh.Core/Modules/ModuleBridge.cs" },
         ["loi-app"] = new[] { "logs/loi.log (chi tiết lỗi)", "src/KhoLanh.App/Views/<màn hình phát sinh lỗi>" },
+        ["cham"] = new[] { "logs/cham.log (thao tác > 2 giây)", "src/KhoLanh.Core/TroLy/Perf.cs" },
         ["nghiep-vu"] = new[] { "src/KhoLanh.Core/PhieuXuat/PxhtService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
         ["ma-hang"] = new[] { "src/KhoLanh.Core/TonKho/NapExcel.cs (nạp Load Data)", "src/KhoLanh.Core/ViTri/ViTriService.cs › Import", "src/KhoLanh.Core/TongHop/TongHopService.cs", "file Excel nguồn" },
         ["cheo"] = new[] { "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
@@ -372,6 +373,20 @@ public static class TroLyChecks
             e.Stack.Length > 0 ? new[] { e.Stack } : null, Hash("loi-app|" + e.Mod + "|" + e.Type + "|" + e.Msg));
         return f;
     }).ToList();
+
+    /// <summary>1.72 (A4): thao tác chạy quá 2 giây trong 7 ngày (logs/cham.log) — mỗi thao tác 1 phát hiện, ≥ 10 giây hoặc lặp ≥ 5 lần = vàng.</summary>
+    public static List<Finding> CheckSlow(IEnumerable<Perf.Entry> list)
+    {
+        var res = new List<Finding>();
+        foreach (var g in Perf.Summary(list).Take(12))
+        {
+            var sev = g.MaxMs >= 10_000 || g.Count >= 5 ? "vang" : "xanh";
+            res.Add(Mk("cham", sev, g.Op, $"Thao tác chậm: {g.Op}" + (g.Detail.Length > 0 ? " · " + Short(g.Detail, 60) : ""),
+                $"{g.Count} lần trong 7 ngày · chậm nhất {g.MaxMs / 1000.0:0.0} giây · trung bình {g.AvgMs / 1000.0:0.0} giây · lần cuối {g.Last:dd/MM/yyyy HH:mm}",
+                null, Hash("cham|" + g.Op + "|" + g.Detail)));
+        }
+        return res;
+    }
 
     public static string Short(string s, int n) => s.Length <= n ? s : s[..n] + "…";
 }

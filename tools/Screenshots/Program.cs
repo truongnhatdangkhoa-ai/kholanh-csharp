@@ -22,7 +22,7 @@ AppBuilder.Configure<App>()
     .SetupWithoutStarting();
 
 var data = Path.Combine(Path.GetTempPath(), "kholanh-demo-" + Guid.NewGuid().ToString("N")[..6]);
-App.InitServices(data);
+App.InitServices(data); KhoLanh.App.MainWindow.CacheEnabled = false;   // ảnh chụp cần màn hình mới mỗi lần mở
 var s = App.Services;
 
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
@@ -112,7 +112,7 @@ login.Close();
 s.Settings.Set("lan_addrs", "192.168.1.10:47820");
 s.Settings.Set("lan_name", "MAY-CHU-KHO");
 KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleServer, null, 47000 + Random.Shared.Next(900));
-App.InitServices(data);
+App.InitServices(data); KhoLanh.App.MainWindow.CacheEnabled = false;
 s = App.Services;
 s.Auth.Login("admin", "matkhau1");
 s.Lan.Speed = 0.01; s.Lan.TickMs = 20;
@@ -669,6 +669,21 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bc")
     var bd = KhoLanh.Core.TonKho.BaoCaoTongTon.CanhBaoXuat(s.AnAn.D);
     Console.WriteLine($"[BC] cảnh báo xuất Excel: {bd.Count} · " + string.Join(" | ", bd));
     s.Lan.Dispose(); Console.WriteLine("Xong (bc): " + outDir); return;
+}
+// 1.72 (A3): đo thời gian mở module — lần đầu (dựng mới) và lần mở lại (giữ màn hình), không đổi dữ liệu giữa 2 lần
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
+{
+    KhoLanh.App.MainWindow.CacheEnabled = true; main.ClearPageCache();
+    var keysP = new[] { "lx", "m1", "m2", "m7", "m8", "m6", "m3sk", "m13", "m9", "m3dm", "m4" };
+    var firstMs = new Dictionary<string, double>();
+    foreach (var k in keysP) { var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Pump(); firstMs[k] = sw.Elapsed.TotalMilliseconds; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); } }
+    foreach (var k in keysP)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Pump(); var again = sw.Elapsed.TotalMilliseconds;
+        Console.WriteLine($"[PERF] {k,-6} mở lần đầu {firstMs[k],7:0} ms · mở lại {again,6:0} ms");
+        for (var i = 0; i < 5; i++) { Thread.Sleep(20); Pump(); }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {

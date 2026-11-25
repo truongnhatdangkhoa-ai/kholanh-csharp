@@ -15,6 +15,9 @@ public interface IPage
     string Subtitle => "";
 }
 
+/// <summary>1.72: màn hình KHÔNG giữ lại khi chuyển menu (luôn dựng mới khi mở).</summary>
+public interface IKeepFresh { }
+
 public partial class MainWindow : Window
 {
     public event Action? LoggedOut;
@@ -132,6 +135,7 @@ public partial class MainWindow : Window
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
         s.Lan.Changed += OnLanChanged;
+        try { s.PhoneSync.StartInstantSlipPush(); } catch { /* 1.72 (B6): đẩy phiếu PC lên điện thoại ngay khi lưu */ }
         Closed += (_, _) => s.Lan.Changed -= OnLanChanged;
         _lanTimer.Tick += (_, _) => ShowLan();
         _lanTimer.Start();
@@ -329,7 +333,15 @@ public partial class MainWindow : Window
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
         if (!Allowed(item)) return;
-        page ??= item.Create();
+        // 1.72 (A3): giữ màn hình đã mở trong phiên — quay lại không dựng lại nếu dữ liệu chưa đổi (mốc CurrentSeq của CSDL module)
+        var seq = DataSeq();
+        if (page is null && CacheEnabled && _cache.TryGetValue(key, out var c0) && c0.Seq == seq) { page = c0.Page; _cache[key] = (c0.Page, seq, DateTime.Now); }
+        if (page is null)
+        {
+            using (var m = KhoLanh.Core.TroLy.Perf.Measure("Mở module", item.Label)) page = item.Create();
+            if (page is not IKeepFresh) _cache[key] = (page, seq, DateTime.Now);
+            while (_cache.Count > CacheMax) _cache.Remove(_cache.OrderBy(x => x.Value.At).First().Key);   // bỏ màn hình lâu không mở
+        }
         PageHost.IsVisible = true;
         PageHost.Content = page;
         // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
@@ -343,6 +355,16 @@ public partial class MainWindow : Window
     }
 
     public void SetSubtitle(string text) => PageSubtitle.Text = text;
+
+    // ------------------------------------------------------------------ 1.72 (A3): giữ màn hình đã mở
+    private const int CacheMax = 8;
+    /// <summary>Tắt giữ màn hình (công cụ chụp ảnh cần màn hình mới mỗi lần mở).</summary>
+    public static bool CacheEnabled { get; set; } = true;
+    private readonly Dictionary<string, (Control Page, long Seq, DateTime At)> _cache = new();
+    /// <summary>Mốc dữ liệu module (tăng mỗi lần có sheet đổi, kể cả nhận từ LAN / Drive) — đổi thì dựng lại màn hình khi mở.</summary>
+    private static long DataSeq() { try { return App.Services.Modules.CurrentSeq(); } catch { return -1; } }
+    /// <summary>Bỏ các màn hình đã giữ (đổi giao diện / cỡ chữ, đổi quyền…).</summary>
+    public void ClearPageCache() => _cache.Clear();
 
     private async void OnChangePassword(object? sender, RoutedEventArgs e)
     {
@@ -412,7 +434,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Dựng lại màn hình đang mở (để các ô vẽ tay lấy màu mới).</summary>
-    private void ReloadPage() { if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
+    private void ReloadPage() { _cache.Clear(); if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
 
     private void Zoom(double delta)
     {

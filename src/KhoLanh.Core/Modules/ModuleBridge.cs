@@ -112,8 +112,12 @@ public class ModuleStore
         }
         SetSeq(c, tx, seq);
         tx.Commit();
+        try { Written?.Invoke(dbKey, result.Keys.ToList()); } catch { /* người nghe lỗi không ảnh hưởng ghi */ }
         return result;
     }
+
+    /// <summary>1.72 (B6): vừa ghi xong 1 database module trên MÁY NÀY (db_key, các sheet) — để đẩy phiếu lên điện thoại ngay.</summary>
+    public event Action<string, IReadOnlyList<string>>? Written;
 
     /// <summary>Máy bản sao: đặt đúng nội dung + số phiên bản nhận từ máy chủ.</summary>
     public void SetExact(string dbKey, string sheet, string? data, long version)

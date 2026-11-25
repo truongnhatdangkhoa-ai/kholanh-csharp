@@ -134,6 +134,7 @@ public sealed class TroLyService
             f.AddRange(CheckBackup(files, liveRows, probe, now));
         });
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));
+        StepRun("Thao tác chậm", () => f.AddRange(CheckSlow(Perf.Read(_dataDir, now))));
 
         var st = LoadState();
         var fin = Sort(f);

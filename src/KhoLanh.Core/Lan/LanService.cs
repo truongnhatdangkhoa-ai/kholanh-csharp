@@ -800,6 +800,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     private async Task Pull(CancellationToken ct, bool full)
     {
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đồng bộ LAN", full ? "tải lại toàn bộ" : "nhận thay đổi");
         if (_server is not { } n) return;
         _lastPull = DateTime.Now;
         var since = full ? 0 : long.TryParse(_settings.Get("lan_last_seq"), out var s) ? s : 0;

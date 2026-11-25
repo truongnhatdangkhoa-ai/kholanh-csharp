@@ -92,7 +92,7 @@ public sealed class PhoneSyncView : UserControl, IPage
     private void Paint()
     {
         var ph = App.Services.Phone;
-        _conn.Text = ph.Enabled ? $"📱 Đã kết nối: {Short(ph.Url)}" : "📱 Chưa kết nối — bấm \"Kết nối điện thoại…\" (chỉ cần mã PC_TOKEN — đường dẫn Web App đã cài sẵn).";
+        _conn.Text = ph.Enabled ? $"📱 Đã kết nối: {Short(ph.Url)}" + (App.Services.PhoneSync.LastSlipPush is { Length: > 0 } lp ? " · " + lp : "") : "📱 Chưa kết nối — bấm \"Kết nối điện thoại…\" (chỉ cần mã PC_TOKEN — đường dẫn Web App đã cài sẵn).";
         _conn.Foreground = ph.Enabled ? B("#1B5E20") : B("#8A5300");
         var i = Array.FindIndex(PhoneAutoSync.Choices, c => c.Min == PhoneAutoSync.Minutes); _auto.SelectedIndex = Math.Max(0, i);
         _tables.Children.Clear();

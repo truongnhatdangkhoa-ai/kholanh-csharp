@@ -235,6 +235,7 @@ public sealed class EntryService
     public PageInfo Save(PageInfo p, IReadOnlyList<GridColumn> columns, IReadOnlyList<IReadOnlyList<string>> rows)
     {
         Require(Perm.Edit);
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Lưu trang Nhập liệu", p.Name); _perf.Rows = rows.Count;
         var fx = EntryRules.RecomputeAll(columns, rows);
         if (fx.Count > 0)
         {

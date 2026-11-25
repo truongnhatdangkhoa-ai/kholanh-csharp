@@ -104,6 +104,7 @@ public partial class App : Application
     public static void InitServices(string dataFolder)
     {
         DataFolder = dataFolder;
+        KhoLanh.Core.TroLy.Perf.DataDir = dataFolder;   // 1.72: ghi thao tác chậm vào logs/cham.log
         var db = Path.Combine(DataFolder, "khodata.db");
         Services = new AppServices(db);
         // Bộ cài máy mới có mã LAN → máy này làm máy con (dùng chung dữ liệu với máy chủ).
