@@ -66,6 +66,12 @@ public sealed class RaDongView : UserControl, IPage
     private List<string> _sRowDay = new();
     private List<string[]> _sSnap = new();
     private string _selYear = "", _selMonth = "0";
+    // 1.92: ngày thu gọn / mở ở tab Số liệu đã lưu (bấm dòng tổng ngày). Mặc định chỉ ngày mới nhất mở; đang tìm / lọc thì mở hết.
+    private readonly Dictionary<string, bool> _dayOpen = new();
+    private string _newestDay = "";
+    private bool _openAll, _qOpen;
+    private bool DayOpen(string d) => _openAll || _qOpen || (_dayOpen.TryGetValue(d, out var o) ? o : d == _newestDay);
+    private bool IsDayHead(int r) => r >= 0 && r < _sRowItem.Count && _sRowItem[r] is null;
     private readonly HashSet<string> _imgSel = new();   // ngày đã tích để gộp ảnh (như app cũ: ô vuông đầu dòng ngày)
     private readonly Button _imgBtn, _imgClear;
     private const int PickCol = 6;                       // cột ẩn rộng 0 gắn ô tích đầu dòng
@@ -79,6 +85,10 @@ public sealed class RaDongView : UserControl, IPage
         _gm.Changed += () => { if (!_loading) OnGroupGridChanged(); };
         _rm.Changed += () => { if (!_loading) OnRawGridChanged(); };
         _sm.Changed += () => { if (!_loading) OnSavedGridChanged(); };
+        _sGrid.Sortable = false;   // giữ thứ tự ngày (mới → cũ) + dòng tổng ngày đứng trên
+        _sGrid.TotalsKeepRow = r => IsDayHead(r) && !DayOpen(_sRowDay[r]);   // ngày đang thu: cộng số của dòng tổng ngày
+        _sGrid.RowClicked = r => { if (IsDayHead(r)) { var d = _sRowDay[r]; _dayOpen[d] = !DayOpen(d); ShowBang3(); } };
+        _sGrid.FilterChanged += () => { if (_openAll == _sGrid.IsFiltered) return; _openAll = _sGrid.IsFiltered; ShowBang3(); };
         _undoBtn = Btn("↶ Hoàn tác", async () => await Act(() => { var l = Svc.UndoBang2(); if (l is not null) _status.Text = "Đã hoàn tác: " + l; }, b2: true));
         _undoUpd = Btn("↶ Hoàn tác cập nhật", async () => await UndoUpdate());
         _delMonth = Btn("Xóa tháng", async () => await DeleteMonth());
@@ -590,14 +600,18 @@ public sealed class RaDongView : UserControl, IPage
             new("pk", "", 0),   // ô tích gộp ảnh (không lưu, chỉ trong phiên)
         };
         var rows = new List<string[]>(); _sRowItem = new(); _sRowDay = new();
+        _newestDay = days.Count > 0 ? days[0].Key : "";
+        _qOpen = q.Length > 0;
         foreach (var d in days)
         {
             var rs = d.ToList();
+            var open = DayOpen(d.Key);
             var last = rs.OrderByDescending(r => r.At, StringComparer.Ordinal).First();
             var sl = RaDongService.SlSum(rs);
             var pk = _imgSel.Contains(d.Key) ? "1" : "";
-            rows.Add(new[] { $"▾ {RaDongService.Dmy(d.Key)}", $"{rs.Count} dòng", "", sl is null ? "" : Inv(sl.Value), Inv(RaDongService.DaySum(rs)), last.Src + (last.At.Length > 0 ? " · " + At(last.At) : ""), pk });
+            rows.Add(new[] { $"{(open ? "▾" : "▸")} {RaDongService.Dmy(d.Key)}", $"{rs.Count} dòng", "", sl is null ? "" : Inv(sl.Value), Inv(RaDongService.DaySum(rs)), last.Src + (last.At.Length > 0 ? " · " + At(last.At) : ""), pk });
             _sRowItem.Add(null); _sRowDay.Add(d.Key);
+            if (!open) continue;
             foreach (var r in rs)
             {
                 rows.Add(new[] { RaDongService.Dmy(r.Date), r.Ma, r.Size, r.Sl is null ? "" : Inv(r.Sl.Value), Inv(r.Net), r.Edited ? (r.Src == "Nhập tay" ? "nhập tay" : "đã sửa tay " + At(r.EditAt)) : "", pk });
