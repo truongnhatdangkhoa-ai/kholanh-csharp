@@ -15,6 +15,20 @@ public partial class UsersView : UserControl, IPage
     public UsersView()
     {
         InitializeComponent();
+        // 1.97: cột Vai trò = biểu tượng tài khoản theo quyền + nhãn (như thanh menu)
+        var ri = List.Columns.ToList().FindIndex(c => c.Header as string == "Vai trò");
+        if (ri >= 0)
+        {
+            List.Columns[ri] = new DataGridTemplateColumn
+            {
+                Header = "Vai trò", Width = new DataGridLength(190),
+                CellTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<Row>((row, _) => row is null ? new TextBlock() : new StackPanel
+                {
+                    Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 7, Margin = new Avalonia.Thickness(8, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+                    Children = { KhoLanh.App.Controls.RoleBadge.Avatar(row.U.Role, 22), new TextBlock { Text = row.RoleLabel, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
+                }),
+            };
+        }
         BuildPermGrid();
         Tabs.Items.Add(BuildPhoneTab());   // 1.76: quyền điện thoại riêng
         Load();
