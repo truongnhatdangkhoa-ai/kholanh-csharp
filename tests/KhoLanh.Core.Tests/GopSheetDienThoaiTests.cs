@@ -54,7 +54,12 @@ public class GopSheetDienThoaiTests : IDisposable
             var ok = u is not null && u.GetValueOrDefault("dang_dung") == "1" && u.GetValueOrDefault("muoi", "").Length > 0
                 && System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(mk, B(u["muoi"]), 100_000, System.Security.Cryptography.HashAlgorithmName.SHA256, 32)
                    .SequenceEqual(B(u["mat_khau_bam"]));
-            if (!ok) { Sai[k] = Sai.GetValueOrDefault(k) + 1; return new() { ["ok"] = false, ["error"] = "Sai tên đăng nhập hoặc mật khẩu (hoặc tài khoản đã bị khóa)." }; }
+            if (!ok)
+            {
+                Sai[k] = Sai.GetValueOrDefault(k) + 1;
+                if (u is null) return new() { ["ok"] = false, ["chuaCo"] = true, ["error"] = $"Tài khoản \"{ten}\" chưa có trên Google Sheet chung." };
+                return new() { ["ok"] = false, ["error"] = "Sai tên đăng nhập hoặc mật khẩu (hoặc tài khoản đã bị khóa / tắt trên Sheet)." };
+            }
             return new() { ["ok"] = true, ["ten"] = u!["username"], ["maDoc"] = Acct.Token, ["pcToken"] = PcToken, ["gh"] = Gh };
         }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
@@ -164,8 +169,10 @@ public class GopSheetDienThoaiTests : IDisposable
         var (b, bPhone) = Machine("B", phoneLinked: false);
         b.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);   // giả lập link cài sẵn (DefaultUrl) trỏ vào Web App giả
         Assert.False(b.Accounts.Enabled);
-        var e = await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.JoinByPasswordAsync("nv1", "sai-mat-khau"));
+        BusinessException e = await Assert.ThrowsAsync<JoinException>(() => b.Accounts.JoinByPasswordAsync("nv1", "sai-mat-khau"));
         Assert.Contains("Sai tên đăng nhập", e.Message);
+        e = await Assert.ThrowsAsync<JoinException>(() => b.Accounts.JoinByPasswordAsync("khoa", "matkhau2"));
+        Assert.Contains("chưa có trên Google Sheet chung", e.Message);
         Assert.False(b.Auth.HasAnyUser());
         var n = await b.Accounts.JoinByPasswordAsync("NV1", "matkhau2");
         Assert.Equal(2, n);
@@ -181,8 +188,8 @@ public class GopSheetDienThoaiTests : IDisposable
         // Dò mật khẩu: sai 5 lần → khóa, kể cả mật khẩu đúng.
         var (c, _) = Machine("C", phoneLinked: false);
         c.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
-        for (var i = 0; i < 5; i++) await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "doan" + i));
-        e = await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "matkhau1"));
+        for (var i = 0; i < 5; i++) await Assert.ThrowsAnyAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "doan" + i));
+        e = await Assert.ThrowsAnyAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "matkhau1"));
         Assert.Contains("tạm khóa", e.Message);
         Assert.False(c.Auth.HasAnyUser());
 
@@ -190,8 +197,60 @@ public class GopSheetDienThoaiTests : IDisposable
         _phone.OldScript = true;
         var (d, _) = Machine("D", phoneLinked: false);
         d.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
-        e = await Assert.ThrowsAsync<BusinessException>(() => d.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
+        e = await Assert.ThrowsAnyAsync<BusinessException>(() => d.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
         Assert.Equal(AccountSyncService.OldJoinScriptMsg, e.Message);
+    }
+
+    /// <summary>
+    /// 1.107 (người dùng: "đăng nhập máy khác không được" — máy kia đã có tài khoản riêng nên chỉ báo "Sai tên đăng nhập hoặc mật khẩu"):
+    /// máy đang dùng tài khoản riêng đăng nhập bằng tài khoản dùng chung → tự hỏi Sheet chung rồi kết nối; tài khoản chưa lên Sheet / Sheet chưa bật → báo rõ.
+    /// </summary>
+    [Fact]
+    public async Task May_da_co_tai_khoan_rieng_dang_nhap_tai_khoan_chung_tu_ket_noi()
+    {
+        // Sheet chung chưa bật tài khoản dùng chung (máy chính chưa đưa tài khoản lên) → báo rõ, không chỉ "sai mật khẩu".
+        var (x, _) = Machine("X", phoneLinked: false);
+        x.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
+        x.Auth.CreateFirstAdmin("admin", "Quản trị máy X", "rieng123");
+        var e = await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(x.Auth, x.Accounts, "khoa", "matkhau3"));
+        Assert.Contains("chưa có tài khoản \"khoa\"", e.Message);
+        Assert.Contains("chưa có danh sách tài khoản", e.Message);
+        Assert.False(x.Accounts.Enabled);
+
+        // Máy chính bật dùng chung, có tài khoản khoa.
+        var (a, phone) = Machine("A");
+        a.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
+        a.Auth.Login("admin", "matkhau1");
+        await a.Accounts.MoveToPhoneSheetAsync(phone);
+        a.Auth.CreateUser("khoa", "Khoa", "matkhau3", Roles.Admin);
+
+        // Máy X (tài khoản riêng) đăng nhập khoa → hỏi Sheet chung, đúng mật khẩu → tự kết nối và vào luôn.
+        var r = await LoginFlow.LoginAsync(x.Auth, x.Accounts, "khoa", "matkhau3");
+        Assert.Equal("khoa", r.User.Username);
+        Assert.Contains("tự kết nối", r.Note);
+        Assert.True(x.Accounts.Enabled);
+        Assert.Equal(PcToken, x.Phone.Token);
+        x.Auth.Logout();
+        // Mật khẩu riêng cũ của admin trên máy X đã thay bằng mật khẩu dùng chung.
+        Assert.Equal("admin", (await LoginFlow.LoginAsync(x.Auth, x.Accounts, "admin", "matkhau1")).User.Username);
+        x.Auth.Logout();
+
+        // Máy đã nối, tài khoản chỉ có ở máy khác (chưa lên Sheet) → báo cách đưa lên Sheet.
+        e = await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(x.Auth, x.Accounts, "chuaco", "abc123"));
+        Assert.Contains("chưa có trên Google Sheet chung", e.Message);
+        Assert.Contains("Đồng bộ tài khoản ngay", e.Message);
+        // Có tài khoản, sai mật khẩu → câu cũ.
+        e = await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(x.Auth, x.Accounts, "khoa", "sai"));
+        Assert.Equal("Sai tên đăng nhập hoặc mật khẩu.", e.Message);
+
+        // Máy riêng khác: tài khoản chưa lên Sheet → báo "chưa có trên Google Sheet chung", vẫn dùng tài khoản riêng.
+        var (y, _) = Machine("Y", phoneLinked: false);
+        y.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
+        y.Auth.CreateFirstAdmin("chu", "Chủ máy Y", "rieng123");
+        e = await Assert.ThrowsAsync<JoinException>(() => LoginFlow.LoginAsync(y.Auth, y.Accounts, "khach", "abc123"));
+        Assert.Contains("chưa có trên Google Sheet chung", e.Message);
+        Assert.False(y.Accounts.Enabled);
+        Assert.Equal("chu", (await LoginFlow.LoginAsync(y.Auth, y.Accounts, "chu", "rieng123")).User.Username);
     }
 
     /// <summary>Code.gs (dnKiemMk_, PBKDF2 JavaScript thuần) và app PC (AuthService.Verify) cho cùng kết quả — đáp án sinh bằng chính Code.gs (Data/dangnhap-maymoi-golden.gen.js).</summary>

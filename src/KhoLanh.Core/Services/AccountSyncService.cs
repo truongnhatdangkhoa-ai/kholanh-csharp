@@ -329,6 +329,16 @@ public class AccountSyncService
     // ---------------- 1.106: máy mới chỉ cần đăng nhập ----------------
 
     /// <summary>Câu báo khi Code.gs trên Google chưa có lệnh đăng nhập máy mới (pcDangNhap).</summary>
+    /// <summary>1.107: Sheet chung chưa bật tài khoản dùng chung (máy chính chưa đưa tài khoản lên Sheet).</summary>
+    public const string NotEnabledMsg =
+        "Google Sheet chung chưa có danh sách tài khoản — máy đã tạo tài khoản (Quản trị) chưa đưa tài khoản lên Sheet. Ở máy đó: Hệ thống › Kết nối, "
+        + "thẻ \"Google Sheet chung\" phải hiện \"Đã kết nối\" (chưa thì bấm \"Bật tài khoản dùng chung\" / \"Kết nối…\").";
+
+    /// <summary>1.107: tài khoản có ở máy khác nhưng chưa lên Sheet chung.</summary>
+    public static string NotOnSheetMsg(string user) =>
+        $"Tài khoản \"{user}\" chưa có trên Google Sheet chung. Ở máy đã tạo tài khoản này (Quản trị): Hệ thống › Kết nối › thẻ \"Google Sheet chung\" "
+        + "phải hiện \"Đã kết nối\", rồi bấm ⋯ Thêm › \"Đồng bộ tài khoản ngay\" (hoặc mở Hệ thống › Tài khoản, sửa tài khoản rồi Lưu) — xong đăng nhập lại ở máy này.";
+
     public const string OldJoinScriptMsg =
         "Google Sheet chung chưa cập nhật Code.gs mới (cần cho máy mới đăng nhập). Ở máy Quản trị: dán Code.gs mới vào Apps Script rồi Triển khai phiên bản mới; "
         + "trong lúc chờ, dán mã KLKN1-… (Hệ thống › Kết nối › Chép mã cho máy khác).";
@@ -338,16 +348,21 @@ public class AccountSyncService
     /// chính mã băm PBKDF2 ở tab TaiKhoan, đúng thì trả mã đọc tài khoản + PC_TOKEN (+ mã GitHub) → máy tự kết nối như khi dán mã KLKN1. Sai nhiều lần
     /// Web App tạm khóa (chống dò mật khẩu). Chỉ dùng khi máy CHƯA có tài khoản nào (máy đang dùng riêng thì kết nối ở Hệ thống › Kết nối).
     /// </summary>
-    public async Task<int> JoinByPasswordAsync(string user, string pass, CancellationToken ct = default)
+    public async Task<int> JoinByPasswordAsync(string user, string pass, CancellationToken ct = default, bool allowExisting = false)
     {
-        if (HasAnyUser()) throw new BusinessException("Máy này đã có tài khoản riêng — kết nối ở Hệ thống › Kết nối.");
+        if (!allowExisting && HasAnyUser()) throw new BusinessException("Máy này đã có tài khoản riêng — kết nối ở Hệ thống › Kết nối.");
         if (user.Trim().Length == 0 || pass.Length == 0) throw new BusinessException("Nhập tên đăng nhập và mật khẩu.");
         var url = PhoneUrl;
         var r = await PostRawAsync(url, new JsonObject { ["action"] = "pcDangNhap", ["ten"] = user.Trim(), ["matKhau"] = pass }, ct);
         if (r["ok"]?.GetValue<bool>() != true)
         {
-            if (LooksLikePhoneScript(r) || (r["error"]?.ToString() ?? "").Contains("Không có chức năng")) throw new BusinessException(OldJoinScriptMsg);
-            throw new BusinessException(r["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
+            var err = r["error"]?.ToString() ?? "";
+            if (LooksLikePhoneScript(r) || err.Contains("Không có chức năng")) throw new JoinException(JoinException.OldScript, OldJoinScriptMsg);
+            if (r["chuaBat"]?.GetValue<bool>() == true) throw new JoinException(JoinException.NotEnabled, NotEnabledMsg);
+            if (r["chuaCo"]?.GetValue<bool>() == true) throw new JoinException(JoinException.NoAccount, NotOnSheetMsg(user.Trim()));
+            if (r["khoa"]?.GetValue<bool>() == true) throw new JoinException(JoinException.Locked, "Google Sheet chung: " + err);
+            if (err.StartsWith("Sai tên đăng nhập")) throw new JoinException(JoinException.WrongPassword, "Google Sheet chung báo: " + err);
+            throw new JoinException(JoinException.Other, err.Length > 0 ? "Google Sheet chung báo lỗi: " + err : "Web App báo lỗi không rõ.");
         }
         string token = r["maDoc"]?.ToString() ?? "", pcTok = r["pcToken"]?.ToString() ?? "", gh = r["gh"]?.ToString() ?? "";
         if (token.Length == 0) throw new BusinessException("Web App không trả mã tài khoản — kiểm tra Code.gs.");
@@ -840,4 +855,11 @@ public class AccountSyncService
             return o;
         }
     }
+}
+
+/// <summary>1.107: lý do máy không đăng nhập được qua Google Sheet chung (để màn đăng nhập báo đúng, không chỉ "sai mật khẩu").</summary>
+public sealed class JoinException(string kind, string message) : BusinessException(message)
+{
+    public const string OldScript = "old", NotEnabled = "off", NoAccount = "missing", WrongPassword = "wrong", Locked = "locked", Other = "other";
+    public string Kind { get; } = kind;
 }
