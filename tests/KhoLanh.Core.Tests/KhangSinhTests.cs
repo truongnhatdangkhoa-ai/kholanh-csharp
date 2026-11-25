@@ -182,7 +182,7 @@ public class KhangSinhTests : IDisposable
         }
         SqliteConnection.ClearAllPools();
         var imp = _s.Legacy.Import(old);
-        Assert.Equal(4, imp.Sheets);   // KhangSinh, CauHinh, ViTri, TonChot (không lấy GopKKTrangThai)
+        Assert.Equal(5, imp.Sheets);   // KhangSinh, CauHinh, ViTri, TonChot, GopKKTrangThai (1.79: chép mọi bảng của module — bảng app mới không dùng thì vô hại)
         Assert.DoesNotContain("batch", _s.Lan.Read("tong-hop", "KhangSinh"));   // không ghi vào Tổng hợp
         Assert.Contains("TG1.A.01.1.1", _s.Lan.Read("ton-vi-tri-an-an", "ViTri"));
 

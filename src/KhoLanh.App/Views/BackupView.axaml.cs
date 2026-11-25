@@ -229,17 +229,34 @@ public partial class BackupView : UserControl, IPage
         AppUpdater.ExitForUpdate();
     }
 
+    /// <summary>
+    /// Chép dữ liệu app cũ (1.79: MỌI module có trong khokhanh.db, chọn từng module): xem trước số bảng / dòng từng module,
+    /// tích chọn (mặc định tất cả), module được chọn ở app mới được thay bằng bản chép. Chỉ đọc file cũ.
+    /// </summary>
     private async void OnImportLegacy(object? sender, RoutedEventArgs e)
     {
         var path = await Ui.OpenFile(this, "Chọn database app cũ (khokhanh.db)", "db", "Database Kho Lạnh cũ");
         if (path is null) return;
-        if (!await Ui.Confirm(this,
-                "Chép dữ liệu các module dùng chung (Tồn kho An An, Tồn kho gửi, Tổng hợp, Rã đông, Tồn kho theo vị trí, Sơ đồ kho, Kiểm kê, Kết quả kháng sinh) từ file này vào app mới?\n\n" +
-                "Các bảng đó trong app mới sẽ được thay bằng bản chép. App cũ không bị thay đổi.\n" +
-                "Nên đóng app cũ trước khi chép để lấy bản mới nhất.", "Chép dữ liệu từ app cũ", "Chép")) return;
+        List<KhoLanh.Core.Modules.LegacyImporter.Group> groups = new();
+        if (!await Ui.Run(this, () => groups = App.Services.Legacy.Scan(path))) return;
+        if (groups.Count == 0) { await Ui.Message(this, "Database app cũ chưa có dữ liệu module nào."); return; }
+        var boxes = groups.Select(g => new CheckBox { IsChecked = true, Content = $"{g.Label} — {g.Sheets} bảng, {g.Rows:#,0} dòng", Tag = g.Db }).ToList();
+        var all = new CheckBox { Content = "Chọn tất cả", IsChecked = true, FontWeight = Avalonia.Media.FontWeight.SemiBold };
+        all.IsCheckedChanged += (_, _) => { foreach (var b in boxes) b.IsChecked = all.IsChecked == true; };
+        var list = new StackPanel { Spacing = 4 }; foreach (var b in boxes) list.Children.Add(b);
+        var ok = new Button { Content = "Chép", Classes = { "primary" }, IsDefault = true }; var cancel = new Button { Content = "Đóng", IsCancel = true };
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(new TextBlock { Text = "Chọn module cần chép từ app cũ. Bảng của module được chọn trong app mới sẽ được THAY bằng bản chép (app cũ không bị thay đổi). Nên đóng app cũ trước để lấy bản mới nhất; nếu app mới đã nhập dữ liệu mới thì sao lưu trước (Hệ thống › Dữ liệu & sao lưu).", TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep" });
+        body.Children.Add(all); body.Children.Add(new ScrollViewer { Content = list, MaxHeight = 360 });
+        body.Children.Add(Ui.Buttons(cancel, ok));
+        var w = Ui.Dialog("Chép dữ liệu từ app cũ", body, 520); var go = false;
+        ok.Click += (_, _) => { go = true; w.Close(); }; cancel.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        var pick = boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag!).ToList();
+        if (!go || pick.Count == 0) return;
         KhoLanh.Core.Modules.LegacyImporter.Result? r = null;
-        if (await Ui.Run(this, () => r = App.Services.Legacy.Import(path)) && r is not null)
-            await Ui.Message(this, $"Đã chép {r.Sheets} bảng, {r.Rows:#,0} dòng.\n\nMở lại các module để thấy dữ liệu.");
+        if (await Ui.Run(this, () => r = App.Services.Legacy.Import(path, pick)) && r is not null)
+            await Ui.Message(this, $"Đã chép {pick.Count} module · {r.Sheets} bảng · {r.Rows:#,0} dòng.\n\nMở lại các module để thấy dữ liệu (Lịch xuất ở Tổng quan).");
     }
 
     // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------

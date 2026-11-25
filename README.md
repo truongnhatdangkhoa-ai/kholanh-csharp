@@ -67,7 +67,7 @@ App đang được dựng lại theo từng module (từ bản 1.7.0 đã gỡ c
 
 Menu ngang 2 tầng (1.54): tầng trên là logo, ô **Tìm nhanh** (Ctrl + K), trạng thái LAN / Trợ lý / cập nhật và tài khoản; tầng dưới là các nhóm Tổng quan · Nhập liệu · Phiếu xuất kho · Tồn kho · Chức năng · Chứng từ · Công cụ · Hệ thống (nhóm nhiều module bấm ra danh sách, chỉ có tên module; số việc cần xử lý cạnh tên). Tiêu đề trang ghi "Nhóm › Module".
 
-**Lấy dữ liệu app cũ:** Hệ thống › Cài đặt máy › Chép dữ liệu từ app cũ › chọn `khokhanh.db` của app cũ. Chép cả Tổng hợp, Rã đông, Tồn kho theo vị trí, Sơ đồ kho, bản chụp tồn Kiểm kê và Kết quả kháng sinh.
+**Lấy dữ liệu app cũ:** Hệ thống › Cài đặt máy › Chép dữ liệu từ app cũ › chọn `khokhanh.db` của app cũ (thư mục app cũ › `app\database\engine\khokhanh.db`) → tích các module cần chép (mặc định tất cả: Tồn kho An An / gửi / theo vị trí, Sơ đồ kho, NXT Bột/Sốt · Vị Trí Bột, Lịch xuất nhập, Phiếu xuất kho · List sản xuất, Nhập liệu, Đối chiếu kiểm kê, Số liệu cuối kỳ, In chứng từ kho, Tổng hợp · Danh mục, Kết quả kháng sinh, Báo cáo rã đông, Container 3D…). Module được chọn sẽ được thay bằng bản chép; cài đặt máy của app cũ không chép.
 
 **Thêm module mới:** thêm `NavItem` trong `MainWindow.axaml.cs` và mục quyền trong `Perm.Items` (`src/KhoLanh.Core/Models/Permissions.cs`). Dữ liệu module đọc / ghi qua `ISheetSource` (`App.Services.Lan`) để tự đồng bộ LAN; thêm tên database vào `ModuleBridge.PermKey`.
 
