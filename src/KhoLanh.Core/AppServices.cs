@@ -116,7 +116,7 @@ public class AppServices
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
         Auth.PasswordSeen = PhoneAccounts.RememberPassword;   // 1.76: tài khoản PC dùng chung trên điện thoại
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
-        TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
+        TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".") { Settings = Settings };
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>

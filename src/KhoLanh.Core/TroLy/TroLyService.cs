@@ -37,6 +37,8 @@ public sealed class TroLyService
     private bool _running;
 
     public Func<DateTime> Now { get; set; } = () => DateTime.Now;
+    /// <summary>Cài đặt của máy — để kiểm tra cấu hình kết nối (null = bỏ bước đó).</summary>
+    public SettingsService? Settings { get; set; }
     public string Version { get; set; } = UpdateService.Current.ToString(3);
 
     public TroLyService(Database db, Func<ISheetSource> src, Session session, AuditService audit, BackupService backup, Func<LanService> lan, DriveSyncService? drive, string dataDir)
@@ -134,6 +136,7 @@ public sealed class TroLyService
             f.AddRange(CheckBackup(files, liveRows, probe, now));
         });
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));
+        StepRun("Cấu hình kết nối", () => f.AddRange(CheckConfig(CollectConfig())));
         StepRun("Thao tác chậm", () => f.AddRange(CheckSlow(Perf.Read(_dataDir, now))));
 
         var st = LoadState();
@@ -455,6 +458,27 @@ public sealed class TroLyService
         {
             info.DriveEnabled = true; info.DriveStatus = dr.Status;
             if (dr.LastOk != default) info.DriveOkAgeMin = (now - dr.LastOk).TotalMinutes;
+        }
+        return info;
+    }
+
+    /// <summary>Cấu hình kết nối của máy: Tài khoản dùng chung, Web App điện thoại, Gmail lịch xuất, thư mục Drive dùng chung (CHỈ ĐỌC).</summary>
+    internal ConfigInfo? CollectConfig()
+    {
+        if (Settings is not { } st) return null;
+        var info = new ConfigInfo
+        {
+            AcctEnabled = st.Get("acct_url").Length > 0 && st.Get("acct_token").Length > 0,
+            AcctError = ConnErrorLog.Read(st, ConnErrorLog.Acct),
+        };
+        var phone = new PhoneWebApp(st);
+        info.PhoneEnabled = phone.Enabled; info.PhoneError = phone.LastError;
+        var mail = KhoLanh.Core.LichXuat.MailConfig.Load(st);
+        info.MailReady = mail.Ready; info.MailEmail = mail.Email; info.MailStatus = st.Get("lx_mail_status");
+        if (_drive is { Enabled: true } dr)
+        {
+            info.DriveEnabled = true; info.DriveDir = dr.Dir;
+            try { info.DriveDirExists = Directory.Exists(dr.Dir); } catch { info.DriveDirExists = false; }
         }
         return info;
     }

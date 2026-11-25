@@ -41,11 +41,29 @@ public sealed class PhoneWebApp
         if (url.Trim().Length == 0) url = DefaultUrl;
         if (CheckUrl(url) is { } err) throw new BusinessException(err);
         if (token.Trim().Length == 0) throw new BusinessException("Chưa nhập mã PC_TOKEN.");
-        _settings.Set(KeyUrl, url.Trim()); _settings.Set(KeyToken, Secret.Protect(token.Trim()));
+        _settings.Set(KeyUrl, url.Trim()); _settings.Set(KeyToken, Secret.Protect(token.Trim())); ConnErrorLog.Clear(_settings, ConnErrorLog.Phone);
     }
-    public void Clear() { _settings.Set(KeyUrl, ""); _settings.Set(KeyToken, ""); }
+    public void Clear() { _settings.Set(KeyUrl, ""); _settings.Set(KeyToken, ""); ConnErrorLog.Clear(_settings, ConnErrorLog.Phone); }
+
+    /// <summary>Lỗi gọi Web App gần nhất (null = lần gần nhất gọi được) — Trợ lý hệ thống đọc để báo PC_TOKEN sai / đồng bộ lỗi.</summary>
+    public ConnErrorLog.Entry? LastError => ConnErrorLog.Read(_settings, ConnErrorLog.Phone);
 
     public async Task<JsonObject> CallAsync(string action, JsonObject? payload = null, int timeoutSec = 120, CancellationToken ct = default)
+    {
+        try
+        {
+            var o = await CallCoreAsync(action, payload, timeoutSec, ct);
+            ConnErrorLog.Clear(_settings, ConnErrorLog.Phone);
+            return o;
+        }
+        catch (AuthException e) { ConnErrorLog.Note(_settings, ConnErrorLog.Phone, e.Message, ConnErrorLog.KindAuth); throw new BusinessException(e.Message); }
+        catch (Exception e) when (!ct.IsCancellationRequested) { ConnErrorLog.Note(_settings, ConnErrorLog.Phone, e.Message); throw; }
+    }
+
+    /// <summary>Web App từ chối mã (code "AUTH") — chuyển thành BusinessException sau khi ghi nhật ký.</summary>
+    private sealed class AuthException(string msg) : Exception(msg);
+
+    private async Task<JsonObject> CallCoreAsync(string action, JsonObject? payload, int timeoutSec, CancellationToken ct)
     {
         if (Url.Length == 0) throw new BusinessException("Chưa nhập đường dẫn Web App (Vị Trí Bột › 📱 Điện thoại › Kết nối).");
         if (Token.Length == 0) throw new BusinessException("Chưa nhập mã PC_TOKEN.");
@@ -65,6 +83,8 @@ public sealed class PhoneWebApp
             if (o["ok"]?.GetValue<bool>() != true)
             {
                 var msg = o["error"]?.ToString() ?? "Web App báo lỗi không rõ.";
+                if (o["code"]?.ToString() == "AUTH")
+                    throw new AuthException(!msg.Contains("không đúng") ? msg : msg + " → Mã PC_TOKEN ở Đồng bộ điện thoại › Kết nối không khớp mã PC_TOKEN trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh).");
                 if (msg.Contains("Không được phép thao tác tab") || msg.Contains("Không có chức năng")) msg += " → Apps Script trên Google đang là bản cũ: dán Code.gs mới, Lưu, rồi Triển khai phiên bản mới.";
                 throw new BusinessException(msg);
             }

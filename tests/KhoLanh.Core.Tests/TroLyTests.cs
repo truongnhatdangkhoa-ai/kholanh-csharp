@@ -384,4 +384,144 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         Assert.Throws<BusinessException>(() => _s.TroLy.Scan(false));
         Assert.Throws<BusinessException>(() => _s.TroLy.ChuY());
     }
+
+    // ------------------------------------------------------------------ Giai đoạn 3: cấu hình kết nối + gộp lỗi theo nguyên nhân gốc
+
+    [Fact]
+    public void Cau_hinh_ket_noi_moi_loi_mot_phat_hien_co_trang_sua()
+    {
+        var at = new DateTime(2026, 11, 23, 8, 0, 0);
+        var info = new ConfigInfo
+        {
+            AcctEnabled = true, AcctError = new ConnErrorLog.Entry(at, AccountSyncService.PhoneScriptMsg, ConnErrorLog.KindPhoneScript),
+            PhoneEnabled = true, PhoneError = new ConnErrorLog.Entry(at, "Mã truy cập không đúng.", ConnErrorLog.KindAuth),
+            MailReady = true, MailEmail = "kho@gmail.com", MailStatus = "✖ 08:00 23/11 · Sai mật khẩu ứng dụng",
+            DriveEnabled = true, DriveDir = @"G:\My Drive\KhoLanh", DriveDirExists = false,
+        };
+        var f = CheckConfig(info);
+        Assert.Equal(4, f.Count);
+        var acct = Assert.Single(f, x => x.Mod == "Tài khoản dùng chung");
+        Assert.Equal(("do", "backup"), (acct.Sev, acct.Go));
+        Assert.Contains("Web App của app điện thoại", acct.Title);
+        var ph = Assert.Single(f, x => x.Mod == "Đồng bộ điện thoại");
+        Assert.Equal(("vang", "phone"), (ph.Sev, ph.Go));
+        Assert.Contains("PC_TOKEN", ph.Title);
+        var ml = Assert.Single(f, x => x.Mod == "Email lịch xuất");
+        Assert.Equal(("vang", "lx"), (ml.Sev, ml.Go));
+        var dr = Assert.Single(f, x => x.Mod == "Đồng bộ Google Drive");
+        Assert.Equal(("do", "drive"), (dr.Sev, dr.Go));
+        Assert.All(f, x => Assert.Equal("ket-noi", x.Cat));
+
+        // lỗi tải thường (mất mạng) → Cần xem; Gmail ✓ / Drive còn → không báo; chưa bật gì → không có phát hiện
+        var ok = CheckConfig(new ConfigInfo
+        {
+            AcctEnabled = true, AcctError = new ConnErrorLog.Entry(at, "Không kết nối được Google Sheet — kiểm tra Internet.", ""),
+            MailReady = true, MailStatus = "✓ Đã kết nối kho@gmail.com", DriveEnabled = true, DriveDir = _dir, DriveDirExists = true,
+        });
+        Assert.Equal("vang", Assert.Single(ok).Sev);
+        Assert.Equal("xanh", Assert.Single(CheckConfig(new ConfigInfo { PhoneEnabled = true })).Sev);
+        Assert.Empty(CheckConfig(new ConfigInfo { AcctError = info.AcctError, PhoneError = info.PhoneError, MailStatus = info.MailStatus, DriveDirExists = false }));
+    }
+
+    [Fact]
+    public async Task Loi_tai_tai_khoan_va_PC_TOKEN_duoc_ghi_lai_cho_Tro_ly()
+    {
+        // Tài khoản dùng chung trỏ nhầm Web App điện thoại → acct_last_error loại phone-script; Web App trả lời đúng lần sau → xóa
+        var web = new AccountSyncTests.FakeWebApp { Token = "t", PhoneScript = true };
+        var acc = new AccountSyncService(_s.Db, _s.Settings, _s.Session, _s.Audit, web);
+        _s.Settings.Set("acct_url", "https://script.google.com/macros/s/X/exec"); _s.Settings.Set("acct_token", Secret.Protect("t"));
+        await Assert.ThrowsAsync<BusinessException>(() => acc.PullAsync());
+        Assert.Equal(ConnErrorLog.KindPhoneScript, acc.LastError?.Kind);
+        var cfg = _s.TroLy.CollectConfig()!;
+        Assert.True(cfg.AcctEnabled);
+        Assert.Equal("do", Assert.Single(CheckConfig(cfg)).Sev);
+        // Sheet trống → vẫn lỗi (loại thường, Cần xem)
+        web.PhoneScript = false;
+        await Assert.ThrowsAsync<BusinessException>(() => acc.PullAsync());
+        Assert.Equal("", acc.LastError?.Kind);
+        Assert.Equal("vang", Assert.Single(CheckConfig(_s.TroLy.CollectConfig())).Sev);
+
+        // Web App điện thoại trả AUTH (PC_TOKEN sai) → phone_last_error loại auth, quét thấy "Cần xem" với nút Đồng bộ điện thoại
+        var h = new AuthHandler();
+        var phone = new PhoneWebApp(_s.Settings, h);
+        phone.Save("", "sai-ma");
+        var ex = await Assert.ThrowsAsync<BusinessException>(() => phone.PingAsync());
+        Assert.Contains("PC_TOKEN", ex.Message);
+        Assert.Equal(ConnErrorLog.KindAuth, phone.LastError?.Kind);
+        var r = _s.TroLy.Scan(false);
+        var pf = Assert.Single(r.Findings, x => x.Cat == "ket-noi" && x.Mod == "Đồng bộ điện thoại");
+        Assert.Equal(("vang", "phone"), (pf.Sev, pf.Go));
+        h.Ok = true;
+        await phone.PingAsync();
+        Assert.Null(phone.LastError);
+        acc.Disconnect();
+        Assert.Null(acc.LastError);
+    }
+
+    private sealed class AuthHandler : HttpMessageHandler
+    {
+        public bool Ok;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
+        {
+            var body = Ok ? """{"ok":true,"title":"Kho","sheetNames":[]}""" : """{"ok":false,"code":"AUTH","error":"Mã truy cập không đúng."}""";
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") });
+        }
+    }
+
+    [Fact]
+    public void Loi_cung_nguyen_nhan_goc_gop_thanh_mot_phat_hien()
+    {
+        const string Root = "Tên người dùng hoặc mã truy cập không đúng, hoặc tài khoản đã bị khóa. Liên hệ người quản lý app PC.";
+        var log = $"""
+2026-11-22 08:00:00 bản 1.98.0 [Tác vụ nền]
+System.AggregateException: A Task's exception(s) were not observed either by Waiting on the Task or accessing its Exception property. As a result, the unobserved exception was rethrown by the finalizer thread. ({Root})
+ ---> KhoLanh.Core.Services.BusinessException: {Root}
+   at KhoLanh.Core.Services.AccountSyncService.CallAsync(String url) in AccountSyncService.cs:line 590
+   --- End of inner exception stack trace ---
+
+2026-11-22 15:30:00 bản 1.98.0 [Tác vụ nền]
+System.AggregateException: A Task's exception(s) were not observed either by Waiting on the Task or accessing its Exception property. As a result, the unobserved exception was rethrown by the finalizer thread. ({Root})
+ ---> KhoLanh.Core.Services.BusinessException: {Root}
+   at KhoLanh.Core.Services.AccountSyncService.PullAsync(Nullable`1 timeout) in AccountSyncService.cs:line 212
+   --- End of inner exception stack trace ---
+
+2026-11-23 07:00:00 bản 1.98.0
+KhoLanh.Core.Services.BusinessException: {Root}
+   at KhoLanh.App.Views.UsersView.OnSave() in UsersView.axaml.cs:line 77
+
+2026-11-23 07:10:00 bản 1.98.0
+KhoLanh.Core.Services.BusinessException: Không có quyền
+""";
+        var e = Assert.Single(ParseErrorLog(log, Today));
+        Assert.Equal(3, e.Count);
+        Assert.Equal("BusinessException", e.Type);
+        Assert.Equal(Root, e.Msg);
+        Assert.Equal(new DateTime(2026, 11, 23, 7, 0, 0), e.Last);
+        Assert.Equal("Services", e.Mod);
+        Assert.Equal(3, e.Places!.Count);
+        Assert.Contains(e.Places, p => p.Contains("AccountSyncService.CallAsync"));
+        Assert.Contains(e.Places, p => p.Contains("UsersView.OnSave"));
+        var f = Assert.Single(CheckErrors(new[] { e }));
+        Assert.StartsWith("Lỗi phần mềm: Tên người dùng", f.Title);
+        Assert.Contains("3 lần", f.Detail);
+        Assert.StartsWith("Gộp 3 nơi", f.Evidence[0]);
+
+        // cùng nguyên nhân nhưng khác số / đường dẫn → vẫn 1 nhóm; khác lời nhắn → nhóm riêng
+        var log2 = """
+2026-11-22 08:00:00 bản 1.98.0
+System.IO.IOException: The process cannot access the file 'C:\Users\a\AppData\KhoLanh\SaoLuu\KhoLanh_2026-11-22.db' because it is being used by another process.
+   at KhoLanh.Core.Services.BackupService.BackupTo(String p)
+
+2026-11-23 08:00:00 bản 1.98.0
+System.IO.IOException: The process cannot access the file 'D:\Kho\SaoLuu\KhoLanh_2026-11-23.db' because it is being used by another process.
+   at KhoLanh.Core.Services.BackupService.BackupTo(String p)
+
+2026-11-23 09:00:00 bản 1.98.0
+System.IO.IOException: Disk full
+   at KhoLanh.Core.Services.BackupService.BackupTo(String p)
+""";
+        var e2 = ParseErrorLog(log2, Today);
+        Assert.Equal(2, e2.Count);
+        Assert.Equal(2, e2.Single(x => x.Msg.StartsWith("The process")).Count);
+    }
 }

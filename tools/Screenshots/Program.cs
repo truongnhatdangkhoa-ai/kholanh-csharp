@@ -1127,6 +1127,30 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
     foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-cai-dat"), ("dulieu", "he-du-lieu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("saoluu", "he-sao-luu"), ("dcn", "he-drive-ca-nhan"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
     {
+        if (k == "troly")
+        {
+            // Giai đoạn 3: dữ liệu mẫu cho tab Cảnh báo — cấu hình kết nối hỏng (Web App trỏ nhầm, PC_TOKEN sai, Gmail ✖) + lỗi cùng nguyên nhân ở nhiều nơi
+            s.Settings.Set("acct_url", "https://script.google.com/macros/s/MAU-TAI-KHOAN/exec"); s.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("mau"));
+            KhoLanh.Core.Services.ConnErrorLog.Note(s.Settings, KhoLanh.Core.Services.ConnErrorLog.Acct, "Đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) đang trỏ tới Web App của APP ĐIỆN THOẠI, không phải Web App tài khoản.", KhoLanh.Core.Services.ConnErrorLog.KindPhoneScript);
+            s.Settings.Set(KhoLanh.Core.Services.PhoneWebApp.KeyToken, KhoLanh.Core.Services.Secret.Protect("mau"));
+            KhoLanh.Core.Services.ConnErrorLog.Note(s.Settings, KhoLanh.Core.Services.ConnErrorLog.Phone, "Mã truy cập không đúng. → Mã PC_TOKEN ở Đồng bộ điện thoại › Kết nối không khớp mã PC_TOKEN trong Apps Script.", KhoLanh.Core.Services.ConnErrorLog.KindAuth);
+            s.Settings.Set("lx_mail_email", "kho.anan@gmail.com"); s.Settings.Set("lx_mail_pass", KhoLanh.Core.Services.Secret.Protect("mau"));
+            s.Settings.Set("lx_mail_status", $"✖ {DateTime.Now:HH:mm dd/MM} · Gmail từ chối đăng nhập (mật khẩu ứng dụng sai hoặc đã bị thu hồi).");
+            Directory.CreateDirectory(Path.GetDirectoryName(s.TroLy.ErrorLogFile)!);
+            const string Root = "Tên người dùng hoặc mã truy cập không đúng, hoặc tài khoản đã bị khóa. Liên hệ người quản lý app PC.";
+            string Unobs(string fn) => $"System.AggregateException: A Task's exception(s) were not observed either by Waiting on the Task or accessing its Exception property. ({Root})\n ---> KhoLanh.Core.Services.BusinessException: {Root}\n   at KhoLanh.Core.Services.AccountSyncService.{fn}()\n   --- End of inner exception stack trace ---\n\n";
+            File.AppendAllText(s.TroLy.ErrorLogFile,
+                $"{DateTime.Now.AddHours(-5):yyyy-MM-dd HH:mm:ss} bản 1.98.0 [Tác vụ nền]\n" + Unobs("CallAsync") +
+                $"{DateTime.Now.AddHours(-3):yyyy-MM-dd HH:mm:ss} bản 1.98.0 [Tác vụ nền]\n" + Unobs("PullAsync") +
+                $"{DateTime.Now.AddHours(-1):yyyy-MM-dd HH:mm:ss} bản 1.98.0\nKhoLanh.Core.Services.BusinessException: {Root}\n   at KhoLanh.App.Views.UsersView.OnSave()\n\n");
+            try { s.TroLy.Scan(false); } catch (Exception e) { Console.WriteLine("[troly] quét lỗi: " + e.Message); }
+            var cfg = s.TroLy.Last?.Findings.Where(f => f.Cat == "ket-noi" && f.Sev != "xanh").ToList() ?? new();
+            var grp = s.TroLy.Last?.Findings.FirstOrDefault(f => f.Cat == "loi-app" && f.Title.Contains("Tên người dùng"));
+            Console.WriteLine($"[troly] cấu hình kết nối: {cfg.Count} cảnh báo ({string.Join(" | ", cfg.Select(f => f.Sev + " " + f.Title + " → " + f.Go))}) · lỗi gộp: {grp?.Detail}");
+            var tw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; tw.Show();
+            tw.Navigate(k); for (var i = 0; i < 60; i++) { Thread.Sleep(30); Pump(); } Snap(tw, n + "-1366");
+            tw.Close();
+        }
         main.Navigate(k); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); } Snap(main, n);
         if (k is "users")
         {
