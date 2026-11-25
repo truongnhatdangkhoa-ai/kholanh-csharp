@@ -809,6 +809,27 @@ public sealed class DoiChieuService
         }
     }
 
+    public sealed record NameReportResult(DcxXlsx.NameReport Report, string Message);
+    /// <summary>1.95: cập nhật tên hàng (tra theo mã) vào file Kho đang liên kết. only = số dòng Excel được đổi (null + dry = chỉ xem trước).</summary>
+    public (DcxXlsx.NameReport Report, string Message) UpdateNames(int pid, Func<string, (string Ten, string Src)?> nameOf, ISet<int>? only, bool dry)
+    {
+        RequireEdit();
+        for (var attempt = 0; ; attempt++)
+        {
+            SyncLinks(true);
+            var p = PairOf(pid); if (!IsLinked(p)) throw new BusinessException($"Cần Liên kết file Excel {KN(pid)} (đọc được đủ cột) mới cập nhật được tên hàng.");
+            var (bytes, rep) = DcxXlsx.UpdateNames(p.Bytes!, p.Kho!.Sheet, nameOf, only, dry);
+            var n = only is null ? rep.Changes.Count : rep.Changes.Count(c => only.Contains(c.Row));
+            var tail = (rep.Same > 0 ? $" · {rep.Same:#,0} dòng đã đúng tên" : "") + (rep.NoName > 0 ? $" · {rep.NoName:#,0} dòng không tra được tên (giữ nguyên)" : "");
+            if (dry || bytes is null) return (rep, rep.Changes.Count == 0 ? "Không có dòng nào cần đổi tên" + tail + "." : $"{rep.Changes.Count:#,0} dòng khác tên" + tail + ".");
+            try { Commit(new() { (SlotOf(pid), bytes, p.Sha) }); }
+            catch (CommitException e) when (e.Code == "CHANGED" && attempt == 0) { continue; }
+            LoadFromLink(SlotOf(pid)); foreach (var q in Pairs) RefreshPair(q); Persist();
+            _audit.Log(User, "doi-chieu-ten-hang", $"{KN(pid)}: cập nhật tên hàng {n} dòng");
+            return (rep, $"✔ Đã cập nhật tên hàng {n:#,0} dòng trong file {KN(pid)}" + tail + ".");
+        }
+    }
+
     public sealed record ApplyResult(string Message, int NetKept);
     /// <summary>Đổi thao tác → sửa file Kho (giữ mẫu) → ghi cả 2 file hoặc không file nào → đọc lại. Ghi lịch sử kèm thao tác ngược.</summary>
     public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false)

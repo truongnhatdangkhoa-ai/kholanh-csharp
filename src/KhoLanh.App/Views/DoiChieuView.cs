@@ -24,15 +24,16 @@ public sealed partial class DoiChieuView : UserControl, IPage
     public string Subtitle => "So file Xuất của Kho với file Xưởng theo Ngày + Mã hàng; sửa / chuyển / thêm dòng ghi thẳng vào file Excel Kho (giữ nguyên mẫu, có sao lưu và hoàn tác).";
 
     private static DoiChieuService Svc => App.Services.DoiChieu;
-    private static readonly IBrush DayBg = AppTheme.Brush("#DCEBDD");
-    private static readonly IBrush WarnDayBg = AppTheme.Brush("#FBE3D6");
-    private static readonly IBrush EditedBg = AppTheme.Brush("#FFF1C9");
-    private static readonly IBrush LechBg = AppTheme.Brush("#FFE699");
-    private static readonly IBrush ChiKhoBg = AppTheme.Brush("#F8CBAD");
-    private static readonly IBrush ChiXuongBg = AppTheme.Brush("#BDD7EE");
-    private static readonly IBrush KhopBg = AppTheme.Brush("#E2EFDA");
-    private static readonly IBrush ZeroBg = AppTheme.Brush("#EDEDED");
-    private static readonly IBrush MoveBg = AppTheme.Brush("#D9E7FF");
+    // 1.95: màu đậm hơn (người dùng: "tô màu khá nhạt nên khó nhận biết"); dòng tổng ngày = vàng + chữ đậm
+    private static readonly IBrush DayBg = AppTheme.Brush("#FFE680");
+    private static readonly IBrush WarnDayBg = AppTheme.Brush("#FFE680");
+    private static readonly IBrush EditedBg = AppTheme.Brush("#FFE08A");
+    private static readonly IBrush LechBg = AppTheme.Brush("#FFD24D");
+    private static readonly IBrush ChiKhoBg = AppTheme.Brush("#F7B98F");
+    private static readonly IBrush ChiXuongBg = AppTheme.Brush("#A9CBEF");
+    private static readonly IBrush KhopBg = AppTheme.Brush("#BFE3C8");
+    private static readonly IBrush ZeroBg = AppTheme.Brush("#D6DCE3");
+    private static readonly IBrush MoveBg = AppTheme.Brush("#B9D0F7");
 
     private readonly bool _edit;
     private bool _loading, _busy;
@@ -67,7 +68,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     public DoiChieuView()
     {
         _edit = Svc.CanEdit;
-        _grid = new SheetGrid(_gm) { SpareRows = 0, Display = Disp, CellBackground = Bg };
+        _grid = new SheetGrid(_gm) { SpareRows = 0, Display = Disp, CellBackground = Bg, RowBold = r => r < _rowItem.Count && _rowItem[r] is null };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
         _grid.SelectionChanged += ShowRowNote;
         _tabs = new TabControl
@@ -192,6 +193,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
             act.Children.Add(Btn("✎ Sửa mã / ngày…", async () => await Retag()));
             act.Children.Add(Btn("🗑 Xóa khỏi file Kho", async () => await DeleteSelected(), danger: true));
             act.Children.Add(Btn("🔠 Thêm cột Size…", async () => await AddSizeCol(), tip: "Thêm cột Size (theo từ điển Mã hóa sản phẩm) vào file Kho để in chứng từ"));
+            act.Children.Add(Btn("Cập nhật tên hàng…", async () => await UpdateNames(), tip: "Ghi tên hàng chuẩn (tra theo mã: Danh sách mã hàng, rồi Mã hóa sản phẩm) vào cột Tên hàng của file Kho đã liên kết"));
             act.Children.Add(Btn("↶ Hoàn tác lần ghi cuối", async () => await UndoLast()));
         }
         act.Children.Add(Btn("⟳ Đọc lại file", async () => await Act(() => { Svc.SyncLinks(true); return "Đã đọc lại các file đã liên kết."; })));
@@ -261,7 +263,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         var p = P; var r = p.Result;
         var cols = new List<GridColumn>
         {
-            new("ngay", "Ngày", 92) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("ten", "Tên hàng", 200) { ReadOnly = true },
+            new("ngay", "Ngày", 92) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("ten", "Tên hàng", 0) { ReadOnly = true },   // 1.95: ẩn cột Tên hàng (rộng 0) — giữ chỉ số cột
             new("ksl", "SL Kho", 80, "number") { ReadOnly = !_edit && !(p.Result is not null && !Svc.IsLinked(p)) }, new("knet", "Net Kho", 95, "number") { ReadOnly = Svc.IsLinked(p) },
             new("xsl", "SL Xưởng", 80, "number"), new("xnet", "Net Xưởng", 95, "number"),
             new("dsl", "Δ SL", 70, "number") { ReadOnly = true }, new("dnet", "Δ Net", 85, "number") { ReadOnly = true },
@@ -280,8 +282,9 @@ public sealed partial class DoiChieuView : UserControl, IPage
                 if (d.CheckXuong is { Khop: false } cx) warn.Add($"dòng tổng Xưởng ghi {N(cx.Sl)} · {Kg(cx.Net)} kg ≠ cộng chi tiết");
                 if (d.NcKho is { } nk) warn.Add($"Kho có {nk.N} dòng chưa mã ({N(nk.Sl)})");
                 if (d.NcXuong is { } nx) warn.Add($"Xưởng có {nx.N} dòng chưa mã ({N(nx.Sl)})");
-                rows.Add(new[] { Dmy(d.Ngay), "TỔNG NGÀY " + DoiChieuService.Weekday(d.Ngay), $"{d.Items.Count} mục · {d.NLech} lệch · {d.NChiKho + d.NChiXuong} chỉ 1 bên",
-                    Inv(d.Kho.Sl), Inv(d.Kho.Net), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", warn.Count > 0 ? "⚠ " + string.Join(" · ", warn) : "" });
+                var sum = $"{d.Items.Count} mục · {d.NLech} lệch · {d.NChiKho + d.NChiXuong} chỉ 1 bên";
+                rows.Add(new[] { Dmy(d.Ngay), "TỔNG NGÀY " + DoiChieuService.Weekday(d.Ngay), sum,
+                    Inv(d.Kho.Sl), Inv(d.Kho.Net), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", sum + (warn.Count > 0 ? " · ⚠ " + string.Join(" · ", warn) : "") });
                 _rowItem.Add(null); _rowDay.Add(d);
                 foreach (var it in items)
                 {
@@ -312,7 +315,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     {
         if (r >= _rowItem.Count) return null;
         var it = _rowItem[r];
-        if (it is null) return _rowDay[r] is { } d && (d.HasWarn || d.CoLech) ? WarnDayBg : DayBg;
+        if (it is null) return c == 9 && _rowDay[r] is { CoLech: true } ? ChiKhoBg : _rowDay[r] is { } d && (d.HasWarn || d.CoLech) ? WarnDayBg : DayBg;
         if (c is 5 or 6 && Svc.EditOf(_pid, "xuong", it.Ngay, it.Ma, c == 5 ? "sl" : "net") is not null) return EditedBg;
         if (c is 3 or 4 && Svc.EditOf(_pid, "kho", it.Ngay, it.Ma, c == 3 ? "sl" : "net") is not null) return EditedBg;
         if (c == 9) return it.Status switch { "lech" => LechBg, "chi_kho" => ChiKhoBg, "chi_xuong" => ChiXuongBg, "khop" => KhopBg, "zero" => ZeroBg, _ => null };
@@ -405,6 +408,35 @@ public sealed partial class DoiChieuView : UserControl, IPage
         if (!await Ui.Confirm(this, DoiChieuService.KN(_pid) + ": " + msg + "\n\nGhi vào file Excel đã liên kết? (file gốc được sao lưu trước khi ghi; cột chỉ chứa chữ, không đổi công thức.)", "Thêm cột Size", "Ghi file")) return;
         await Act(() => Svc.AddSizeColumn(_pid, true).Message);
     }
+    /// <summary>1.95: cập nhật tên hàng vào file Kho đã liên kết — xem trước các dòng khác tên, bỏ chữ x dòng không muốn đổi, rồi ghi file.</summary>
+    private async Task UpdateNames()
+    {
+        DoiChieuService.NameReportResult pv;
+        var look = XkLookup();
+        try { pv = await Task.Run(() => { Svc.LoadDictionaries(); var (rep, msg) = Svc.UpdateNames(_pid, look, null, true); return new DoiChieuService.NameReportResult(rep, msg); }); }
+        catch (Exception e) { await Ui.Message(this, Ui.Describe(e)); return; }
+        if (pv.Report.Changes.Count == 0) { await Ui.Message(this, DoiChieuService.KN(_pid) + ": " + pv.Message, "Tên hàng đã khớp"); return; }
+        var gm = new GridModel();
+        gm.Load(new[]
+        {
+            new GridColumn("do", "Đổi (x)", 60), new GridColumn("dong", "Dòng", 60, "number") { ReadOnly = true }, new GridColumn("ma", "Mã hàng", 190) { ReadOnly = true },
+            new GridColumn("cu", "Tên trong file", 330) { ReadOnly = true }, new GridColumn("moi", "Tên mới", 330) { ReadOnly = true }, new GridColumn("src", "Nguồn", 130) { ReadOnly = true },
+        }, pv.Report.Changes.Select(x => new[] { "x", x.Row.ToString(), x.Ma, x.Cu.Length > 0 ? x.Cu : "(trống)", x.Moi, x.Src }));
+        var grid = new SheetGrid(gm) { SpareRows = 0, Height = 360, RowChecks = false };
+        var ok = new Button { Content = "Ghi vào file", Classes = { "primary" } }; var close = new Button { Content = "Đóng", IsCancel = true };
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock { Text = DoiChieuService.KN(_pid) + ": " + pv.Message + " Tên mới tra theo MÃ HÀNG (Danh sách mã hàng, rồi Mã hóa sản phẩm). Xóa chữ x ở cột “Đổi” của dòng không muốn đổi. File gốc được sao lưu trước khi ghi; chỉ đổi ô Tên hàng.", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+        body.Children.Add(new Border { BorderBrush = AppTheme.Brush("#D0D7E2"), BorderThickness = new Thickness(1), Child = grid });
+        body.Children.Add(Ui.Buttons(close, ok));
+        var w = Ui.Dialog("Cập nhật tên hàng — file " + DoiChieuService.KN(_pid), body, 1180); var apply = false;
+        ok.Click += (_, _) => { apply = true; w.Close(); }; close.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        if (!apply) return;
+        var pick = Enumerable.Range(0, gm.RowCount).Where(i => gm.Get(i, 0).Trim().Length > 0).Select(i => pv.Report.Changes[i].Row).ToHashSet();
+        if (pick.Count == 0) { _status.Text = "Chưa chọn dòng nào."; return; }
+        await Act(() => Svc.UpdateNames(_pid, look, pick, false).Message);
+    }
+
     private async Task MoveSelected()
     {
         var items = SelectedItems().Where(i => !i.TheoSize && Svc.Movable(P, i.Ngay, i.Ma) > 0).ToList();

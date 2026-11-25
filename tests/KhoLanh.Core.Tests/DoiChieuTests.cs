@@ -156,6 +156,28 @@ public class DoiChieuTests : IDisposable
     }
 
     [Fact]
+    public void UpdateNames_doi_ten_hang_theo_ma_chi_dong_duoc_chon()
+    {   // 1.95: nút "Cập nhật tên hàng" ở Đối chiếu hàng ngày — chỉ đổi ô Tên hàng, giữ số liệu / công thức
+        var path = KhoFile("k3.xlsx", (D1, new[] { (A, 10.0, 10.0), (B, 5.0, 9.0) }), (D2, new[] { (A, 3.0, 10.0), (C, 2.0, 12.0) }));
+        var bytes = File.ReadAllBytes(path);
+        (string, string)? Look(string ma) => ma == A ? ("Tôm chuẩn A", "Danh sách mã hàng") : ma == B ? ("Tôm " + B[^6..], "Danh sách mã hàng") : null;
+        var (none, pv) = DcxXlsx.UpdateNames(bytes, "Xuat", Look, null, dry: true);
+        Assert.Null(none);
+        Assert.Equal(2, pv.Changes.Count);                       // 2 dòng mã A khác tên
+        Assert.Equal(1, pv.Same);                                // mã B đã đúng tên
+        Assert.Equal(1, pv.NoName);                              // mã C không tra được → giữ nguyên
+        var only = new HashSet<int> { pv.Changes[0].Row };       // chỉ đổi dòng đầu
+        var (outB, _) = DcxXlsx.UpdateNames(bytes, "Xuat", Look, only);
+        Assert.NotNull(outB);
+        using var x = new XLWorkbook(new MemoryStream(outB!));
+        var ws = x.Worksheet("Xuat");
+        Assert.Equal("Tôm chuẩn A", ws.Cell(pv.Changes[0].Row, 3).GetString());
+        Assert.Equal("Tôm " + A[^6..], ws.Cell(pv.Changes[1].Row, 3).GetString());     // dòng không chọn giữ tên cũ
+        Assert.Equal(10, ws.Cell(pv.Changes[0].Row, 4).GetDouble());                    // số lượng không đổi
+        Assert.Contains(ws.CellsUsed(c => c.HasFormula), c => c.FormulaA1.Contains("SUM"));
+    }
+
+    [Fact]
     public void ReadCsv_parses_delimiter_quotes_and_numbers()
     {
         var csv = "Ngày chứng từ;Mã hàng;Số lượng;Net\r\n01/11/2026;\"" + A + "\";10;100,5\r\n01/11/2026;" + B + ";5;45\r\n";

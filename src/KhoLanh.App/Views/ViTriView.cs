@@ -56,13 +56,14 @@ public sealed class ViTriView : UserControl, IPage
     private List<int> _rowIdx = new();          // dòng lưới → chỉ số dòng tồn
     private List<string[]> _snap = new();
     private Dictionary<int, double> _done = new();
-    private const int ColX = 6;                 // cột SL xuất
+    private const int ColX = 8;                 // cột SL xuất
     private static readonly GridColumn[] StockCols =
     {
-        new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 190) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
-        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 100) { ReadOnly = true },
+        // 1.95: thêm Tên hàng (sau Mã hàng) + Trọng lượng theo mã hàng (sau Size)
+        new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 190) { ReadOnly = true }, new("ten", "Tên hàng", 230) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
+        new("tl", "Trọng lượng", 80, "number") { ReadOnly = true }, new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 100) { ReadOnly = true },
         new("sl", "SL tồn", 70, "number") { ReadOnly = true }, new("x", "SL xuất ✎", 80, "number"), new("done", "Đã làm phiếu", 85, "number") { ReadOnly = true },
-        new("tl", "T.Lượng", 65, "number") { ReadOnly = true }, new("net", "Net tồn (kg)", 90, "number") { ReadOnly = true },
+        new("net", "Net tồn (kg)", 90, "number") { ReadOnly = true },
         new("lo", "Lô", 90) { ReadOnly = true },   // 1.92: Lô xuống cột cuối
     };
 
@@ -86,13 +87,13 @@ public sealed class ViTriView : UserControl, IPage
     private List<string[]> _dSnap = new();
     private bool _dLoading;
     private Control? _stockPanel;
-    private const int DColX = 6;                // cột SL xuất của bảng phiếu
+    private const int DColX = 8;                // cột SL xuất của bảng phiếu
     private static readonly GridColumn[] DraftCols =
     {
-        new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
-        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 110) { ReadOnly = true },
+        new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("ten", "Tên hàng", 230) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
+        new("tl", "Trọng lượng", 80, "number") { ReadOnly = true }, new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 110) { ReadOnly = true },
         new("sl", "SL tồn", 70, "number") { ReadOnly = true }, new("x", "SL xuất ✎", 85, "number"),
-        new("tl", "T.Lượng", 65, "number") { ReadOnly = true }, new("net", "Net xuất (kg)", 95, "number") { ReadOnly = true },
+        new("net", "Net xuất (kg)", 95, "number") { ReadOnly = true },
         new("lo", "Lô", 90) { ReadOnly = true },
     };
 
@@ -397,7 +398,7 @@ public sealed class ViTriView : UserControl, IPage
             _dm.Load(DraftCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly }), _dRows.Select(i =>
             {
                 var r = Svc.Rows[i]; var x = _draft[i];
-                return new[] { r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, Raw(Avail(i)), Raw(x), Raw(r.Tl), Raw(Round(x * r.Tl)), r.Lo };
+                return new[] { r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, TenOf(r), Svc.SizeOf(r), Raw(TlOf(r)), r.Dt, r.Hd, Raw(Avail(i)), Raw(x), Raw(Round(x * r.Tl)), r.Lo };
             }).ToList());
             _dSnap = _dm.Snapshot();
         }
@@ -461,8 +462,8 @@ public sealed class ViTriView : UserControl, IPage
                 var r = Svc.Rows[i];
                 return new[]
                 {
-                    r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, Raw(r.Sl),
-                    _draft.TryGetValue(i, out var x) ? Raw(x) : "", _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(r.Tl), Raw(Round(r.Sl * r.Tl)), r.Lo,
+                    r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, TenOf(r), Svc.SizeOf(r), Raw(TlOf(r)), r.Dt, r.Hd, Raw(r.Sl),
+                    _draft.TryGetValue(i, out var x) ? Raw(x) : "", _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(Round(r.Sl * r.Tl)), r.Lo,
                 };
             }).ToList();
             var cols = StockCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly || (c.Key == "x" && !_edit) }).ToList();
@@ -473,6 +474,33 @@ public sealed class ViTriView : UserControl, IPage
         }
         finally { _loading = false; }
         _grid.Refresh();
+    }
+
+    // 1.95: Tên hàng = tên trong file bỏ đuôi " - Đặc tính - Hợp đồng"; Trọng lượng = trọng lượng của dòng trong file tồn (Net / phiếu dùng số này),
+    // file để trống / 0 thì tra theo MÃ HÀNG (Danh sách mã hàng, rồi Tồn kho An An)
+    private static string TenOf(Row r)
+    {
+        var p = r.Ten.Split(" - ");
+        return p.Length >= 3 ? string.Join(" - ", p[..^2]).Trim() : r.Ten;
+    }
+    private static Dictionary<string, double>? _tlMa;
+    private static DateTime _tlAt;
+    private double TlOf(Row r)
+    {
+        if (r.Tl > 0) return r.Tl;
+        if (_tlMa is null || (DateTime.Now - _tlAt).TotalMinutes > 5)
+        {
+            var map = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var dc = App.Services.DoiChieu; dc.LoadDictionaries();
+                foreach (var ma in Svc.Rows.Select(x => x.Ma).Distinct(StringComparer.OrdinalIgnoreCase))
+                    if (dc.WeightOfMa(ma) is { } w and > 0) map[ma] = w;
+            }
+            catch { /* không tra được thì dùng trọng lượng trong file */ }
+            _tlMa = map; _tlAt = DateTime.Now;
+        }
+        return _tlMa.TryGetValue(r.Ma, out var t) ? t : r.Tl;
     }
 
     private IBrush? StockBg(int r, int c)

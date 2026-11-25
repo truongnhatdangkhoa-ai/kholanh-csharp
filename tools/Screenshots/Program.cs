@@ -1066,8 +1066,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
         if (k == "m7" && main.PageHost.Content is ViTriView vv)
         {
             _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
-            var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
-            g.Model.SetCells(new[] { (0, 6, "6"), (1, 6, "x"), (2, 6, "10"), (4, 6, "4"), (6, 6, "3") });
+            var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 12);
+            g.Model.SetCells(new[] { (0, 8, "6"), (1, 8, "x"), (2, 8, "10"), (4, 8, "4"), (6, 8, "3") });
             for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(pw, "ui-vi-tri-chon");
             pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "ui-vi-tri-phieu");
         }
@@ -1350,7 +1350,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     var vv = (ViTriView)main.PageHost.Content!;
     _ = vv.OpenPickerForTest(); W(600);
     var pw = vv.PickerWindow!;
-    var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
+    var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 12);
     // vị trí có ≥ 2 mã, lấy nhãn size của 1 mã trong đó
     var vtRows = s.ViTri.Rows;
     var multi = vtRows.Where(r => r.Vt.Length > 0 && r.Sl > 0 && s.ViTri.GopLabel(r) is not null).GroupBy(r => r.Vt).First(gr => gr.Select(r => r.Ma).Distinct().Count() >= 2);
@@ -1358,8 +1358,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     var q = pw.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm: BTP") == true);
     q.Text = label; W(400);
     var r0 = Enumerable.Range(0, g.Model.RowCount).First(i => g.Model.Row(i)[0] == multi.Key);
-    g.Model.SetCells(new[] { (r0, 6, "x") }); W(300); g.Select(r0, 6);
-    Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[2]).Distinct())}");
+    g.Model.SetCells(new[] { (r0, 8, "x") }); W(300); g.Select(r0, 8);
+    Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[3]).Distinct())}");
     Snap(pw, "24b1-vi-tri-tim-dung-size");
     var pos = pw.GetVisualDescendants().OfType<CheckBox>().First(c => c.Content as string == "Lọc vị trí đang chọn");
     pos.IsChecked = true; W(400);
@@ -1574,12 +1574,12 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         var vtv = (ViTriView)main.PageHost.Content!;
         _ = vtv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
         var pw = vtv.PickerWindow!;
-        var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
-        g.Model.SetCells(new[] { (0, 6, "6"), (1, 6, "x"), (2, 6, "10"), (4, 6, "4"), (6, 6, "3") });
-        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 6); Snap(pw, "24b0-vi-tri-chon-hang");
+        var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 12);
+        g.Model.SetCells(new[] { (0, 8, "6"), (1, 8, "x"), (2, 8, "10"), (4, 8, "4"), (6, 8, "3") });
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 8); Snap(pw, "24b0-vi-tri-chon-hang");
         pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var dg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
-        dg.Select(0, 6); Snap(main, "24-vi-tri");
+        dg.Select(0, 8); Snap(main, "24-vi-tri");
         tc.SelectedIndex = 1; Pump();
         var sg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
         sg.Select(0, 0); Snap(main, "24b-vi-tri-phieu");
