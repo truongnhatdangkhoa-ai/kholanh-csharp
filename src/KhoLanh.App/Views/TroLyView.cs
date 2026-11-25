@@ -68,8 +68,12 @@ public sealed class TroLyView : UserControl, IPage
 
         var filters = new WrapPanel { ItemSpacing = 10, LineSpacing = 6 };
         filters.Children.Add(_filter); filters.Children.Add(_showSkipped); filters.Children.Add(_anDanh);
-        var findPanel = new StackPanel { Spacing = 8 };
-        findPanel.Children.Add(filters); findPanel.Children.Add(actions); findPanel.Children.Add(_list);
+        // 1.99 (người dùng: "bảng cảnh báo quá nhỏ"): danh sách cảnh báo có thanh cuộn riêng, cao hết phần còn lại của trang
+        var findTop = new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 0, 8) };
+        findTop.Children.Add(_kpi); findTop.Children.Add(filters); findTop.Children.Add(actions);
+        var findPanel = new DockPanel();
+        DockPanel.SetDock(findTop, Dock.Top); findPanel.Children.Add(findTop);
+        findPanel.Children.Add(new ScrollViewer { Content = _list, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, MinHeight = 360 });
 
         var qTools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         qTools.Children.Add(Btn("⟳ Tải lại", LoadQueue));
@@ -79,14 +83,19 @@ public sealed class TroLyView : UserControl, IPage
         DockPanel.SetDock(qTop, Dock.Top); qPanel.Children.Add(qTop);
         qPanel.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _qg, MinHeight = 300 });
 
+        // 1.99: Việc cần chú ý hôm nay thành tab (trước là khung cố định phía trên, đẩy bảng cảnh báo xuống đáy trang)
         var tabs = new TabControl();
+        var qTab = new TabItem { Header = "Hàng đợi đề xuất", Content = qPanel };
         tabs.Items.Add(new TabItem { Header = "Cảnh báo", Content = findPanel });
-        tabs.Items.Add(new TabItem { Header = "Hàng đợi đề xuất", Content = qPanel });
-        tabs.SelectionChanged += (_, _) => { if (tabs.SelectedIndex == 1) LoadQueue(); };
+        tabs.Items.Add(new TabItem { Header = "Việc cần chú ý hôm nay", Content = new ScrollViewer { Content = chuYBox, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled } });
+        tabs.Items.Add(qTab);
+        tabs.SelectionChanged += (_, e) => { if (e.Source == tabs && tabs.SelectedItem == qTab) LoadQueue(); };
 
-        var body = new StackPanel { Spacing = 10 };
-        body.Children.Add(top); body.Children.Add(_kpi); body.Children.Add(chuYBox); body.Children.Add(tabs);
-        Content = new ScrollViewer { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        var head = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 0, 8) };
+        head.Children.Add(top);   // thẻ số Nặng / Cần xem / Ổn nằm đầu tab Cảnh báo (1 hàng ở đây được kéo lên ngang tên trang)
+        var body = new DockPanel();
+        DockPanel.SetDock(head, Dock.Top); body.Children.Add(head); body.Children.Add(tabs);
+        Content = body;
 
         Svc.Scanned += OnScanned;
         DetachedFromVisualTree += (_, _) => Svc.Scanned -= OnScanned;

@@ -811,7 +811,7 @@ public sealed class C3dView : UserControl, IPage
         if (_plan is null || _plan.Totals.Requested == 0) { await Ui.Message(this, "Chưa có phương án để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất Excel phương án xếp hàng", $"XepContainer_{C3dService.SafeName(St.Cont!.Name)}_{DateTime.Now:yyyy-MM-dd}.xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => C3dService.BuildExcel(_plan).Save(path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => C3dService.BuildExcel(_plan).Save(path))) Ui.Exported(this, path);
     }
 
     private async Task ExportPng()

@@ -184,6 +184,6 @@ public sealed partial class DoiChieuView
         var name = Path.GetFileNameWithoutExtension(_xkFile.Length > 0 ? _xkFile : "XuatKiem") + "_rut_gon.xlsx";
         var path = await Ui.SaveFile(this, "Xuất file Xuất kiểm rút gọn", name, "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => XuatKiem.Export(r, path))) { _status.Text = $"Đã xuất {r.Groups.Count:#,0} dòng → {Path.GetFileName(path)}"; Ui.OpenExternal(path); }
+        if (await Ui.Run(this, () => XuatKiem.Export(r, path))) { _status.Text = $"Đã xuất {r.Groups.Count:#,0} dòng → {Path.GetFileName(path)}"; Ui.Exported(this, path); }
     }
 }

@@ -505,7 +505,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     {
         var path = await Ui.SaveFile(this, "Xuất Excel kết quả đối chiếu", $"Doi chieu hang ngay {DateTime.Now:yyyy-MM-dd}.xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Act(() => { Svc.Export(path, new[] { 1, 2 }); return "Đã xuất " + Path.GetFileName(path); })) Ui.OpenExternal(path);
+        if (await Act(() => { Svc.Export(path, new[] { 1, 2 }); return "Đã xuất " + Path.GetFileName(path); })) Ui.Exported(this, path);
     }
 
     // =====================================================================================

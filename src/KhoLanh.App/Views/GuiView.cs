@@ -112,7 +112,7 @@ public sealed class GuiView : UserControl, IPage
     {
         if (x is null) { await Ui.Message(this, "Không có gì để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất Excel", fileName, "xlsx", "Excel"); if (path is null) return;
-        if (await Ui.Run(this, () => x.Save(path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => x.Save(path))) Ui.Exported(this, path);
     }
 
     private void RenderAll()
@@ -424,7 +424,7 @@ public sealed class GuiView : UserControl, IPage
     {
         if (CurSlip() is not { } p) { await Ui.Message(this, "Chọn một phiếu trước."); return; }
         var path = await Ui.SaveFile(this, "Xuất phiếu yêu cầu xuất hàng", GuiExport.SlipFileName(p), "xlsx", "Excel"); if (path is null) return;
-        if (await Ui.Run(this, () => File.WriteAllBytes(path, GuiExport.SlipWorkbook(p)))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => File.WriteAllBytes(path, GuiExport.SlipWorkbook(p)))) Ui.Exported(this, path);
     }
 
     private async Task OpenSlip()

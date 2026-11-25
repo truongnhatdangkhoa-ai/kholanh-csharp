@@ -325,7 +325,7 @@ public partial class EntryView : UserControl, IPage
         if (path is null) return;
         var cols = PageCols.ToList(); var rows = _model.Snapshot();
         var title = _page.Name;
-        if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ExportExcel(path, title, cols, rows)))) Ui.OpenExternal(path);
+        if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ExportExcel(path, title, cols, rows)))) Ui.Exported(this, path);
     }
 
     // ------------------------------------------------------------------ cột / mẫu

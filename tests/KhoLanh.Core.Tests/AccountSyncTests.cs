@@ -121,6 +121,25 @@ public class AccountSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task Tai_ngam_loi_khong_thanh_loi_chua_bat()
+    {   // báo cáo Trợ lý 1.96: "A Task's exception(s) were not observed" từ AccountSyncService.PullAsync (cửa sổ đăng nhập: _ = PrefetchAsync())
+        var a = await AdminMachine();
+        _web.PhoneScript = true;
+        var seen = 0;
+        void H(object? _, UnobservedTaskExceptionEventArgs e) { if (e.Exception.ToString().Contains("APP ĐIỆN THOẠI")) Interlocked.Increment(ref seen); }
+        TaskScheduler.UnobservedTaskException += H;
+        try
+        {
+            void Fire() { var t = a.Accounts.PrefetchAsync(); ((IAsyncResult)t).AsyncWaitHandle.WaitOne(10000); Assert.True(t.IsFaulted); }
+            Fire();
+            a.Accounts.GetType().GetField("_prefetch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(a.Accounts, null);
+            for (var i = 0; i < 3; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
+            Assert.Equal(0, seen);
+        }
+        finally { TaskScheduler.UnobservedTaskException -= H; }
+    }
+
+    [Fact]
     public async Task Second_machine_receives_accounts_and_permissions_from_sheet()
     {
         var a = await AdminMachine();

@@ -356,6 +356,49 @@ public static class Ui
         return dirs.Count > 0 ? dirs[0].TryGetLocalPath() : null;
     }
 
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TopLevel, Avalonia.Controls.Notifications.WindowNotificationManager> Notifs = new();
+    /// <summary>Lần báo "đã lưu" gần nhất (công cụ chụp kiểm tra).</summary>
+    internal static string? LastExported;
+
+    /// <summary>
+    /// 1.99: xuất file (Excel / ảnh / PDF / thư mục) xong KHÔNG tự mở nữa (người dùng: "mở file cũ bị chạy vì đã sắp xếp, người dùng tự mở") —
+    /// chỉ hiện thông báo nhỏ góc phải dưới "Đã lưu …", tự ẩn sau 10 giây; bấm vào thì mở thư mục chứa file (chọn sẵn file).
+    /// Nút "Mở file" / "Mở thư mục" người dùng tự bấm và trang In (trình duyệt) vẫn dùng <see cref="OpenExternal"/>.
+    /// </summary>
+    public static void Exported(Visual? v, string path)
+    {
+        LastExported = path;
+        try
+        {
+            var top = (v is null ? null : TopLevel.GetTopLevel(v)) is { } t && t.IsVisible ? t
+                : (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            if (top is null) return;
+            var fresh = false;
+            var mgr = Notifs.GetValue(top, x => { fresh = true; return new Avalonia.Controls.Notifications.WindowNotificationManager(x) { Position = Avalonia.Controls.Notifications.NotificationPosition.BottomRight, MaxItems = 3 }; });
+            var dir = Directory.Exists(path);
+            var note = new Avalonia.Controls.Notifications.Notification(
+                dir ? "Đã xuất vào thư mục" : "Đã lưu file",
+                (dir ? path : Path.GetFileName(path)) + "\nBấm vào đây để mở thư mục chứa file.",
+                Avalonia.Controls.Notifications.NotificationType.Success, TimeSpan.FromSeconds(10), () => ShowInFolder(path));
+            // khung thông báo vừa tạo chưa dựng xong (chưa có template) thì Show bỏ qua → chờ dựng xong mới hiện
+            if (fresh) mgr.TemplateApplied += (_, _) => mgr.Show(note);
+            else mgr.Show(note);
+        }
+        catch { /* thông báo lỗi thì thôi — file đã lưu */ }
+    }
+
+    /// <summary>Mở thư mục chứa file (Windows: chọn sẵn file); là thư mục thì mở chính nó.</summary>
+    public static void ShowInFolder(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path)) { OpenExternal(path); return; }
+            if (OperatingSystem.IsWindows() && File.Exists(path)) { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true }); return; }
+            if (Path.GetDirectoryName(path) is { Length: > 0 } d) OpenExternal(d);
+        }
+        catch { }
+    }
+
     /// <summary>Mở file / thư mục bằng chương trình mặc định của Windows.</summary>
     public static void OpenExternal(string path)
     {

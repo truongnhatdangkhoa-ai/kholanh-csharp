@@ -260,7 +260,7 @@ public sealed class PxhtView : UserControl, IPage
         if (await Ui.Run(this, () => Svc.Export(list, path)))
         {
             _status.Text = $"Đã xuất {list.Count:#,0} phiếu ra {Path.GetFileName(path)}";
-            Ui.OpenExternal(path);
+            Ui.Exported(this, path);
         }
     }
 }

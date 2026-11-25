@@ -759,7 +759,7 @@ public sealed partial class KiemKeView : UserControl, IPage
         if (list.Count == 0) return;
         var path = await Ui.SaveFile(this, "Xuất phiếu đếm", Ui.SafeFileName($"Phieu dem {KhoLabel(_kho)} {DateTime.Today:dd.MM.yyyy}") + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportOrders(path, list, _withBook.IsChecked == true))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportOrders(path, list, _withBook.IsChecked == true))) Ui.Exported(this, path);
     }
 
     // =====================================================================================
@@ -826,6 +826,6 @@ public sealed partial class KiemKeView : UserControl, IPage
     {
         var path = await Ui.SaveFile(this, "Xuất báo cáo đối chiếu kiểm kê", Ui.SafeFileName($"Doi chieu kiem ke {DateTime.Today:dd.MM.yyyy}") + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportReport(path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportReport(path))) Ui.Exported(this, path);
     }
 }

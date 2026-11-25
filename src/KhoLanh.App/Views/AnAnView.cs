@@ -139,7 +139,7 @@ public sealed class AnAnView : UserControl, IPage
         if (x is null) { await Ui.Message(this, "Không có gì để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất Excel", fileName, "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => x.Save(path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => x.Save(path))) Ui.Exported(this, path);
     }
 
     private void RenderAll()

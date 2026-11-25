@@ -127,7 +127,7 @@ public partial class BackupView : UserControl, IPage
         AcctMsg.Text = $"Đã tạo bộ cài ở {dir}. Chép cả thư mục sang máy mới, mở KhoLanh.exe là chỉ cần đăng nhập."
                        + (AppUpdater.ExePath is null ? " (Chưa chép được KhoLanh.exe — hãy tự chép file exe vào thư mục đó.)" : "")
                        + (App.Services.Updates.HasToken ? "" : " Lưu ý: chưa có mã GitHub nên máy mới chưa tự cập nhật được.");
-        Ui.OpenExternal(dir!);
+        Ui.Exported(this, dir!);
     }
 
     private async void OnAcctCodeStaff(object? sender, RoutedEventArgs e)

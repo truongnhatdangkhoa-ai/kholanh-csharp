@@ -235,7 +235,12 @@ public class AccountSyncService
             if (!Enabled) return Task.FromResult(0);
             var t = timeout ?? TimeSpan.FromSeconds(20);
             _prefetchAt = DateTime.UtcNow;
-            return _prefetch = Task.Run(() => PullAsync(t));
+            _prefetch = Task.Run(() => PullAsync(t));
+            // 1.99 (báo cáo Trợ lý "Tác vụ nền lỗi — A Task's exception(s) were not observed"): cửa sổ đăng nhập gọi tải ngầm kiểu
+            // "_ = PrefetchAsync()" — lượt tải lỗi (vd đường dẫn trỏ nhầm Web App điện thoại) mà không ai chờ thì thành lỗi chưa bắt.
+            // Lỗi đã được báo ở chỗ chờ (LoginFlow.NoteOf / Trợ lý) → ở đây chỉ đánh dấu đã xem.
+            _prefetch.ContinueWith(x => _ = x.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+            return _prefetch;
         }
     }
     private DateTime _prefetchAt;

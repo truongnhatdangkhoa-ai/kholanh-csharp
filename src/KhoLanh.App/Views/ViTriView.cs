@@ -612,7 +612,7 @@ public sealed class ViTriView : UserControl, IPage
     {
         var path = await Ui.SaveFile(this, "Xuất phiếu ra Excel", Ui.SafeFileName(FileBase(loai, day)) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportExcel(path, items, title, day))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportExcel(path, items, title, day))) Ui.Exported(this, path);
     }
 
     /// <summary>In trực tiếp: dùng lại đúng hàm xuất Excel rồi mở trang in A4 trong trình duyệt.</summary>
@@ -636,7 +636,7 @@ public sealed class ViTriView : UserControl, IPage
         {
             var path = await Ui.SaveFile(w, "Lưu ảnh", Ui.SafeFileName(FileBase(loai, day)) + ".png", "png", "Ảnh PNG");
             if (path is null) return;
-            if (await Ui.Run(w, () => bmp.Save(path))) { w.Close(); Ui.OpenExternal(path); }
+            if (await Ui.Run(w, () => bmp.Save(path))) { w.Close(); Ui.Exported(this, path); }
         };
         await Ui.Show(this, w);
     }
@@ -948,7 +948,7 @@ public sealed class ViTriView : UserControl, IPage
         btns.Children.Add(Btn("Tải file mẫu…", async () =>
         {
             var p = await Ui.SaveFile(this, "Lưu file mẫu", "Mau_Ton_Theo_Vi_Tri.xlsx", "xlsx", "Excel");
-            if (p is not null && await Ui.Run(this, () => SaveTemplate(p))) Ui.OpenExternal(p);
+            if (p is not null && await Ui.Run(this, () => SaveTemplate(p))) Ui.Exported(this, p);
         }));
         if (_edit && Svc.Rows.Count > 0) btns.Children.Add(Btn("Xóa dữ liệu vị trí", async () => await ClearData(), danger: true));
         card.Children.Add(btns);

@@ -519,7 +519,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         {
             _status.Text = "Đã xuất " + Path.GetFileName(path);
             if (cur.Id.Length > 0) RenderList(cur.Id);
-            Ui.OpenExternal(path);
+            Ui.Exported(this, path);
         }
     }
 
@@ -626,7 +626,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         {
             var d = Svc.ThongKe(mk);
             _status.Text = $"Đã xuất {Path.GetFileName(path)} — {d.Groups.Count} phiếu, {d.TongThang:#,0.##} kiện.";
-            Ui.OpenExternal(path);
+            Ui.Exported(this, path);
         }
     }
 
