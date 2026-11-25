@@ -293,6 +293,11 @@ public sealed class CargoView : UserControl
         head.Children.Add(Labeled("Ghi chú sau tên", Tb(b.Tag, v => b.Tag = v, 160)));
         if (_edit)
         {
+            // 1.72: chọn từ Tồn kho An An theo SIZE + ĐẶC TÍNH (không theo lô) → thêm dòng, số kiện đổ đầy theo KIỆN / DÃY
+            var pick = Btn("Chọn từ tồn…", async () => await PickFromStock(c, bi));
+            pick.VerticalAlignment = VerticalAlignment.Bottom;
+            ToolTip.SetTip(pick, "Tồn kho An An gộp theo Size + Đặc tính + Quy cách (không tách lô): tích / gõ SL xuất → thêm dòng vào mục này, Lô NL để trống để gõ sau.");
+            head.Children.Add(pick);
             var rm = new Button { Content = "🗑 Xóa mục", Padding = new Thickness(8, 3), VerticalAlignment = VerticalAlignment.Bottom }; rm.Classes.Add("danger");
             rm.Click += (_, _) => { c.Blocks.Remove(b); if (c.Blocks.Count == 0) c.Blocks.Add(new CargoBlock { Loai = "ks" }); _dirty = true; ShowEditor(); };
             head.Children.Add(rm);
@@ -373,6 +378,104 @@ public sealed class CargoView : UserControl
         var body = new StackPanel { Spacing = 6 }; body.Children.Add(head); body.Children.Add(Framed(grid)); body.Children.Add(note);
         return Section($"Mục hàng {bi + 1} — {(ks ? "kháng sinh" : "khác")}", body);
     }
+    // ------------------------------------------------------------------ 1.72: Chọn từ tồn (size + đặc tính)
+
+    /// <summary>Cửa sổ chọn hàng đang mở (công cụ chụp ảnh dùng).</summary>
+    internal Window? PickerWindow { get; private set; }
+
+    private async Task PickFromStock(CargoRec c, int bi)
+    {
+        if (bi >= c.Blocks.Count || TopLevel.GetTopLevel(this) is not Window owner) return;
+        var b = c.Blocks[bi]; var ks = b.Loai != "khac";
+        if (Svc.StockRows.Count == 0) Svc.LoadStock();
+        var rows = Svc.StockBySize(c);
+        if (rows.Count == 0) { await Ui.Message(this, "Chưa có Tồn kho An An (hoặc tồn đều bằng 0) — nạp file ở module Tồn kho An An trước.", "Chọn từ tồn"); return; }
+        const int CSl = 8;
+        string N(double v) => v == 0 ? "" : v.ToString("#,0.##", Ui.Vi);
+        var gm = new GridModel();
+        gm.Load(new[]
+        {
+            new GridColumn("size", "Size", 80) { ReadOnly = true }, new GridColumn("dt", "Đặc tính", 140) { ReadOnly = true }, new GridColumn("pack", "Quy cách", 95) { ReadOnly = true },
+            new GridColumn("sn", "Size-quy cách", 115) { ReadOnly = true }, new GridColumn("nma", "Số mã", 70, "number") { ReadOnly = true },
+            new GridColumn("ton", "Tồn (kiện)", 95, "number") { ReadOnly = true }, new GridColumn("co", "Đã có trong cont này", 150, "number") { ReadOnly = true },
+            new GridColumn("con", "Còn lại", 90, "number") { ReadOnly = true }, new GridColumn("sl", "SL xuất", 95, "number"),
+        }, rows.Select(r => new[] { r.Size, r.Dt, r.Pack.Length > 0 ? r.Pack : r.Tl is > 0 ? $"({r.Tl.Value.ToString("0.###", Ui.Vi)} kg)" : "", r.Sn, r.NMa.ToString(), N(r.Ton), N(r.Have), N(r.Left), "" }));
+        var grid = new SheetGrid(gm) { SpareRows = 0, CheckCol = CSl, CheckFill = r => r < rows.Count ? (rows[r].Left > 0 ? rows[r].Left.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "") : "" };
+        double Sl(int r) => Ui.TryParseNumber(gm.Get(r, CSl).Trim(), out var v) && v > 0 ? v : 0;
+        grid.CellBackground = (r, col) => r < rows.Count && col == CSl && Sl(r) > rows[r].Left + 1e-9 ? BadBg : r < rows.Count && col == 3 && ks && rows[r].Sn.Length == 0 ? BadBg : null;
+        var info = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        var warn = new TextBlock { FontSize = 12.5, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+        void Info()
+        {
+            var sel = Enumerable.Range(0, Math.Min(gm.RowCount, rows.Count)).Where(r => Sl(r) > 0).ToList();
+            info.Text = sel.Count == 0 ? "Chưa chọn dòng nào — tích ô đầu dòng (lấy hết phần còn lại) hoặc gõ SL xuất." : $"Đang chọn {sel.Count} dòng · {sel.Sum(Sl).ToString("#,0.##", Ui.Vi)} kiện";
+            var over = sel.Where(r => Sl(r) > rows[r].Left + 1e-9).ToList();
+            var noSn = ks ? sel.Where(r => rows[r].Sn.Length == 0).ToList() : new();
+            var msgs = new List<string>();
+            if (over.Count > 0) msgs.Add($"⚠ {over.Count} dòng vượt phần còn lại (vẫn thêm được): " + string.Join(", ", over.Take(4).Select(r => $"{rows[r].Size} {rows[r].Dt} — xuất {Sl(r).ToString("#,0.##", Ui.Vi)} / còn {rows[r].Left.ToString("#,0.##", Ui.Vi)}")));
+            if (noSn.Count > 0) msgs.Add($"⚠ {noSn.Count} dòng chưa suy được Size-quy cách (quy cách chưa có trong Danh mục) — sẽ để trống để gõ tay.");
+            warn.Text = string.Join("\n", msgs); warn.IsVisible = msgs.Count > 0;
+            grid.Refresh();
+        }
+        gm.Changed += Info;
+        var add = new Button { Content = "Thêm vào phiếu", Classes = { "primary" }, MinWidth = 150, HorizontalContentAlignment = HorizontalAlignment.Center };
+        var close = new Button { Content = "Đóng", IsCancel = true };
+        var btns = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; btns.Children.Add(close); btns.Children.Add(add);
+        var bar = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
+        DockPanel.SetDock(btns, Dock.Right); bar.Children.Add(btns); bar.Children.Add(info);
+        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 8) };
+        top.Children.Add(new TextBlock { Text = $"Mục hàng {bi + 1} ({(ks ? "kháng sinh" : "khác")}) · {Svc.StockInfo}", FontSize = 12.5, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap });
+        top.Children.Add(new TextBlock { Text = "Tồn gộp theo Size + Đặc tính + Quy cách, KHÔNG tách lô. Thêm vào phiếu: mỗi dòng chọn thành 1 dòng" + (ks ? " (Loại + Size-quy cách + KQ KS theo đặc tính; Lô NL để trống để gõ sau)" : " (Size + Quy cách)") + ", số kiện đổ đầy từ dãy 1 theo hàng KIỆN / DÃY.",
+            FontSize = 12, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, Tag = "keep" });
+        top.Children.Add(warn);
+        var root = new DockPanel();
+        DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
+        root.Children.Add(top); root.Children.Add(bar); root.Children.Add(Framed(grid));
+        var scr = owner.Screens.ScreenFromWindow(owner)?.WorkingArea; var sc = owner.RenderScaling <= 0 ? 1 : owner.RenderScaling;
+        var w = new Window
+        {
+            Title = "Chọn từ tồn — Tồn kho An An theo size + đặc tính",
+            Width = Math.Max(860, Math.Min(1180, (scr?.Width ?? 1400) / sc * 0.85)), Height = Math.Max(520, (scr?.Height ?? 860) / sc * 0.8),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = AppTheme.Card, MinWidth = 700, MinHeight = 420,
+            Content = new Border { Padding = new Thickness(14, 12), Child = root },
+        };
+        var ok = false;
+        add.Click += (_, _) => { ok = true; w.Close(); };
+        close.Click += (_, _) => w.Close();
+        w.Opened += (_, _) => grid.Focus();
+        PickerWindow = w; Info();
+        await Ui.Show(this, w);
+        PickerWindow = null;
+        if (!ok) return;
+        var pick = Enumerable.Range(0, Math.Min(gm.RowCount, rows.Count)).Select(r => (Row: rows[r], Sl: Sl(r))).Where(x => x.Sl > 0).ToList();
+        if (pick.Count == 0) return;
+        var msg = AddFromStock(c, bi, pick.Select(x => (x.Row, x.Sl)).ToList());
+        _dirty = true; ShowEditor();
+        _status.Text = msg;   // sau ShowEditor (RefreshAll ghi đè dòng trạng thái)
+    }
+
+    /// <summary>Thêm các dòng chọn từ tồn vào mục <paramref name="bi"/> (thay các dòng trống ở cuối), đổ đầy số kiện theo KIỆN / DÃY. Trả câu báo kết quả.</summary>
+    internal static string AddFromStock(CargoRec c, int bi, List<(CargoStock.SizeRow Row, double Sl)> pick)
+    {
+        var b = c.Blocks[bi]; var ks = b.Loai != "khac";
+        while (b.Lines.Count > 0 && IsEmptyLine(b.Lines[^1])) b.Lines.RemoveAt(b.Lines.Count - 1);
+        var caps = Caps(c); var noCap = caps.Count == 0; double left = 0; var noSn = 0;
+        foreach (var (row, sl) in pick)
+        {
+            var (ln, okSn) = CargoStock.LineFor(row, ks); if (!okSn) noSn++;
+            b.Lines.Add(ln);
+            var want = Math.Floor(sl);
+            if (noCap) { if (want > 0) ln.Dai["1"] = want.ToString(System.Globalization.CultureInfo.InvariantCulture); }
+            else left += RaiTong(c, bi, b.Lines.Count - 1, want, caps).Left;
+        }
+        var msg = $"Đã thêm {pick.Count} dòng từ tồn vào mục {bi + 1} ({pick.Sum(x => Math.Floor(x.Sl)).ToString("#,0", Ui.Vi)} kiện).";
+        if (noCap) msg += " Chưa có hàng KIỆN / DÃY nên số kiện đặt hết vào dãy 1 — nhập KIỆN / DÃY rồi gõ lại Tổng để đổ đầy.";
+        else if (left > 0) msg += $" CÒN DƯ {left.ToString("#,0", Ui.Vi)} kiện chưa xếp được (hết chỗ các dãy).";
+        if (noSn > 0) msg += $" {noSn} dòng chưa có Size-quy cách (quy cách chưa có trong Danh mục) — gõ tay.";
+        if (ks) msg += " Nhớ gõ Lô NL cho từng dòng.";
+        return msg;
+    }
+
     /// <summary>Lưới mục hàng: tối thiểu số dòng hiện (kể cả dòng trống), số dòng trống luôn có ở cuối, chỗ cho thanh cuộn ngang.</summary>
     internal const int MinRows = 10, MinSpare = 3; private const double ScrollH = 14;
 

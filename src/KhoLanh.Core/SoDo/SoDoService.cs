@@ -516,6 +516,26 @@ public sealed class SoDoService
         var rv = ReviewOf(all, key => B.Tang.TryGetValue(key, out var m) ? m.Nk : 99, GrpOf);
         return new ReviewResult(page.Name, dat.Count, all, rv);
     }
+    // ------------------------------------------------------------------ 1.72: kết quả 1 trang kiểm kê trên sơ đồ
+
+    /// <summary>Các trang Nhập liệu dạng kiểm kê có cột Vị trí (mới sửa trước).</summary>
+    public List<EntryService.PageInfo> KkPages()
+    {
+        RequireView();
+        return _entry.PagesForRead().Where(p => p.Template is not ("nhap-kho" or "xuat-kho" or "trong"))
+            .Where(p => { var h = p.Columns.Select(c => c.Header).ToList(); return KiemKe.KiemKeCore.IsKiemKe(h) && KiemKe.KiemKeCore.PageCols(h).ContainsKey("vt"); })
+            .OrderByDescending(p => p.UpdatedAt, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>So 1 trang kiểm kê với sổ theo vị trí (sơ đồ đang nạp, đã áp khóa kiểm kê). Số lượng trên trang tính bằng KIỆN, sổ sách mã đơn vị gói đổi ra kiện theo Quy cách — như Đối chiếu kiểm kê › Theo vị trí.</summary>
+    public KiemKe.KiemKeCore.KkMap KkMapOf(string pageId)
+    {
+        RequireView();
+        var p = _entry.PagesForRead().FirstOrDefault(x => x.Id == pageId) ?? throw new BusinessException("Không tìm thấy trang Nhập liệu này (đã xóa?).");
+        var page = new KiemKe.KiemKeCore.Page { Id = p.Id, Name = p.Name, Template = p.Template, UpdatedAt = p.UpdatedAt, Columns = p.Columns.Select(c => c.Header).ToList(), Rows = _entry.LoadForRead(p) };
+        return KiemKe.KiemKeCore.MapPage(B, page, QcOf);
+    }
+
     public void ExportReview(string path, ReviewResult res)
     {
         RequireExport();

@@ -154,13 +154,14 @@ public partial class MainWindow : Window
             s.TroLy.StartAuto(TimeSpan.FromSeconds(90), TimeSpan.FromHours(6));
             if (s.TroLy.Last is { } last) OnTroLyScanned(last);
         }
-        // Số "Cần xử lý" của Danh mục mã hàng trên thanh bên: tính ngầm 30 giây sau khi mở app (như app cũ), không làm chậm lúc khởi động.
+        // Số "Cần xử lý" của Danh mục mã hàng trên thanh menu: tính ngầm 30 giây sau khi mở app (như app cũ), rồi tự tính lại khi
+        // danh mục / Mã hóa / tồn (An An, Gửi, vị trí, Sổ kho) đổi — kể cả do máy khác qua LAN (1.72).
         if (s.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey))
-            Avalonia.Threading.DispatcherTimer.RunOnce(async () =>
-            {
-                try { var n = await Task.Run(() => { var d = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => null); d.Load(); return d.XlNow().Count; }); SetBadge("m3dm", n); }
-                catch { /* chỉ là số gợi ý, lỗi thì bỏ qua */ }
-            }, TimeSpan.FromSeconds(30));
+        {
+            Avalonia.Threading.DispatcherTimer.RunOnce(() => { RefreshDmBadge(); _dmTimer.Start(); }, TimeSpan.FromSeconds(30));
+            _dmTimer.Tick += (_, _) => RefreshDmBadge(onlyIfChanged: true);
+            Closed += (_, _) => _dmTimer.Stop();
+        }
         Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
 
@@ -301,6 +302,34 @@ public partial class MainWindow : Window
         if (_current.Length > 0 && _buttons.TryGetValue(_current, out var cur)) cur.Classes.Add("active");
         foreach (var (k, n) in _badgeN.ToList()) SetBadge(k, n);
     }
+
+    // ------------------------------------------------------------------ số "Cần xử lý" Danh mục mã hàng (1.72)
+
+    private readonly Avalonia.Threading.DispatcherTimer _dmTimer = new() { Interval = TimeSpan.FromSeconds(60) };
+    private string _dmPrint = "";
+    private bool _dmBusy, _dmAgain;
+    /// <summary>Tính lại số "Cần xử lý" của Danh mục mã hàng (chạy ngầm). <paramref name="onlyIfChanged"/>: chỉ tính khi các bảng liên quan đã đổi phiên bản.</summary>
+    public void RefreshDmBadge(bool onlyIfChanged = false)
+    {
+        var s = App.Services;
+        if (!s.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey)) return;
+        if (_dmBusy) { if (!onlyIfChanged) _dmAgain = true; return; }
+        _dmBusy = true;
+        Task.Run(() =>
+        {
+            var fp = KhoLanh.Core.DanhMuc.DanhMucService.Fingerprint(s.Modules.AllVersions());
+            if (onlyIfChanged && fp == _dmPrint) return (int?)null;
+            var d = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => null);
+            var n = d.XlCount(); _dmPrint = fp; return n;
+        }).ContinueWith(t => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _dmBusy = false;
+            if (t.Status == TaskStatus.RanToCompletion && t.Result is { } n) SetBadge("m3dm", n);   // lỗi: chỉ là số gợi ý, bỏ qua
+            if (_dmAgain) { _dmAgain = false; RefreshDmBadge(); }
+        }));
+    }
+    /// <summary>Báo cho cửa sổ chính (nếu có) tính lại số "Cần xử lý" của Danh mục mã hàng — gọi sau khi sửa danh mục / nạp tồn mới.</summary>
+    public static void DmChanged(Control from) => Of(from)?.RefreshDmBadge();
 
     /// <summary>Số việc cần xử lý cạnh tên module (0 = ẩn); nhóm thả xuống hiện tổng số của các mục bên trong.</summary>
     public void SetBadge(string key, int n)

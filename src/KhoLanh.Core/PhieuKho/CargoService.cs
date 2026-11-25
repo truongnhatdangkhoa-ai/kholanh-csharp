@@ -127,20 +127,24 @@ public sealed class CargoService
     }
 
     public List<CargoStock.Item> Stock { get; private set; } = new();
+    /// <summary>Dòng tồn gốc (đủ Đặc tính / Trọng lượng) — "Chọn từ tồn" gộp theo size + đặc tính (1.72).</summary>
+    public List<KiemKeCore.Stock> StockRows { get; private set; } = new();
+    public List<CargoStock.SizeRow> StockBySize(CargoRec? rec) => CargoStock.BySize(StockRows, Cfg, rec, Ks);
     public string StockInfo { get; private set; } = "";
     /// <summary>Đọc Tồn kho An An (Load Data) để dò tồn theo mã hàng. Không có file tồn → danh sách rỗng.</summary>
     public void LoadStock()
     {
-        Stock = new(); StockInfo = "";
+        Stock = new(); StockRows = new(); StockInfo = "";
         try
         {
             var meta = Read("ton-kho-an-an", "LoadDataMeta"); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonNode.Parse((mo["data"]?.ToString() ?? "").Replace("__JSON__", "")) as JsonObject : null;
             var headers = (mj?["headers"] as JsonArray ?? new JsonArray()).Select(x => x?.ToString() ?? "").ToList(); if (headers.Count == 0) return;
             var rows = Read("ton-kho-an-an", "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, headers.Count).Select(i => o["c" + i]?.ToString() ?? "").ToArray()).ToList();
-            Stock = CargoStock.Aggregate(KiemKeCore.MakeStock(headers, rows));
+            StockRows = KiemKeCore.MakeStock(headers, rows);
+            Stock = CargoStock.Aggregate(StockRows);
             StockInfo = $"Tồn kho An An: {Stock.Count:#,0} mã (file {mj?["fileName"]}, ngày {mj?["dataDate"]})";
         }
-        catch { Stock = new(); }
+        catch { Stock = new(); StockRows = new(); }
     }
     public List<CargoStock.Result> StockCheck(CargoRec rec) => Stock.Count == 0 ? new() : CargoStock.CheckRec(Cfg, rec, Ks, Stock);
 
