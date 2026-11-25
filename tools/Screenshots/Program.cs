@@ -25,6 +25,15 @@ var data = Path.Combine(Path.GetTempPath(), "kholanh-demo-" + Guid.NewGuid().ToS
 App.InitServices(data); KhoLanh.App.MainWindow.CacheEnabled = false;   // ảnh chụp cần màn hình mới mỗi lần mở
 var s = App.Services;
 
+// 1.85.1: không phần nào của trang (thanh công cụ, chữ…) được nằm trên mép dưới thanh menu 44px (lỗi Container 3D: trang bị dời lên −38px)
+var navBad = new List<string>();
+void CheckUnderNav(MainWindow w, string name)
+{
+    if (w.PageHost.Content is not Control root) return;
+    var top = root.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible && c.Bounds.Height > 0 && c is TextBlock or Button or TextBox or ComboBox)
+        .Select(c => c.TranslatePoint(new Point(0, 0), w)?.Y ?? 999).DefaultIfEmpty(999).Min();
+    if (top < 43.5) { navBad.Add($"{name} (y={top:0})"); Console.WriteLine($"  [HỎNG] {name}: nội dung ở y={top:0} < 44 (thanh menu)"); }
+}
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
 void SnapFlyout(Window w, Button anchor, string name)
 {
@@ -78,6 +87,7 @@ void SnapSuggest(Window w, string name)
 void Snap(Window w, string name)
 {
     Pump();
+    Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick(2); Pump();   // headless: vẽ lại theo bố cục mới nhất (không thì ảnh giữ khung cũ)
     using var frame = w.CaptureRenderedFrame();
     frame!.Save(Path.Combine(outDir, name + ".png"));
     Console.WriteLine("  " + name);
@@ -522,17 +532,18 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
             for (var t = 0; t < n; t++)
             {
                 if (tc is not null) { tc.SelectedIndex = t; for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); } }
-                Snap(sw, $"s-{k}-{t}"); CheckMinRows($"s-{k}-{t}");
+                CheckUnderNav(sw, $"s-{k}-{t}"); Snap(sw, $"s-{k}-{t}"); CheckMinRows($"s-{k}-{t}");
                 var inner = sw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tc && x.IsEffectivelyVisible).FirstOrDefault();
                 if (inner is not null)
-                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(sw, $"s-{k}-{t}-{u}"); CheckMinRows($"s-{k}-{t}-{u}"); }
+                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } CheckUnderNav(sw, $"s-{k}-{t}-{u}"); Snap(sw, $"s-{k}-{t}-{u}"); CheckMinRows($"s-{k}-{t}-{u}"); }
             }
         }
         catch (Exception e) { Console.WriteLine($"  [{k}] lỗi: {e.Message}"); }
     }
     sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir);
     Console.WriteLine(minBad == 0 ? "[MIN8] OK: mọi bảng đang hiện đủ chiều cao tối thiểu" : $"[MIN8] {minBad} bảng thấp hơn tối thiểu");
-    if (minBad > 0) Environment.ExitCode = 1;
+    if (navBad.Count > 0) Console.WriteLine("HỎNG: nội dung trang chui lên thanh menu: " + string.Join(", ", navBad));
+    if (minBad > 0 || navBad.Count > 0) Environment.ExitCode = 1;
     return;
 
     // 1.83: mọi bảng đang hiện phải cao ≥ chiều cao tối thiểu (8 dòng, bảng chỉ đọc ít dòng thì đủ dòng của nó)
