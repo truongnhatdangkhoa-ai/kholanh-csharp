@@ -139,6 +139,111 @@ public class AccountSyncService
         return u;
     }
 
+    // ---------------- 1.104: dùng chung Sheet điện thoại (1 Google Sheet + 1 Apps Script) ----------------
+    // Trước 1.104 tài khoản dùng chung cần 1 Google Sheet + 1 Apps Script RIÊNG (TaiKhoan.gs) bên cạnh Sheet điện thoại → dễ dán nhầm mã vào nhau.
+    // Code.gs của app điện thoại (kholanh-csharp-mobile ≥ 25/11/2026) có sẵn phần tài khoản: tab TaiKhoan, lệnh list / save / replaceAll, 2 mã ở
+    // Thuộc tính tập lệnh (TK_MA_DOC / TK_MA_QUAN_TRI) do PC đặt bằng lệnh pc.tkCaiMa (PC_TOKEN). Các máy khác tự theo nhờ dòng "#chuyen-sheet"
+    // ghi ở Sheet cũ (cùng mã đọc / mã quản trị nên mã kết nối KLTK1 cũ vẫn đúng, chỉ đổi đường dẫn).
+
+    public const string MoveRowName = "#chuyen-sheet", MoveRowRole = "chuyen";
+
+    /// <summary>Đường dẫn Web App điện thoại máy này đang dùng (chưa đặt riêng → đường dẫn cài sẵn).</summary>
+    public string PhoneUrl => _settings.Get(PhoneWebApp.KeyUrl) is { Length: > 0 } u ? u : PhoneWebApp.DefaultUrl;
+    /// <summary>Tài khoản đang dùng chung qua chính Sheet điện thoại (1 Sheet cho cả hai).</summary>
+    public bool OnPhoneSheet => Enabled && string.Equals(Url.Trim(), PhoneUrl.Trim(), StringComparison.Ordinal);
+
+    internal const string OldPhoneScriptMsg =
+        "Apps Script của Google Sheet điện thoại chưa phải bản mới (chưa có phần tài khoản dùng chung). Mở Sheet điện thoại › Tiện ích mở rộng › Apps Script, "
+        + "xóa hết, dán Code.gs mới, Lưu, rồi Triển khai › Quản lý triển khai › ✏ › Phiên bản: Phiên bản mới › Triển khai (KHÔNG tạo triển khai mới để giữ đường dẫn).";
+
+    /// <summary>Đường dẫn Sheet mới ghi ở dòng "#chuyen-sheet" (khác <paramref name="current"/>), hoặc null.</summary>
+    internal static string? MovedTo(JsonArray rows, string current)
+    {
+        foreach (var n in rows)
+        {
+            if (n is not JsonObject o) continue;
+            var name = (o["username"]?.ToString() ?? "").TrimStart('\'').Trim();
+            if (!string.Equals(name, MoveRowName, StringComparison.OrdinalIgnoreCase)) continue;
+            var url = (o["quyen"]?.ToString() ?? "").TrimStart('\'').Trim();
+            try { url = CheckUrl(url); } catch { return null; }
+            return string.Equals(url, current.Trim(), StringComparison.Ordinal) ? null : url;
+        }
+        return null;
+    }
+
+    private static JsonObject MoveRow(string url) => new()
+    {
+        ["username"] = MoveRowName,
+        ["ho_ten"] = "Tài khoản đã chuyển sang Google Sheet điện thoại (phần mềm tự ghi, đừng sửa tay)",
+        ["vai_tro"] = MoveRowRole,
+        ["dang_dung"] = "0",
+        ["quyen"] = url,
+        ["mat_khau_bam"] = "", ["muoi"] = "",
+        ["cap_nhat_luc"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+        ["cap_nhat_boi"] = "",
+    };
+
+    public record MoveResult(int Users, bool Uploaded, bool OldMarked);
+
+    /// <summary>
+    /// Chuyển tài khoản dùng chung sang chính Google Sheet điện thoại (Quản trị). Máy đang dùng Sheet tài khoản riêng → chép nguyên danh sách
+    /// (kể cả dòng khóa ghi / phân vai LAN), giữ 2 mã, ghi dòng "#chuyen-sheet" ở Sheet cũ để máy khác tự theo. Máy chưa dùng chung → tạo 2 mã mới,
+    /// đưa tài khoản trong máy lên. Sheet điện thoại đã có tài khoản (máy này chuyển dở lần trước) → tải về, không ghi đè.
+    /// </summary>
+    public async Task<MoveResult> MoveToPhoneSheetAsync(PhoneWebApp phone, CancellationToken ct = default)
+    {
+        _session.RequireAdmin();
+        if (phone.Token.Length == 0)
+            throw new BusinessException("Máy này chưa kết nối đồng bộ điện thoại (chưa có mã PC_TOKEN). Kết nối ở Vị Trí Bột › Điện thoại › Kết nối trước, rồi bấm lại.");
+        var url = CheckUrl(phone.Url);
+        if (OnPhoneSheet) throw new BusinessException("Tài khoản đã dùng chung Google Sheet điện thoại rồi.");
+        string token, admin;
+        JsonArray rows;
+        var oldUrl = Enabled ? Url : "";
+        if (Enabled)
+        {
+            if (!CanWrite) throw new BusinessException("Máy này chưa mở khóa ghi tài khoản dùng chung. Đăng nhập bằng tài khoản Quản trị (khóa tự mở) hoặc dán mã máy quản trị, rồi bấm lại.");
+            token = Token; admin = AdminKey;
+            var old = await CallAsync(oldUrl, token, "", "list", null, ct);
+            rows = new JsonArray((old["users"]?.AsArray() ?? new JsonArray()).OfType<JsonObject>()
+                .Where(o => !string.Equals((o["username"]?.ToString() ?? "").TrimStart('\'').Trim(), MoveRowName, StringComparison.OrdinalIgnoreCase))
+                .Select(o => (JsonNode?)o.DeepClone()).ToArray());
+        }
+        else
+        {
+            token = NewCode(); admin = NewCode();
+            rows = new JsonArray(LocalUsers().Select(u => (JsonNode?)ToRow(u)).ToArray());
+        }
+        if (!rows.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin }))
+            throw new BusinessException("Danh sách tài khoản chưa có Quản trị nào đang dùng nên chưa chuyển được.");
+        try { await phone.CallAsync("pc.tkCaiMa", new JsonObject { ["maDoc"] = token, ["maQuanTri"] = admin }, 60, ct); }
+        catch (BusinessException e) when (e.Message.Contains("Không có chức năng")) { throw new BusinessException(OldPhoneScriptMsg); }
+        var cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
+        bool uploaded = false;
+        if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is not null))
+        {
+            await CallAsync(url, token, admin, "replaceAll", new JsonObject { ["users"] = rows.DeepClone() }, ct);
+            cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
+            uploaded = true;
+        }
+        bool marked = false;
+        if (oldUrl.Length > 0)
+        {
+            try { await CallAsync(oldUrl, token, admin, "save", new JsonObject { ["user"] = MoveRow(url) }, ct); marked = true; }
+            catch (BusinessException) { /* Sheet cũ lỗi: máy khác cập nhật mã kết nối bằng tay */ }
+        }
+        _settings.Set(KeyUrl, url);
+        _settings.Set(KeyToken, Secret.Protect(token));
+        _settings.Set(KeyAdmin, Secret.Protect(admin));
+        _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
+        CachePlan(cur);
+        var n = Apply(cur);
+        _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
+        _audit.Log(_session.Username, "Tài khoản dùng chung sang Sheet điện thoại", $"{n} tài khoản{(uploaded ? ", đã đưa lên" : ", Sheet đã có sẵn")}{(marked ? ", Sheet cũ đã ghi dòng chuyển" : "")}");
+        return new MoveResult(n, uploaded, marked);
+    }
+
     // ---------------- kết nối / ngắt ----------------
 
     public record ConnectResult(bool Uploaded, int Users, bool Admin);
@@ -164,6 +269,7 @@ public class AccountSyncService
         url = CheckUrl(url);
         var list = await CallAsync(url, token, "", "list", null, ct);
         var users = list["users"]?.AsArray() ?? new JsonArray();
+        if (MovedTo(users, url) is { } moved) { url = moved; users = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray(); }
         CachePlan(users);
         bool uploaded = false;
         int count;
@@ -215,6 +321,19 @@ public class AccountSyncService
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { NoteError("Google Sheet trả lời quá lâu."); throw new BusinessException("Google Sheet trả lời quá lâu."); }
         catch (Exception e) when (!ct.IsCancellationRequested) { NoteError(e.Message); throw; }
         var users = res["users"]?.AsArray() ?? new JsonArray();
+        if (MovedTo(users, Url) is { } moved)
+        {
+            // 1.104: máy Quản trị đã chuyển tài khoản sang Sheet điện thoại (dòng "#chuyen-sheet" ở Sheet cũ) → máy này tự theo, cùng mã.
+            try { res = await CallAsync(moved, Token, "", "list", null, cts.Token); }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { NoteError("Google Sheet trả lời quá lâu."); throw new BusinessException("Google Sheet trả lời quá lâu."); }
+            catch (Exception e) when (!ct.IsCancellationRequested) { NoteError(e.Message); throw; }
+            users = res["users"]?.AsArray() ?? new JsonArray();
+            if (users.Count > 0)
+            {
+                _settings.Set(KeyUrl, moved);
+                _audit.Log(_session.Username, "Tài khoản dùng chung theo Sheet mới", "Sheet điện thoại (máy Quản trị đã chuyển)");
+            }
+        }
         if (users.Count == 0) { NoteError("Google Sheet không có tài khoản nào."); throw new BusinessException("Google Sheet không có tài khoản nào — giữ danh sách trong máy."); }
         ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         CachePlan(users);
@@ -226,7 +345,7 @@ public class AccountSyncService
     /// <summary>Lỗi tải danh sách tài khoản gần nhất (null = lần gần nhất tải được / chưa tải lỗi).</summary>
     public ConnErrorLog.Entry? LastError => ConnErrorLog.Read(_settings, ConnErrorLog.Acct);
     private void NoteError(string msg) =>
-        ConnErrorLog.Note(_settings, ConnErrorLog.Acct, msg, msg == PhoneScriptMsg ? ConnErrorLog.KindPhoneScript : "");
+        ConnErrorLog.Note(_settings, ConnErrorLog.Acct, msg, msg == PhoneScriptMsg || msg == OldPhoneScriptMsg ? ConnErrorLog.KindPhoneScript : "");
 
     private readonly object _pfLock = new();
     private Task<int>? _prefetch;
@@ -570,7 +689,8 @@ public class AccountSyncService
         "Đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) đang trỏ tới Web App của APP ĐIỆN THOẠI, không phải Web App tài khoản "
         + "(hoặc Google Sheet tài khoản đã bị dán đè mã của app điện thoại). Cách sửa: mở Google Sheet tài khoản › Tiện ích mở rộng › Apps Script, "
         + "dán lại mã từ nút \"Cập nhật mã Apps Script\" rồi Triển khai › Quản lý triển khai › Phiên bản mới; hoặc dán đúng đường dẫn …/exec của Sheet tài khoản "
-        + "rồi bấm Kết nối. Muốn tạo tài khoản ngay chỉ trên máy này: bấm \"Ngắt kết nối\" ở khung đó.";
+        + "rồi bấm Kết nối. Gọn nhất (1.104): bấm \"Dùng chung Sheet điện thoại\" ở khung đó — 1 Google Sheet cho cả tài khoản lẫn điện thoại. "
+        + "Muốn tạo tài khoản ngay chỉ trên máy này: bấm \"Ngắt kết nối\" ở khung đó.";
 
     private async Task<JsonObject> CallAsync(string url, string token, string admin, string action, JsonObject? payload, CancellationToken ct = default)
     {
@@ -597,7 +717,12 @@ public class AccountSyncService
                 throw new BusinessException($"Web App trả về trang lạ (HTTP {(int)res.StatusCode}). Kiểm tra: đường dẫn kết thúc bằng /exec và \"Ai có quyền truy cập\" là \"Bất kỳ ai\".");
             if (o["ok"]?.GetValue<bool>() != true)
             {
-                if (LooksLikePhoneScript(o)) { NoteError(PhoneScriptMsg); throw new BusinessException(PhoneScriptMsg); }
+                if (LooksLikePhoneScript(o))
+                {
+                    // 1.104: đường dẫn chính là Sheet điện thoại (đã gộp) mà vẫn trả AUTH → Code.gs trên Google còn bản cũ, chưa có phần tài khoản.
+                    var msg = string.Equals(url.Trim(), PhoneUrl.Trim(), StringComparison.Ordinal) ? OldPhoneScriptMsg : PhoneScriptMsg;
+                    NoteError(msg); throw new BusinessException(msg);
+                }
                 throw new BusinessException(o["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
             }
             ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);   // Web App tài khoản trả lời đúng → hết lỗi cấu hình

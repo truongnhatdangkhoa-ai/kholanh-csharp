@@ -1247,6 +1247,26 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v184")
     }
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v184) — ĐẠT: " : "Xong (v184) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v204")
+{
+    // 1.104: Cài đặt máy › Tài khoản dùng chung — nút "Dùng chung Sheet điện thoại" (máy đã nối điện thoại) và trạng thái sau khi chuyển.
+    var ok = true;
+    s.Settings.Set(KhoLanh.Core.Services.PhoneWebApp.KeyToken, KhoLanh.Core.Services.Secret.Protect("mau"));
+    s.Settings.Set("acct_url", "https://script.google.com/macros/s/MAU-TAI-KHOAN/exec"); s.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("mau"));
+    foreach (var (onPhone, n) in new[] { (false, "v204-tai-khoan-chua-gop"), (true, "v204-tai-khoan-da-gop") })
+    {
+        if (onPhone) s.Settings.Set("acct_url", KhoLanh.Core.Services.PhoneWebApp.DefaultUrl);
+        main.Navigate("audit"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        main.Navigate("backup"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+        var bv = (BackupView)main.PageHost.Content!;
+        var move = bv.FindControl<Border>("AcctMovePanel")!; var up = bv.FindControl<Button>("AcctUpgradeButton")!;
+        move.BringIntoView(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+        Console.WriteLine($"[v204] {n}: khung chuyển {move.IsVisible}, nút Cập nhật mã Apps Script {up.IsVisible}");
+        if (move.IsVisible == onPhone || up.IsVisible == onPhone) { Console.WriteLine("        HỎNG"); ok = false; }
+        Snap(main, n);
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v204) — ĐẠT: " : "Xong (v204) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
