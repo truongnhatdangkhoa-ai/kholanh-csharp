@@ -9,7 +9,7 @@ namespace KhoLanh.App;
 
 /// <summary>
 /// Thanh tiêu đề của Windows (dải chứa tên cửa sổ + nút thu nhỏ / phóng to / đóng) theo màu giao diện (1.74):
-/// cửa sổ chính = màu thanh menu trên cùng (NavBg) → liền một khối; hộp thoại = màu nền thẻ (CardBg) của Sáng dịu / Tối.
+/// mọi cửa sổ = màu nền thẻ (CardBg) của giao diện: Sáng dịu → thanh trắng chữ đen, Tối → thanh tối chữ sáng (1.78).
 /// Dùng DWM (dwmapi): màu nền thanh tiêu đề + màu chữ chạy trên Windows 11; chế độ tối của thanh tiêu đề chạy cả Windows 10 (2004+).
 /// Hệ điều hành khác / Windows cũ: bỏ qua, không lỗi. Tự áp khi mở cửa sổ và khi đổi giao diện.
 /// </summary>
@@ -31,14 +31,16 @@ public static class TitleBar
         };
     }
 
-    /// <summary>Màu thanh tiêu đề của cửa sổ (theo giao diện hiện tại).</summary>
+    /// <summary>
+    /// Màu thanh tiêu đề (theo giao diện hiện tại) — 1.78: MỌI cửa sổ theo giao diện: Sáng = thanh trắng chữ đen, Tối = thanh tối chữ sáng.
+    /// (1.74 tô cửa sổ chính theo màu thanh menu xanh đậm + bật chế độ tối → trên Windows 10 không đổi được màu nền thanh tiêu đề
+    /// nên thanh ra ĐEN cả khi đang giao diện Sáng.)
+    /// </summary>
     public static (Color Caption, Color Text, bool Dark) ColorsFor(Window w)
     {
-        var main = w is MainWindow;
-        var cap = main ? AppTheme.Color("#10243D") : AppTheme.Color("#FFFFFF");
-        var dark = main || AppTheme.Current == AppTheme.Mode.Dark;
-        var text = dark ? AppTheme.Color("#DCE5F0") : AppTheme.Color("#1A2433");
-        if (main && AppTheme.Current == AppTheme.Mode.Dark) text = Colors.White;
+        var dark = AppTheme.Current == AppTheme.Mode.Dark;
+        var cap = AppTheme.Color("#FFFFFF");             // Sáng: trắng dịu · Tối: nền thẻ tối
+        var text = AppTheme.Color("#1A2433");            // Sáng: chữ đậm · Tối: chữ sáng
         return (cap, text, dark);
     }
 
