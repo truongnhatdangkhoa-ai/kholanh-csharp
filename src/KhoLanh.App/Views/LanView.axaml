@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.LanView">
-  <!-- 1.56: trạng thái 1 dòng trên cùng; tab 1 = máy đang nối + trùng sửa (bảng rộng); tab 2 = cài đặt vai máy. Ghi chú dài → gợi ý khi rê chuột / mục thu gọn. -->
+  <!-- 1.56: trạng thái 1 dòng trên cùng; tab 1 = máy đang nối + trùng sửa (bảng rộng); tab 2 = máy chủ LAN theo tài khoản (1.108: bỏ hẳn cài vai tay theo máy + mã LAN). Ghi chú dài → gợi ý khi rê chuột / mục thu gọn. -->
   <DockPanel>
     <Border DockPanel.Dock="Top" Classes="card" Padding="14,10" Margin="0,0,0,8">
       <StackPanel Spacing="2">
@@ -58,11 +58,9 @@
               <StackPanel Spacing="8">
                 <TextBlock Text="Máy chủ LAN theo tài khoản" Classes="section"
                            ToolTip.Tip="Không cài tay IP / mã: Quản trị bật máy chủ trên máy giữ dữ liệu chính; tài khoản có quyền Máy dự phòng LAN đăng nhập máy nào thì máy đó làm dự phòng; mọi tài khoản khác là máy con, tự nối máy chủ trong cùng mạng. Địa chỉ máy chủ lưu trên Google Sheet chung."/>
-                <CheckBox x:Name="AutoOn" IsVisible="False"/>
                 <StackPanel x:Name="AutoRows" Spacing="4"/>
                 <TextBlock x:Name="AutoSlots" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
                 <WrapPanel ItemSpacing="6" LineSpacing="6">
-                  <Button x:Name="AutoSaveButton" IsVisible="False"/>
                   <Button x:Name="ClaimButton" Content="Bật máy chủ trên máy này" Classes="primary" Click="OnClaim"/>
                   <Button x:Name="StandbyButton" Content="Tắt máy chủ trên máy này" Classes="danger" Click="OnRelease"/>
                   <Button x:Name="DropStandbyButton" Content="Bỏ máy dự phòng" Click="OnDropStandby"/>
@@ -71,35 +69,6 @@
               </StackPanel>
             </Border>
             <StackPanel Grid.Column="1" Spacing="12">
-              <Border Classes="card" x:Name="ManualCard">
-                <StackPanel Spacing="6">
-                  <TextBlock Text="Vai của máy này (cài tay)" Classes="section"
-                             ToolTip.Tip="Đổi vai xong phần mềm tự mở lại. Máy con / dự phòng tải lại toàn bộ dữ liệu từ máy chủ. Mọi máy cần dùng chung tài khoản (Google Sheet)."/>
-                  <TextBlock x:Name="ManualNote" Classes="muted" TextWrapping="Wrap" FontSize="12" IsVisible="False" Tag="keep"
-                             Text="Đang phân vai theo tài khoản — vai do kế hoạch bên trái quyết định."/>
-                  <RadioButton x:Name="RoleSingle" GroupName="role" Content="Máy đơn (không dùng LAN)" IsCheckedChanged="OnRoleChanged"/>
-                  <RadioButton x:Name="RoleServer" GroupName="role" Content="Máy chủ chính — giữ database chính" IsCheckedChanged="OnRoleChanged"/>
-                  <RadioButton x:Name="RoleStandby" GroupName="role" Content="Máy dự phòng — tự thay khi máy chủ tắt" IsCheckedChanged="OnRoleChanged"/>
-                  <RadioButton x:Name="RoleClient" GroupName="role" Content="Máy con — đọc / ghi vào máy chủ" IsCheckedChanged="OnRoleChanged"/>
-                  <StackPanel x:Name="CodePanel" Spacing="4">
-                    <TextBlock Text="Mã LAN (KLLAN1-…) chép từ máy chủ chính" Classes="label"/>
-                    <TextBox x:Name="CodeBox" TextWrapping="Wrap" Height="60"/>
-                  </StackPanel>
-                  <StackPanel x:Name="PortPanel" Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="Cổng" VerticalAlignment="Center"/>
-                    <TextBox x:Name="PortBox" Width="120" Watermark="47820"/>
-                  </StackPanel>
-                  <Button x:Name="ManualSave" Content="Lưu và mở lại phần mềm" Classes="primary" Click="OnSave" Margin="0,4,0,0"/>
-                </StackPanel>
-              </Border>
-              <Border Classes="card" x:Name="ShareCard">
-                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                  <TextBlock Text="Mã LAN cho máy khác" Classes="section" VerticalAlignment="Center"
-                             ToolTip.Tip="Dán vào máy dự phòng / máy con (Hệ thống › Mạng LAN). Bộ cài cho máy mới cũng tự kèm mã này. Windows hỏi tường lửa: chọn Cho phép (mạng riêng)."/>
-                  <Button Grid.Column="1" Content="Chép mã LAN" Click="OnCopyCode"/>
-                  <TextBlock Grid.Row="1" Grid.ColumnSpan="2" x:Name="ShareMsg" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
-                </Grid>
-              </Border>
               <Expander Header="Khi máy chủ tắt thì sao?" HorizontalAlignment="Stretch">
                 <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
                            Text="• Có máy dự phòng: khoảng 10 giây sau máy dự phòng tự làm máy chủ, các máy con tự chuyển sang. Máy chủ chính bật lại sẽ chép phần thiếu rồi nhận lại vai.&#10;• Không có máy nào làm chủ: mỗi máy làm tiếp trên dữ liệu riêng, ghi sổ chờ; có máy chủ lại thì tự gửi lên (trùng sửa hiện ở tab Máy đang nối &amp; trùng sửa).&#10;• Nên để chỉ một máy nạp file cho mỗi module trong lúc mất máy chủ."/>

@@ -43,25 +43,16 @@ public partial class UsersView : UserControl, IPage
         catch { /* mất mạng: dùng bản lưu trong máy */ }
     }
 
-    /// <summary>1 dòng bảng danh sách (kèm vai máy LAN theo phân vai tài khoản).</summary>
-    public sealed record Row(User U, string LanLabel)
+    /// <summary>1 dòng bảng danh sách.</summary>
+    public sealed record Row(User U)
     {
         public string Username => U.Username; public string FullName => U.FullName; public string RoleLabel => U.RoleLabel; public string StatusLabel => U.StatusLabel; public string GoogleEmail => U.GoogleEmail ?? "";
-    }
-
-    private static string LanRoleOf(string user)
-    {
-        var a = App.Services.Accounts;
-        if (!a.Enabled) return "";
-        var plan = a.Plan;
-        if (plan is null) return "Máy con";
-        return KhoLanh.Core.Lan.LanService.RoleLabel(plan.RoleOf(user)) + (plan.On ? "" : " (chưa bật)");
     }
 
     private void Load()
     {
         var list = App.Services.Auth.ListUsers();
-        List.ItemsSource = list.Select(u => new Row(u, LanRoleOf(u.Username))).ToList();
+        List.ItemsSource = list.Select(u => new Row(u)).ToList();
         CountText.Text = $"{list.Count} tài khoản";
     }
 
@@ -77,13 +68,6 @@ public partial class UsersView : UserControl, IPage
         PassPanel.IsVisible = isNew; PassBox.Text = "";
         ActiveBox.IsChecked = u.IsActive;
         ResetButton.IsVisible = !isNew;
-        // vai máy LAN theo tài khoản (lưu ở phân vai trên Google Sheet tài khoản dùng chung)
-        var acc = App.Services.Accounts;
-        LanPanel.IsVisible = false;   // 1.106: vai LAN theo máy, không theo tài khoản
-        var lanRole = acc.Plan?.RoleOf(u.Username) ?? KhoLanh.Core.Lan.LanService.RoleClient;
-        LanBox.SelectedIndex = lanRole == KhoLanh.Core.Lan.LanService.RoleServer ? 1 : lanRole == KhoLanh.Core.Lan.LanService.RoleStandby ? 2 : 0;
-        ToolTip.SetTip(LanPanel, acc.Plan?.On == true ? "Máy đăng nhập bằng tài khoản này tự nhận vai này (Mạng LAN › phân vai theo tài khoản)."
-            : "Có hiệu lực khi bật “máy tự nhận vai theo tài khoản” ở Hệ thống › Mạng LAN.");
         _loading = true;
         CustomBox.IsChecked = u.Role != Roles.Admin && u.Permissions.Length > 0;
         _loading = false;
@@ -205,7 +189,6 @@ public partial class UsersView : UserControl, IPage
                 App.Services.Auth.SetGoogleEmail(editing.Id, gmail);
             }
         }));
-        // 1.106: bỏ ô "Vai máy LAN" theo tài khoản — vai LAN theo máy (Đồng bộ & sao lưu › Giữa các máy).
         if (ok) { Load(); Tabs.SelectedIndex = 0; Edit(new User()); }
     }
 

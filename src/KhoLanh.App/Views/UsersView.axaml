@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.UsersView">
-  <!-- 1.56: 2 tab — Danh sách tài khoản (bảng rộng) · Thông tin & phân quyền (form + vai máy LAN + bảng quyền rộng hết trang). Bấm đúp / Sửa → tab 2. -->
+  <!-- 1.56: 2 tab — Danh sách tài khoản (bảng rộng) · Thông tin & phân quyền (form + bảng quyền rộng hết trang). Bấm đúp / Sửa → tab 2. -->
   <TabControl x:Name="Tabs">
     <TabItem Header="Danh sách tài khoản">
       <DockPanel Margin="0,8,0,0">
@@ -42,14 +42,6 @@
                 <ComboBoxItem Content="Nhân viên" Tag="staff"/>
                 <ComboBoxItem Content="Quản lý" Tag="manager"/>
                 <ComboBoxItem Content="Quản trị" Tag="admin"/>
-              </ComboBox>
-            </StackPanel>
-            <StackPanel x:Name="LanPanel" Width="160" Spacing="3" IsVisible="False">
-              <TextBlock x:Name="LanLabelText" Text="Vai máy LAN" Classes="label"/>
-              <ComboBox x:Name="LanBox" HorizontalAlignment="Stretch">
-                <ComboBoxItem Content="Máy con" Tag="client"/>
-                <ComboBoxItem Content="Máy chủ chính" Tag="server"/>
-                <ComboBoxItem Content="Máy dự phòng" Tag="standby"/>
               </ComboBox>
             </StackPanel>
             <StackPanel Width="240" Spacing="3" ToolTip.Tip="Gmail của người dùng — bấm “Đăng nhập bằng Google” với Gmail này là vào tài khoản này (để trống = không dùng)">

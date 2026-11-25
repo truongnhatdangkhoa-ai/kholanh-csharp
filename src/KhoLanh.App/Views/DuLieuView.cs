@@ -87,7 +87,7 @@ public sealed class DuLieuView : UserControl, IPage
                 Muted("• Tự sao lưu mỗi ngày vào thư mục SaoLuu (giữ 30 bản) — xem tab Sao lưu › Trên máy này.\n• Muốn có bản ngoài máy (máy hỏng vẫn còn): tab Sao lưu › Google Drive cá nhân — đăng nhập Gmail, tự sao lưu theo lịch."),
                 mode == 0
                     ? new TextBlock { Text = "✔ Máy này đang dùng cách này.", Foreground = AppTheme.Brush("#1E7B4A"), FontWeight = FontWeight.SemiBold }
-                    : Muted("Máy này đang dùng cách " + (mode + 1) + ". Muốn về cách 1: " + (mode == 2 ? "tab “Máy chủ LAN” › Cài đặt vai máy › chọn Máy đơn, rồi mở lại phần mềm." : "tab “Thư mục / Google Drive dùng chung” › chọn Tắt › Lưu."))),
+                    : Muted("Máy này đang dùng cách " + (mode + 1) + ". Muốn về cách 1: " + (mode == 2 ? "tab “Máy chủ LAN” › Quản trị bấm Tắt máy chủ trên máy này." : "tab “Thư mục / Google Drive dùng chung” › chọn Tắt › Lưu."))),
         } };
         var sub = Ui.SubTabs(("1. " + names[0], new ScrollViewer { Content = local }), ("2. " + names[1], new DriveSyncView()), ("3. " + names[2], new LanView()));
         sub.SelectedIndex = start switch { "lan" => 2, "drive" => 1, _ => mode };

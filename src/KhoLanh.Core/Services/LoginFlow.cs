@@ -35,28 +35,21 @@ public static class LoginFlow
         catch (BusinessException ex) when (ex.Message.StartsWith("Sai tên đăng nhập") && user.Trim().Length > 0 && pass.Length > 0)
         {
             // 1.107: máy khác báo "sai mật khẩu" dù tài khoản đúng — vì máy này chưa nối Google Sheet chung, hoặc tài khoản chưa lên Sheet.
-            if (!acc.Enabled)
+            // 1.108: máy đã nối nhưng giữ mã cũ ("Sai mã kết nối") cũng hỏi lại Sheet chung bằng tên + mật khẩu (không phụ thuộc mã lưu trong máy).
+            var pullErr = pull is { IsFaulted: true } ? pull.Exception!.GetBaseException().Message.TrimEnd('.') : null;
+            var missing = !auth.Exists(user);
+            var wasOn = acc.Enabled;
+            if (acc.Enabled && pullErr is null && !missing) throw;   // danh sách mới nhất, có tài khoản → đúng là sai mật khẩu
+            var why = LocalWrong(auth, user) + (pullErr is null ? "" : $" Không lấy được danh sách mới từ Google Sheet chung ({pullErr}).");
+            try { await acc.JoinByPasswordAsync(user, pass, allowExisting: true); }
+            catch (JoinException je) when (je.Kind is JoinException.NoAccount or JoinException.WrongPassword or JoinException.Locked)
             {
-                // Máy đang dùng tài khoản riêng: hỏi Google Sheet chung (lệnh pcDangNhap) — đúng mật khẩu thì máy tự kết nối luôn.
-                try { await acc.JoinByPasswordAsync(user, pass, allowExisting: true); }
-                catch (JoinException je) when (je.Kind is JoinException.OldScript or JoinException.NotEnabled or JoinException.Other)
-                {
-                    throw new BusinessException(LocalWrong(auth, user) + " Cũng chưa kiểm được trên Google Sheet chung: " + je.Message);
-                }
-                catch (JoinException) { throw; }
-                catch (BusinessException be)
-                {
-                    throw new BusinessException(LocalWrong(auth, user) + " Cũng chưa kiểm được trên Google Sheet chung: " + be.Message);
-                }
-                u = auth.Login(user, pass);
-                return new Result(u, null, "Máy này đã tự kết nối Google Sheet chung — dùng chung tài khoản với các máy khác.", u.PasswordHash);
+                throw new BusinessException(je.Kind == JoinException.NoAccount ? AccountSyncService.NotOnSheetMsg(user.Trim()) : je.Message);
             }
-            if (pull is { IsFaulted: true })
-                throw new BusinessException(LocalWrong(auth, user) + " Không lấy được danh sách mới từ Google Sheet chung ("
-                    + pull.Exception!.GetBaseException().Message.TrimEnd('.') + ") — kiểm tra Internet rồi thử lại.");
-            if (pull is { IsCompleted: true } && !auth.Exists(user))
-                throw new BusinessException(AccountSyncService.NotOnSheetMsg(user.Trim()));
-            throw;
+            catch (BusinessException be) { throw new BusinessException(why + " Hỏi lại Google Sheet chung cũng chưa được: " + be.Message); }
+            u = auth.Login(user, pass);
+            return new Result(u, null, !wasOn ? "Máy này đã tự kết nối Google Sheet chung — dùng chung tài khoản với các máy khác."
+                : "Máy này đã kết nối lại Google Sheet chung (mã cũ trong máy đã thay).", u.PasswordHash);
         }
         return new Result(u, pull is { IsCompleted: false } ? pull : null, note, u.PasswordHash);
     }
