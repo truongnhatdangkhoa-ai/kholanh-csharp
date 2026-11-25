@@ -140,6 +140,7 @@ public sealed class GuiService
         var sheets = new Dictionary<string, JsonArray?> { [GuiStore.SRows] = GuiStore.RowsSheet(D.Rows), [GuiStore.SMeta] = GuiStore.MetaSheet(D) };
         sheets[GuiStore.SFile] = FileNapRows(pv); sheets[GuiStore.SFileMeta] = AnAnStore.JsonCell(new JsonObject { ["fileName"] = pv.FileName, ["size"] = pv.Size, ["sheetCount"] = pv.Book.SheetNames.Count, ["sheet"] = pv.Sheet, ["cols"] = pv.Raw.Count == 0 ? 0 : pv.Raw.Max(r => r.Length), ["savedAt"] = t0 });
         Write(sheets);
+        MauFile.Luu(src, GuiStore.Db, MauFile.Of(pv, UserName));   // 1.73: nhớ mẫu file
         var info = CurrentSnapshot() ?? new NapExcel.Snapshot(0, 0, 0, "");
         var log = NapExcel.ReadLog(src, GuiStore.Db);
         NapExcel.AddEntry(log, new JsonObject

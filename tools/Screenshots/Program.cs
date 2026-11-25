@@ -837,6 +837,126 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "l2")
     Snap(main, "31f-phieu-noi-dia-da-them-tu-ton");
     s.Lan.Dispose(); Console.WriteLine("Xong (l2): " + outDir); return;
 }
+// 1.73 (luồng 2): SHOTS_ONLY=l3 — N3 cảnh báo file đổi mẫu (An An, Tồn theo vị trí) · K2 báo trùng / lỗi khi nhập kiểm kê. Tự kiểm, sai → thoát mã 1.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "l3")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    void Fail(string m) { Console.WriteLine("[L3] LỖI: " + m); s.Lan.Dispose(); Environment.Exit(1); }
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    var sf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+    Window? Dlg(Func<Task> start, out Task t)
+    {
+        t = start(); W(700);
+        return main.OwnedWindows.LastOrDefault();
+    }
+    void CloseDlg(Window w, Task t) { w.Close(); for (var i = 0; i < 40 && !t.IsCompleted; i++) W(30); }
+    List<string> Texts(Window w) => w.GetVisualDescendants().OfType<TextBlock>().Select(x => x.Text ?? "").ToList();
+
+    // ---------- N3 · Tồn kho An An: nạp file 20/11 (lưu mẫu) → xem trước file 19/11 đổi tên cột, thêm cột, ít dòng hơn
+    string AnXlsx(string name, string[] head, int rows)
+    {
+        var fp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name);
+        using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("TonKho");
+        for (var c = 0; c < head.Length; c++) ws.Cell(1, c + 1).Value = head[c];
+        for (var i = 0; i < rows; i++)
+            for (var c = 0; c < head.Length; c++)
+                ws.Cell(i + 2, c + 1).Value = head[c] switch
+                {
+                    "Mã hàng" => $"VRHLBTNXECR00{3140 + i}IME1", "Tên hàng" => $"Tôm thẻ mẫu {i}", "Đặc tính" => "IQF", "Size" => "31/40", "Hợp đồng" => "HD-2611", "ĐVT" => "Thùng",
+                    "Tồn cuối" => 20 + i * 3, "Tồn cuối (NET)" => (20 + i * 3) * 10, "Tình trạng" => "Thành phẩm", "Ghi chú" => "", _ => (ClosedXML.Excel.XLCellValue)10,
+                };
+        wbk.SaveAs(fp); return fp;
+    }
+    var h1 = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Size", "Hợp đồng", "ĐVT", "Tồn cuối", "Tồn cuối (NET)", "Trọng lượng" };
+    var h2 = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Size", "Hợp đồng", "ĐVT", "Tồn cuối", "Tồn cuối (NET)", "Trọng lượng (kg)", "Ghi chú" };
+    var pv1 = s.AnAn.Preview(AnXlsx("Ton kho An An 20.11.2026.xlsx", h1, 20));
+    s.AnAn.Commit(pv1);
+    var mau = KhoLanh.Core.TonKho.MauFile.Doc(s.Lan, KhoLanh.Core.TonKho.AnAnStore.Db);
+    Console.WriteLine($"[L3] mẫu An An đã lưu: {mau?.Headers.Count} cột · {mau?.Rows} dòng · ngày {mau?.DataDate}");
+    if (mau is null || mau.Headers.Count != h1.Length || mau.Rows != 20) Fail("chưa lưu mẫu file An An sau khi nạp");
+    main.Navigate("m1"); W(900);
+    var anv = main.PageHost.GetVisualDescendants().OfType<AnAnView>().First();
+    var pv2 = s.AnAn.Preview(AnXlsx("Ton kho An An 19.11.2026.xlsx", h2, 13));
+    var cb = KhoLanh.Core.TonKho.MauFile.SoSanh(mau, KhoLanh.Core.TonKho.MauFile.Of(pv2), KhoLanh.Core.TonKho.MauFile.BatBuocAnAn, s.AnAn.D.DataDate);
+    Console.WriteLine("[L3] An An so mẫu: " + string.Join(" | ", cb.Select(x => $"{x.Muc}:{x.Key}")));
+    foreach (var k in new[] { "thieu:trongluong", "them", "ngay-cu", "sodong" }) if (!cb.Any(x => x.Key == k)) Fail("thiếu cảnh báo " + k);
+    var dA = Dlg(() => (Task)typeof(AnAnView).GetMethod("ReviewDialog", bf)!.Invoke(anv, new object[] { pv2 })!, out var tA);
+    if (dA is null) Fail("không mở hộp xem trước An An");
+    var goA = dA!.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("primary"));
+    Console.WriteLine($"[L3] hộp xem trước An An: nút “{goA?.Content}” · có khung khác mẫu: {Texts(dA).Any(t => t.Contains("KHÁC MẪU"))}");
+    if (goA?.Content as string != "Vẫn nạp" || !Texts(dA).Any(t => t.Contains("KHÁC MẪU"))) Fail("hộp xem trước An An chưa báo khác mẫu / nút chưa đổi Vẫn nạp");
+    Snap(dA, "40d-an-an-file-khac-mau");
+    CloseDlg(dA, tA);
+
+    // ---------- N3 · Tồn theo vị trí: nạp file (lưu mẫu) → file cùng tên, đổi thứ tự cột + thêm cột, nội dung khác
+    string VtXlsx(string[] head, int rows, int shift)
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "kholanh-l3-" + shift); System.IO.Directory.CreateDirectory(dir);
+        var fp = System.IO.Path.Combine(dir, "Ton theo vi tri 21.11.xlsx");
+        using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("ViTri");
+        for (var c = 0; c < head.Length; c++) ws.Cell(1, c + 1).Value = head[c];
+        var src = s.ViTri.Rows.Where(r => r.Vt.Length > 0).Take(rows).ToList();
+        for (var i = 0; i < src.Count; i++)
+            for (var c = 0; c < head.Length; c++)
+                ws.Cell(i + 2, c + 1).Value = head[c] switch
+                {
+                    "Mã hàng" => src[i].MaGoc, "Tên hàng" => src[i].Ten, "Vị trí" => src[i].Vt, "SL Tồn" => src[i].Sl + shift, "T.Lượng" => src[i].Tl, "Lô (Batch)" => src[i].Lo, _ => "",
+                };
+        wbk.SaveAs(fp); return fp;
+    }
+    var vtN = Math.Min(40, s.ViTri.Rows.Count);
+    var f1 = s.ViTri.ReadFile(VtXlsx(new[] { "Mã hàng", "Tên hàng", "Lô (Batch)", "Vị trí", "SL Tồn", "T.Lượng" }, vtN, 0));
+    f1.Sha = "lan-1"; s.ViTri.Import(f1);
+    var f2 = s.ViTri.ReadFile(VtXlsx(new[] { "Vị trí", "Mã hàng", "Tên hàng", "Lô (Batch)", "SL Tồn", "T.Lượng", "Kho" }, vtN, 1)); f2.Sha = "lan-2";
+    main.Navigate("m7"); W(900);
+    var vv = main.PageHost.GetVisualDescendants().OfType<ViTriView>().First();
+    var dV = Dlg(() => (Task<bool>)typeof(ViTriView).GetMethod("ConfirmImport", bf)!.Invoke(vv, new object[] { f2, $"Nạp {f2.Rows.Count:#,0} dòng từ “{f2.FileName}” (sheet {f2.Sheet}) thay cho số liệu hiện tại?" })!, out var tV);
+    if (dV is null) Fail("không mở hộp nạp Tồn theo vị trí");
+    var tv = Texts(dV!);
+    Console.WriteLine($"[L3] hộp nạp vị trí: thứ tự cột = {tv.Any(t => t.Contains("Thứ tự cột"))} · cột mới = {tv.Any(t => t.Contains("Cột mới"))} · cùng tên khác nội dung = {tv.Any(t => t.Contains("nội dung đã khác"))}");
+    if (!tv.Any(t => t.Contains("Thứ tự cột")) || !tv.Any(t => t.Contains("Cột mới")) || !tv.Any(t => t.Contains("nội dung đã khác"))) Fail("hộp nạp vị trí thiếu cảnh báo mẫu");
+    Snap(dV!, "24d-vi-tri-nap-file-doi-mau");
+    CloseDlg(dV!, tV);
+
+    // ---------- K2 · Nhập liệu kiểm kê: trùng / vị trí lạ / mã lạ / số lỗi
+    var maCol = s.AnAn.D.Headers.FindIndex(h => h == "Mã hàng");
+    var known = s.AnAn.D.Rows.Select(r => r[maCol]).Where(m => m.Length > 0).Distinct().Take(4).ToList();
+    var codes = s.SoDo.AllCodes().Where(c => c.StartsWith("TG1.A.01.")).OrderBy(c => c).Take(6).ToList();
+    if (known.Count < 4 || codes.Count < 6) Fail($"dữ liệu mẫu thiếu (mã {known.Count}, vị trí {codes.Count})");
+    var pg = s.Entry.Create("Kiểm kê thử báo lỗi " + DateTime.Today.ToString("dd/MM/yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    var cot = KhoLanh.Core.KiemKe.KkKiemTra.Cols(pg.Columns.Select(c => c.Header))!;
+    string[] Row(string vt, string ma, string sl, string xs = "") { var a = new string[pg.Columns.Count]; Array.Fill(a, ""); a[cot.Vt] = vt; a[cot.Ma] = ma; a[cot.Sl] = sl; if (cot.SlXuat >= 0) a[cot.SlXuat] = xs; return a; }
+    var rowsK = new List<IReadOnlyList<string>>
+    {
+        Row(codes[0], known[0], "12"), Row(codes[1], known[1], "8", "3"), Row(codes[0], known[0], "4"),          // dòng 1 & 3 trùng
+        Row("TG1.A.99.1.1", known[2], "6"), Row(codes[2], "VRHLBTNXXXR000099IME1", "5"),                         // vị trí ngoài sơ đồ · mã lạ
+        Row(codes[3], known[3], "1O"), Row(codes[4], known[1], "5", "7"), Row(codes[5], known[2], "-2"),           // số lỗi
+    };
+    pg = s.Entry.Save(pg, pg.Columns, rowsK);
+    main.Navigate("m6"); W(600);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    for (var i = 0; i < 150 && (typeof(EntryView).GetField("_lookupKk", sf)!.GetValue(null) is null || typeof(EntryView).GetField("_vtCodes", sf)!.GetValue(null) is null); i++) W(60);
+    ev.OpenAt(pg.Id, 0); W(800);
+    var kk = (KhoLanh.Core.KiemKe.KkKiemTra.KetQua)typeof(EntryView).GetField("_kk", bf)!.GetValue(ev)!;
+    Console.WriteLine($"[L3] kiểm kê: {kk.TomTat()} · đỏ = {kk.CoDo}");
+    if (kk.TrungDong != 2 || kk.ViTriLa != 1 || kk.MaLa != 1 || kk.SoLoi != 3) Fail("đếm sai (cần 2 trùng · 1 vị trí lạ · 1 mã lạ · 3 số lỗi)");
+    var btn = ev.GetVisualDescendants().OfType<Button>().First(b => b.Name == "KkCheckButton");
+    if (!btn.IsVisible || !(KhoLanh.App.Controls.Icon.TextOf(btn.Content) ?? "").Contains("2 dòng trùng")) Fail("dòng tóm tắt dưới lưới chưa hiện");
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    g.Select(1, 0);
+    btn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(200);
+    Console.WriteLine($"[L3] bấm tóm tắt từ dòng 2 → ô dòng {g.Row + 1}, cột {g.Col + 1}");
+    if (g.Row != 2) Fail("bấm tóm tắt không nhảy tới ô lỗi kế tiếp (dòng 3)");
+    btn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(100);
+    btn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(300);   // → dòng 4 vị trí lạ
+    Snap(main, "20e-nhap-lieu-kiem-tra-kiem-ke");
+    // gõ sửa → tính lại sau khi ngừng gõ
+    g.Model.Set(5, cot.Sl, "10"); W(700);
+    kk = (KhoLanh.Core.KiemKe.KkKiemTra.KetQua)typeof(EntryView).GetField("_kk", bf)!.GetValue(ev)!;
+    Console.WriteLine($"[L3] sửa “1O” → 10: {kk.TomTat()}");
+    if (kk.SoLoi != 2) Fail("không tính lại sau khi sửa ô");
+    s.Lan.Dispose(); Console.WriteLine("Xong (l3): " + outDir); return;
+}
 // Nhập liệu 1.62: SHOTS_ONLY=nl — mẫu Kiểm kê mới (dán mã → tự điền), tô màu ô, tab Mẫu, hộp Cột…
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")
 {

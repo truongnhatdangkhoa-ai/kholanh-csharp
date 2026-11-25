@@ -10,7 +10,7 @@ namespace KhoLanh.Core.TonKho;
 /// mỗi ô lấy đúng CHỮ ĐANG HIỆN theo định dạng số của ô (VD số 30 định dạng "#,###.##" → "30.", 3 định dạng "#,##0.###0" → "3.0000").
 /// Nhờ vậy dữ liệu nạp vào (sheet LoadData) khớp từng ký tự với bản WebView2.
 /// </summary>
-public static class SheetText
+public static partial class SheetText
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -25,6 +25,19 @@ public static class SheetText
         var ext = Path.GetExtension(path).ToLowerInvariant();
         if (ext == ".csv") return ReadCsv(path);
         if (ext == ".xls") return XlsBiff.Read(path);
+        // 1.72 (N4): đọc thẳng gói xlsx (zip + XML, đọc tuần tự) — nhanh hơn nhiều so với nạp cả workbook bằng ClosedXML; lỗi lạ thì quay về cách cũ
+        if (UseFast && ext is ".xlsx" or ".xlsm")
+        {
+            try { return ReadXlsxFast(path); }
+            catch (Exception e) when (e is not OutOfMemoryException) { /* file lạ → cách cũ bên dưới */ }
+        }
+        return ReadClosedXml(path);
+    }
+    /// <summary>Tắt bộ đọc nhanh (thử nghiệm so sánh).</summary>
+    public static bool UseFast { get; set; } = true;
+
+    public static Book ReadClosedXml(string path)
+    {
         using var wb = new XLWorkbook(path);
         var book = new Book();
         foreach (var ws in wb.Worksheets)
@@ -84,17 +97,37 @@ public static class SheetText
     {
         var f = string.IsNullOrEmpty(fmt) ? (fmtId >= 0 && Builtin.TryGetValue(fmtId, out var b) ? b : "General") : fmt!;
         if (f.Equals("General", StringComparison.OrdinalIgnoreCase) || f == "@") return General(n);
-        // nhiều đoạn ;  → chọn đoạn theo dấu
-        var parts = SplitSections(f);
-        string sec; var useAbs = false;
-        if (parts.Count >= 2 && n < 0) { sec = parts[1]; useAbs = true; }
-        else if (parts.Count >= 3 && n == 0) sec = parts[2];
-        else sec = parts[0];
-        sec = Regex.Replace(sec, @"\[(Red|Black|Blue|Green|Cyan|Magenta|White|Yellow|Color\s*\d+)\]", "", RegexOptions.IgnoreCase);
-        sec = Regex.Replace(sec, @"\[\$[^\]]*\]", "");
-        if (IsDate(sec)) return FormatDate(n, sec);
+        // nhiều đoạn ;  → chọn đoạn theo dấu (1.72: tách / làm sạch đoạn 1 lần cho mỗi mã định dạng — trước chạy regex ở MỌI ô số)
+        var plan = Plans.GetOrAdd(f, BuildPlan);
+        // số lặp lại rất nhiều trong file tồn (số kiện, trọng lượng gói…) → nhớ chữ đã định dạng theo từng mã định dạng
+        if (plan.Memo.TryGetValue(n, out var hit)) return hit;
+        var res = FormatWith(plan, n);
+        if (plan.Memo.Count < 50_000) plan.Memo.TryAdd(n, res);
+        return res;
+    }
+    private static string FormatWith(Plan plan, double n)
+    {
+        int k; var useAbs = false;
+        if (plan.Secs.Length >= 2 && n < 0) { k = 1; useAbs = true; }
+        else if (plan.Secs.Length >= 3 && n == 0) k = 2;
+        else k = 0;
+        if (plan.Date[k]) return FormatDate(n, plan.Secs[k]);
         var v = useAbs ? Math.Abs(n) : n;
-        return FormatNumeric(v, sec);
+        return FormatNumeric(v, plan.Secs[k]);
+    }
+    private sealed record Plan(string[] Secs, bool[] Date)
+    {
+        public readonly System.Collections.Concurrent.ConcurrentDictionary<double, string> Memo = new();
+    }
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Plan> Plans = new();
+    private static Plan BuildPlan(string f)
+    {
+        var secs = SplitSections(f).Select(sec =>
+        {
+            sec = Regex.Replace(sec, @"\[(Red|Black|Blue|Green|Cyan|Magenta|White|Yellow|Color\s*\d+)\]", "", RegexOptions.IgnoreCase);
+            return Regex.Replace(sec, @"\[\$[^\]]*\]", "");
+        }).ToArray();
+        return new Plan(secs, secs.Select(IsDate).ToArray());
     }
 
     private static List<string> SplitSections(string f)

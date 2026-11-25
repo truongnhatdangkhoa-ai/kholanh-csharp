@@ -49,6 +49,8 @@ public sealed class SheetGrid : UserControl
     public Func<int, int, IBrush?>? CellBackground { get; set; }
     /// <summary>Màu chữ riêng từng ô (null = mặc định) — vd dòng đã khóa hiện mờ.</summary>
     public Func<int, int, IBrush?>? CellForeground { get; set; }
+    /// <summary>1.73: chú thích khi rê chuột lên ô (dòng DỮ LIỆU, cột) — null = không có (vd Nhập liệu kiểm kê báo trùng / số lỗi).</summary>
+    public Func<int, int, string?>? CellTip { get; set; }
     /// <summary>Dòng nào được cộng vào dòng Tổng cuối bảng (null = mọi dòng trừ dòng tổng có sẵn) — vd bảng có dòng nhóm + dòng chi tiết thì chỉ cộng dòng chi tiết.</summary>
     public Func<int, bool>? TotalsRowFilter { get; set; }
     public event Action? SelectionChanged;
@@ -1256,6 +1258,11 @@ public sealed class SheetGrid : UserControl
                     : onBig ? new Cursor(StandardCursorType.Hand)
                     : _g.ShowFilterRow && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH ? new Cursor(StandardCursorType.Ibeam) : Cursor.Default;
                 var tip = onBig ? "Mở bảng ra cửa sổ lớn (F11)" : null;
+                if (tip is null && _g.CellTip is { } ct && p.Y >= _g.TopH && p.X >= _g.RowHeadW)
+                {
+                    var (vr, vc) = _g.HitCell(p);
+                    if (vr >= 0 && vr < _g.TotalRows && vc >= 0) { var mr = _g.ToModel(vr); if (mr < _g.Model.RowCount) tip = ct(mr, vc); }
+                }
                 if (!Equals(ToolTip.GetTip(this), tip)) { ToolTip.SetTip(this, tip); ToolTip.SetIsOpen(this, tip is not null); }
                 return;
             }

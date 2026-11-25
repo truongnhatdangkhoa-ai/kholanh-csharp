@@ -46,6 +46,7 @@ public partial class EntryView : UserControl, IPage
         _grid.SuggestionPicked += OnSuggestionPicked;
         _grid.CellBackground = CellBg;
         _model.Derive = DeriveCells;
+        InitKkCheck();
         _grid.AddMenuItems(ColorMenu());
         BuildExtraMenu();
         ColorButton.Flyout = new Flyout { Content = ColorPalette(), Placement = PlacementMode.BottomEdgeAlignedLeft };
@@ -64,7 +65,7 @@ public partial class EntryView : UserControl, IPage
         SearchBox.TextChanged += (_, _) => FillList();
         KeyDown += async (_, e) =>
         {
-            if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control)) { e.Handled = true; await SaveAsync(quiet: false); }
+            if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control)) { e.Handled = true; if (await KkConfirmSave()) await SaveAsync(quiet: false); }
         };
         DetachedFromVisualTree += async (_, _) => { if (_dirty) await SaveAsync(quiet: true); };
         var edit = Svc.CanEdit;
@@ -151,13 +152,14 @@ public partial class EntryView : UserControl, IPage
         _grid.Select(0, 0);
         SyncCombo();
         SaveState.Text = p.Deleted ? "Trong thùng rác (chỉ xem)" : $"Đã lưu {p.UpdatedAt}";
+        RecheckKk();   // 1.73 K2
         UpdateStatus();
         Dispatcher.UIThread.Post(() => _grid.Focus());
     }
 
     private void OnTrashToggle(object? sender, RoutedEventArgs e)
     {
-        _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
+        _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = ""; RecheckKk();
         ReloadList(null);
     }
 
@@ -194,7 +196,7 @@ public partial class EntryView : UserControl, IPage
         if (!await Ui.Confirm(this, msg, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
         if (!forever && _dirty) await SaveAsync(quiet: true);
         if (!await Ui.Run(this, () => Svc.Delete(_page.Id, forever))) return;
-        _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = "";
+        _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = ""; RecheckKk();
         ReloadList(null);
     }
 
@@ -249,7 +251,7 @@ public partial class EntryView : UserControl, IPage
         finally { _saving = false; }
     }
 
-    private async void OnSave(object? sender, RoutedEventArgs e) { _autosave.Stop(); await SaveAsync(quiet: false); }
+    private async void OnSave(object? sender, RoutedEventArgs e) { _autosave.Stop(); if (!await KkConfirmSave()) { if (_dirty) _autosave.Start(); return; } await SaveAsync(quiet: false); }
 
     private void Reload()
     {
@@ -401,7 +403,7 @@ public partial class EntryView : UserControl, IPage
                 {
                     _sugs = list; _known = MaGoiY.Known(list); _lookup = look;
                     _sugsKk = kk; _knownKk = MaGoiY.Known(kk); _lookupKk = lookKk;
-                    FillPending(); _grid.Refresh();
+                    FillPending(); _grid.Refresh(); RecheckKk();
                 });
             }
             catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
@@ -442,6 +444,7 @@ public partial class EntryView : UserControl, IPage
         var bg = _model.Get(r, ColorCol);
         if (bg.Length > 0 && CellColors.Codes(bg).TryGetValue(col.Key, out var code) && CellColors.Hex(code) is { } hex) return AppTheme.Brush(hex);
         if (col.Formula.Length > 0) return FormulaBg;
+        if (IsKk) return KkBg(r, c);   // 1.73 K2: trang kiểm kê — trùng / vị trí lạ / mã lạ (vàng), số lỗi (đỏ)
         if (Sugs is null || !IsCodeCol(col)) return null;
         var v = _model.Get(r, c).Trim();
         return v.Length > 0 && !Known.Contains(KhoLanh.Core.TimNhanh.Gs.MaKey(v)) ? UnknownBg : null;
@@ -658,6 +661,7 @@ public partial class EntryView : UserControl, IPage
             if (nums > 0) text += $"   ·   Tổng: {sum.ToString("#,0.###", Ui.Vi)}   ·   TB: {(sum / nums).ToString("#,0.###", Ui.Vi)}";
         }
         else text += $"   ·   Ô {GridModel.ColumnName(sel.C1)}{sel.R1 + 1}";
+        if (KkSelTip() is { } kt) text += "   ·   " + kt;
         StatusText.Text = text;
     }
 }
