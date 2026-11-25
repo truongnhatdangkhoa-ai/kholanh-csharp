@@ -76,9 +76,11 @@ void SnapSuggest(Window w, string name)
     var g = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
     for (var i = 0; i < 60 && typeof(EntryView).GetField("_sugs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) { Thread.Sleep(50); Pump(); }
     var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
-    g.Select(3, mc); g.BeginEdit("VRHO"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    g.Select(3, mc); g.BeginEdit("1620");   // 1.89: gợi ý chỉ từ Tồn kho An An, 4 số = đoạn Size for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
     var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
     var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
+    var kkSugs = typeof(EntryView).GetField("_sugsKk", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) as System.Collections.IList;
+    Console.WriteLine($"  [GOIY] mã Tồn kho An An để gợi ý: {kkSugs?.Cast<KhoLanh.Core.Entry.MaGoiY.Sug>().Count(x => x.CoTon) ?? -1} / {kkSugs?.Count ?? -1}: {string.Join(" ", kkSugs?.Cast<KhoLanh.Core.Entry.MaGoiY.Sug>().Where(x => x.CoTon).Take(5).Select(x => x.Ma) ?? new string[0])}");
     if (pop.IsOpen && pop.Child is Control ch) SnapPopup(w, ch, ed, name); else { Console.WriteLine("  (không mở được gợi ý)"); Snap(w, name); }
     var esc = new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent };
     ed.RaiseEvent(esc); ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); Pump();

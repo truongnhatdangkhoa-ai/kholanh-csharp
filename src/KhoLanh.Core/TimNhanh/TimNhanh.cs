@@ -51,6 +51,9 @@ public static class Gs
         public List<string> Errors = new();
         /// <summary>Mã hóa sản phẩm (Tổng hợp): tổ hợp → mã → tên.</summary>
         public Dictionary<int, Dictionary<string, string>> Seg = new();
+        /// <summary>1.89: MỌI dòng còn tồn của Tồn kho An An (Load Data), kể cả mã đã có ở Tồn vị trí (khác <see cref="Rows"/>: M01 chỉ giữ mã chưa có ở vị trí)
+        /// — nguồn gợi ý mã hàng của Nhập liệu.</summary>
+        public List<GsRow> AnAn = new();
     }
 
     /// <summary>10 đoạn của mã 21 ký tự (giống segmentDefs của Tổng hợp): tổ hợp, vị trí, độ dài, tên.</summary>
@@ -150,6 +153,7 @@ public sealed class GsService
 
         // ---- Tồn theo vị trí (M01VT) + Load Data An An (M01: mã chưa có ở vị trí) + Vị Trí Bột (M01VTB)
         var vtSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var anAn = new List<GsRow>();
         try
         {
             if (Can(ViTriService.PermKey) || Can("m1"))
@@ -172,8 +176,11 @@ public sealed class GsService
                     for (var i = 0; i < D.Rows.Count; i++)
                     {
                         var ma = ViTriService.ShortCode(D.Cell(i, cMa)); var ton = Num(D.Cell(i, cTon)); var tl = Num(D.Cell(i, cTl));
-                        if (ma.Length == 0 || !(ton > 0) || vtSeen.Contains(ma)) continue;
-                        Push(new GsRow { Src = "M01", Ma = ma, Ten = D.Cell(i, cTen).Trim(), Hd = D.Cell(i, cHd).Trim(), Dt = D.Cell(i, cDt).Trim(), Size = D.Cell(i, cSz).Trim(), Ton = ton, Kg = tl > 0 ? ton * tl : null });
+                        if (ma.Length == 0 || !(ton > 0)) continue;
+                        var row = new GsRow { Src = "M01", Ma = ma, Ten = D.Cell(i, cTen).Trim(), Hd = D.Cell(i, cHd).Trim(), Dt = D.Cell(i, cDt).Trim(), Size = D.Cell(i, cSz).Trim(), Ton = ton, Kg = tl > 0 ? ton * tl : null };
+                        if (vtSeen.Contains(ma)) { var (sz, tg) = SizeOf(row.Ma, row.Ten); if (row.Size.Length == 0) row.Size = sz; if (row.Tag.Length == 0) row.Tag = tg; }
+                        else Push(row);
+                        anAn.Add(row);
                     }
                 }
             }
@@ -220,6 +227,7 @@ public sealed class GsService
         catch (Exception e) { errors.Add("NXT Bột/Sốt: " + e.Message); }
 
         var data = Gs.Prepare(rows, errors);
+        data.AnAn = anAn;
         try { data.Seg = ReadMaHoa(); } catch (Exception e) { data.Errors.Add("Mã hóa sản phẩm: " + e.Message); }
         return data;
     }

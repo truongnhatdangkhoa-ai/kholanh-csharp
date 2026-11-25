@@ -5,9 +5,10 @@ using KhoLanh.Core.TimNhanh;
 namespace KhoLanh.Core.Entry;
 
 /// <summary>
-/// GỢI Ý MÃ HÀNG khi gõ ở cột "Mã hàng" của Nhập liệu (1.54): gom các mã đang có tồn ở mọi module (Tồn An An, Tồn theo vị trí, Vị Trí Bột, Tồn kho gửi,
-/// NXT Bột/Sốt — theo quyền xem, qua <see cref="GsService"/>) và Danh mục mã hàng (tong-hop / MaDaTao). Tìm không dấu, không tính khoảng trắng,
-/// mọi từ gõ phải có trong mã / tên / size / đặc tính; mã bắt đầu bằng chữ gõ xếp trước, rồi mã còn tồn.
+/// GỢI Ý MÃ HÀNG khi gõ ở cột "Mã hàng" của Nhập liệu (1.54). Từ 1.89 danh sách gợi ý CHỈ gồm mã đang có tồn (Nhập liệu đưa vào dòng Tồn kho An An
+/// <see cref="Gs.Data.AnAn"/>); mã chỉ có trong Danh mục mã hàng (tong-hop / MaDaTao) vẫn dùng để tự điền Tên / Size / Trọng lượng và để biết mã
+/// không lạ, nhưng KHÔNG hiện trong danh sách gợi ý (người dùng: tránh nhầm với mã danh mục gần giống). Tìm không dấu, không tính khoảng trắng,
+/// mọi từ gõ phải có trong mã / tên / size / đặc tính; gõ đúng 4 chữ số (vd "0050") = đoạn Size của mã 21 ký tự → chỉ mã đúng size đó.
 /// </summary>
 public static class MaGoiY
 {
@@ -15,6 +16,8 @@ public static class MaGoiY
     public sealed record Sug(string Ma, string Ten, string Size, string Dt, double Ton, string Nguon, bool TrongDanhMuc, string Tl = "")
     {
         internal string Hay = "";
+        /// <summary>Có tồn (từ dòng tồn), không phải mã chỉ có trong danh mục → được hiện trong danh sách gợi ý.</summary>
+        public bool CoTon { get; internal set; }
     }
 
     /// <summary>Danh mục mã hàng (cột Mã, Ghi chú) đọc thẳng sheet dùng chung.</summary>
@@ -42,8 +45,11 @@ public static class MaGoiY
             var tl = g.Where(r => r.Ton is > 0 && r.Kg is > 0).Select(r => Math.Round(r.Kg!.Value / r.Ton!.Value, 3))
                 .GroupBy(x => x).OrderByDescending(x => x.Count()).ThenBy(x => x.Key).Select(x => x.Key).FirstOrDefault();
             var size = First(r => r.Size);
-            res.Add(new Sug(g.Key, ten, size.Length > 0 ? size : SegSize(seg, g.Key), First(r => r.Dt), g.Sum(r => r.Ton ?? 0),
-                string.Join(", ", g.Select(r => Gs.SrcName(r.Src)).Distinct()), cat.ContainsKey(g.Key), tl > 0 ? KhoLanh.Core.Entry.CongThuc.Num(tl) : SegTl(seg, g.Key)));
+            // đặc tính còn tồn của mã (nhiều đặc tính → 3 cái đầu + số còn lại)
+            var dts = g.Select(r => (r.Dt ?? "").Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var dt = dts.Count <= 3 ? string.Join(", ", dts) : string.Join(", ", dts.Take(3)) + $" +{dts.Count - 3}";
+            res.Add(new Sug(g.Key, ten, size.Length > 0 ? size : SegSize(seg, g.Key), dt, g.Sum(r => r.Ton ?? 0),
+                string.Join(", ", g.Select(r => Gs.SrcName(r.Src)).Distinct()), cat.ContainsKey(g.Key), tl > 0 ? KhoLanh.Core.Entry.CongThuc.Num(tl) : SegTl(seg, g.Key)) { CoTon = true });
         }
         var have = res.Select(r => r.Ma).ToHashSet();
         res.AddRange(cat.Where(kv => !have.Contains(kv.Key)).Select(kv => new Sug(kv.Key, kv.Value, SegSize(seg, kv.Key), "", 0, "Danh mục mã hàng", true, SegTl(seg, kv.Key))));
@@ -76,13 +82,19 @@ public static class MaGoiY
         return d;
     }
 
-    /// <summary>Tìm gợi ý cho chữ đang gõ (≥ 2 ký tự).</summary>
+    /// <summary>Đoạn Size (ký tự 14–17) của mã ≥ 21 ký tự, vd VRHLITNXXXR000050JRA1 → "0050".</summary>
+    public static string SizeSeg(string ma) { var m = Gs.MaKey(ma); return m.Length >= 21 ? m.Substring(13, 4) : ""; }
+
+    /// <summary>Tìm gợi ý cho chữ đang gõ (≥ 2 ký tự) — chỉ mã có tồn (<see cref="Sug.CoTon"/>).</summary>
     public static List<Sug> Search(IReadOnlyList<Sug> all, string text, int lim = 8)
     {
         var words = Gs.Norm(text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(Gs.Cmp).Where(w => w.Length > 0).ToList();
         if (words.Sum(w => w.Length) < 2) return new();
         var head = Gs.Norm(Gs.MaKey(text));
-        return all.Where(s => words.All(w => s.Hay.Contains(w, StringComparison.Ordinal)))
+        var hits = all.Where(s => s.CoTon && words.All(w => s.Hay.Contains(w, StringComparison.Ordinal))).ToList();
+        // gõ đúng 4 chữ số = đoạn Size của mã: có mã đúng size thì chỉ giữ chúng (không kèm 005060, 000500… chỉ chứa chuỗi số đó)
+        if (System.Text.RegularExpressions.Regex.IsMatch(head, @"^\d{4}$") && hits.Where(s => SizeSeg(s.Ma) == head).ToList() is { Count: > 0 } exact) hits = exact;
+        return hits
             .OrderByDescending(s => Gs.Norm(s.Ma).StartsWith(head, StringComparison.Ordinal))
             .ThenByDescending(s => s.Ton > 0).ThenBy(s => s.Ma, StringComparer.Ordinal).Take(lim).ToList();
     }

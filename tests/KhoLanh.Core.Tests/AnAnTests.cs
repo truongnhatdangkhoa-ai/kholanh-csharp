@@ -78,6 +78,21 @@ public class AnAnTests : IDisposable
     }
 
     [Fact]
+    public void Goi_y_nhap_lieu_lay_moi_ma_ton_An_An_ke_ca_ma_da_co_o_vi_tri()
+    {
+        // 1.89: Tìm nhanh (Rows) bỏ dòng M01 khi mã đã có ở Tồn vị trí — nhưng nguồn gợi ý Nhập liệu (Data.AnAn) phải giữ ĐỦ mọi mã còn tồn của An An
+        var aa = _s.AnAn; aa.Load();
+        aa.Commit(aa.Preview(Xlsx("TON 20.11.xlsx", ("VRHLITNXXXR000050JRA1", "12.N-EU-H", "26.10.001", 24, 9, "50"), ("B2", "EU", "26.10.002", 5, 3, "21/25"))), keepUndo: false);
+        var vt = _s.ViTri; vt.Load();
+        vt.Import(new KhoLanh.Core.ViTri.ViTriService.FileData { FileName = "vt.xlsx", Rows = { vt.Build("VRHLITNXXXR000050JRA1", "Tôm - 12.N-EU-H - 26.10.001", "Ctn", "", "TG1.A-01", 24, 9) } });
+        var d = new KhoLanh.Core.TimNhanh.GsService(_s).Build();
+        Assert.DoesNotContain(d.Rows, r => r.Src == "M01" && r.Ma == "VRHLITNXXXR000050JRA1");   // Tìm nhanh: đã có ở vị trí
+        Assert.Equal(new[] { "B2", "VRHLITNXXXR000050JRA1" }, d.AnAn.Select(r => r.Ma).OrderBy(x => x).ToArray());
+        var sug = KhoLanh.Core.Entry.MaGoiY.Build(d.AnAn, Array.Empty<(string, string)>(), d.Seg);
+        Assert.Equal("VRHLITNXXXR000050JRA1", Assert.Single(KhoLanh.Core.Entry.MaGoiY.Search(sug, "0050")).Ma);
+    }
+
+    [Fact]
     public void Import_review_commit_history_undo()
     {
         var aa = _s.AnAn; aa.Load();

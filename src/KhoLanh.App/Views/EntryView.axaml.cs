@@ -373,18 +373,19 @@ public partial class EntryView : UserControl, IPage
     private static List<MaGoiY.Sug>? _sugs;          // dùng chung giữa các lần mở trang; làm mới sau 5 phút
     private static HashSet<string> _known = new();
     private static Dictionary<string, EntryRules.Info>? _lookup;
-    // 1.71: trang KIỂM KÊ chỉ gợi ý / tự điền theo Tồn kho An An (ưu tiên) rồi Danh mục mã hàng — không lấy Tồn kho gửi hay module khác
+    // 1.71: trang KIỂM KÊ tự điền / nhận mã theo Tồn kho An An (ưu tiên) rồi Danh mục mã hàng — không lấy Tồn kho gửi hay module khác.
+    // 1.89: DANH SÁCH GỢI Ý mọi trang chỉ lấy mã còn tồn ở Tồn kho An An (kể cả mã đã có ở Tồn vị trí); Danh mục mã hàng chỉ để tự điền / nhận mã.
     private static List<MaGoiY.Sug>? _sugsKk;
     private static HashSet<string> _knownKk = new();
     private static Dictionary<string, EntryRules.Info>? _lookupKk;
     private bool IsKk => _page is not null && (_page.Template == "kiem-ke" || KhoLanh.Core.KiemKe.KiemKeCore.IsKiemKe(_page.Columns.Select(c => c.Header)));
-    private List<MaGoiY.Sug>? Sugs => IsKk ? _sugsKk : _sugs;
+    private List<MaGoiY.Sug>? Sugs => _sugsKk;
     private HashSet<string> Known => IsKk ? _knownKk : _known;
     private Dictionary<string, EntryRules.Info>? Look => IsKk ? _lookupKk : _lookup;
     private static DateTime _sugAt;
     private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
 
-    /// <summary>Nạp ngầm danh sách gợi ý: mã đang có tồn ở mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
+    /// <summary>Nạp ngầm: gợi ý = mã còn tồn ở Tồn kho An An; tự điền / nhận mã = tồn mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
     private void LoadSuggestions()
     {
         if (_sugs is not null && (DateTime.Now - _sugAt).TotalMinutes < 5) return;
@@ -397,7 +398,7 @@ public partial class EntryView : UserControl, IPage
                 var data = new KhoLanh.Core.TimNhanh.GsService(s).Build();
                 var list = MaGoiY.Build(data.Rows, MaGoiY.ReadCatalog(s.Lan), data.Seg);
                 var look = MaGoiY.Lookup(list);
-                var kk = MaGoiY.Build(data.Rows.Where(r => r.Src == "M01"), MaGoiY.ReadCatalog(s.Lan), data.Seg);   // Tồn kho An An → Danh mục
+                var kk = MaGoiY.Build(data.AnAn, MaGoiY.ReadCatalog(s.Lan), data.Seg);   // Tồn kho An An (mọi dòng còn tồn) → Danh mục
                 var lookKk = MaGoiY.Lookup(kk);
                 Dispatcher.UIThread.Post(() =>
                 {
