@@ -31,7 +31,8 @@ public partial class MainWindow : Window
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
     private static bool Allowed(NavItem i) => i.Key is "users" or "troly" ? Roles.IsAdmin(App.Services.Session.Role)
-        : i.Key == "dulieu" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") : App.Services.Session.Can(i.Key);
+        : i.Key is "ketnoi" or "dongbo" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") || App.Services.Session.Can("phone")
+        : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
     private readonly Dictionary<string, Button> _buttons = new();
@@ -134,9 +135,10 @@ public partial class MainWindow : Window
             ("HỆ THỐNG", new[]
             {
                 new NavItem("users", "Tài khoản", () => new UsersView()),
-                new NavItem("dulieu", "Dữ liệu & sao lưu", () => new DuLieuView()),
+                // 1.105 (phương án A): Kết nối (mọi mã / Gmail / Google) · Đồng bộ & sao lưu (thay Dữ liệu & sao lưu + Đồng bộ điện thoại) · Cài đặt máy gọn
+                new NavItem("ketnoi", "Kết nối", () => new KetNoiView()),
+                new NavItem("dongbo", "Đồng bộ & sao lưu", () => new DongBoView()),
                 new NavItem("backup", "Cài đặt máy", () => new BackupView()),
-                new NavItem("phone", "Đồng bộ điện thoại", () => new PhoneSyncView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
             }),
@@ -321,7 +323,7 @@ public partial class MainWindow : Window
         ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
         ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
-        ["users"] = "users", ["backup"] = "gear", ["dulieu"] = "save", ["phone"] = "phone", ["audit"] = "history", ["troly"] = "assist",
+        ["users"] = "users", ["backup"] = "gear", ["ketnoi"] = "network", ["dongbo"] = "cloud", ["audit"] = "history", ["troly"] = "assist",
     };
     /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
     private static readonly Dictionary<string, string> GroupIcons = new()
@@ -440,7 +442,8 @@ public partial class MainWindow : Window
     public void Show(string key, Control? page)
     {
         // 1.68: Mạng LAN / Đồng bộ Google Drive / sao lưu gom vào "Dữ liệu & sao lưu" — giữ khóa cũ để các nút / Trợ lý mở đúng tab
-        if (key is "lan" or "drive" or "saoluu" or "dcn") { page ??= new DuLieuView(key); key = "dulieu"; }
+        // 1.105: Dữ liệu & sao lưu + Đồng bộ điện thoại gộp vào "Đồng bộ & sao lưu" — khóa cũ mở đúng tab
+        if (key is "lan" or "drive" or "saoluu" or "dcn" or "dulieu" or "phone") { page ??= new DongBoView(key); key = "dongbo"; }
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
         if (!Allowed(item)) return;

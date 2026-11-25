@@ -346,7 +346,7 @@ public class AccountSyncTests : IDisposable
         var bundle = Path.Combine(_dir, "usb");
         Directory.CreateDirectory(bundle);
         File.WriteAllText(Path.Combine(bundle, AccountSyncService.BundleFile), a.Accounts.BundleText());
-        Assert.DoesNotContain(_web.Admin, Encoding.UTF8.GetString(Convert.FromBase64String(Pad(a.Accounts.BundleText().Split('\n').First(l => l.StartsWith("KLTK1-"))[6..].Trim()))));
+        Assert.DoesNotContain(_web.Admin, Encoding.UTF8.GetString(Convert.FromBase64String(Pad(a.Accounts.BundleText().Split('\n').First(l => AccountSyncService.IsCode(l))[6..].Trim()))));
 
         var b = Machine("B");
         Assert.False(b.Updates.HasToken);

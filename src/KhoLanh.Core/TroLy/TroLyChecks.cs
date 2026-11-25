@@ -370,26 +370,26 @@ public static class TroLyChecks
             const string M = "Tài khoản dùng chung";
             if (ae.Kind == KhoLanh.Core.Services.ConnErrorLog.KindPhoneScript)
                 o.Add(Go(Mk("ket-noi", "do", M, "Tài khoản dùng chung trỏ nhầm Web App của app điện thoại",
-                    "Không tải / tạo / sửa được tài khoản dùng chung: đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) là Web App của APP ĐIỆN THOẠI "
+                    "Không tải / tạo / sửa được tài khoản dùng chung: đường dẫn tài khoản dùng chung (Hệ thống › Kết nối) là Web App của APP ĐIỆN THOẠI "
                     + "(hoặc Sheet tài khoản bị dán đè mã điện thoại). Sửa: dán lại mã \"Cập nhật mã Apps Script\" vào Sheet tài khoản rồi Triển khai phiên bản mới, "
-                    + "hoặc Kết nối lại đúng đường dẫn …/exec của Sheet tài khoản.",
-                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "backup", "Cài đặt máy"));
+                    + "hoặc ở Hệ thống › Kết nối bấm \"Gộp vào Sheet điện thoại\" (chỉ còn 1 Sheet).",
+                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "ketnoi", "Kết nối"));
             else
                 o.Add(Go(Mk("ket-noi", "vang", M, "Không tải được danh sách tài khoản dùng chung",
                     "Lần tải gần nhất từ Google Sheet bị lỗi — máy đang dùng danh sách lưu sẵn (tài khoản mới / mật khẩu mới từ máy khác chưa về). Mất mạng tạm thời thì lần sau tự hết.",
-                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "backup", "Cài đặt máy"));
+                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "ketnoi", "Kết nối"));
         }
         if (info.PhoneEnabled && info.PhoneError is { } pe)
         {
             const string M = "Đồng bộ điện thoại";
             if (pe.Kind == KhoLanh.Core.Services.ConnErrorLog.KindAuth)
                 o.Add(Go(Mk("ket-noi", "vang", M, "Web App điện thoại từ chối mã PC_TOKEN",
-                    "Mã PC_TOKEN của máy này không khớp mã trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh) — đồng bộ điện thoại (đẩy tồn, nhận phiếu) không chạy. Nhập lại mã ở Đồng bộ điện thoại › Kết nối.",
-                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "phone", "Đồng bộ điện thoại"));
+                    "Mã PC_TOKEN của máy này không khớp mã trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh) — đồng bộ điện thoại (đẩy tồn, nhận phiếu) không chạy. Nhập lại mã ở Hệ thống › Kết nối › Google Sheet chung › ⋯ Thêm › Mã điện thoại.",
+                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "ketnoi", "Kết nối"));
             else
                 o.Add(Go(Mk("ket-noi", "vang", M, "Đồng bộ điện thoại lỗi ở lần gần nhất",
                     "Lần gọi Web App điện thoại gần nhất bị lỗi (mạng / Apps Script) — điện thoại có thể chưa thấy tồn mới, phiếu từ điện thoại chưa về.",
-                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "phone", "Đồng bộ điện thoại"));
+                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "phone", "Đồng bộ & sao lưu › Điện thoại"));
         }
         if (info.MailReady && info.MailStatus.TrimStart().StartsWith("✖", StringComparison.Ordinal))
             o.Add(Go(Mk("ket-noi", "vang", "Email lịch xuất", "Gmail lịch xuất mất kết nối",
@@ -398,7 +398,7 @@ public static class TroLyChecks
         if (info.DriveEnabled && !info.DriveDirExists)
             o.Add(Go(Mk("ket-noi", "do", "Đồng bộ Google Drive", "Thư mục Google Drive dùng chung không còn",
                 "Đồng bộ qua Drive đang bật nhưng không thấy thư mục — máy này không nhận / gửi dữ liệu với các máy khác. Kiểm tra Google Drive cho máy tính đang chạy và đã đăng nhập, hoặc chọn lại thư mục.",
-                new[] { info.DriveDir }), "drive", "Dữ liệu & sao lưu › Drive dùng chung"));
+                new[] { info.DriveDir }), "drive", "Đồng bộ & sao lưu › Giữa các máy"));
         if (o.Count == 0 && (info.AcctEnabled || info.PhoneEnabled || info.MailReady || info.DriveEnabled))
         {
             var on = new List<string>();

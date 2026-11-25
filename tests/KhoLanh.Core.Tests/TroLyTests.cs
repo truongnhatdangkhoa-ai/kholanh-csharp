@@ -436,10 +436,10 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         var f = CheckConfig(info);
         Assert.Equal(4, f.Count);
         var acct = Assert.Single(f, x => x.Mod == "Tài khoản dùng chung");
-        Assert.Equal(("do", "backup"), (acct.Sev, acct.Go));
+        Assert.Equal(("do", "ketnoi"), (acct.Sev, acct.Go));
         Assert.Contains("Web App của app điện thoại", acct.Title);
         var ph = Assert.Single(f, x => x.Mod == "Đồng bộ điện thoại");
-        Assert.Equal(("vang", "phone"), (ph.Sev, ph.Go));
+        Assert.Equal(("vang", "ketnoi"), (ph.Sev, ph.Go));
         Assert.Contains("PC_TOKEN", ph.Title);
         var ml = Assert.Single(f, x => x.Mod == "Email lịch xuất");
         Assert.Equal(("vang", "lx"), (ml.Sev, ml.Go));
@@ -485,7 +485,7 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         Assert.Equal(ConnErrorLog.KindAuth, phone.LastError?.Kind);
         var r = _s.TroLy.Scan(false);
         var pf = Assert.Single(r.Findings, x => x.Cat == "ket-noi" && x.Mod == "Đồng bộ điện thoại");
-        Assert.Equal(("vang", "phone"), (pf.Sev, pf.Go));
+        Assert.Equal(("vang", "ketnoi"), (pf.Sev, pf.Go));
         h.Ok = true;
         await phone.PingAsync();
         Assert.Null(phone.LastError);

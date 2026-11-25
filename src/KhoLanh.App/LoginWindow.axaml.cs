@@ -233,7 +233,7 @@ public partial class LoginWindow : Window
     private async void OnJoin(object? sender, RoutedEventArgs e)
     {
         if (_retryCode is { } rc) { JoinButton.IsEnabled = false; await AutoJoin(rc); JoinButton.IsEnabled = true; if (!_firstRun) { _retryCode = null; Heading.Text = "Đăng nhập"; JoinButton.IsVisible = false; } return; }
-        var code = await Ui.Prompt(this, "Dán mã kết nối (bắt đầu bằng KLTK1-) chép từ máy quản trị › Sao lưu và cài đặt › Tài khoản dùng chung:", "Dùng chung tài khoản");
+        var code = await Ui.Prompt(this, "Dán mã kết nối (bắt đầu bằng KLKN1-) chép từ máy quản trị › Hệ thống › Kết nối › Chép mã cho máy khác:", "Dùng chung tài khoản");
         if (string.IsNullOrWhiteSpace(code)) return;
         ErrorText.Text = "";
         JoinButton.IsEnabled = false;
