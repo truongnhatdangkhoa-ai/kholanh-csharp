@@ -76,7 +76,7 @@ public sealed class XuLyTepView : UserControl, IPage
     private async Task<string> SaveBytes(byte[] data, string suggested, string ext, string type)
     {
         var path = await Ui.SaveFile(this, "Lưu file", suggested, ext, type); if (path is null) return "Đã hủy.";
-        await File.WriteAllBytesAsync(path, data); Ui.OpenExternal(Path.GetDirectoryName(path)!);
+        await File.WriteAllBytesAsync(path, data); Ui.Exported(this, Path.GetDirectoryName(path)!);
         return $"✔ Đã lưu {Path.GetFileName(path)} ({Size(data.Length)}).";
     }
 
@@ -168,7 +168,7 @@ public sealed class XuLyTepView : UserControl, IPage
                     var dir = await Ui.OpenFolder(this, "Chọn thư mục lưu các file tách"); if (dir is null) return "Đã hủy.";
                     var k2 = 0; var pad = ((src.pages + step - 1) / step).ToString().Length;
                     await Task.Run(() => { for (var i = 0; i < src.pages; i += step) { k2++; File.WriteAllBytes(Path.Combine(dir, $"{Base(src.name)}_{k2.ToString().PadLeft(pad, '0')}.pdf"), PdfRender.Extract(src.pdf, src.name, Enumerable.Range(i, Math.Min(step, src.pages - i)).ToList())); } });
-                    Ui.OpenExternal(dir); return $"✔ Đã tách thành {k2} file trong {dir}.";
+                    Ui.Exported(this, dir); return $"✔ Đã tách thành {k2} file trong {dir}.";
                 }), true));
                 break;
             }
@@ -301,7 +301,7 @@ public sealed class XuLyTepView : UserControl, IPage
                             File.WriteAllBytes(name, png ? EncodePng(img) : ScanImaging.EncodeJpeg(img, 88));
                         }
                     });
-                    Ui.OpenExternal(dir); return $"✔ Đã xuất {src.pages} ảnh vào {dir}.";
+                    Ui.Exported(this, dir); return $"✔ Đã xuất {src.pages} ảnh vào {dir}.";
                 }), true));
                 break;
             }
@@ -351,7 +351,7 @@ public sealed class XuLyTepView : UserControl, IPage
                     var notes = new List<string>();
                     if (how.SelectedIndex == 0) { var (t, n) = CcBang.MergeStack(items); notes = n; ExcelOps.Write(path, new[] { ("Gộp", t) }); }
                     else ExcelOps.Write(path, items.Select(x => (x.Name.Replace(" › ", "-"), x.Tbl)));
-                    Ui.OpenExternal(path);
+                    Ui.Exported(this, path);
                     return $"✔ Đã gộp {items.Count} bảng → {Path.GetFileName(path)}." + (notes.Count > 0 ? " Lưu ý: " + string.Join("; ", notes) : "");
                 }), true));
                 break;
@@ -370,11 +370,11 @@ public sealed class XuLyTepView : UserControl, IPage
                     if (outp.SelectedIndex == 0)
                     {
                         var path = await Ui.SaveFile(this, "Lưu file tách", $"{Base(name)}-tach-{Stamp()}.xlsx", "xlsx", "Excel"); if (path is null) return "Đã hủy.";
-                        await Task.Run(() => ExcelOps.Write(path, parts)); Ui.OpenExternal(path); return $"✔ Đã tách thành {parts.Count} sheet.";
+                        await Task.Run(() => ExcelOps.Write(path, parts)); Ui.Exported(this, path); return $"✔ Đã tách thành {parts.Count} sheet.";
                     }
                     var dir = await Ui.OpenFolder(this, "Chọn thư mục lưu các file"); if (dir is null) return "Đã hủy.";
                     await Task.Run(() => { foreach (var (pn, pt) in parts) ExcelOps.Write(Path.Combine(dir, $"{Base(name)}_{CcBang.SafeName(pn)}.xlsx"), new[] { (pn, pt) }); });
-                    Ui.OpenExternal(dir); return $"✔ Đã tách thành {parts.Count} file trong {dir}.";
+                    Ui.Exported(this, dir); return $"✔ Đã tách thành {parts.Count} file trong {dir}.";
                 }), true));
                 break;
             }
@@ -426,7 +426,7 @@ public sealed class XuLyTepView : UserControl, IPage
                     var log = new CcTable(new[] { "Dòng (trong bảng)", "Cột", "Trước", "Sau", "Thay đổi" }, r.Log.Select(l => new object?[] { (double)(l.R + 1), r.Table.Head.ElementAtOrDefault(l.C) ?? CcBang.ColName(l.C), l.From, l.To, l.Why }));
                     var iss = new CcTable(new[] { "Dòng (trong bảng)", "Cột", "Giá trị", "Vấn đề" }, r.Issues.Select(l => new object?[] { (double)(l.R + 1), r.Table.Head.ElementAtOrDefault(l.C) ?? CcBang.ColName(l.C), l.V, l.Why }));
                     await Task.Run(() => ExcelOps.Write(path, new[] { ("Dữ liệu sạch", r.Table), ("Đã sửa", log), ("Ô cần xem lại", iss) }));
-                    Ui.OpenExternal(path);
+                    Ui.Exported(this, path);
                     return $"✔ {r.Table.Rows.Count} dòng · sửa {r.Log.Count} ô · bỏ {r.BlankRows} dòng trống · {r.Dups} dòng trùng · {r.Issues.Count} ô cần xem lại.";
                 }), true));
                 break;

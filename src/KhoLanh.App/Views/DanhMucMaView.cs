@@ -267,7 +267,7 @@ public sealed class DanhMucMaView : UserControl, IPage
     {
         if (_save.IsEnabled) { _save.Stop(); Save(); }
         var p = await Ui.SaveFile(this, "Xuất Excel", "Danh-muc-ma-hang.xlsx", "xlsx", "Excel");
-        if (p is not null && await Ui.Run(this, () => Svc.Export(p))) Ui.OpenExternal(p);
+        if (p is not null && await Ui.Run(this, () => Svc.Export(p))) Ui.Exported(this, p);
     }
 
     /// <summary>Mở 1 mã trên lưới (từ tab Cần xử lý).</summary>

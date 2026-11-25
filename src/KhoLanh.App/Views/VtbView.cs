@@ -108,7 +108,7 @@ public sealed class VtbView : UserControl, IPage
             for (var c = 0; c < cols.Length; c++) { var cell = ws.Cell(2, c + 1); cell.Value = cols[c]; cell.Style.Font.Bold = true; cell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#D9E1F2"); }
             ws.Columns(1, cols.Length).Width = 14; wb.SaveAs(path);
         });
-        Ui.OpenExternal(Path.GetDirectoryName(path)!);
+        Ui.Exported(this, Path.GetDirectoryName(path)!);
     }
 
     /// <summary>Nhận phiếu xuất Vị Trí Bột do điện thoại tạo (trừ tồn) rồi đẩy tồn mới lên điện thoại.</summary>

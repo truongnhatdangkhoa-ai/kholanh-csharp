@@ -625,7 +625,7 @@ public sealed partial class SoDoView : UserControl, IPage
         var name = $"So do kho {KhoLabel(_kho)}{(_khu == "ALL" ? "" : " khu " + _khu)} {DateTime.Today:dd.MM.yyyy}";
         var path = await Ui.SaveFile(this, "Xuất danh sách vị trí ra Excel", Ui.SafeFileName(name) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportList(path, list))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportList(path, list))) Ui.Exported(this, path);
     }
 
     // =====================================================================================
@@ -1032,7 +1032,7 @@ public sealed partial class SoDoView : UserControl, IPage
         var name = $"Phieu in vi tri {KhoLabel(_k.Kho)} khu {_k.Khu}{(_k.D > 0 ? " day " + Two(_k.D) : "")} {DateTime.Today:dd.MM.yyyy}";
         var path = await Ui.SaveFile(this, "Xuất phiếu in vị trí ra Excel", Ui.SafeFileName(name) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportKk(path, _k))) { KkInfo(); Ui.OpenExternal(path); }
+        if (await Ui.Run(this, () => Svc.ExportKk(path, _k))) { KkInfo(); Ui.Exported(this, path); }
     }
     private async Task<(string Khu, int D)?> KkPickDay(string what)
     {
@@ -1087,7 +1087,7 @@ public sealed partial class SoDoView : UserControl, IPage
         exp.Click += async (_, _) =>
         {
             var path = await Ui.SaveFile(w, "Xuất chênh lệch kiểm kê", Ui.SafeFileName("Chenh lech " + NlTitle(d.Khu, d.D)) + ".xlsx", "xlsx", "Excel");
-            if (path is not null && await Ui.Run(w, () => Svc.ExportReview(path, res))) Ui.OpenExternal(path);
+            if (path is not null && await Ui.Run(w, () => Svc.ExportReview(path, res))) Ui.Exported(this, path);
         };
         await Ui.Show(this, w);
     }

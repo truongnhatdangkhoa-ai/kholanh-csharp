@@ -880,6 +880,22 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.99: SHOTS_ONLY=v199 — xuất file xong không tự mở: chỉ hiện thông báo "Đã lưu file" góc phải dưới (bấm = mở thư mục). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v199")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m1"); P(30);
+    var f = Path.Combine(outDir, "Bao-cao-tong-ton.xlsx"); File.WriteAllText(f, "x");
+    KhoLanh.App.Ui.Exported(main, f); P(20);
+    var mgrs = main.GetVisualDescendants().OfType<Avalonia.Controls.Notifications.WindowNotificationManager>().ToList();
+    Console.WriteLine($"[v199] manager: {mgrs.Count} · {string.Join(",", mgrs.Select(m => m.Bounds.ToString()))}");
+    var cards = main.GetVisualDescendants().OfType<Avalonia.Controls.Notifications.NotificationCard>().Where(c => c.IsVisible).ToList();
+    var txt = string.Join(" | ", cards.SelectMany(c => c.GetVisualDescendants().OfType<TextBlock>()).Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)));
+    Console.WriteLine($"[v199] thông báo: {cards.Count} · {txt}");
+    Snap(main, "v199-da-luu-file");
+    var ok = cards.Count == 1 && txt.Contains("Bao-cao-tong-ton.xlsx");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v199) — ĐẠT: " : "Xong (v199) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.96: SHOTS_ONLY=v196 — Phiếu xuất kho: tab Phiếu xuất nội địa đứng thứ 2 (mở theo số tab cũ vẫn đúng); Tồn kho An An › Báo Cáo: bấm dòng Bột + Sốt + Bếp / Tồn Kho Gửi → Tổng Hợp › Báo cáo ngoài sổ sách. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v196")
 {

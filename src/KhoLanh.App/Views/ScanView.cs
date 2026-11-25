@@ -491,7 +491,7 @@ public sealed class ScanView : UserControl, IPage
             _status.Text = $"Đã tạo PDF {pages.Count} trang ({(bytes.Length >= 1048576 ? (bytes.Length / 1048576.0).ToString("0.0", Ui.Vi) + " MB" : Math.Max(1, bytes.Length / 1024) + " KB")}): {path}";
         });
         _busy.Text = "";
-        if (ok) Ui.OpenExternal(path);
+        if (ok) Ui.Exported(this, path);
     }
 
     private async Task ExportJpg()
@@ -504,7 +504,7 @@ public sealed class ScanView : UserControl, IPage
         {
             var p = Cur!; var path = await Ui.SaveFile(this, "Lưu ảnh JPG", Clean(_doc.Name) + (_doc.Pages.Count > 1 ? $"_trang{_cur + 1}" : "") + ".jpg", "jpg", "Ảnh JPG");
             if (path is null) return;
-            if (await Ui.RunAsync(this, async () => await File.WriteAllBytesAsync(path, await Task.Run(() => ScanImaging.EncodeJpeg(Render(p), 92))))) { _status.Text = "Đã lưu " + path; Ui.OpenExternal(path); }
+            if (await Ui.RunAsync(this, async () => await File.WriteAllBytesAsync(path, await Task.Run(() => ScanImaging.EncodeJpeg(Render(p), 92))))) { _status.Text = "Đã lưu " + path; Ui.Exported(this, path); }
             return;
         }
         var dir = await Ui.OpenFolder(this, "Chọn thư mục lưu ảnh"); if (dir is null) return;
@@ -519,6 +519,6 @@ public sealed class ScanView : UserControl, IPage
             }
         });
         _busy.Text = "";
-        if (ok) { _status.Text = $"Đã xuất {pages.Count} ảnh vào {dir}"; Ui.OpenExternal(dir); }
+        if (ok) { _status.Text = $"Đã xuất {pages.Count} ảnh vào {dir}"; Ui.Exported(this, dir); }
     }
 }

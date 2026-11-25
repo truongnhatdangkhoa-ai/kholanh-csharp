@@ -339,7 +339,7 @@ public sealed class TongHopView : UserControl, IPage
         var def = TongHopService.Segs[_seg - 1];
         var path = await Ui.SaveFile(this, "Xuất Excel", Ui.SafeFileName($"Ma-hoa-{def.Seg}-{def.Name}") + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.ExportList(path, def.Name, new[] { "Mã", "Tên" }, Svc.SegmentData[_seg].Select(e => new[] { e.Code, e.Name })))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportList(path, def.Name, new[] { "Mã", "Tên" }, Svc.SegmentData[_seg].Select(e => new[] { e.Code, e.Name })))) Ui.Exported(this, path);
     }
 
     private async Task ImportResults()
@@ -372,7 +372,7 @@ public sealed class TongHopView : UserControl, IPage
         var path = await Ui.SaveFile(this, "Xuất Excel", "Danh-sach-ma-hang.xlsx", "xlsx", "Excel");
         if (path is null) return;
         if (await Ui.Run(this, () => Svc.ExportList(path, "Danh sách mã hàng", new[] { "STT", "Mã hàng", "Diễn giải", "Đủ mã" },
-                Svc.Results.Select((r, i) => new[] { (i + 1).ToString(), r.Code, r.Note, r.Code.Length == TongHopService.CodeLength ? "Hợp lệ" : "Thiếu ký tự" })))) Ui.OpenExternal(path);
+                Svc.Results.Select((r, i) => new[] { (i + 1).ToString(), r.Code, r.Note, r.Code.Length == TongHopService.CodeLength ? "Hợp lệ" : "Thiếu ký tự" })))) Ui.Exported(this, path);
     }
 
     private void FillNotes()
@@ -475,7 +475,7 @@ public sealed class TongHopView : UserControl, IPage
         if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel (Bảng 2)…", async () =>
         {
             var path = await Ui.SaveFile(this, "Xuất Excel", "Tong-hop-Bang-2.xlsx", "xlsx", "Excel");
-            if (path is not null && await Ui.Run(this, () => Svc.ExportGroups(path))) Ui.OpenExternal(path);
+            if (path is not null && await Ui.Run(this, () => Svc.ExportGroups(path))) Ui.Exported(this, path);
         }));
         // 1.57: Bảng 1 / Bảng 2 thành 2 tab con (trước xếp chồng — màn hình nhỏ mỗi bảng vài dòng).
         static Control Pane(Control info, Control g) { var d = new DockPanel(); info.Margin = new Thickness(0, 0, 0, 6); DockPanel.SetDock(info, Dock.Top); d.Children.Add(info); d.Children.Add(g); return d; }

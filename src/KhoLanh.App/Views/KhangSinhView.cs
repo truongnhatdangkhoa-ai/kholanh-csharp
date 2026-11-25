@@ -340,7 +340,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
         var path = await Ui.SaveFile(this, "Xuất kết quả kháng sinh", Ui.SafeFileName($"Ket qua khang sinh {DateTime.Now:dd.MM.yyyy}") + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
         var rows = _shown.ToList(); var mode = _mode;
-        if (await Ui.Run(this, () => Svc.Export(path, rows, mode))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.Export(path, rows, mode))) Ui.Exported(this, path);
     }
     private async Task DeleteSelected()
     {

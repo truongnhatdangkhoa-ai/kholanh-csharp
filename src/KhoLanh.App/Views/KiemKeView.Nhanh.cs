@@ -322,7 +322,7 @@ public sealed partial class KiemKeView
     {
         var (head, rows) = ViewTable(); if (rows.Count == 0) { await Ui.Message(this, "Không có dòng nào để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất bảng Kiểm kê nhanh", $"KiemKeNhanh_{DateTime.Today:yyyy-MM-dd}.xlsx", "xlsx", "Excel"); if (path is null) return;
-        if (await Ui.Run(this, () => Core.SoKho.SoKhoService.ExportTable("Kiem ke nhanh", head, rows, path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Core.SoKho.SoKhoService.ExportTable("Kiem ke nhanh", head, rows, path))) Ui.Exported(this, path);
     }
     private async Task NExport(bool onlyLech)
     {
@@ -330,6 +330,6 @@ public sealed partial class KiemKeView
             Ui.SafeFileName((onlyLech ? "Chenh lech kiem ke " : "Doi chieu kiem ke ") + DateTime.Today.ToString("dd.MM.yyyy")) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
         var rows = onlyLech ? KkNhanh.FilterRows(KkNhanh.Rows(Svc.T.Rows), "LECH", null) : null;
-        if (await Ui.Run(this, () => Svc.ExportReport(path, rows))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.ExportReport(path, rows))) Ui.Exported(this, path);
     }
 }

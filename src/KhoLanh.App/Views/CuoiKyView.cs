@@ -618,7 +618,7 @@ public sealed class CuoiKyView : UserControl, IPage
         var p = Svc.Period;
         var path = await Ui.SaveFile(this, "Xuất báo cáo đối chiếu cuối kỳ", $"DoiChieuCuoiKy_{p?.To ?? DateTime.Now.ToString("yyyy-MM-dd")}.xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.BuildExcel().Save(path))) Ui.OpenExternal(path);
+        if (await Ui.Run(this, () => Svc.BuildExcel().Save(path))) Ui.Exported(this, path);
     }
 
     private async Task ImportAdj()

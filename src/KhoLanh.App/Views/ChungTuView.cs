@@ -370,7 +370,7 @@ public sealed class ChungTuView : UserControl, IPage
         var name = list.Count == 1 ? list[0].SoPhieu : (Svc.Meta().SoPhieu is { Length: > 1 } sp && sp != "—" ? sp : K(_mod).Prefix);
         var path = await Ui.SaveFile(this, "Xuất Excel phiếu xuất", Ui.SafeFileName(name) + ".xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Act(() => Svc.ExportExcel(_mod, list, path), $"Đã xuất {list.Count} phiếu ra {Path.GetFileName(path)}")) Ui.OpenExternal(path);
+        if (await Act(() => Svc.ExportExcel(_mod, list, path), $"Đã xuất {list.Count} phiếu ra {Path.GetFileName(path)}")) Ui.Exported(this, path);
     }
 
     // ------------------------------------------------------------------ tab Bảng dữ liệu

@@ -286,7 +286,7 @@ public sealed class SoSanhBangView : UserControl, IPage
         try
         {
             await Task.Run(() => ExcelOps.Write(path, new[] { ("Tóm tắt", sum), ("Khác nhau", diff), ("Chỉ có ở A", onlyA), ("Chỉ có ở B", onlyB), ("Mã trùng", DupTable()), ("Giống nhau", same) }));
-            Ui.OpenExternal(path);
+            Ui.Exported(this, path);
         }
         catch (Exception e) { await Ui.Message(this, e.Message, "Không lưu được"); }
     }
@@ -313,7 +313,7 @@ public sealed class SoSanhBangView : UserControl, IPage
         var path = await Ui.SaveFile(this, "Lưu kết quả tra cứu", $"tra-cuu-bang-{Stamp()}.xlsx", "xlsx", "Excel"); if (path is null) return;
         var sheets = new List<(string, CcTable)> { ("Kết quả tra cứu", r.Table) };
         if (r.Miss.Count > 0) sheets.Add(("Không tìm thấy", new CcTable(new[] { "Dòng A" }.Concat(A.Head), r.Miss.Select(i => new object?[] { (double)RowNo(_a, i) }.Concat(A.Rows[i]).ToArray()))));
-        try { await Task.Run(() => ExcelOps.Write(path, sheets)); Ui.OpenExternal(path); }
+        try { await Task.Run(() => ExcelOps.Write(path, sheets)); Ui.Exported(this, path); }
         catch (Exception e) { await Ui.Message(this, e.Message, "Không lưu được"); }
     }
 }

@@ -736,7 +736,7 @@ public sealed class RaDongView : UserControl, IPage
         if (!Svc.SavedRows.Any(r => r.Date.StartsWith(_selYear))) { await Ui.Message(this, $"Chưa có dữ liệu năm {y} để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất Excel năm", $"bao-cao-ra-dong-{y}.xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ExportYear(y, path)))) Ui.OpenExternal(path);
+        if (await Ui.RunAsync(this, () => Task.Run(() => Svc.ExportYear(y, path)))) Ui.Exported(this, path);
     }
 
     private async Task DayImage()
@@ -762,7 +762,7 @@ public sealed class RaDongView : UserControl, IPage
         {
             var path = await Ui.SaveFile(w, "Lưu ảnh", name, "png", "Ảnh PNG");
             if (path is null) return;
-            if (await Ui.Run(w, () => bmp.Save(path))) { w.Close(); Ui.OpenExternal(path); }
+            if (await Ui.Run(w, () => bmp.Save(path))) { w.Close(); Ui.Exported(this, path); }
         };
         await Ui.Show(this, w);
     }

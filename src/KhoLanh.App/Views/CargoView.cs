@@ -708,7 +708,7 @@ public sealed class CargoView : UserControl
         var cur = CargoCore.Clone(_cur);
         var path = await Ui.SaveFile(this, "Xuất Cargo list + phiếu xuất kho", FileName(cur, _prof.Code), "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => Svc.Export(_prof, cur, path))) { _status.Text = "Đã xuất " + Path.GetFileName(path); Ui.OpenExternal(path); RefreshAll(); }
+        if (await Ui.Run(this, () => Svc.Export(_prof, cur, path))) { _status.Text = "Đã xuất " + Path.GetFileName(path); Ui.Exported(this, path); RefreshAll(); }
     }
 
     private async Task PasteXe()
