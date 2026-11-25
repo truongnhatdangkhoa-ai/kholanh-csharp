@@ -61,7 +61,7 @@ public sealed partial class SoDoView : UserControl, IPage
     private List<Pos> _listRows = new();
     private readonly StackPanel _det2 = new() { Spacing = 6 };
     private static readonly (string Key, string Text)[] StFilters =
-        { ("", "Tất cả trạng thái"), ("e", "Trống"), ("u", "Có hàng (1 mã)"), ("mm", "Nhiều mã"), ("ov", "Tầng vượt mức"), ("near", "Gần đầy (≥ 75%)"), ("full", "Đầy / vượt") };
+        { ("", "Tất cả trạng thái"), ("e", "Trống"), ("u", "Có hàng (1 size)"), ("mm", "Nhiều mã (khác size / mặt hàng)"), ("ov", "Tầng vượt mức"), ("near", "Gần đầy (≥ 75%)"), ("full", "Đầy / vượt") };
 
     // ---------- tab Chưa có vị trí
     private readonly GridModel _zm = new() { ReadOnly = true };
@@ -86,6 +86,7 @@ public sealed partial class SoDoView : UserControl, IPage
     private SoDoService.KkSheet? _k;
     private List<(int Pi, SoDoService.KkLine L)> _kRows = new();
     private (string Kho, string Khu, int D, string Mode) _kKey;
+    private string _kSelKho = "";   // kho mà ô Khu / Dãy của Phiếu In đang chứa danh sách
     private TabControl? _kSub;                       // 2 tab con: Vị trí có hàng | Vị trí trống (ghi tay)
     private readonly List<Control> _kSoOnly = new(); // nút chỉ dùng ở tab Vị trí có hàng
     private static readonly GridColumn[] KkCols =
@@ -126,7 +127,7 @@ public sealed partial class SoDoView : UserControl, IPage
                 new TabItem { Header = "Phiếu In vị trí", Content = BuildKk() },
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // ô chọn bên trong nổi lên thì bỏ qua
         _rut.IsCheckedChanged += async (_, _) => { if (_loading) return; RenderAll(); await KkRebuildIfClean(); };
 
         var tools = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
@@ -337,8 +338,8 @@ public sealed partial class SoDoView : UserControl, IPage
         var miss = MissingQc(list, Svc.QcOf).Count;
         _kpi.Children.Add(Kpi("Tổng vị trí", c.All.ToString("#,0", Ui.Vi)));
         _kpi.Children.Add(Kpi("Ô trống", c.E.ToString("#,0", Ui.Vi), AppTheme.Brush("#5D6B78")));
-        _kpi.Children.Add(Kpi("Có hàng (1 mã)", c.U.ToString("#,0", Ui.Vi), AppTheme.Brush("#2E7D32")));
-        _kpi.Children.Add(Kpi("Nhiều mã", c.Mm.ToString("#,0", Ui.Vi), AppTheme.Brush("#B26A00")));
+        _kpi.Children.Add(Kpi("Có hàng (1 size)", c.U.ToString("#,0", Ui.Vi), AppTheme.Brush("#2E7D32"), "Ô có hàng cùng 1 mặt hàng + 1 size (có thể nhiều mã)"));
+        _kpi.Children.Add(Kpi("Nhiều mã", c.Mm.ToString("#,0", Ui.Vi), AppTheme.Brush("#B26A00"), "Cảnh báo: ô có từ 2 size, hoặc cùng size nhưng khác mặt hàng. Nhiều mã cùng size cùng mặt hàng không cảnh báo."));
         _kpi.Children.Add(Kpi("Tầng vượt mức", c.Ov.ToString("#,0", Ui.Vi), c.Ov > 0 ? AppTheme.Brush("#C0392B") : null, "Tầng có số pallet lớn hơn số khoang"));
         _kpi.Children.Add(Kpi("Lấp đầy ô", c.Fill + "%", Accent, "Số ô có hàng / tổng số ô"));
         _kpi.Children.Add(Kpi("Pallet / sức chứa", $"{used:#,0} / {cap:#,0}", null, "Pallet = mỗi nhóm cùng loại + cùng size trong 1 ô; sức chứa = số khoang × số tầng"));
@@ -504,8 +505,8 @@ public sealed partial class SoDoView : UserControl, IPage
     private string CellText(Pos p)
     {
         if (p.It.Count == 0) return "";
-        var mas = p.It.Select(x => x.Ma).Distinct().Count();
-        if (mas > 1) return $"{mas} mã";
+        // 1.89: chỉ ghi "N mã" khi cảnh báo (khác size / mặt hàng); nhiều mã cùng size cùng mặt hàng → ghi size như ô 1 mã
+        if (Status(p) == "mm") return $"{CodeCount(p)} mã";
         var x = p.It[0]; var s = Size(x);
         return s.Length > 0 ? s : x.Ma.Length > 6 ? "…" + x.Ma[^6..] : x.Ma;
     }
@@ -872,12 +873,17 @@ public sealed partial class SoDoView : UserControl, IPage
         try
         {
             var khus = Svc.KhuList(_kho);
-            var want = _k is not null && _k.Kho == _kho ? _k.Khu : _khu != "ALL" ? _khu : khus.FirstOrDefault() ?? "";
+            // 1.89: phiếu vừa bỏ (_k = null do đổi Khu / Dãy / Tạo lại) → GIỮ ô người dùng vừa chọn; trước đây luôn về khu đầu + dãy 01
+            // nên không chọn được Khu / Dãy khác ở cả 2 tab con.
+            var keep = _k is null && _kSelKho == _kho && _kKhu.SelectedItem is string;
+            var curKhu = (_kKhu.SelectedItem as string ?? "").Replace("Khu ", ""); var curD = _kDay.SelectedIndex;
+            var want = _k is not null && _k.Kho == _kho ? _k.Khu : keep && khus.Contains(curKhu) ? curKhu : _khu != "ALL" ? _khu : khus.FirstOrDefault() ?? "";
             Combo(_kKhu, khus.Select(k => "Khu " + k), Math.Max(0, khus.IndexOf(want)));
             var khu = khus.Count > 0 ? khus[Math.Max(0, _kKhu.SelectedIndex)] : "";
             var days = Svc.DayList(_kho, khu);
-            var dWant = _k is not null && _k.Kho == _kho && _k.Khu == khu ? _k.D : days.Count > 0 ? 1 : 0;
+            var dWant = _k is not null && _k.Kho == _kho && _k.Khu == khu ? _k.D : keep && khu == curKhu && curD >= 0 && curD <= days.Count ? curD : days.Count > 0 ? 1 : 0;
             Combo(_kDay, new[] { "Tất cả dãy" }.Concat(days.Select(d => "Dãy " + Two(d))), dWant);
+            _kSelKho = _kho;
             if (_k is not null) KkShowMode(_k.Mode);
         }
         finally { _loading = false; }

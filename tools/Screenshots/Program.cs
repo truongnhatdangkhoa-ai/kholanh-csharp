@@ -1262,6 +1262,40 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
     s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
 }
+// 1.89: Phiếu In vị trí — chọn Khu / Dãy ở CẢ 2 tab con phải giữ đúng lựa chọn (trước luôn về Khu A · Dãy 01): SHOTS_ONLY=kkchon (tự kiểm, thoát mã 1)
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "kkchon")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var bfk = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    main.Navigate("m8"); W(900);
+    var sdk = (SoDoView)main.PageHost.Content!;
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    tc.SelectedIndex = 4; W(600);
+    var cKhu = (ComboBox)typeof(SoDoView).GetField("_kKhu", bfk)!.GetValue(sdk)!;
+    var cDay = (ComboBox)typeof(SoDoView).GetField("_kDay", bfk)!.GetValue(sdk)!;
+    var sub = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t != tc && t.Items.Count == 2 && t.IsEffectivelyVisible);
+    (string Khu, int D) Cur() { var k = typeof(SoDoView).GetField("_k", bfk)!.GetValue(sdk); return k is null ? ("", -1) : ((string)k.GetType().GetField("Khu")!.GetValue(k)!, (int)k.GetType().GetField("D")!.GetValue(k)!); }
+    var ok = true;
+    foreach (var tab in new[] { 0, 1 })
+    {
+        sub.SelectedIndex = tab; W(500);
+        cKhu.SelectedIndex = 1; W(400);
+        var khu = (cKhu.SelectedItem as string ?? "").Replace("Khu ", "");
+        cDay.SelectedIndex = 3; W(400);
+        var day = cDay.SelectedItem as string ?? "";
+        var cur = Cur();
+        var pass = cur.Khu == khu && cur.D == 3 && cKhu.SelectedIndex == 1 && cDay.SelectedIndex == 3 && day == "Dãy 03";
+        Console.WriteLine($"[KKCHON] tab {tab}: chọn Khu {khu} · {day} → phiếu Khu {cur.Khu} · Dãy {cur.D:00} · ô {cKhu.SelectedItem} / {cDay.SelectedItem} {(pass ? "ĐẠT" : "HỎNG")}");
+        ok &= pass;
+        cDay.SelectedIndex = 0; W(400);
+        var all = Cur(); var pAll = all.Khu == khu && all.D == 0 && cDay.SelectedIndex == 0;
+        Console.WriteLine($"[KKCHON] tab {tab}: Tất cả dãy → Khu {all.Khu} · D={all.D} {(pAll ? "ĐẠT" : "HỎNG")}");
+        ok &= pAll;
+        cDay.SelectedIndex = 2; W(400);
+        Snap(main, tab == 0 ? "25j-phieu-in-chon-khu-day" : "25k-phieu-in-trong-chon-khu-day");
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (kkchon): " + outDir); if (!ok) Environment.Exit(1); return;
+}
 // Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
 {
