@@ -52,6 +52,14 @@ public partial class MainWindow : Window
             else if (e.Key is Avalonia.Input.Key.OemMinus or Avalonia.Input.Key.Subtract) { Zoom(-0.1); e.Handled = true; }
             else if (e.Key is Avalonia.Input.Key.D0 or Avalonia.Input.Key.NumPad0) { Zoom(0); e.Handled = true; }
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // 1.81: ESC = quay lại màn hình trước (tối đa 3 lần), hết thì về Tổng quan. Đăng ký dạng Bubble: ô bảng đang sửa,
+        // danh sách lọc, hộp thoại… xử lý ESC trước (e.Handled) thì không chuyển trang. Đang gõ trong ô chữ: ESC đầu chỉ rời ô.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || e.Key != Avalonia.Input.Key.Escape || e.KeyModifiers != Avalonia.Input.KeyModifiers.None) return;
+            if (FocusManager?.GetFocusedElement() is TextBox) { PageHost.Focusable = true; PageHost.Focus(); e.Handled = true; return; }   // rời ô chữ (vùng trang nhận tiêu điểm)
+            e.Handled = GoBack();
+        }, Avalonia.Interactivity.RoutingStrategies.Bubble);
         VersionText.Text = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
         WarehouseText.Text = s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho");
 
@@ -380,7 +388,40 @@ public partial class MainWindow : Window
         foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
         var grp = _menu.First(m => m.items.Contains(item)).group;
         PageGroup.Text = _navGroups.ContainsKey(key) ? GroupLabel(grp) + "  ›" : "";
+        if (!_goingBack && _current.Length > 0 && _current != key)
+        {
+            _back.Remove(key);                       // mở lại màn hình đã có trong lịch sử → không lặp
+            _back.Add(_current);
+            while (_back.Count > BackMax) _back.RemoveAt(0);
+        }
         _current = key;
+    }
+
+    // ------------------------------------------------------------------ 1.81: ESC quay lại
+    private const int BackMax = 3;
+    private readonly List<string> _back = new();
+    private bool _goingBack;
+    /// <summary>Lịch sử màn hình (mới nhất cuối) — công cụ chụp kiểm tra.</summary>
+    internal IReadOnlyList<string> BackHistory => _back;
+    internal string CurrentKey => _current;
+
+    /// <summary>Quay lại màn hình trước (tối đa 3 bước); hết lịch sử thì về Tổng quan. Trả false nếu đã ở Tổng quan, không còn gì để lùi.</summary>
+    internal bool GoBack()
+    {
+        while (_back.Count > 0)
+        {
+            var k = _back[^1]; _back.RemoveAt(_back.Count - 1);
+            if (k == _current) continue;
+            var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == k);
+            if (item is null || !Allowed(item)) continue;
+            _goingBack = true;
+            try { Show(k, null); } finally { _goingBack = false; }
+            return true;
+        }
+        if (_current == "lx") return false;
+        _goingBack = true;
+        try { Show("lx", null); } finally { _goingBack = false; }
+        return _current == "lx";
     }
 
     public void SetSubtitle(string text) => PageSubtitle.Text = text;
