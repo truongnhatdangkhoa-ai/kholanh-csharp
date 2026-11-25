@@ -204,7 +204,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
             Btn("‹ Ngày trước", () => Step(+1)), _day, Btn("Ngày sau ›", () => Step(-1)), _allDays, _hInfo);
         var search = Wrap(_q, Btn("Xóa bộ lọc", ClearFilters));
         var cols = Wrap(new Control[] { Label("Lọc cột:") }.Concat(_colF).ToArray());
-        var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var acts = new ToolRow { };
         if (_export) acts.Children.Add(Btn("Xuất Excel (đang lọc)", async () => await ExportAsync()));
         if (_edit)
         {

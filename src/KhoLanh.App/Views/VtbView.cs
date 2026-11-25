@@ -41,7 +41,7 @@ public sealed class VtbView : UserControl, IPage
         _m.Changed += OnEdit;
         var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; deb.Tick += (_, _) => { deb.Stop(); Paint(); };
         _q.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var bar = new ToolRow { };
         bar.Children.Add(_q);
         bar.Children.Add(Btn("⟳ Tải lại", Reload));
         if (Svc.CanEdit || App.Services.Session.Can(KhoLanh.Core.SoKho.SoKhoService.PermKey, KhoLanh.Core.Models.Perm.Edit))
@@ -52,7 +52,7 @@ public sealed class VtbView : UserControl, IPage
         if (Svc.CanEdit) { bar.Children.Add(Btn("📄 Nạp file Vị trí Bột…", LoadFile)); bar.Children.Add(Btn("Tải file mẫu…", SaveTemplate)); }
         bar.Children.Add(_phone);
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(_info);
-        var pickBar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+        var pickBar = new ToolRow { Margin = new Thickness(0, 6, 0, 0) };
         pickBar.Children.Add(_pickInfo);
         if (Svc.CanEdit) { pickBar.Children.Add(_note); pickBar.Children.Add(Btn("📝 Tạo phiếu xuất (trừ ngay)", CreateSlip, true)); pickBar.Children.Add(Btn("Bỏ chọn", () => { _picks.Clear(); Paint(); })); }
         var left = new DockPanel(); DockPanel.SetDock(pickBar, Dock.Bottom); left.Children.Add(pickBar); left.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _g });

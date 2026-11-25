@@ -133,14 +133,15 @@ public sealed class SoKhoView : UserControl, IPage
             if (Svc.CanEdit) lt.Children.Add(Btn("➕ Phiếu " + Ten + " mới", New, primary: true));
             lt.Children.Add(_q);
             DockPanel.SetDock(lt, Dock.Top); left.Children.Add(lt); left.Children.Add(Framed(_list));
-            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            // 1.84 (mẫu chuẩn): ô đầu phiếu + nút chung 1 hàng, nút chính cuối, nút ít dùng vào ⋯ Thêm.
+            var bar = new ToolRow();
             bar.Children.Add(Lb("Ngày")); bar.Children.Add(_ngay); bar.Children.Add(Lb("Số chứng từ")); bar.Children.Add(_ct);
             if (loai == "xuat") { bar.Children.Add(Lb("LSX")); bar.Children.Add(_hd); }
-            var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
-            if (Svc.CanEdit) { acts.Children.Add(Btn("💾 Lưu phiếu", Save, primary: true)); acts.Children.Add(Btn("Xóa phiếu", Delete)); }
-            acts.Children.Add(Btn("🖨 In phiếu", Print, "Mở phiếu A4 trong trình duyệt để In / Lưu PDF"));
-            acts.Children.Add(Btn("Kiểm tra", () => { Check(); }, "Kiểm tra lỗi từng dòng, định mức LSX, lô chỉ định"));
-            var top = new StackPanel { Spacing = 6 }; top.Children.Add(_head); top.Children.Add(bar); top.Children.Add(acts);
+            bar.Children.Add(ToolRow.Gap());
+            bar.Children.Add(Btn("Kiểm tra", () => { Check(); }, "Kiểm tra lỗi từng dòng, định mức LSX, lô chỉ định"));
+            bar.Children.Add(Btn("🖨 In phiếu", Print, "Mở phiếu A4 trong trình duyệt để In / Lưu PDF"));
+            if (Svc.CanEdit) { bar.Children.Add(ToolRow.More(Btn("Xóa phiếu", Delete))); bar.Children.Add(Btn("💾 Lưu phiếu", Save, primary: true)); }
+            var top = new StackPanel { Spacing = 6 }; top.Children.Add(_head); top.Children.Add(bar);
             // 1.57: phiếu và bảng tồn theo lô thành 2 tab con (màn hình nhỏ không phải xem 2 bảng chồng nhau).
             var editor = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
             editor.Children.Add(top);
@@ -326,7 +327,7 @@ public sealed class SoKhoView : UserControl, IPage
         {
             _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _bg.Count ? _bg[r] switch { "neg" => Red, "exp" => Yellow, "low" => Yellow, _ => null } : null };
             _mode.SelectionChanged += (_, _) => Paint(); _from.SelectedDateChanged += (_, _) => Paint(); _to.SelectedDateChanged += (_, _) => Paint(); _q.TextChanged += (_, _) => Paint();
-            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            var bar = new ToolRow { };
             bar.Children.Add(_mode); bar.Children.Add(_fromLb); bar.Children.Add(_from); bar.Children.Add(_toLb); bar.Children.Add(_to); bar.Children.Add(_q);
             if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, "TonKho_BotSot_" + IsoOf(_to)); if (p is not null) await Ui.Run(this, () => SoKhoService.ExportTable("Ton kho", _head, _rows.Select(r => r.Select(x => (object?)(double.TryParse(x.Replace(",", ""), NumberStyles.Float, Ic, out var d) && x.Length > 0 && char.IsDigit(x[^1]) && !x.Contains('/') ? d : x)).ToArray()), p)); }));
             if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
@@ -424,7 +425,7 @@ public sealed class SoKhoView : UserControl, IPage
             _g = new SheetGrid(_m) { SpareRows = 10 };
             _rg = new SheetGrid(_rm) { SpareRows = 0, CellBackground = (r, _) => r < _res.Count ? _res[r].Kind switch { "khop" => Green, "thieu" => Red, _ => Yellow } : null };
             _ngay.SelectedDateChanged += (_, _) => Paint();
-            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            var bar = new ToolRow { };
             bar.Children.Add(Lb("Ngày kiểm kê")); bar.Children.Add(_ngay);
             bar.Children.Add(Btn("Tính chênh lệch", Calc, primary: true));
             if (Svc.CanEdit) bar.Children.Add(Btn("Ghi điều chỉnh vào sổ", Apply, "Mỗi dòng lệch thành 1 dòng Điều chỉnh (dương = thêm, âm = bớt) ngày kiểm kê"));
@@ -491,7 +492,7 @@ public sealed class SoKhoView : UserControl, IPage
                 DockPanel.SetDock(head, Dock.Top); dp.Children.Add(head); dp.Children.Add(Framed(grid));
                 return dp;
             }
-            var rbar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            var rbar = new ToolRow { };
             rbar.Children.Add(Lb("Từ")); rbar.Children.Add(_from); rbar.Children.Add(Lb("đến")); rbar.Children.Add(_to);
             Content = Ui.SubTabs(
                 ("Báo cáo định mức", Page("Thực xuất bột / sốt theo LSX so với dự kiến", _rg, rbar)),
@@ -544,7 +545,7 @@ public sealed class SoKhoView : UserControl, IPage
         {
             _g = new SheetGrid(_m) { SpareRows = 0 }; _hg = new SheetGrid(_hm) { SpareRows = 0 };
             _from.SelectedDateChanged += (_, _) => Paint(); _to.SelectedDateChanged += (_, _) => Paint(); _loai.SelectionChanged += (_, _) => Paint(); _q.TextChanged += (_, _) => Paint();
-            var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
+            var bar = new ToolRow { };
             bar.Children.Add(Lb("Từ")); bar.Children.Add(_from); bar.Children.Add(Lb("đến")); bar.Children.Add(_to); bar.Children.Add(_loai); bar.Children.Add(_q);
             if (Svc.CanEdit) { bar.Children.Add(Btn("Xóa dòng đang chọn", DelSel)); bar.Children.Add(Btn("📥 Nạp từ Excel…", Import, "File có dòng tiêu đề: Ngày · Loại · Vị trí · Mã hàng · Size · Số lượng · Net · Hợp đồng · Hạn dùng · Ngày nhập · Ghi chú")); }
             if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, $"SoCai_BotSot_{IsoOf(_from)}_{IsoOf(_to)}"); if (p is not null) await Ui.Run(this, () => Svc.ExportLedger(_shown, p)); }));
@@ -627,7 +628,7 @@ public sealed class SoKhoView : UserControl, IPage
             s.Children.Add(row1); s.Children.Add(Framed(_tg));
             if (Svc.CanEdit)
             {
-                var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+                var acts = new ToolRow { };
                 acts.Children.Add(Btn("▲ Lên", () => Move(-1))); acts.Children.Add(Btn("▼ Xuống", () => Move(1)));
                 acts.Children.Add(Btn("+ Thêm cột phụ…", AddExtra)); acts.Children.Add(Btn("Xóa cột đang chọn", DelCol));
                 acts.Children.Add(Btn("Về mẫu cơ bản", () => { _tplCols = SkTemplate.Default().Columns; LoadTplGrid(); }));

@@ -476,7 +476,7 @@ public sealed partial class SoDoView : UserControl, IPage
 
     private Control BuildMap()
     {
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        Panel bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_mq);
         _mq.TextChanged += (_, _) => { if (!_loading) RenderMap(); };
         void Legend(string text, IBrush bg) { var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 }; s.Children.Add(new Border { Width = 16, Height = 12, Background = bg, BorderBrush = Line, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center }); s.Children.Add(Label(text, size: 12)); bar.Children.Add(s); }
@@ -550,7 +550,7 @@ public sealed partial class SoDoView : UserControl, IPage
 
     private Control BuildList()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         Combo(_fSt, StFilters.Select(f => f.Text));
         bar.Children.Add(_fSt); bar.Children.Add(_fD); bar.Children.Add(_fT); bar.Children.Add(_fK); bar.Children.Add(_fQ); bar.Children.Add(_listInfo);
         foreach (var c in new[] { _fSt, _fD, _fT, _fK }) c.SelectionChanged += (_, _) => { if (!_loading) RenderList(); };
@@ -663,13 +663,13 @@ public sealed partial class SoDoView : UserControl, IPage
 
     private Control BuildQc()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 4) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 4) };
         Combo(_qF, new[] { "Tất cả mã", "Chưa có quy cách", "Đã có quy cách" }, 1);
         bar.Children.Add(_qF); bar.Children.Add(_qG); bar.Children.Add(_qQ); bar.Children.Add(_qInfo);
         _qF.SelectionChanged += (_, _) => { if (!_loading) RenderQc(); };
         _qG.SelectionChanged += (_, _) => { if (!_loading) RenderQc(); };
         _qQ.TextChanged += (_, _) => { if (!_loading) RenderQc(); };
-        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+        var btns = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         if (_edit)
         {
             btns.Children.Add(Btn("💾 Lưu quy cách", async () => await QcSave(), primary: true));
@@ -804,7 +804,7 @@ public sealed partial class SoDoView : UserControl, IPage
 
     private Control BuildKk()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 4) };
+        var bar = new ToolRow { Margin = new Thickness(0, 6, 0, 4) };
         // 1.71: tab "Vị trí trống (ghi tay)" = phiếu trắng MỌI vị trí theo sơ đồ (bỏ lựa chọn "Chỉ vị trí trống" — người dùng chốt).
         Combo(_kMode, new[] { "Mọi vị trí (phiếu trắng)" });
         _kMode.IsVisible = false;

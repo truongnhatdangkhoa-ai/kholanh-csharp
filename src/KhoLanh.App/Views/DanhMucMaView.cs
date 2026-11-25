@@ -52,7 +52,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         _q.TextChanged += (_, _) => { _find.Stop(); _find.Start(); };
         _f.SelectionChanged += (_, _) => Draw();
 
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 6) };
         bar.Children.Add(_q); bar.Children.Add(_f);
         if (Svc.CanEdit) bar.Children.Add(Btn("Xóa dòng đã chọn", DeleteSel, "Xóa hẳn các mã đang chọn khỏi danh mục (không xóa mã trong tồn kho / phiếu)"));
         bar.Children.Add(Btn("⟳ Nạp lại", () => Reload(), "Đọc lại danh mục, Mã hóa sản phẩm và nơi đang dùng mã"));

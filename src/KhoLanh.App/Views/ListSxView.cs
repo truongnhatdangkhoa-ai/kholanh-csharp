@@ -47,7 +47,7 @@ public sealed class ListSxView : UserControl
         _q.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
         _hideDone.IsCheckedChanged += (_, _) => Render();
 
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var bar = new ToolRow { };
         if (_edit)
         {
             bar.Children.Add(Btn("📂 Nạp file List (PDF / Excel)…", async () => await Import(), primary: true));
@@ -137,7 +137,7 @@ public sealed class ListSxView : UserControl
                    $"Tồn kho: {(info.Ton is null ? "chưa theo dõi được (Tồn kho An An chưa có dữ liệu)" : info.Ton > 0 ? F(info.Ton.Value) + " kiện" : "đã hết")} · Phiếu xuất kho: {(info.Phieu > 0 ? info.Phieu + " phiếu" : "chưa có")} · Lịch xuất: {(info.LichN == 0 ? "chưa có" : $"{info.LichOk}/{info.LichN} đã xuất")}",
             FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
         });
-        var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var acts = new ToolRow { };
         var ph = Pnx.List.FirstOrDefault(p => p.Loai == "xuat_khau" && PhieuKhoCore.LsxList(p.Lsx).Any(c => LichXuatService.LsxKeyOf(c) == LichXuatService.LsxKeyOf(info.Rec.Lsx)));
         if (ph is not null) acts.Children.Add(Btn("📄 Mở phiếu " + (ph.SoPhieu.Length > 0 ? ph.SoPhieu : ""), () => { _openPhieu(ph.Id); return Task.CompletedTask; }));
         else if (_edit) acts.Children.Add(Btn("➕ Tạo phiếu xuất kho từ List", async () => await MakePhieu(info), primary: true));

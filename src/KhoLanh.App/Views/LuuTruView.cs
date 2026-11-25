@@ -83,7 +83,7 @@ public sealed class LuuTruView : UserControl, IPage
         _bMove.Click += async (_, _) => await MoveSelected();
         _bDel = Icon.Button("Xóa", "trash", "danger");
         _bDel.Click += async (_, _) => await DeleteSelected();
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 8) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 8) };
         bar.Children.Add(_q); bar.Children.Add(_kind); bar.Children.Add(_tag);
         bar.Children.Add(new Border { Width = 10 });
         bar.Children.Add(add); bar.Children.Add(addF); bar.Children.Add(_bMove); bar.Children.Add(_bDel);

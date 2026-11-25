@@ -850,6 +850,9 @@ public sealed class SheetGrid : UserControl
     private int _chkCount;
     /// <summary>Có dòng "Tổng" cố định ở đáy bảng (cộng các dòng đang hiện; bảng có ô tích thêm dòng "Đã chọn"). Mặc định bật; tự ẩn khi không có cột nào để cộng hoặc bảng quá thấp.</summary>
     public bool ShowTotals { get; set; } = true;
+    /// <summary>Dòng trạng thái ngắn ("112 dòng gốc · 98 nhóm") hiện ở dòng Tổng, sau số dòng (1.84: không còn dòng chữ riêng trên bảng).</summary>
+    public string Status { get => _status; set { if (_status == (value ?? "")) return; _status = value ?? ""; _totals?.Update(); } }
+    private string _status = "";
     private static HashSet<string>? _sumOn, _sumOff;
     private const string KeyOn = "ui_sum_on", KeyOff = "ui_sum_off";
     private static void LoadSumPrefs()
@@ -914,7 +917,7 @@ public sealed class SheetGrid : UserControl
             if (show)
             {
                 g.ComputeSums();
-                show = g._sumAll.Any(x => x.HasValue);
+                show = g._sumAll.Any(x => x.HasValue) || g._status.Length > 0;
             }
             var h = show ? RowH * (g._chkCount > 0 ? 2 : 1) + 1 : 0;
             if (IsVisible != show) IsVisible = show;
@@ -928,7 +931,7 @@ public sealed class SheetGrid : UserControl
             var rh = RowH; var rhw = g.RowHeadW;
             var lines = new List<(string Label, double?[] Sums, IBrush Bg, string Count)>
             {
-                ("Tổng", g._sumAll, Bg, $"{g.VCount:#,0} dòng"),
+                ("Tổng", g._sumAll, Bg, $"{g.VCount:#,0} dòng" + (g._status.Length > 0 ? " · " + g._status : "")),
             };
             if (g._chkCount > 0) lines.Add(("Đã chọn", g._sumChk, ChkBg, $"{g._chkCount:#,0} dòng"));
             for (var i = 0; i < lines.Count; i++)
@@ -939,7 +942,7 @@ public sealed class SheetGrid : UserControl
                 Text(dc, label, Bold, i == 0 ? Fg : AccentFg, new Rect(6, y, rhw - 8, rh), left: true);
                 using (dc.PushClip(new Rect(rhw, y, Math.Max(0, b.Width - rhw), rh)))
                 {
-                    var x = rhw - g.OffsetX; var cntDone = false;
+                    var x = rhw - g.OffsetX; var cntDone = false; var spanEnd = double.MinValue;
                     for (var c = 0; c < g.Model.ColCount; c++)
                     {
                         var w = g.Model.Columns[c].Width;
@@ -948,11 +951,17 @@ public sealed class SheetGrid : UserControl
                             if (c < sums.Length && sums[c] is { } v)
                                 Text(dc, NumFmt.Of(v, g.FmtClass(c)), Bold, i == 0 ? Fg : AccentFg, new Rect(x + 4, y, w - 8, rh), left: false);
                             else if (!cntDone && w >= 60 && !(c < sums.Length && g.SumCol(c)))
-                            { Text(dc, cnt, Norm, Mut, new Rect(x + 6, y, w - 10, rh), left: true); cntDone = true; }
+                            {
+                                // chữ đếm dòng (+ trạng thái) giãn qua các cột không có số cộng kế tiếp
+                                var span = w;
+                                for (var k = c + 1; k < g.Model.ColCount && !(k < sums.Length && sums[k].HasValue); k++) span += g.Model.Columns[k].Width;
+                                if (g._status.Length == 0) span = w;
+                                Text(dc, cnt, Norm, Mut, new Rect(x + 6, y, span - 10, rh), left: true); cntDone = true; spanEnd = x + span - 1;
+                            }
                         }
                         else if (x + w <= rhw) { /* cột đã cuộn khuất bên trái */ }
                         x += w;
-                        if (x < b.Width) dc.DrawLine(Sep, new Point(x, y), new Point(x, y + rh));
+                        if (x < b.Width && x >= spanEnd) dc.DrawLine(Sep, new Point(x, y), new Point(x, y + rh));
                     }
                 }
             }

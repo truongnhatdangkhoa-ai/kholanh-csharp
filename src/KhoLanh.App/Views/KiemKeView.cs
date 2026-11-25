@@ -54,7 +54,7 @@ public sealed partial class KiemKeView : UserControl, IPage
     // ---------- tab Đối chiếu An An
     private readonly ComboBox _src = new() { MinWidth = 230 };
     private readonly TextBlock _srcInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _kpi = new() { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 4) };
+    private readonly WrapPanel _kpi = new() { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
     private readonly WrapPanel _todo = new() { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 4) };
     private readonly ComboBox _flt = new() { MinWidth = 170 };
     private readonly ComboBox _grp = new() { MinWidth = 160 };
@@ -194,10 +194,11 @@ public sealed partial class KiemKeView : UserControl, IPage
     }
     private static Border Kpi(string label, string value, IBrush? fg = null, Action? click = null, bool active = false)
     {
-        var s = new StackPanel();
-        s.Children.Add(new TextBlock { Text = value, FontSize = 17, FontWeight = FontWeight.Bold, Foreground = fg ?? Dark });
-        s.Children.Add(new TextBlock { Text = label, FontSize = 11.5, Classes = { "muted" } });
-        var b = new Border { Background = active ? AppTheme.Brush("#E3F2FB") : AppTheme.Card, BorderBrush = active ? Accent : Line_, BorderThickness = new Thickness(active ? 2 : 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 3), MinWidth = 96, Child = s };
+        // 1.84 (mẫu chuẩn kiểu 4): thẻ số thành nút lọc gọn 1 hàng "Nhãn  số" (cao 28px) thay thẻ 2 dòng.
+        var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        s.Children.Add(new TextBlock { Text = label, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Foreground = active ? Accent : AppTheme.Brush("#5D6B78") });
+        s.Children.Add(new TextBlock { Text = value, FontSize = 13, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center, Foreground = fg ?? Dark });
+        var b = new Border { Background = active ? AppTheme.Brush("#E3F2FB") : AppTheme.Card, BorderBrush = active ? Accent : Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14), Padding = new Thickness(10, 0), Height = 28, Child = s };
         if (click is not null) { b.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand); b.PointerPressed += (_, _) => click(); }
         return b;
     }
@@ -283,7 +284,7 @@ public sealed partial class KiemKeView : UserControl, IPage
         var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 8, 0, 6) };
         head.Children.Add(Label("Trang Nhập liệu dùng làm số liệu kiểm kê", true, 14));
         head.Children.Add(Muted("Các trang mẫu Kiểm kê (hoặc mẫu riêng có cột Mã hàng + Số thùng / Số kiện / Net). Đánh dấu các trang của kỳ kiểm kê này rồi bấm Áp dụng."));
-        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var btns = new ToolRow { };
         btns.Children.Add(Btn("Chọn tất cả", () => { foreach (var p in Svc.Pages) _pick.Add(p.Id); RenderPageList(); }));
         btns.Children.Add(Btn("Bỏ chọn", () => { _pick.Clear(); RenderPageList(); }));
         if (_edit) btns.Children.Add(Btn("✔ Áp dụng", async () => await Act(() => Svc.SetChosen(_pick, _latest.IsChecked == true), "Đã cập nhật số liệu kiểm kê"), primary: true));
@@ -291,7 +292,7 @@ public sealed partial class KiemKeView : UserControl, IPage
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head);
         left.Children.Add(Framed(new ScrollViewer { Content = _pageList, Padding = new Thickness(6) }));
 
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(Label("Số liệu đã chọn", true, 14)); bar.Children.Add(_gop);
         _gop.IsCheckedChanged += (_, _) => { if (!_loading) RenderLines(); };
         var rhead = new StackPanel(); rhead.Children.Add(bar); rhead.Children.Add(_exInfo);
@@ -356,7 +357,7 @@ public sealed partial class KiemKeView : UserControl, IPage
 
     private Control BuildAn()
     {
-        var srcRow = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 0) };
+        var srcRow = new ToolRow { Margin = new Thickness(0, 4, 0, 0) };
         srcRow.Children.Add(Label("Đối chiếu với", true)); srcRow.Children.Add(_src);
         _src.SelectionChanged += async (_, _) => { if (_loading) return; var want = _src.SelectedIndex == 1 ? "snap" : "live"; if (want != Svc.StockSrc && !await Act(() => Svc.SetStockSrc(want))) { _loading = true; _src.SelectedIndex = Svc.StockSrc == "snap" ? 1 : 0; _loading = false; } };
         if (_edit) srcRow.Children.Add(Btn("📸 Chụp tồn kho", async () => { if (await Ui.Confirm(this, $"Chụp Tồn kho An An hiện tại ({Svc.StockFile}, ngày {Svc.StockDate}) làm bản cố định để đối chiếu? Nạp file tồn mới sau đó sẽ không làm đổi kết quả đối chiếu.", "Chụp tồn kho", "Chụp")) await Act(() => Svc.SnapStock(), "Đã chụp tồn kho"); },
@@ -364,12 +365,13 @@ public sealed partial class KiemKeView : UserControl, IPage
         _chot.LostFocus += async (_, _) => { var v = (_chot.Text ?? "").Trim(); if (_loading || v == Svc.ChotDate || !_edit) return; if (!await Act(() => Svc.SetChotDate(v), "Đã đặt ngày chốt tồn")) { _loading = true; _chot.Text = Svc.ChotDate; _loading = false; } };
         srcRow.Children.Add(new TextBlock { Text = "Ngày chốt tồn:", FontSize = 12, VerticalAlignment = VerticalAlignment.Center }); srcRow.Children.Add(_chot);
         srcRow.Children.Add(_srcInfo);
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 2, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 2, 0, 6) };
         Combo(_flt, Flts.Select(f => f.Text));
         _flt.SelectionChanged += (_, _) => { if (_loading) return; _fltKey = Flts[Math.Max(0, _flt.SelectedIndex)].Key; RenderAnGrid(); RenderKpi(); };
         _q.TextChanged += (_, _) => { if (!_loading) RenderAnGrid(); };
         Combo(_grp, new[] { "Mọi nhóm tồn" }.Concat(PhanLoaiM1.Order.Select(PhanLoaiM1.LabelOf)));
         _grp.SelectionChanged += (_, _) => { if (_loading) return; _grpKey = _grp.SelectedIndex <= 0 ? "" : PhanLoaiM1.Order[_grp.SelectedIndex - 1]; RenderAnGrid(); };
+        
         bar.Children.Add(_flt); bar.Children.Add(_grp); bar.Children.Add(_q); bar.Children.Add(_gridInfo);
         var head = new StackPanel(); head.Children.Add(srcRow); head.Children.Add(_kpi); head.Children.Add(_todo); head.Children.Add(bar);
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_ag));
@@ -394,7 +396,7 @@ public sealed partial class KiemKeView : UserControl, IPage
         _kpi.Children.Add(Kpi("Lệch kg", s.LechKg.ToString(Ui.Vi), null, () => SetFlt(LechKg), _fltKey == LechKg));
         _kpi.Children.Add(Kpi("Chỉ có ở kiểm kê", s.ChiKK.ToString(Ui.Vi), null, () => SetFlt(ChiKK), _fltKey == ChiKK));
         _kpi.Children.Add(Kpi("Chưa kiểm kê", s.ChuaKK.ToString(Ui.Vi), null, () => SetFlt(ChuaKK), _fltKey == ChuaKK));
-        _kpi.Children.Add(Kpi("Tổng kg lệch", s.KgLech.ToString("#,0.##", Ui.Vi), s.KgLech > 0 ? Warn : null));
+        _ag.Status = "tổng kg lệch " + s.KgLech.ToString("#,0.##", Ui.Vi);   // 1.84: vào dòng Tổng thay thẻ số riêng
     }
     private void RenderTodo()
     {
@@ -572,12 +574,12 @@ public sealed partial class KiemKeView : UserControl, IPage
         _gmg = new SheetGrid(_gmap) { SpareRows = 20 };
         _guiOn.IsCheckedChanged += async (_, _) => { if (_loading) return; var v = _guiOn.IsChecked == true; if (v != Svc.GuiOn && !await Act(() => Svc.SetGuiOn(v), v ? "Đã bật tồn kho gửi" : "Đã tắt tồn kho gửi")) { _loading = true; _guiOn.IsChecked = Svc.GuiOn; _loading = false; } };
         _guiOn.IsEnabled = _edit;
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         bar.Children.Add(_guiOn); bar.Children.Add(Btn("⟳ Đọc lại Tồn kho gửi", async () => await Act(Svc.ReloadGui, "Đã đọc lại tồn kho gửi")));
         var head = new StackPanel { Spacing = 4 }; head.Children.Add(bar); head.Children.Add(_guiInfo);
         head.Children.Add(Muted("Tồn kho gửi lấy từ module Tồn kho gửi › Dữ Liệu. Mã kho gửi 18–19 ký tự tự đổi sang mã 21 theo Mã hóa sản phẩm (ký tự 8–13 suy từ Số lô + Size: TGS / AD / Ecuador / TGC / BTP thường); có trong bảng chuyển đổi thì dùng bảng. Dòng không đổi được (tô đỏ) không tính vào tổng."));
         var left = new DockPanel(); DockPanel.SetDock(head, Dock.Top); left.Children.Add(head); left.Children.Add(Framed(_gg));
-        var mbar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+        var mbar = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         if (_edit)
         {
             mbar.Children.Add(Btn("💾 Lưu bảng", async () => await Act(() => Svc.SaveGuiMap(GuiMapFromGrid()), "Đã lưu bảng chuyển đổi mã"), primary: true));
@@ -622,7 +624,7 @@ public sealed partial class KiemKeView : UserControl, IPage
     private static IBrush VtBrush(string st) => st switch { VtKhop => OkBg, VtLech => BadBg, VtThua => PurpleBg, VtChua => TodoBg, _ => AppTheme.Card };
     private Control BuildVt()
     {
-        var bar = new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_khoBar); bar.Children.Add(Label("Khu")); bar.Children.Add(_khu);
         _khu.SelectionChanged += (_, _) => { if (!_loading) RenderMap(); };
         void Legend(string text, IBrush bg) { var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 }; s.Children.Add(new Border { Width = 16, Height = 12, Background = bg, BorderBrush = Line_, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center }); s.Children.Add(Label(text, size: 12)); bar.Children.Add(s); }
@@ -715,7 +717,7 @@ public sealed partial class KiemKeView : UserControl, IPage
 
     private Control BuildOrders()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_people); bar.Children.Add(_onlyStock);
         bar.Children.Add(Btn("Chia lệnh", async () => { if (_edit) await Act(() => Svc.SetPeople(PeopleList())); RenderOrders(); }, primary: true, tip: "Mỗi dãy 1 lệnh, chia đều cho người đếm theo số vị trí có hàng"));
         bar.Children.Add(_withBook);
