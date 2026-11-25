@@ -293,7 +293,7 @@ public class AccountSyncService
     /// </summary>
     public async Task<LanPlan> UpdatePlanAsync(Func<LanPlan, bool> change, CancellationToken ct = default)
     {
-        if (!Enabled) throw new BusinessException("Chưa bật tài khoản dùng chung (Google Sheet) — bật ở Sao lưu và cài đặt trước.");
+        if (!Enabled) throw new BusinessException("Chưa bật tài khoản dùng chung (Google Sheet) — bật ở Cài đặt máy trước.");
         if (!CanWrite) throw new BusinessException("Máy này không có mã quản trị nên không ghi được phân vai LAN lên Google Sheet.");
         var res = await CallAsync(Url, Token, "", "list", null, ct);
         var users = res["users"]?.AsArray() ?? new JsonArray();
@@ -545,6 +545,18 @@ public class AccountSyncService
         ConnectTimeout = TimeSpan.FromSeconds(10),
     }) { Timeout = TimeSpan.FromSeconds(60) };
 
+    /// <summary>
+    /// 1.98: đường dẫn "Tài khoản dùng chung" trỏ nhầm Web App của app ĐIỆN THOẠI (Code.gs của kholanh-csharp-mobile trả {ok:false, code:"AUTH",
+    /// "… Liên hệ người quản lý app PC."}) — hoặc Sheet tài khoản bị dán đè mã điện thoại. Trước đây báo nguyên câu đó → người dùng không hiểu vì sao không tạo được tài khoản.
+    /// </summary>
+    internal static bool LooksLikePhoneScript(JsonObject o) =>
+        o["code"]?.ToString() is "AUTH" or "NO_USER" || (o["error"]?.ToString() ?? "").Contains("người quản lý app PC", StringComparison.OrdinalIgnoreCase);
+    internal const string PhoneScriptMsg =
+        "Đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) đang trỏ tới Web App của APP ĐIỆN THOẠI, không phải Web App tài khoản "
+        + "(hoặc Google Sheet tài khoản đã bị dán đè mã của app điện thoại). Cách sửa: mở Google Sheet tài khoản › Tiện ích mở rộng › Apps Script, "
+        + "dán lại mã từ nút \"Cập nhật mã Apps Script\" rồi Triển khai › Quản lý triển khai › Phiên bản mới; hoặc dán đúng đường dẫn …/exec của Sheet tài khoản "
+        + "rồi bấm Kết nối. Muốn tạo tài khoản ngay chỉ trên máy này: bấm \"Ngắt kết nối\" ở khung đó.";
+
     private async Task<JsonObject> CallAsync(string url, string token, string admin, string action, JsonObject? payload, CancellationToken ct = default)
     {
         var body = payload ?? new JsonObject();
@@ -568,7 +580,11 @@ public class AccountSyncService
             try { o = JsonNode.Parse(text) as JsonObject; } catch (JsonException) { }
             if (o is null)
                 throw new BusinessException($"Web App trả về trang lạ (HTTP {(int)res.StatusCode}). Kiểm tra: đường dẫn kết thúc bằng /exec và \"Ai có quyền truy cập\" là \"Bất kỳ ai\".");
-            if (o["ok"]?.GetValue<bool>() != true) throw new BusinessException(o["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
+            if (o["ok"]?.GetValue<bool>() != true)
+            {
+                if (LooksLikePhoneScript(o)) throw new BusinessException(PhoneScriptMsg);
+                throw new BusinessException(o["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
+            }
             return o;
         }
     }

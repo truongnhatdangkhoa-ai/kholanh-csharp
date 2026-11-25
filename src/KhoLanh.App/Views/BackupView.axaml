@@ -28,8 +28,8 @@
         <Border Classes="card">
           <StackPanel x:Name="BootPanel" Spacing="6"/>
         </Border>
-        <!-- Chép từ app cũ -->
-        <Border Classes="card">
+        <!-- Chép từ app cũ (1.98: chỉ Quản trị) -->
+        <Border x:Name="LegacyCard" Classes="card">
           <Grid ColumnDefinitions="*,Auto">
             <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
             <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
@@ -96,12 +96,7 @@
             <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
         </Border>
-        <Border Classes="card">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Sao lưu, khôi phục, đồng bộ LAN / Drive" Classes="section" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="Mở Dữ liệu &amp; sao lưu" Click="OnOpenDuLieu"/>
-          </Grid>
-        </Border>
+        <!-- 1.98: bỏ khung "Sao lưu, khôi phục, đồng bộ LAN / Drive" — đã có ở Hệ thống › Dữ liệu & sao lưu -->
       </StackPanel>
     </ScrollViewer>
   </Grid>

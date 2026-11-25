@@ -31,7 +31,6 @@ public sealed class DriveSyncView : UserControl, IPage
     private StackPanel _planBox = null!;
     private readonly Dictionary<string, CheckBox> _mainBoxes = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
-    private readonly CheckBox _home = new() { Content = "Máy này ở NHÀ — luôn là máy xem từ xa, không tự nhận làm máy chính (máy công ty mở lại là tự gộp việc làm ở nhà)" };
     private readonly ComboBox _every = new() { ItemsSource = DriveSyncService.Intervals.Select(x => x.Label).ToList(), MinWidth = 330 };
     private readonly ListBox _bk = new() { Height = 150 };
     private readonly TextBlock _bkMsg = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
@@ -83,17 +82,15 @@ public sealed class DriveSyncView : UserControl, IPage
         planBtns.Children.Add(Btn("Lưu phân vai", async () => await SavePlan(), primary: true));
         planBtns.Children.Add(Btn("Chỉ lưu thư mục máy này", async () => { if (await Ui.Run(this, () => Svc.SetFolder((_dir.Text ?? "").Trim()))) _msg.Text = "Đã lưu thư mục Drive của máy này."; await Task.CompletedTask; }));
         planBtns.Children.Add(Btn("Chiếm quyền máy chính", async () => await Force()).Also(x => ToolTip.SetTip(x, "Chỉ dùng khi máy chính cũ đã tắt / treo.")));
-        // ----- máy ở nhà · chu kỳ
-        _home.Content = "Máy này ở NHÀ — luôn là máy xem từ xa";
-        ToolTip.SetTip(_home, "Ban ngày dùng LAN ở công ty; ban đêm máy ở nhà đồng bộ qua Drive. Việc làm ở nhà được máy chủ công ty tự gộp khi mở lại (trùng dòng → Quản trị chọn ở Mạng LAN).");
+        // ----- chu kỳ đồng bộ (1.98: bỏ chế độ "máy ở nhà" — đã có Drive cá nhân)
         _every.MinWidth = 200;
         var everyRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { new TextBlock { Text = "Đồng bộ mỗi", VerticalAlignment = VerticalAlignment.Center }, _every, Btn("Lưu", async () => await SaveHome(), primary: true) } };
         // ----- sao lưu trên Drive
         _bkNow = Btn("☁ Sao lưu lên Drive ngay", async () => await BackupNow());
         var bkDl = Btn("⬇ Tải bản đã chọn về file .db…", async () => await DownloadSel());
-        ToolTip.SetTip(bkDl, "Máy công ty: tải về rồi khôi phục ở Sao lưu và cài đặt (Quản trị).");
+        ToolTip.SetTip(bkDl, "Máy công ty: tải về rồi khôi phục ở Cài đặt máy (Quản trị).");
         _bkRestore = Btn("⏪ Khôi phục máy này", async () => await RestoreSel());
-        ToolTip.SetTip(_bkRestore, "Máy ở nhà: chỉ ảnh hưởng máy này.");
+        ToolTip.SetTip(_bkRestore, "Máy xem từ xa: chỉ ảnh hưởng máy này.");
         var bkBtns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         bkBtns.Children.Add(_bkNow); bkBtns.Children.Add(bkDl); bkBtns.Children.Add(_bkRestore); bkBtns.Children.Add(Btn("Tải lại", () => { LoadBackups(); return Task.CompletedTask; }));
         _bk.Height = 220;
@@ -102,7 +99,7 @@ public sealed class DriveSyncView : UserControl, IPage
         left.Children.Add(Card("Vai của máy này", null, _off, _main, _remote, new TextBlock { Text = "Thư mục Google Drive", FontSize = 12.5 }, dirRow, _mainPanel, _codePanel, buttons, _msg));
         left.Children.Add(Card("Phân vai theo tài khoản", "Khuyên dùng: không bao giờ có hai máy chính cùng ghi đè nhau.", _planOn, _planBox, planBtns));
         var right = new StackPanel { Spacing = 12 };
-        right.Children.Add(Card("Máy ở nhà & chu kỳ đồng bộ", null, _home, everyRow));
+        right.Children.Add(Card("Chu kỳ đồng bộ", null, everyRow));
         right.Children.Add(Card("Sao lưu trên Google Drive", "Máy chính tự sao lưu lên Drive mỗi ngày (mã hóa); giữ 14 ngày gần nhất + 1 bản mỗi tháng trong 12 tháng.", _bk, bkBtns, _bkMsg));
         var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 14 };
         cols.Children.Add(left); Grid.SetColumn(right, 1); cols.Children.Add(right);
@@ -121,7 +118,6 @@ public sealed class DriveSyncView : UserControl, IPage
         _dir.Text = Svc.Dir; _code.Text = "";
         _off.IsChecked = Svc.Mode == DriveSyncService.ModeOff; _main.IsChecked = Svc.Mode == DriveSyncService.ModeMain; _remote.IsChecked = Svc.Mode == DriveSyncService.ModeRemote;
         ShowPanels(); Refresh(); LoadPlan();
-        _home.IsChecked = Svc.IsHome;
         _every.SelectedIndex = Math.Max(0, Array.FindIndex(DriveSyncService.Intervals, x => x.Sec == Svc.IntervalSeconds));
         LoadBackups();
     }
@@ -139,15 +135,14 @@ public sealed class DriveSyncView : UserControl, IPage
 
     private async Task SaveHome()
     {
-        var sec = DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Sec; var home = _home.IsChecked == true;
+        var sec = DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Sec;
         if (!await Ui.Run(this, () =>
         {
             App.Services.Session.Require("backup");
-            Svc.SetHome(home); Svc.SetInterval(sec);
-            if (home && Svc.Mode == DriveSyncService.ModeMain && Svc.Enabled) { Svc.ReleaseOnExit(); Svc.BecomeRemote(App.Services); }
+            Svc.ClearOldHomeFlag(); Svc.SetInterval(sec);
             Svc.Stop(); Svc.Start();
         })) return;
-        _msg.Text = "Đã lưu: " + (home ? "máy ở nhà (luôn là máy xem từ xa)" : "máy bình thường") + " · đồng bộ " + DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Label + ".";
+        _msg.Text = "Đã lưu: đồng bộ " + DriveSyncService.Intervals[Math.Max(0, _every.SelectedIndex)].Label + ".";
         Load();
     }
 
@@ -186,7 +181,7 @@ public sealed class DriveSyncView : UserControl, IPage
         _planBox.Children.Clear(); _mainBoxes.Clear();
         var acc = App.Services.Accounts; var plan = acc.Plan; var dp = plan?.Drive ?? new DrivePlan();
         _planOn.IsChecked = dp.On; _planOn.IsEnabled = acc.CanWrite;
-        if (!acc.Enabled) { _planBox.Children.Add(Note("Cần bật Tài khoản dùng chung (Google Sheet) ở Sao lưu và cài đặt để lưu phân vai.")); return; }
+        if (!acc.Enabled) { _planBox.Children.Add(Note("Cần bật Tài khoản dùng chung (Google Sheet) ở Cài đặt máy để lưu phân vai.")); return; }
         foreach (var u in App.Services.Auth.ListUsers().Where(u => u.IsActive).OrderBy(u => u.Username, StringComparer.OrdinalIgnoreCase))
         {
             var cb = new CheckBox { Content = $"{u.Username} — {u.FullName}  (máy chính)", IsChecked = dp.IsMain(u.Username), IsEnabled = acc.CanWrite };

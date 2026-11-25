@@ -161,7 +161,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
     {
         var l1 = Svc.Records.Count(r => r.HasLan1); var kl = Svc.Records.Sum(r => r.Lan2.Count);
         _info.Text = Svc.Records.Count == 0
-            ? "Chưa có kết quả nào. Nhập theo lô / từ Excel, hoặc chép dữ liệu app cũ ở Sao lưu và cài đặt › Chép dữ liệu từ app cũ."
+            ? "Chưa có kết quả nào. Nhập theo lô / từ Excel, hoặc chép dữ liệu app cũ ở Cài đặt máy › Chép dữ liệu từ app cũ."
             : $"{Svc.Records.Count:#,0} lô · {l1:#,0} kết quả lần 1 · {kl:#,0} kết quả kiểm lại · quy định {Svc.Rules.Count} trường hợp" + (Svc.RulesCustom ? " (đã sửa)" : "");
     }
     private async Task<bool> Act(Action a, string? okMsg = null)

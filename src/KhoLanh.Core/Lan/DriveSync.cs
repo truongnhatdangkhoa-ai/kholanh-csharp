@@ -46,8 +46,8 @@ public sealed class DriveSyncService
     public static readonly (int Sec, string Label)[] Intervals = { (45, "45 giây"), (300, "5 phút"), (900, "15 phút"), (1800, "30 phút"), (3600, "60 phút"), (0, "Chỉ khi mở app / bấm Đồng bộ ngay / thoát app") };
 
     /// <summary>MÁY Ở NHÀ: luôn là máy xem từ xa, không bao giờ tự nhận làm máy chính (trừ khi Quản trị bấm "Chiếm quyền" lúc máy công ty hỏng).</summary>
-    public bool IsHome => _settings.Get("drive_home") == "1";
-    public void SetHome(bool on) => _settings.Set("drive_home", on ? "1" : "");
+    // 1.98: bỏ chế độ "máy ở nhà" (đã có Drive cá nhân) — cờ cũ settings "drive_home" không còn tác dụng, xóa khi lưu chu kỳ đồng bộ.
+    public void ClearOldHomeFlag() { if (_settings.Get("drive_home").Length > 0) _settings.Set("drive_home", ""); }
 
     /// <summary>Tạo file sao lưu .db (BackupService.BackupTo) — máy chính dùng để sao lưu hằng ngày lên Drive.</summary>
     public Func<string, string>? MakeBackup { get; set; }
@@ -220,7 +220,6 @@ public sealed class DriveSyncService
             var lan = _lan();
             if (Dir.Length == 0 || Key().Length == 0 || !Directory.Exists(Dir)) throw new BusinessException("Chưa chọn thư mục Drive hoặc chưa có mã đồng bộ.");
             Directory.CreateDirectory(Root);
-            if (!force && IsHome) throw new BusinessException("Máy này được đánh dấu MÁY Ở NHÀ — luôn là máy xem từ xa. Chỉ dùng “Chiếm quyền máy chính” khi máy công ty hỏng.");
             if (!force && HeldByOther(lan) is { } o) throw new BusinessException($"Máy “{o.Name}” (tài khoản {o.User}) đang là máy chính.");
             Stop();
             var pending = lan.PendingItems();
@@ -324,7 +323,7 @@ public sealed class DriveSyncService
         return $"đã sao lưu lên Drive: {name} ({new FileInfo(path).Length / 1024:#,0} KB)";
     }
 
-    /// <summary>Giải mã 1 bản sao lưu trên Drive ra file .db (để khôi phục ở Sao lưu và cài đặt, hoặc khôi phục máy ở nhà).</summary>
+    /// <summary>Giải mã 1 bản sao lưu trên Drive ra file .db (để khôi phục ở Cài đặt máy, hoặc khôi phục máy ở nhà).</summary>
     public string DownloadBackup(string name, string toPath)
     {
         if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^b-\d{4}-\d{2}-\d{2}\.kldb$")) throw new BusinessException("Tên bản sao lưu không hợp lệ.");
