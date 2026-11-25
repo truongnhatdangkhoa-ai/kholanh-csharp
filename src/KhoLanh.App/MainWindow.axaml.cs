@@ -145,17 +145,24 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
-        var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
+        // 1.97: biểu tượng tài khoản theo quyền (phương án B): ô màu + hình khiên / cặp / người, tên, nhãn quyền
+        var shownName = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName;
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
-            new Border { Width = 26, Height = 26, CornerRadius = new Avalonia.CornerRadius(13), Background = AppTheme.Brush("#1F6FD6"),
-                Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
-            // 1.83: 1 thanh 44px — chỉ tên (vai trò ở chú thích / menu tài khoản)
-            new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 13, FontWeight = Avalonia.Media.FontWeight.SemiBold, MaxWidth = 150, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+            Controls.RoleBadge.Line(u.Role, shownName, 26, 13),
             Controls.Icon.Make("chevron-down", 13),
         } };
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
-        UserInfo.Header = $"{(string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName)} ({u.RoleLabel})";
+        UserInfo.Header = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10, Children =
+        {
+            Controls.RoleBadge.Avatar(u.Role, 34),
+            new StackPanel { Spacing = 3, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Children =
+            {
+                new TextBlock { Text = shownName, FontSize = 14, FontWeight = Avalonia.Media.FontWeight.Bold, Foreground = AppTheme.Brush("#1A2433") },
+                Controls.RoleBadge.Pill(u.Role),
+            } },
+        } };
+        UserInfo.IsEnabled = true; UserInfo.IsHitTestVisible = false;   // hiện rõ (mục tắt bị làm mờ), không bấm được
         // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
         AppUpdater.Ready += OnUpdateReady;
         Closed += (_, _) => AppUpdater.Ready -= OnUpdateReady;
