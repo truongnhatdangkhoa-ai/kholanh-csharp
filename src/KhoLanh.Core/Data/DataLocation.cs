@@ -4,7 +4,7 @@ namespace KhoLanh.Core.Data;
 
 /// <summary>
 /// Nơi lưu database. Máy mới cài lần đầu → hỏi người dùng chọn thư mục (gợi ý %LOCALAPPDATA%\KhoLanhCS).
-/// Lựa chọn ghi vào file trỏ "noi-luu-du-lieu.txt" trong thư mục mặc định; đổi lại được ở Sao lưu và cài đặt.
+/// Lựa chọn ghi vào file trỏ "noi-luu-du-lieu.txt" trong thư mục mặc định; đổi lại được ở Cài đặt máy.
 /// Máy đã có dữ liệu ở thư mục mặc định (cài từ bản trước) → dùng luôn, không hỏi.
 /// </summary>
 public sealed class DataLocation

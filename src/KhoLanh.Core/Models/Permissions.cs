@@ -40,7 +40,7 @@ public static class Perm
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
-        new("drivepush", "Gửi dữ liệu từ máy ở nhà (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy ở nhà / máy ngoài công ty chỉ xem, không sửa được"),
+        new("drivepush", "Gửi dữ liệu từ máy xem từ xa (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy xem từ xa (ngoài công ty) chỉ xem, không sửa được"),
     };
 
     /// <summary>

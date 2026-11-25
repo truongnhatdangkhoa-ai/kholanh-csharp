@@ -27,6 +27,8 @@ public class AccountSyncTests : IDisposable
         public string Token = "", Admin = "";
         public readonly List<Dictionary<string, string>> Rows = new();
         public bool Down;
+        /// <summary>1.98: giả lập Sheet tài khoản bị dán đè mã của app điện thoại (Code.gs trả AUTH cho mọi lệnh).</summary>
+        public bool PhoneScript;
         /// <summary>Đặt thì lệnh "list" chờ tới khi mở (giả lập Apps Script trả lời chậm).</summary>
         public TaskCompletionSource? Gate;
         public int Lists;
@@ -43,7 +45,8 @@ public class AccountSyncTests : IDisposable
         {
             Bodies.Add(text);
             JsonObject res;
-            if (r["token"]?.ToString() != Token) res = new() { ["ok"] = false, ["error"] = "Sai mã kết nối." };
+            if (PhoneScript) res = new() { ["ok"] = false, ["code"] = "AUTH", ["error"] = "Tên người dùng hoặc mã truy cập không đúng, hoặc tài khoản đã bị khóa. Liên hệ người quản lý app PC." };
+            else if (r["token"]?.ToString() != Token) res = new() { ["ok"] = false, ["error"] = "Sai mã kết nối." };
             else if (r["action"]?.ToString() == "list")
                 res = new() { ["ok"] = true, ["users"] = new JsonArray(Rows.Select(x => (JsonNode?)new JsonObject(x.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value)))).ToArray()) };
             else if (r["adminKey"]?.ToString() != Admin) res = new() { ["ok"] = false, ["error"] = "Máy này không có mã quản trị nên không được sửa tài khoản." };
@@ -101,6 +104,20 @@ public class AccountSyncTests : IDisposable
         Assert.Equal(_web.Token, Between(up, "var MA_DOC = '", "'"));
         Assert.Equal(_web.Admin, Between(up, "var MA_QUAN_TRI = '", "'"));
         Assert.Contains("email_google", up);
+    }
+
+    [Fact]
+    public async Task Duong_dan_tro_nham_Web_App_dien_thoai_bao_ro_cach_sua()
+    {   // người dùng: "vì sao không tạo tài khoản được" — Sheet trả lời bằng mã của app điện thoại
+        var a = await AdminMachine();
+        _web.PhoneScript = true;
+        var ex = Assert.Throws<BusinessException>(() => a.Auth.CreateUser("khoa", "Khoa", "khoa1234", Roles.Admin));
+        Assert.Contains("APP ĐIỆN THOẠI", ex.Message);
+        Assert.Contains("Ngắt kết nối", ex.Message);
+        Assert.DoesNotContain(a.Auth.ListUsers(), u => u.Username == "khoa");   // chưa ghi được lên Sheet → máy không đổi
+        _web.PhoneScript = false;
+        a.Auth.CreateUser("khoa", "Khoa", "khoa1234", Roles.Admin);
+        Assert.Contains(_web.Rows, r => r["username"] == "khoa");
     }
 
     [Fact]

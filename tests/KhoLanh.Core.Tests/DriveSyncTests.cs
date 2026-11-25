@@ -155,12 +155,11 @@ public class DriveSyncTests : IDisposable
         var home2 = Machine("nha2"); home2.Drive.Configure("xa", _drive, main.Drive.Code(), home2.Session); home2.ReloadLan(start: false);
         main.Lan.Write(Db, One("S", Rows("a"))); main.Lan.Write(Db, One("T", Rows("t")));
         main.Drive.SyncNow(); main.Drive.ReleaseOnExit();                          // chiều: máy công ty tắt app
-        home1.Drive.SetHome(true); home2.Drive.SetHome(true);
+        // 1.98: bỏ chế độ "máy ở nhà" — 2 máy xem từ xa vẫn làm độc lập rồi gộp như cũ
         home1.Drive.SyncNow(); home2.Drive.SyncNow();
         home1.Lan.Write(Db, One("S", Rows("a", "nha1")));                          // tối: 2 máy nhà làm độc lập
         home2.Lan.Write(Db, One("T", Rows("t", "nha2")));
         home1.Drive.ReleaseOnExit(); home2.Drive.ReleaseOnExit();                  // tắt app → gửi nốt
-        Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => home1.Drive.BecomeMain(home1, "admin"));   // máy nhà không tự làm máy chính
         main.Drive.SyncNow();                                                       // sáng: máy công ty mở lại → gộp
         Assert.Equal("a,nha1", Names(main.Lan.Read(Db, "S")));
         Assert.Equal("t,nha2", Names(main.Lan.Read(Db, "T")));

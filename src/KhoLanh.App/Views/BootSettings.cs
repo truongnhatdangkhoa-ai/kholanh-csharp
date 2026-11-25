@@ -2,7 +2,7 @@ using Avalonia.Controls;
 
 namespace KhoLanh.App.Views;
 
-/// <summary>Khởi động cùng Windows + tự đăng nhập — dùng ở Sao lưu và cài đặt và ở menu tài khoản (mọi tài khoản, cài theo máy).</summary>
+/// <summary>Khởi động cùng Windows + tự đăng nhập — dùng ở Cài đặt máy và ở menu tài khoản (mọi tài khoản, cài theo máy).</summary>
 public static class BootSettings
 {
     // ---------------- Khởi động cùng Windows + tự đăng nhập (mọi tài khoản, cài theo máy) ----------------

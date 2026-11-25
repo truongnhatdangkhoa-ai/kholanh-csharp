@@ -18,7 +18,7 @@ public static class DrivePlanSync
             return "Đồng bộ Drive: máy này chưa chọn thư mục Google Drive (Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Thư mục / Google Drive dùng chung › Chọn thư mục).";
         drive.SetKey(dp.Key);
         drive.CurrentUser = user;
-        var wantMain = dp.IsMain(user) && !drive.IsHome;   // máy ở nhà luôn là máy xem từ xa
+        var wantMain = dp.IsMain(user);
         string msg;
         if (wantMain)
         {

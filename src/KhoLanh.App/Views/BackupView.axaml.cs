@@ -18,6 +18,7 @@ public partial class BackupView : UserControl, IPage
         WarehouseBox.Text = s.Settings.Get(SettingsService.WarehouseName);
         PathText.Text = s.Db.FilePath; ToolTip.SetTip(PathText, s.Db.FilePath);
         var admin = Roles.IsAdmin(s.Session.Role);
+        LegacyCard.IsVisible = admin;   // 1.98: chép dữ liệu app cũ chỉ Quản trị
         // Cập nhật online
         var u = s.Updates;
         UpdVersionText.Text = $"Đang dùng bản {UpdateService.Current}" + (AppUpdater.StagedVersion is { } sv ? $" · đã tải sẵn bản {sv}, chờ áp dụng" : "")
@@ -184,7 +185,6 @@ public partial class BackupView : UserControl, IPage
             AppUpdater.ExitForUpdate();
     }
 
-    private void OnOpenDuLieu(object? sender, RoutedEventArgs e) => MainWindow.Of(this)?.Navigate("saoluu");
 
     private async void OnSaveSettings(object? sender, RoutedEventArgs e)
     {
@@ -235,6 +235,7 @@ public partial class BackupView : UserControl, IPage
     /// </summary>
     private async void OnImportLegacy(object? sender, RoutedEventArgs e)
     {
+        if (!Roles.IsAdmin(App.Services.Session.Role)) { await Ui.Message(this, "Chỉ tài khoản Quản trị được chép dữ liệu từ app cũ."); return; }
         var path = await Ui.OpenFile(this, "Chọn database app cũ (khokhanh.db)", "db", "Database Kho Lạnh cũ");
         if (path is null) return;
         List<KhoLanh.Core.Modules.LegacyImporter.Group> groups = new();
