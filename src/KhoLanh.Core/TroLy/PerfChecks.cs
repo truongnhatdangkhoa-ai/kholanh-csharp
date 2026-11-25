@@ -39,7 +39,7 @@ public static class PerfChecks
             var lv = PerfLevel.Disk(latest.DiskFreeGb, latest.DiskTotalGb);
             if (lv > 0)
                 res.Add(TroLyChecks.Mk(Cat, lv == 2 ? "do" : "vang", Mod, $"Ổ chứa dữ liệu sắp đầy: còn {latest.DiskFreeGb:0.#} GB / {latest.DiskTotalGb:0} GB",
-                    "Hết chỗ thì không ghi được dữ liệu / sao lưu. Dọn thư mục Tải về, Thùng rác, bản sao lưu cũ (Dữ liệu & sao lưu › Sao lưu) hoặc chuyển dữ liệu sang ổ khác (Cài đặt máy › Đổi nơi lưu dữ liệu).",
+                    "Hết chỗ thì không ghi được dữ liệu / sao lưu. Dọn thư mục Tải về, Thùng rác, bản sao lưu cũ (Đồng bộ & sao lưu › Sao lưu) hoặc chuyển dữ liệu sang ổ khác (Cài đặt máy › Đổi nơi lưu dữ liệu).",
                     null, TroLyChecks.Hash("hn|disk")));
         }
         return res;
@@ -80,7 +80,7 @@ public static class PerfChecks
             if (ma >= mb * 1.5 && ma > 4000)
                 res.Add(TroLyChecks.Mk(Cat, "vang", Mod, $"{PerfMonitor.MarkLabel(k)} chậm dần: {ma / 1000:0.0} giây (trước {mb / 1000:0.0} giây)",
                     k == PerfMonitor.MarkMoApp ? "Thường do database lớn dần, máy khởi động nhiều chương trình cùng lúc, hoặc ổ đĩa chậm / đầy. Xem tab Hiệu năng › Dữ liệu."
-                        : "Thường do tải danh sách tài khoản (Google Sheet) chậm / lỗi — xem Cài đặt máy › Tài khoản dùng chung và mạng.",
+                        : "Thường do tải danh sách tài khoản (Google Sheet) chậm / lỗi — xem Hệ thống › Kết nối và mạng.",
                     new[] { $"3 ngày gần nhất: {a.Count} lần · trước đó: {b.Count} lần" }, TroLyChecks.Hash("hn|trend|" + k)));
         }
         return res;

@@ -23,6 +23,10 @@ public class AccountSyncService
         KeyPendToken = "acct_pending_token", KeyPendAdmin = "acct_pending_admin", KeyPlan = "lan_plan", KeyBlobs = "acct_keyblobs";
     public const string KeyRowName = "#khoa-quan-tri", KeyRowRole = "khoa-qt";
     public const string CodePrefix = "KLTK1-";
+    /// <summary>1.105: MÃ KẾT NỐI MÁY (1 mã cho máy mới) = mã tài khoản dùng chung + mã PC_TOKEN điện thoại (+ mã GitHub). Cùng dạng KLTK1, máy cũ vẫn dán được KLTK1.</summary>
+    public const string CodePrefix2 = "KLKN1-";
+    /// <summary>Chuỗi là mã kết nối (KLKN1- hoặc KLTK1- cũ).</summary>
+    public static bool IsCode(string? s) { var t = (s ?? "").Trim(); return t.StartsWith(CodePrefix) || t.StartsWith(CodePrefix2); }
 
     private readonly Database _db;
     private readonly SettingsService _settings;
@@ -31,6 +35,8 @@ public class AccountSyncService
     private readonly HttpMessageHandler? _handler;
     /// <summary>Để mã kết nối mang theo mã GitHub (máy mới tự cập nhật được ngay).</summary>
     public UpdateService? Updates { get; set; }
+    /// <summary>1.105: để mã kết nối mang theo mã PC_TOKEN điện thoại (máy mới khỏi nhập riêng).</summary>
+    public PhoneWebApp? Phone { get; set; }
     public const string BundleFile = "ket-noi.txt";
 
     public AccountSyncService(Database db, SettingsService settings, Session session, AuditService audit, HttpMessageHandler? handler = null)
@@ -46,7 +52,7 @@ public class AccountSyncService
             dir ??= Path.GetDirectoryName(Environment.ProcessPath ?? "") ?? "";
             var f = Path.Combine(dir, BundleFile);
             if (!File.Exists(f)) return null;
-            return File.ReadAllLines(f).Select(x => x.Trim()).FirstOrDefault(x => x.StartsWith(CodePrefix));
+            return File.ReadAllLines(f).Select(x => x.Trim()).FirstOrDefault(IsCode);
         }
         catch { return null; }
     }
@@ -112,21 +118,37 @@ public class AccountSyncService
         var o = new JsonObject { ["u"] = Url, ["t"] = Token };
         if (forAdmin) o["a"] = AdminKey;
         if (Updates?.ShareToken() is { Length: > 0 } g) o["g"] = g;
-        return CodePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(o.ToJsonString())).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        if (Phone is { Token.Length: > 0 } ph)
+        {
+            o["p"] = ph.Token;
+            if (ph.CustomUrl) o["pu"] = ph.Url;
+        }
+        return CodePrefix2 + Convert.ToBase64String(Encoding.UTF8.GetBytes(o.ToJsonString())).TrimEnd('=').Replace('+', '-').Replace('/', '_');
     }
 
     internal static (string url, string token, string admin) ParseCode(string code) { var r = ParseFull(code); return (r.url, r.token, r.admin); }
 
     internal static (string url, string token, string admin, string github) ParseFull(string code)
     {
+        var c = ParseAny(code);
+        return (c.Url, c.Token, c.Admin, c.Github);
+    }
+
+    /// <summary>Nội dung mã kết nối: tài khoản (u, t, a) + GitHub (g) + điện thoại (p = PC_TOKEN, pu = đường dẫn Web App riêng nếu có).</summary>
+    public sealed record CodeInfo(string Url, string Token, string Admin, string Github, string PhoneToken, string PhoneUrl);
+
+    public static CodeInfo ParseAny(string code)
+    {
         var t = new string(code.Trim().Where(ch => !char.IsWhiteSpace(ch)).ToArray());
-        if (!t.StartsWith(CodePrefix)) throw new BusinessException("Mã kết nối không đúng (phải bắt đầu bằng " + CodePrefix + ").");
+        var pre = t.StartsWith(CodePrefix2) ? CodePrefix2 : t.StartsWith(CodePrefix) ? CodePrefix : null;
+        if (pre is null) throw new BusinessException("Mã kết nối không đúng (phải bắt đầu bằng " + CodePrefix2 + ").");
         try
         {
-            var b = t[CodePrefix.Length..].Replace('-', '+').Replace('_', '/');
+            var b = t[pre.Length..].Replace('-', '+').Replace('_', '/');
             b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
             var o = JsonNode.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(b)))!.AsObject();
-            return (o["u"]!.GetValue<string>(), o["t"]!.GetValue<string>(), o["a"]?.GetValue<string>() ?? "", o["g"]?.GetValue<string>() ?? "");
+            return new CodeInfo(o["u"]!.GetValue<string>(), o["t"]!.GetValue<string>(), o["a"]?.GetValue<string>() ?? "", o["g"]?.GetValue<string>() ?? "",
+                o["p"]?.GetValue<string>() ?? "", o["pu"]?.GetValue<string>() ?? "");
         }
         catch { throw new BusinessException("Mã kết nối bị thiếu hoặc sai — chép lại đủ cả dòng mã."); }
     }
@@ -194,7 +216,7 @@ public class AccountSyncService
     {
         _session.RequireAdmin();
         if (phone.Token.Length == 0)
-            throw new BusinessException("Máy này chưa kết nối đồng bộ điện thoại (chưa có mã PC_TOKEN). Kết nối ở Vị Trí Bột › Điện thoại › Kết nối trước, rồi bấm lại.");
+            throw new BusinessException("Máy này chưa kết nối đồng bộ điện thoại (chưa có mã PC_TOKEN). Nhập mã ở Hệ thống › Kết nối trước, rồi bấm lại.");
         var url = CheckUrl(phone.Url);
         if (OnPhoneSheet) throw new BusinessException("Tài khoản đã dùng chung Google Sheet điện thoại rồi.");
         string token, admin;
@@ -257,13 +279,13 @@ public class AccountSyncService
     public async Task<ConnectResult> ConnectAsync(string input, CancellationToken ct = default)
     {
         if (HasAnyUser()) _session.RequireAdmin();
-        string url, token, admin, github = "";
-        if (input.Trim().StartsWith(CodePrefix)) (url, token, admin, github) = ParseFull(input);
+        string url, token, admin, github = "", phoneTok = "", phoneUrl = "";
+        if (IsCode(input)) { var c = ParseAny(input); (url, token, admin, github, phoneTok, phoneUrl) = (c.Url, c.Token, c.Admin, c.Github, c.PhoneToken, c.PhoneUrl); }
         else
         {
             token = Secret.Unprotect(_settings.Get(KeyPendToken));
             admin = Secret.Unprotect(_settings.Get(KeyPendAdmin));
-            if (token.Length == 0) throw new BusinessException("Dán mã kết nối KLTK1-… (chép từ máy đã kết nối), hoặc bấm \"Tạo mã Apps Script\" trước nếu đây là lần thiết lập đầu tiên.");
+            if (token.Length == 0) throw new BusinessException("Dán mã kết nối KLKN1-… (chép từ máy đã kết nối), hoặc bấm \"Tạo mã Apps Script\" trước nếu đây là lần thiết lập đầu tiên.");
             url = input;
         }
         url = CheckUrl(url);
@@ -292,6 +314,12 @@ public class AccountSyncService
         _settings.Set(KeyAdmin, admin.Length > 0 ? Secret.Protect(admin) : "");
         _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
         if (github.Length > 0) Updates?.ImportToken(github);
+        if (phoneTok.Length > 0)
+        {
+            // 1.105: mã kết nối mang theo PC_TOKEN điện thoại → máy mới đồng bộ điện thoại được ngay, khỏi nhập riêng.
+            if (Phone is not null) Phone.Save(phoneUrl, phoneTok);
+            else { _settings.Set(PhoneWebApp.KeyUrl, phoneUrl); _settings.Set(PhoneWebApp.KeyToken, Secret.Protect(phoneTok)); }
+        }
         _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         _audit.Log(_session.Username, "Kết nối tài khoản dùng chung", $"{(uploaded ? "đưa lên" : "tải về")} {count} tài khoản{(admin.Length > 0 ? ", máy quản trị" : "")}");
@@ -543,10 +571,10 @@ public class AccountSyncService
         _session.RequireAdmin();
         if (!Enabled) throw new BusinessException("Máy này chưa dùng chung tài khoản qua Google Sheet.");
         var text = input.Trim();
-        if (text.StartsWith(CodePrefix))
+        if (IsCode(text))
         {
             var (url, token, admin, _) = ParseFull(text);
-            if (admin.Length == 0) throw new BusinessException("Đây là mã cho máy NHÂN VIÊN (chỉ đọc). Cần \"mã cho máy quản trị\" — chép ở máy đã thiết lập Google Sheet, mục Sao lưu và cài đặt › Tài khoản dùng chung.");
+            if (admin.Length == 0) throw new BusinessException("Đây là mã cho máy NHÂN VIÊN (chỉ đọc). Cần \"mã cho máy quản trị\" — chép ở máy đã thiết lập Google Sheet, mục Hệ thống › Kết nối › Google Sheet chung › ⋯ Thêm › Chép mã cho máy quản trị.");
             if (!string.Equals(url, Url, StringComparison.Ordinal) || token != Token) throw new BusinessException("Mã này của một Google Sheet khác với Sheet máy này đang dùng.");
             var list = await CallAsync(url, token, "", "list", null, ct);
             var users = list["users"]?.AsArray() ?? new JsonArray();
@@ -567,7 +595,7 @@ public class AccountSyncService
         CacheBlobs(rows);
         var key = BlobsFromRows(rows).TryGetValue(me.Username, out var blob) ? Unseal(text, blob) : "";
         if (key.Length == 0)
-            throw new BusinessException($"Trên Google Sheet chưa có khóa ghi cho tài khoản {me.Username}. Làm MỘT trong hai cách: (1) ở máy đã thiết lập Google Sheet (máy tạo mã Apps Script), đăng nhập {me.Username} một lần rồi quay lại đây bấm lại; hoặc (2) ở máy đó vào Hệ thống › Sao lưu và cài đặt › \"Chép mã cho máy quản trị\" rồi dán mã vào ô này.");
+            throw new BusinessException($"Trên Google Sheet chưa có khóa ghi cho tài khoản {me.Username}. Làm MỘT trong hai cách: (1) ở máy đã thiết lập Google Sheet (máy tạo mã Apps Script), đăng nhập {me.Username} một lần rồi quay lại đây bấm lại; hoặc (2) ở máy đó vào Hệ thống › Kết nối › ⋯ Thêm › \"Chép mã cho máy quản trị\" rồi dán mã vào ô này.");
         _sessionKey = key;
     }
 
@@ -686,7 +714,7 @@ public class AccountSyncService
     internal static bool LooksLikePhoneScript(JsonObject o) =>
         o["code"]?.ToString() is "AUTH" or "NO_USER" || (o["error"]?.ToString() ?? "").Contains("người quản lý app PC", StringComparison.OrdinalIgnoreCase);
     internal const string PhoneScriptMsg =
-        "Đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) đang trỏ tới Web App của APP ĐIỆN THOẠI, không phải Web App tài khoản "
+        "Đường dẫn tài khoản dùng chung (Hệ thống › Kết nối) đang trỏ tới Web App của APP ĐIỆN THOẠI, không phải Web App tài khoản "
         + "(hoặc Google Sheet tài khoản đã bị dán đè mã của app điện thoại). Cách sửa: mở Google Sheet tài khoản › Tiện ích mở rộng › Apps Script, "
         + "dán lại mã từ nút \"Cập nhật mã Apps Script\" rồi Triển khai › Quản lý triển khai › Phiên bản mới; hoặc dán đúng đường dẫn …/exec của Sheet tài khoản "
         + "rồi bấm Kết nối. Gọn nhất (1.104): bấm \"Dùng chung Sheet điện thoại\" ở khung đó — 1 Google Sheet cho cả tài khoản lẫn điện thoại. "

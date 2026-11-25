@@ -111,6 +111,7 @@ public class AppServices
         CuoiKy = new KhoLanh.Core.CuoiKy.CkService(() => Lan, Session, Settings);
         Vtb = new KhoLanh.Core.SoKho.VtbService(() => Lan, Session, Audit);
         Phone = new PhoneWebApp(Settings);
+        Accounts.Phone = Phone;   // 1.105: mã kết nối máy mang theo PC_TOKEN
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);

@@ -71,6 +71,7 @@ public class GopSheetDienThoaiTests : IDisposable
         var acc = new AccountSyncService(s.Db, s.Settings, s.Session, s.Audit, _router);
         s.Auth.Sync = acc; acc.Updates = s.Updates; s.Accounts = acc;
         var phone = new PhoneWebApp(s.Settings, _router);
+        acc.Phone = phone;
         if (phoneLinked) phone.Save(PhoneUrl, PcToken);
         return (s, phone);
     }
@@ -88,6 +89,42 @@ public class GopSheetDienThoaiTests : IDisposable
         await a.Accounts.ConnectAsync(OldUrl);
         a.Auth.Logout(); a.Auth.Login("admin", "matkhau1"); await a.Accounts.PublishTask;   // gói khóa ghi lên Sheet cũ
         return (a, phone);
+    }
+
+    /// <summary>1.105: 1 mã kết nối máy (KLKN1-) = tài khoản dùng chung + PC_TOKEN điện thoại — máy mới dán 1 lần là có cả hai.</summary>
+    [Fact]
+    public async Task Ma_ket_noi_may_KLKN_mang_theo_ma_dien_thoai()
+    {
+        var (a, phone) = Machine("A");
+        a.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
+        a.Auth.Login("admin", "matkhau1");
+        await a.Accounts.MoveToPhoneSheetAsync(phone);
+        var code = a.Accounts.ConnectionCode(forAdmin: false);
+        Assert.StartsWith(AccountSyncService.CodePrefix2, code);
+        Assert.True(AccountSyncService.IsCode(code));
+        var info = AccountSyncService.ParseAny(code);
+        Assert.Equal(PcToken, info.PhoneToken);
+        Assert.Equal(PhoneUrl, info.PhoneUrl);
+        Assert.Equal("", info.Admin);
+
+        var (b, bPhone) = Machine("B", phoneLinked: false);
+        Assert.False(bPhone.Enabled);
+        var r = await b.Accounts.ConnectAsync(code);
+        Assert.False(r.Admin);
+        Assert.True(b.Accounts.OnPhoneSheet);
+        Assert.True(bPhone.Enabled);
+        Assert.Equal(PcToken, bPhone.Token);
+        Assert.Equal(PhoneUrl, bPhone.Url);
+        b.Auth.Login("admin", "matkhau1");
+
+        // Bộ cài máy mới (ket-noi.txt) nhận mã KLKN1-
+        var dir = Path.Combine(_dir, "bo-cai"); Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, AccountSyncService.BundleFile), a.Accounts.BundleText());
+        Assert.Equal(code, AccountSyncService.BundledCode(dir));
+        // Mã cũ KLTK1- vẫn đọc được (không có phần điện thoại)
+        var old = AccountSyncService.ParseAny(AccountSyncService.CodePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(new JsonObject { ["u"] = PhoneUrl, ["t"] = "x" }.ToJsonString())).TrimEnd('='));
+        Assert.Equal("", old.PhoneToken);
+        Assert.Throws<BusinessException>(() => AccountSyncService.ParseAny("KLLAN1-abc"));
     }
 
     [Fact]

@@ -15,7 +15,7 @@ public static class DrivePlanSync
         var lan = s.Lan; var drive = s.Drive; var user = s.Session.Username;
         if (lan.Enabled && lan.Role != LanService.RoleRemote) return null;           // máy đang dùng LAN: không đụng
         if (drive.Dir.Length == 0 || !Directory.Exists(drive.Dir))
-            return "Đồng bộ Drive: máy này chưa chọn thư mục Google Drive (Hệ thống › Dữ liệu & sao lưu › Đồng bộ › Thư mục / Google Drive dùng chung › Chọn thư mục).";
+            return "Đồng bộ Drive: máy này chưa chọn thư mục Google Drive (Hệ thống › Đồng bộ & sao lưu › Giữa các máy › Thư mục / Drive dùng chung › Chọn thư mục).";
         drive.SetKey(dp.Key);
         drive.CurrentUser = user;
         var wantMain = dp.IsMain(user);

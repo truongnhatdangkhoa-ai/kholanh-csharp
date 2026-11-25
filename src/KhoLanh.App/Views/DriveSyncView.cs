@@ -160,7 +160,7 @@ public sealed class DriveSyncView : UserControl, IPage
         var path = await Ui.SaveFile(this, "Lưu bản sao lưu", $"KhoLanh_{b.Day:yyyy-MM-dd}.db", "db", "Bản sao lưu Kho Lạnh");
         if (path is null) return;
         if (await Ui.RunAsync(this, async () => await Task.Run(() => Svc.DownloadBackup(b.Name, path))))
-            _bkMsg.Text = $"Đã tải về {path}. Khôi phục ở Hệ thống › Sao lưu và cài đặt › Khôi phục từ file.";
+            _bkMsg.Text = $"Đã tải về {path}. Khôi phục ở Hệ thống › Đồng bộ & sao lưu › Sao lưu › Khôi phục từ file.";
     }
 
     private async Task RestoreSel()

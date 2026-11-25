@@ -176,7 +176,7 @@ public partial class UsersView : UserControl, IPage
         while (true)
         {
             var input = await Ui.Prompt(this,
-                "Máy này chưa mở khóa ghi tài khoản lên Google Sheet. Nhập lại MẬT KHẨU QUẢN TRỊ để mở khóa (hoặc dán \"mã cho máy quản trị\" KLTK1-… chép từ máy đã thiết lập Google Sheet).",
+                "Máy này chưa mở khóa ghi tài khoản lên Google Sheet. Nhập lại MẬT KHẨU QUẢN TRỊ để mở khóa (hoặc dán \"mã cho máy quản trị\" KLKN1-… chép từ máy đã thiết lập Google Sheet).",
                 "Mở khóa ghi tài khoản", password: true);
             if (string.IsNullOrWhiteSpace(input)) return false;
             if (await Ui.RunAsync(this, () => a.UnlockAsync(input))) return true;
@@ -221,7 +221,10 @@ public partial class UsersView : UserControl, IPage
     }
 
     /// <summary>Mã OAuth cho "Đăng nhập bằng Google" trên máy này (Client ID cài sẵn = mã Desktop của dự án kholanhcloud; Client secret quản trị dán 1 lần).</summary>
-    private async void OnGoogleConfig(object? sender, RoutedEventArgs e)
+    private async void OnGoogleConfig(object? sender, RoutedEventArgs e) => await GoogleConfigDialog(this);
+
+    /// <summary>1.105: dùng chung với Hệ thống › Kết nối › Đăng nhập bằng Google.</summary>
+    internal static async Task GoogleConfigDialog(Control owner)
     {
         var g = App.Services.Google;
         var id = new TextBox { Text = g.ClientId };
@@ -246,7 +249,7 @@ public partial class UsersView : UserControl, IPage
             try { var r = await g.SignInAsync(Ui.OpenExternal); msg.Foreground = AppTheme.Brush("#1E7B4A"); msg.Text = $"✔ Đăng nhập được: {r.Email}" + (r.Name.Length > 0 ? $" ({r.Name})" : ""); }
             catch (Exception ex) { msg.Foreground = AppTheme.Danger; msg.Text = ex.Message; }
         };
-        await Ui.Show(this, w);
+        await Ui.Show(owner, w);
     }
 
     private async void OnReset(object? sender, RoutedEventArgs e)

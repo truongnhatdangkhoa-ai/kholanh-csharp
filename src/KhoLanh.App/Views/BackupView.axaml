@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="KhoLanh.App.Views.BackupView">
-  <!-- 1.56: gọn lại — bỏ Thông tin công ty (giữ Tên kho). 1.68: sao lưu chuyển sang Dữ liệu & sao lưu; trái: máy này · phải: cập nhật + tài khoản dùng chung. -->
+  <!-- 1.105: gọn — chỉ còn việc của máy này. 1.56: gọn lại — bỏ Thông tin công ty (giữ Tên kho). 1.68: sao lưu chuyển sang Dữ liệu & sao lưu; trái: máy này · phải: cập nhật + tài khoản dùng chung. -->
   <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
     <ScrollViewer>
       <StackPanel Spacing="12" Margin="0,0,6,0">
@@ -54,54 +54,22 @@
               </StackPanel>
             </Grid>
             <TextBlock x:Name="UpdVersionText" TextWrapping="Wrap" Tag="keep"/>
-            <StackPanel x:Name="UpdConfigPanel" Spacing="6">
-              <Grid ColumnDefinitions="Auto,*,Auto,*" ColumnSpacing="8">
-                <TextBlock Text="Kho GitHub" VerticalAlignment="Center"/>
-                <TextBox Grid.Column="1" x:Name="UpdRepoBox"/>
-                <TextBlock Grid.Column="2" Text="Mã truy cập" VerticalAlignment="Center" Margin="8,0,0,0" ToolTip.Tip="Token chỉ-đọc, cần khi kho riêng tư"/>
-                <TextBox Grid.Column="3" x:Name="UpdTokenBox" PasswordChar="•" Watermark="Để trống = giữ mã đã lưu"/>
-              </Grid>
-              <StackPanel Orientation="Horizontal" Spacing="12">
-                <CheckBox x:Name="UpdAutoBox" Content="Tự động kiểm tra và tải bản mới"/>
-                <Button x:Name="UpdSaveButton" Content="Lưu" Click="OnUpdSave"/>
-              </StackPanel>
+            <!-- 1.105: kho GitHub + mã truy cập chuyển sang Hệ thống › Kết nối › Cập nhật phần mềm -->
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <CheckBox x:Name="UpdAutoBox" Content="Tự tải và cài bản mới" IsCheckedChanged="OnUpdAuto"/>
             </StackPanel>
             <TextBlock x:Name="UpdStatus" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
         </Border>
-        <!-- Tài khoản dùng chung -->
+        <!-- 1.105: tài khoản dùng chung → Hệ thống › Kết nối; đồng bộ / sao lưu / điện thoại → Hệ thống › Đồng bộ & sao lưu -->
         <Border Classes="card">
           <StackPanel Spacing="8">
-            <TextBlock Text="Tài khoản dùng chung (Google Sheet)" Classes="section"/>
-            <TextBlock x:Name="AcctStatus" TextWrapping="Wrap" Tag="keep"/>
-            <!-- 1.104: 1 Google Sheet cho cả tài khoản lẫn điện thoại -->
-            <Border x:Name="AcctMovePanel" Classes="pill info" Padding="10,8" CornerRadius="6" HorizontalAlignment="Stretch">
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                <TextBlock TextWrapping="Wrap" VerticalAlignment="Center" Tag="keep"
-                           Text="Gọn hơn: dùng luôn Google Sheet điện thoại cho tài khoản — chỉ còn 1 Sheet + 1 Apps Script (cần Code.gs điện thoại bản mới). Các máy khác tự chuyển theo."/>
-                <Button Grid.Column="1" x:Name="AcctMoveButton" Content="Dùng chung Sheet điện thoại" Click="OnAcctMove" VerticalAlignment="Center"/>
-              </Grid>
-            </Border>
-            <StackPanel x:Name="AcctSetupPanel" Spacing="6">
-              <Expander Header="Hướng dẫn kết nối lần đầu" HorizontalAlignment="Stretch">
-                <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
-                           Text="Máy quản trị: (1) bấm Tạo mã Apps Script (mã được chép sẵn); (2) tạo Google Sheet trống › Tiện ích mở rộng › Apps Script, xóa hết, dán, Lưu; (3) Triển khai › Tùy chọn triển khai mới › Ứng dụng web, Thực thi: Tôi, Ai có quyền truy cập: Bất kỳ ai › Triển khai, chép đường dẫn …/exec; (4) dán vào ô dưới, bấm Kết nối. Máy khác: dán mã kết nối KLTK1-… rồi bấm Kết nối."/>
-              </Expander>
-              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                <TextBox x:Name="AcctInput" Watermark="Đường dẫn Web App (…/exec) hoặc mã kết nối KLTK1-…"/>
-                <Button Grid.Column="1" x:Name="AcctScriptButton" Content="Tạo mã Apps Script" Click="OnAcctScript" ToolTip.Tip="Tự chép vào bộ nhớ"/>
-                <Button Grid.Column="2" Content="Kết nối" Classes="primary" Click="OnAcctConnect"/>
-              </Grid>
+            <TextBlock Text="Đã chuyển đi chỗ khác" Classes="section"/>
+            <TextBlock Classes="muted" TextWrapping="Wrap" Tag="keep" Text="Tài khoản dùng chung, mã điện thoại, mã GitHub, Gmail → Hệ thống › Kết nối. Đồng bộ giữa các máy, điện thoại, sao lưu → Hệ thống › Đồng bộ &amp; sao lưu."/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Mở Kết nối" Click="OnGoKetNoi"/>
+              <Button Content="Mở Đồng bộ &amp; sao lưu" Click="OnGoDongBo"/>
             </StackPanel>
-            <WrapPanel x:Name="AcctOnPanel" ItemSpacing="8" LineSpacing="8">
-              <Button Content="Đồng bộ ngay" Click="OnAcctPull"/>
-              <Button Content="Tạo bộ cài cho máy mới…" Click="OnAcctBundle"/>
-              <Button Content="Chép mã máy nhân viên" Click="OnAcctCodeStaff"/>
-              <Button x:Name="AcctUpgradeButton" Content="Cập nhật mã Apps Script" Click="OnAcctUpgrade" ToolTip.Tip="Mã Apps Script bản mới, giữ nguyên mã kết nối (1.70: thêm cột Email Google). Dán đè rồi Triển khai › Quản lý triển khai › Phiên bản mới."/>
-              <Button x:Name="AcctCodeAdminButton" Content="Chép mã máy quản trị" Click="OnAcctCodeAdmin"/>
-              <Button Content="Ngắt kết nối" Classes="danger" Click="OnAcctDisconnect"/>
-            </WrapPanel>
-            <TextBlock x:Name="AcctMsg" Classes="muted" TextWrapping="Wrap" Tag="keep"/>
           </StackPanel>
         </Border>
         <!-- 1.98: bỏ khung "Sao lưu, khôi phục, đồng bộ LAN / Drive" — đã có ở Hệ thống › Dữ liệu & sao lưu -->

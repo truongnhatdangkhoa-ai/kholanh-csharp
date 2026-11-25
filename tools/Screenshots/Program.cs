@@ -1247,30 +1247,76 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v184")
     }
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v184) — ĐẠT: " : "Xong (v184) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
-if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v204")
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
 {
-    // 1.104: Cài đặt máy › Tài khoản dùng chung — nút "Dùng chung Sheet điện thoại" (máy đã nối điện thoại) và trạng thái sau khi chuyển.
+    // 1.105 (phương án A): Hệ thống › Kết nối + Đồng bộ & sao lưu (4 tab) + Cài đặt máy gọn, khóa menu cũ mở đúng tab. Tự kiểm, thoát mã 1 nếu hỏng.
     var ok = true;
-    s.Settings.Set(KhoLanh.Core.Services.PhoneWebApp.KeyToken, KhoLanh.Core.Services.Secret.Protect("mau"));
-    s.Settings.Set("acct_url", "https://script.google.com/macros/s/MAU-TAI-KHOAN/exec"); s.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("mau"));
-    foreach (var (onPhone, n) in new[] { (false, "v204-tai-khoan-chua-gop"), (true, "v204-tai-khoan-da-gop") })
+    void Bad(string m) { Console.WriteLine("        HỎNG: " + m); ok = false; }
+    void Wait(int n = 40) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    void Connected(bool on)
     {
-        if (onPhone) s.Settings.Set("acct_url", KhoLanh.Core.Services.PhoneWebApp.DefaultUrl);
-        main.Navigate("audit"); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-        main.Navigate("backup"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
-        var bv = (BackupView)main.PageHost.Content!;
-        var move = bv.FindControl<Border>("AcctMovePanel")!; var up = bv.FindControl<Button>("AcctUpgradeButton")!;
-        move.BringIntoView(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
-        Console.WriteLine($"[v204] {n}: khung chuyển {move.IsVisible}, nút Cập nhật mã Apps Script {up.IsVisible}");
-        if (move.IsVisible == onPhone || up.IsVisible == onPhone) { Console.WriteLine("        HỎNG"); ok = false; }
-        Snap(main, n);
+        s.Settings.Set(KhoLanh.Core.Services.PhoneWebApp.KeyToken, on ? KhoLanh.Core.Services.Secret.Protect("mau") : "");
+        s.Settings.Set("acct_url", on ? KhoLanh.Core.Services.PhoneWebApp.DefaultUrl : ""); s.Settings.Set("acct_token", on ? KhoLanh.Core.Services.Secret.Protect("mau") : "");
+        s.Settings.Set("acct_last_pull", on ? DateTime.Now.AddMinutes(-12).ToString("yyyy-MM-dd HH:mm:ss") : "");
     }
-    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v204) — ĐẠT: " : "Xong (v204) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+    Directory.CreateDirectory(s.Backup.AutoBackupFolder);
+    s.Backup.ManualBackup(Path.Combine(s.Backup.AutoBackupFolder, $"tu-dong_{DateTime.Today:yyyy-MM-dd}.db"));
+    s.Audit.Log("admin", "Đồng bộ điện thoại: Đẩy lên", "m1 1284 dòng, m2 312 dòng, m7 2410 dòng");
+    s.Audit.Log("admin", "Đồng bộ điện thoại: Nhận phiếu", "m1 1 phiếu, m7 1 phiếu");
+    s.Audit.Log("admin", "Kết nối tài khoản dùng chung", "tải về 6 tài khoản");
+    s.Audit.Log("admin", "Tự nhận vai LAN", "máy chủ chính");
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show();
+    foreach (var on in new[] { true, false })
+    {
+        Connected(on);
+        w.Navigate("audit"); Wait(10); w.Navigate("ketnoi"); Wait();
+        if (w.PageHost.Content is not KetNoiView kv) { Bad("ketnoi không mở KetNoiView"); continue; }
+        var sheet = kv.Shown.FirstOrDefault(x => x.Name == "Google Sheet chung");
+        Console.WriteLine($"[v205] Kết nối ({(on ? "đã nối" : "chưa nối")}): {string.Join(" | ", kv.Shown.Select(x => x.Name + "=" + x.State))}");
+        if (sheet.State != (on ? "ok" : "off")) Bad($"Google Sheet chung = {sheet.State}");
+        CheckUnderNav(w, "v205-ket-noi");
+        Snap(w, on ? "v205-ket-noi" : "v205-ket-noi-chua");
+        if (!on)
+        {
+            _ = kv.WizardForTest(); Wait(20);
+            if (KetNoiView.LastWizard is { } wz) { Snap(wz, "v205-ket-noi-lan-dau"); wz.Close(); Wait(10); } else Bad("không mở được hộp Kết nối lần đầu");
+        }
+    }
+    Connected(true);
+    w.Navigate("dongbo"); Wait();
+    if (w.PageHost.Content is DongBoView dv)
+    {
+        var heads = dv.Tabs.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
+        Console.WriteLine($"[v205] Đồng bộ & sao lưu: tab {string.Join(" · ", heads)} · thẻ {string.Join(" | ", dv.State.Select(x => x.Key + "=" + x.Value.Kind + " " + x.Value.Text))}");
+        if (heads.Count != 4) Bad("cần 4 tab");
+        if (dv.State.Count != 3) Bad("Tình trạng cần 3 thẻ");
+        string[] names = { "v205-dong-bo-tinh-trang", "v205-giua-cac-may", "v205-dien-thoai", "v205-sao-luu" };
+        for (var t = 0; t < dv.Tabs.ItemCount; t++)
+        {
+            dv.Tabs.SelectedIndex = t; Wait(30);
+            CheckUnderNav(w, names[t]); Snap(w, names[t]);
+            foreach (var g in w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(g => g.IsEffectivelyVisible))
+                Console.WriteLine($"   [{names[t]}] bảng cao {g.Bounds.Height:0}");
+        }
+    }
+    else Bad("dongbo không mở DongBoView");
+    foreach (var (key, tab) in new[] { ("phone", "Điện thoại"), ("dcn", "Sao lưu"), ("lan", "Giữa các máy"), ("dulieu", "Tình trạng") })
+    {
+        w.Navigate("audit"); Wait(10); w.Navigate(key); Wait(20);
+        var h = (w.PageHost.Content as DongBoView)?.Tabs.SelectedItem is TabItem ti ? ti.Header?.ToString() : null;
+        Console.WriteLine($"[v205] khóa cũ \"{key}\" → {h}");
+        if (h != tab) Bad($"khóa {key} mở {h}, cần {tab}");
+    }
+    w.Navigate("backup"); Wait();
+    CheckUnderNav(w, "v205-cai-dat-may"); Snap(w, "v205-cai-dat-may");
+    if (navBad.Count > 0) ok = false;
+    w.Close();
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v205) — ĐẠT: " : "Xong (v205) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
-    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-cai-dat"), ("dulieu", "he-du-lieu"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("saoluu", "he-sao-luu"), ("dcn", "he-drive-ca-nhan"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
+    foreach (var (k, n) in new[] { ("users", "he-tai-khoan"), ("backup", "he-cai-dat"), ("ketnoi", "he-ket-noi"), ("dongbo", "he-dong-bo"), ("lan", "he-mang-lan"), ("drive", "he-drive"), ("saoluu", "he-sao-luu"), ("dcn", "he-drive-ca-nhan"), ("phone", "he-dien-thoai"), ("audit", "he-nhat-ky"), ("troly", "he-tro-ly") })
     {
         if (k == "troly")
         {
@@ -1785,12 +1831,10 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         Snap(main, "15b-mang-lan-theo-tai-khoan");
         foreach (var k in new[] { "acct_url", "acct_token", "acct_admin_key", "lan_plan" }) s.Settings.Set(k, "");
     }
-    if (key == "backup" && main.PageHost.Content is BackupView bv)
+    if (key == "backup")
     {
-        bv.AcctStatus.BringIntoView();
-        Pump();
-        bv.AcctInput.BringIntoView();
-        Snap(main, "13b-tai-khoan-dung-chung");
+        main.Navigate("ketnoi"); for (var i = 0; i < 40; i++) { Thread.Sleep(30); Pump(); }
+        Snap(main, "13b-ket-noi");
     }
     if (key == "m3")
     {

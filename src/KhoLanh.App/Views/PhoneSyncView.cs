@@ -19,7 +19,8 @@ public sealed class PhoneSyncView : UserControl, IPage
 
     private static PhoneSyncService Svc => App.Services.PhoneSync;
     private static IBrush B(string c) => AppTheme.Brush(c);
-    private readonly TextBlock _conn = new() { FontSize = 13, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _connPill = new() { Classes = { "pill" }, VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock() };
+    private readonly Button _connBtn = new() { Content = "Kết nối…", Classes = { "ghost" } };
     private readonly StackPanel _tables = new() { Spacing = 4 };
     private readonly TextBlock _log = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
     private readonly ComboBox _auto = new() { ItemsSource = PhoneAutoSync.Choices.Select(c => c.Label).ToList(), MinWidth = 160 };
@@ -27,25 +28,21 @@ public sealed class PhoneSyncView : UserControl, IPage
 
     public PhoneSyncView()
     {
-        // 1.56: 1 thẻ trên cùng (kết nối + nút chạy + tự đồng bộ); dưới chia 2 cột: bảng đẩy lên điện thoại | kết quả lần chạy. Ghi chú dài → gợi ý khi rê chuột.
-        var conn = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
-        conn.Children.Add(_conn);
-        conn.Children.Add(Btn("Kiểm tra kết nối", async () => await Run("Đang kiểm tra…", async () => { var (t, sh) = await App.Services.Phone.PingAsync(); return $"✔ Kết nối được Google Sheet \"{t}\" ({sh.Count} tab)."; })).Also(x => Grid.SetColumn(x, 1)));
-        conn.Children.Add(Btn("Kết nối điện thoại…", async () => { await PhoneConnect.ShowAsync(this); Paint(); }).Also(x => Grid.SetColumn(x, 2)));
-
-        var acts = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        acts.Children.Add(Act("⇅ Đồng bộ ngay", "Nhận phiếu điện thoại + yêu cầu lịch xuất về, lưu trữ phiếu cũ (1 lần / ngày), rồi đẩy tồn các bảng đã chọn (và bảng vừa nhận phiếu)", true, async () =>
-        { var (p, push) = await Svc.SyncAsync(); return PullText(p) + "\n" + PushText(push); }));
-        acts.Children.Add(Act("⬆ Chỉ đẩy tồn", "Đẩy tồn các bảng đã chọn lên Google Sheet", false, async () => PushText(await Svc.PushAsync())));
-        acts.Children.Add(Act("⬇ Chỉ nhận phiếu", "Kéo phiếu xuất điện thoại tạo (chưa xử lý) về đúng module, trừ tồn, đánh dấu Đã xử lý", false, async () => PullText(await Svc.PullAsync())));
+        // 1.105: nằm trong Hệ thống › Đồng bộ & sao lưu › Điện thoại. 1 hàng: trạng thái kết nối (đổi ở Hệ thống › Kết nối) · tự đồng bộ · nút chạy (nút chính cuối).
         _auto.SelectionChanged += (_, _) => { if (_auto.SelectedIndex >= 0) PhoneAutoSync.Minutes = PhoneAutoSync.Choices[_auto.SelectedIndex].Min; };
-        var autoRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 0, 0) };
-        var autoLbl = new TextBlock { Text = "Tự đồng bộ:", VerticalAlignment = VerticalAlignment.Center };
+        var autoLbl = new TextBlock { Text = "Tự đồng bộ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
         ToolTip.SetTip(autoLbl, "Chỉ chạy khi app đang mở và đã đăng nhập trên máy này.");
-        autoRow.Children.Add(autoLbl); autoRow.Children.Add(_auto);
-        acts.Children.Add(autoRow);
+        var row = new KhoLanh.App.Controls.ToolRow { Margin = new Thickness(0, 0, 0, 10) };
+        row.Children.Add(_connPill);
+        row.Children.Add(_connBtn);
+        row.Children.Add(autoLbl); row.Children.Add(_auto);
+        row.Children.Add(KhoLanh.App.Controls.ToolRow.Gap());
+        row.Children.Add(Act("⬆ Chỉ đẩy tồn", "Đẩy tồn các bảng đã chọn lên Google Sheet", false, async () => PushText(await Svc.PushAsync())));
+        row.Children.Add(Act("⬇ Chỉ nhận phiếu", "Kéo phiếu xuất điện thoại tạo (chưa xử lý) về đúng module, trừ tồn, đánh dấu Đã xử lý", false, async () => PullText(await Svc.PullAsync())));
+        row.Children.Add(Act("⇅ Đồng bộ ngay", "Nhận phiếu điện thoại + yêu cầu lịch xuất về, lưu trữ phiếu cũ (1 lần / ngày), rồi đẩy tồn các bảng đã chọn (và bảng vừa nhận phiếu)", true, async () =>
+        { var (p, push) = await Svc.SyncAsync(); return PullText(p) + "\n" + PushText(push); }));
+        _connBtn.Click += (_, _) => MainWindow.Of(this)?.Navigate("ketnoi");
 
-        var topCard = new Border { Classes = { "card" }, Child = new StackPanel { Spacing = 10, Children = { conn, acts } } };
         var tTitle = new TextBlock { Text = "Bảng đẩy lên điện thoại", Classes = { "section" } };
         ToolTip.SetTip(tTitle, "Tick bảng cần đẩy. Chỉ hiện bảng của module tài khoản được xem. Kèm theo: phiếu xuất tạo trên PC; Tồn kho An An / Tồn kho gửi đẩy luôn báo cáo Excel + Phân loại; Tổng hợp đẩy Kết quả kháng sinh (chỉ phần mới).");
         var left = new Border { Classes = { "card" }, VerticalAlignment = VerticalAlignment.Top, Child = new StackPanel { Spacing = 8, Children = { tTitle, _tables } } };
@@ -54,7 +51,7 @@ public sealed class PhoneSyncView : UserControl, IPage
         var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("3*,2*"), ColumnSpacing = 14 };
         cols.Children.Add(left); Grid.SetColumn(right, 1); cols.Children.Add(right);
         var body = new StackPanel { Spacing = 12, Margin = new Thickness(0, 0, 6, 0) };
-        body.Children.Add(topCard); body.Children.Add(cols);
+        body.Children.Add(row); body.Children.Add(cols);
         Content = new ScrollViewer { Content = body };
         PhoneAutoSync.Ran += OnAutoRan;
         DetachedFromVisualTree += (_, _) => PhoneAutoSync.Ran -= OnAutoRan;
@@ -92,8 +89,12 @@ public sealed class PhoneSyncView : UserControl, IPage
     private void Paint()
     {
         var ph = App.Services.Phone;
-        _conn.Text = ph.Enabled ? $"📱 Đã kết nối: {Short(ph.Url)}" + (App.Services.PhoneSync.LastSlipPush is { Length: > 0 } lp ? " · " + lp : "") : "📱 Chưa kết nối — bấm \"Kết nối điện thoại…\" (chỉ cần mã PC_TOKEN — đường dẫn Web App đã cài sẵn).";
-        _conn.Foreground = ph.Enabled ? B("#1B5E20") : B("#8A5300");
+        var err = ph.Enabled ? ph.LastError : null;
+        ((TextBlock)_connPill.Child!).Text = !ph.Enabled ? "○ Chưa nối điện thoại" : err is not null ? "● Lỗi kết nối" : "● Đã kết nối Google Sheet chung";
+        _connPill.Classes.Remove("ok"); _connPill.Classes.Remove("warn"); _connPill.Classes.Remove("bad");
+        _connPill.Classes.Add(!ph.Enabled ? "warn" : err is not null ? "bad" : "ok");
+        ToolTip.SetTip(_connPill, ph.Enabled ? Short(ph.Url) + (App.Services.PhoneSync.LastSlipPush is { Length: > 0 } lp ? "\n" + lp : "") + (err is not null ? $"\nLỗi lúc {err.At:HH:mm dd/MM}: {err.Msg}" : "") : "Kết nối ở Hệ thống › Kết nối (dán mã kết nối máy, hoặc mã PC_TOKEN).");
+        _connBtn.Content = ph.Enabled ? "Đổi ở Kết nối" : "Kết nối…";
         var i = Array.FindIndex(PhoneAutoSync.Choices, c => c.Min == PhoneAutoSync.Minutes); _auto.SelectedIndex = Math.Max(0, i);
         _tables.Children.Clear();
         var pick = Svc.Pick; var st = Svc.Status;

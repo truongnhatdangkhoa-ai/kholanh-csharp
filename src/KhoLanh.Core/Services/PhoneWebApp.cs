@@ -84,7 +84,7 @@ public sealed class PhoneWebApp
             {
                 var msg = o["error"]?.ToString() ?? "Web App báo lỗi không rõ.";
                 if (o["code"]?.ToString() == "AUTH")
-                    throw new AuthException(!msg.Contains("không đúng") ? msg : msg + " → Mã PC_TOKEN ở Đồng bộ điện thoại › Kết nối không khớp mã PC_TOKEN trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh).");
+                    throw new AuthException(!msg.Contains("không đúng") ? msg : msg + " → Mã PC_TOKEN ở Hệ thống › Kết nối không khớp mã PC_TOKEN trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh).");
                 if (msg.Contains("Không được phép thao tác tab") || msg.Contains("Không có chức năng")) msg += " → Apps Script trên Google đang là bản cũ: dán Code.gs mới, Lưu, rồi Triển khai phiên bản mới.";
                 throw new BusinessException(msg);
             }
