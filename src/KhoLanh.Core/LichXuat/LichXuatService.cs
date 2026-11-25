@@ -36,7 +36,16 @@ public sealed partial class LichXuatService
 
     public bool CanView => _session.Can(PermKey, Perm.View);
     public bool CanEdit => _session.Can(PermKey, Perm.Edit);
-    public bool CanMail => _session.Can(PermMail, Perm.Edit) && CanEdit;
+    /// <summary>
+    /// Mục Email (kết nối Gmail + mật khẩu ứng dụng lưu trên máy, người gửi tin cậy, duyệt / bỏ qua / hoàn tác thư, quét tay):
+    /// CHỈ tài khoản Quản trị (1.75 — trước đây theo quyền "lxmail", Quản lý mặc định có). Quản lý / Nhân viên không thấy nút Email.
+    /// </summary>
+    public bool CanMail => Roles.IsAdmin(_session.Role) && CanEdit;
+    /// <summary>
+    /// Tự quét nền trên máy đã được Quản trị khai báo Gmail: chạy với mọi tài khoản đang đăng nhập có quyền sửa Lịch xuất
+    /// (thư của người tin cậy vẫn tự lên lịch dù người ngồi máy không phải Quản trị); không mở được cài đặt / duyệt thư.
+    /// </summary>
+    public bool CanAutoMail => CanEdit;
     public bool CanPnx => _session.Can(PhieuKhoService.PermKey, Perm.Edit);
     private void RequireEdit() { if (!CanEdit) throw new BusinessException("Tài khoản chỉ có quyền xem Lịch xuất — không sửa được."); }
 
@@ -648,7 +657,7 @@ public sealed partial class LichXuatService
     public MailConfig MailCfg() => MailConfig.Load(_settings);
     public void SaveMailCfg(MailConfig c, string? newPass)
     {
-        if (!CanMail) throw new BusinessException("Chỉ tài khoản có quyền «Duyệt email Lịch xuất» mới đổi được tài khoản Gmail.");
+        if (!CanMail) throw new BusinessException("Chỉ tài khoản Quản trị mới đổi được tài khoản Gmail.");
         if (newPass is { Length: > 0 }) c.PassEnc = Secret.Protect(Regex.Replace(newPass, @"\s+", ""));
         c.Save(_settings);
         _audit.Log(_session.Username, "Lịch xuất", "Đổi cài đặt email: " + c.Email);
@@ -662,7 +671,7 @@ public sealed partial class LichXuatService
     }
     public void SaveTrust(string trust, bool only)
     {
-        if (!CanMail) throw new BusinessException("Không có quyền «Duyệt email Lịch xuất».");
+        if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetTrust] = new JsonArray(new JsonObject { ["nguoi"] = trust.Trim(), ["chiTin"] = only ? "1" : "0" }) });
     }
 
@@ -693,7 +702,14 @@ public sealed partial class LichXuatService
     /// </summary>
     public async Task<ScanResult> ScanEmailAsync(CancellationToken ct = default)
     {
-        if (!CanMail) throw new BusinessException("Tài khoản không có quyền «Duyệt email Lịch xuất».");
+        if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
+        return await ScanCoreAsync(ct);
+    }
+
+    /// <summary>Quét thật (dùng chung cho quét tay của Quản trị và quét nền <see cref="StartAutoEmail"/>).</summary>
+    private async Task<ScanResult> ScanCoreAsync(CancellationToken ct)
+    {
+        if (!CanAutoMail) throw new BusinessException("Tài khoản không có quyền sửa Lịch xuất.");
         var cfg = MailCfg();
         var msgs = await Mail.FetchAsync(cfg, ct);
         return ProcessMessages(msgs, cfg);
@@ -812,7 +828,7 @@ public sealed partial class LichXuatService
     /// <summary>Duyệt (áp vào lịch) hoặc bỏ qua 1 thư chờ duyệt.</summary>
     public string Decide(string id, bool approve, string? ngay = null, string? gio = null)
     {
-        if (!CanMail) throw new BusinessException("Không có quyền «Duyệt email Lịch xuất».");
+        if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
         var store = EmailRows(); var r = store.FirstOrDefault(x => x.Id == id) ?? throw new BusinessException("Không còn thư này.");
         if (r.TrangThai.Length > 0) throw new BusinessException("Thư này đã xử lý (" + r.TrangThai + ").");
         string msg;
@@ -826,7 +842,7 @@ public sealed partial class LichXuatService
     /// <summary>Hoàn tác 1 thư đã duyệt: bỏ lịch do lần duyệt tạo mới, trả lịch đã đổi về như cũ, thêm lại lịch đã hủy; thư về "Chờ duyệt".</summary>
     public string Undo(string id)
     {
-        if (!CanMail) throw new BusinessException("Không có quyền «Duyệt email Lịch xuất».");
+        if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
         var store = EmailRows(); var r = store.FirstOrDefault(x => x.Id == id) ?? throw new BusinessException("Không còn thư này.");
         var n = 0;
         if (r.TrangThai == "Đã duyệt" && r.HanhDong != "xe" && r.Undo.Length > 0)
@@ -857,7 +873,7 @@ public sealed partial class LichXuatService
     public void StartAutoEmail()
     {
         StopAutoEmail();
-        var cfg = MailCfg(); if (!cfg.Ready || !cfg.Auto || !CanMail) return;
+        var cfg = MailCfg(); if (!cfg.Ready || !cfg.Auto || !CanAutoMail) return;
         var cts = _auto = new CancellationTokenSource();
         _ = Task.Run(async () =>
         {
@@ -866,7 +882,7 @@ public sealed partial class LichXuatService
                 await Task.Delay(TimeSpan.FromSeconds(20), cts.Token);
                 while (!cts.IsCancellationRequested)
                 {
-                    try { var r = await ScanEmailAsync(cts.Token); EmailScanned?.Invoke(r); }
+                    try { var r = await ScanCoreAsync(cts.Token); EmailScanned?.Invoke(r); }
                     catch (OperationCanceledException) { throw; }
                     catch (Exception e) { EmailError?.Invoke(e.Message); }
                     await Task.Delay(TimeSpan.FromMinutes(Math.Max(2, MailCfg().IntervalMin)), cts.Token);

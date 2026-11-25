@@ -28,6 +28,36 @@ public class LichXuatTests : IDisposable
     private static Lich L(string id, string ngay, string lsx, string st = "plan", string cont = "", double kg = 0) =>
         new() { Id = id, Ngay = ngay, Lsx = lsx, TrangThai = st, Cont = cont, Kg = kg };
 
+    // ------------------------------------------------------------------ quyền mục Email (1.75)
+
+    private sealed class NoMail : IMailSource
+    {
+        public int Calls;
+        public Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default) { Calls++; return Task.FromResult(new List<LichXuatEmail.Msg>()); }
+    }
+
+    [Fact]
+    public async Task Muc_Email_chi_danh_cho_Quan_tri()
+    {
+        var mail = new NoMail(); Lx.Mail = mail;
+        Assert.True(Lx.CanMail);                                   // Quản trị: thấy nút Email, cài đặt / duyệt / quét tay được
+        await Lx.ScanEmailAsync();
+        _s.Auth.CreateUser("quanly", "Quản lý", "matkhau1", KhoLanh.Core.Models.Roles.Manager);
+        _s.Auth.CreateUser("nhanvien", "Nhân viên", "matkhau1", KhoLanh.Core.Models.Roles.Staff);
+        foreach (var u in new[] { "quanly", "nhanvien" })
+        {
+            _s.Auth.Logout(); _s.Auth.Login(u, "matkhau1");
+            Assert.False(Lx.CanMail);                              // Quản lý trở xuống: không có mục Email
+            await Assert.ThrowsAsync<BusinessException>(() => Lx.ScanEmailAsync());
+            Assert.Throws<BusinessException>(() => Lx.SaveMailCfg(Lx.MailCfg(), "abcd efgh ijkl mnop"));
+            Assert.Throws<BusinessException>(() => Lx.SaveTrust("@anan.com.vn", true));
+        }
+        Assert.Equal(1, mail.Calls);                               // chỉ lượt quét của Quản trị chạm tới hộp thư
+        _s.Auth.Logout(); _s.Auth.Login("quanly", "matkhau1");
+        Assert.True(Lx.CanAutoMail);                               // máy đã khai báo Gmail vẫn tự quét nền khi Quản lý đăng nhập
+        Assert.DoesNotContain(KhoLanh.Core.Models.Perm.Items, i => i.Key == "lxmail");   // bỏ ô quyền cũ khỏi Phân quyền
+    }
+
     // ------------------------------------------------------------------ lõi
 
     [Fact]

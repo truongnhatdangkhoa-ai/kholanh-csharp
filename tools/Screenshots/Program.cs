@@ -723,6 +723,25 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")
     Console.WriteLine($"[Thanh tiêu đề] hộp thoại (Sáng): nền {cap} chữ {txt} tối={dk} · COLORREF chính = 0x{KhoLanh.App.TitleBar.ColorRef(KhoLanh.App.TitleBar.ColorsFor(main).Caption):X6}");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v174) — ĐẠT: " : "Xong (v174) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.76: SHOTS_ONLY=v176 — Hệ thống › Tài khoản › tab Điện thoại (tài khoản PC dùng chung trên điện thoại, quyền điện thoại riêng)
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v176")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.Auth.CreateUser("thang", "Thắng", "thang123", Roles.Staff);
+    s.Auth.CreateUser("lan", "Lan", "lan12345", Roles.Manager);
+    s.PhoneAccounts.SaveRights(new[]
+    {
+        new KhoLanh.Core.PhoneSync.PhoneAccounts.Entry { Ten = "thang", Bat = true, VaiTro = "xuat", Kho = new() { "M01", "M02", "LX" } },
+        new KhoLanh.Core.PhoneSync.PhoneAccounts.Entry { Ten = "admin", Bat = true, VaiTro = "quantri" },
+    });
+    var pl = s.PhoneAccounts.List(); var ln = pl.FirstOrDefault(e => e.Ten == "lan"); if (ln is not null) { ln.Hash = ""; }
+    main.Navigate("users"); P(40);
+    var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First();
+    tc.SelectedIndex = tc.ItemCount - 1; P(20);
+    Snap(main, "v176-tai-khoan-dien-thoai");
+    Console.WriteLine($"[Điện thoại] tab: {((TabItem)tc.Items[tc.ItemCount - 1]!).Header} · {s.PhoneAccounts.List().Count(e => e.Bat)} tài khoản bật");
+    s.Lan.Dispose(); Console.WriteLine("Xong (v176): " + outDir); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)

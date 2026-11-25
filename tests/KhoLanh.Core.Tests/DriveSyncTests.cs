@@ -214,7 +214,9 @@ public class DriveSyncTests : IDisposable
         home.Auth.Logout(); home.Auth.Login("admin", "matkhau1");
         home.Auth.CreateUser("nhanvien2", "NV2", "matkhau1", KhoLanh.Core.Models.Roles.Staff, "{\"m1\":\"sua\"}");
         home.Auth.Logout(); home.Auth.Login("nhanvien2", "matkhau1");
+        // 1.76: tạo tài khoản / đăng nhập còn ghi mã điện thoại (db "dien-thoai") vào sổ chờ → đếm phần tăng của chính lần ghi bảng S
+        var before = home.Lan.PendingCount();
         home.Lan.Write(Db, One("S", Rows("a", "y")));
-        Assert.Equal(1, home.Lan.PendingCount());
+        Assert.Equal(before + 1, home.Lan.PendingCount());
     }
 }

@@ -64,6 +64,8 @@ public class AppServices
     public GoogleSignIn Google { get; }
     /// <summary>Đồng bộ điện thoại cho mọi module (đẩy tồn + nhận phiếu).</summary>
     public PhoneSync.PhoneSyncService PhoneSync { get; }
+    /// <summary>Tài khoản PC dùng trên điện thoại + quyền điện thoại riêng (1.76).</summary>
+    public PhoneSync.PhoneAccounts PhoneAccounts { get; }
 
     public AppServices(string dbPath)
     {
@@ -111,6 +113,8 @@ public class AppServices
         Phone = new PhoneWebApp(Settings);
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
+        PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
+        Auth.PasswordSeen = PhoneAccounts.RememberPassword;   // 1.76: tài khoản PC dùng chung trên điện thoại
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".");
     }
