@@ -71,6 +71,7 @@ public sealed partial class TroLyView : UserControl, IPage
         tabs.Items.Add(new TabItem { Header = "Việc cần chú ý hôm nay", Content = new ScrollViewer { Content = chuYBox, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled } });
         tabs.Items.Add(qTab);
         tabs.Items.Add(new TabItem { Header = "Hiệu năng", Content = new HieuNangView() });   // 1.100: CPU / RAM / ổ đĩa / mạng, thao tác chậm, dung lượng dữ liệu
+        tabs.Items.Add(new TabItem { Header = "Các máy", Content = new TroLyMayView() });   // giai đoạn 5: tình trạng các máy qua LAN / Drive + lịch sử 7 / 30 ngày
         tabs.SelectionChanged += (_, e) => { if (e.Source == tabs && tabs.SelectedItem == qTab) LoadQueue(); };
 
         var body = new DockPanel();

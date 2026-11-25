@@ -184,6 +184,8 @@ public partial class MainWindow : Window
         // Lưu trữ cá nhân: tự sao lưu Google Drive theo lịch của tài khoản (chỉ chạy khi đã đăng nhập Google trong module).
         if (s.LuuTru.CanUse) { s.LuuTru.StartAuto(); Closed += (_, _) => s.LuuTru.StopAuto(); }
         if (s.DriveCaNhan.CanUse) { s.DriveCaNhan.StartAuto(); Closed += (_, _) => s.DriveCaNhan.StopAuto(); }
+        // Trợ lý giai đoạn 5: mọi máy (mọi tài khoản) ghi ảnh chụp tình trạng lên database dùng chung — 2 phút sau khi mở rồi mỗi 15 phút
+        s.TroLy.StartStatus(TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(15)); Closed += (_, _) => s.TroLy.StopStatus();
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {

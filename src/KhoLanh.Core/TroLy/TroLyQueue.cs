@@ -172,7 +172,8 @@ public static class TroLyReport
         return Regex.Replace(s, @"\b(tk|user|người|nguoi|người tạo|khách|khach|ten)\s*[=:]\s*[^,;|·\n]+", "$1=[ẩn]", RegexOptions.IgnoreCase);
     }
 
-    public static string Build(IReadOnlyList<Finding> findings, string version, DateTime at, bool anDanh = true)
+    /// <param name="extra">Giai đoạn 5 (tùy chọn): cài đặt liên quan (đã che), log quanh lỗi phần mềm, giá trị bí mật cần che.</param>
+    public static string Build(IReadOnlyList<Finding> findings, string version, DateTime at, bool anDanh = true, TroLyBaoCao.Extra? extra = null)
     {
         var L = new StringBuilder();
         L.AppendLine("# BÁO CÁO TỪ \"TRỢ LÝ HỆ THỐNG\" — Kho Lạnh C#");
@@ -190,8 +191,22 @@ public static class TroLyReport
             if (f.Recur > 0) L.AppendLine($"- ⚠ TÁI PHÁT {f.Recur} lần" + (f.QNote.Length > 0 ? " — " + Mask(f.QNote, anDanh) : "") + " (lần sửa trước chưa dứt điểm — hãy tìm nguyên nhân gốc, đừng vá triệu chứng).");
             if (f.Evidence.Count > 0) { L.AppendLine("- Bằng chứng:"); foreach (var e in f.Evidence) L.AppendLine("  - " + Mask(e, anDanh)); }
             if (f.Files.Count > 0) L.AppendLine("- File nghi ngờ: " + string.Join(", ", f.Files));
+            if (f.Go.Length > 0) L.AppendLine("- Trang sửa trong app: " + (f.GoLabel.Length > 0 ? f.GoLabel : f.Go) + $" (khóa `{f.Go}`)");
+            if (extra is { LogText.Length: > 0 } && TroLyBaoCao.LogAround(extra.LogText, f) is { Count: > 0 } log)
+            {
+                L.AppendLine($"- Log quanh lỗi (logs/loi.log, lần xuất hiện cuối, {log.Count} dòng):");
+                L.AppendLine("  ```");
+                foreach (var l in log) L.AppendLine("  " + Mask(l, anDanh));
+                L.AppendLine("  ```");
+            }
             L.AppendLine();
         }
-        return L.ToString();
+        if (extra is { CaiDat.Count: > 0 })
+        {
+            L.AppendLine("## Cài đặt liên quan (đã che token / mật khẩu / mã / đường dẫn đầy đủ)");
+            foreach (var (k, v) in extra.CaiDat) L.AppendLine($"- {k}: {Mask(v, anDanh)}");
+            L.AppendLine();
+        }
+        return extra is null ? L.ToString() : TroLyBaoCao.Scrub(L.ToString(), extra.Secrets);
     }
 }
