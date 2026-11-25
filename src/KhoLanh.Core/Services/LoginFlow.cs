@@ -39,7 +39,20 @@ public static class LoginFlow
             var pullErr = pull is { IsFaulted: true } ? pull.Exception!.GetBaseException().Message.TrimEnd('.') : null;
             var missing = !auth.Exists(user);
             var wasOn = acc.Enabled;
-            if (acc.Enabled && pullErr is null && !missing) throw;   // danh sách mới nhất, có tài khoản → đúng là sai mật khẩu
+            if (acc.Enabled && pullErr is null && !missing)
+            {
+                // 1.110: danh sách tải ngầm được dùng lại 2 phút — Quản trị vừa đổi mật khẩu / tạo tài khoản / đặt lại mã ở máy khác thì bản đó
+                // đã cũ. Trước khi báo sai mật khẩu: tải lại danh sách mới nhất 1 lần; tải lỗi (vd mã cũ "Sai mã kết nối") → hỏi Sheet bằng mật khẩu.
+                try { await acc.PullAsync(TimeSpan.FromSeconds(20)); }
+                catch (BusinessException pe) { pullErr = pe.Message.TrimEnd('.'); }
+                missing = !auth.Exists(user);
+                if (pullErr is null && !missing)
+                {
+                    if (!auth.CheckPassword(user, pass)) throw;
+                    u = auth.Login(user, pass);
+                    return new Result(u, null, "", u.PasswordHash);
+                }
+            }
             var why = LocalWrong(auth, user) + (pullErr is null ? "" : $" Không lấy được danh sách mới từ Google Sheet chung ({pullErr}).");
             try { await acc.JoinByPasswordAsync(user, pass, allowExisting: true); }
             catch (JoinException je) when (je.Kind is JoinException.NoAccount or JoinException.WrongPassword or JoinException.Locked)

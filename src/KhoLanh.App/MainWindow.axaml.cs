@@ -30,7 +30,8 @@ public partial class MainWindow : Window
     private record NavItem(string Key, string Label, Func<Control> Create);
 
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
-    private static bool Allowed(NavItem i) => i.Key is "users" or "troly" ? Roles.IsAdmin(App.Services.Session.Role)
+    private static bool Allowed(NavItem i) => i.Key is "users" ? App.Services.Session.CanManageAccounts   // 1.110: Quản trị hoặc quyền "Tạo / sửa tài khoản"
+        : i.Key is "troly" ? Roles.IsAdmin(App.Services.Session.Role)
         : i.Key is "ketnoi" or "dongbo" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") || App.Services.Session.Can("phone")
         : App.Services.Session.Can(i.Key);
 

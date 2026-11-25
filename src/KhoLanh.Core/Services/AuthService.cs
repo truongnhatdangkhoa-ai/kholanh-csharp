@@ -102,6 +102,12 @@ public class AuthService
         if (_session.CurrentUser?.Id == id) _session.CurrentUser.GoogleEmail = email;
     }
 
+    /// <summary>1.110: tài khoản có quyền "Tạo / sửa tài khoản" nhưng không phải Quản trị thì không đụng tới tài khoản Quản trị.</summary>
+    private void RequireAdminFor(string what)
+    {
+        if (!Roles.IsAdmin(_session.Role)) throw new BusinessException($"Chỉ tài khoản Quản trị mới {what} được.");
+    }
+
     public void Logout()
     {
         if (_session.CurrentUser is not null) _audit.Log(_session.Username, "Đăng xuất", "");
@@ -125,14 +131,15 @@ public class AuthService
 
     public List<User> ListUsers()
     {
-        _session.RequireAdmin();
+        _session.RequireAccountManager();
         using var c = _db.Open();
         return c.Query<User>("SELECT * FROM users ORDER BY username").ToList();
     }
 
     public User CreateUser(string username, string fullName, string password, string role, string? permissions = null)
     {
-        _session.RequireAdmin();
+        _session.RequireAccountManager();
+        if (role == Roles.Admin) RequireAdminFor("tạo tài khoản Quản trị");
         var clean = string.IsNullOrWhiteSpace(permissions) || role == Roles.Admin ? "" : Perm.Serialize(Perm.Parse(permissions));
         var u = Insert(username, fullName, password, role, clean);
         if (role == Roles.Admin) Sync?.Reseal(u.Username, password);
@@ -144,10 +151,11 @@ public class AuthService
     /// <summary>Lưu quyền chỉnh riêng (JSON {mục: mức}); chuỗi rỗng = theo vai trò.</summary>
     public void SetPermissions(long id, string permissions)
     {
-        _session.RequireAdmin();
+        _session.RequireAccountManager();
         var clean = string.IsNullOrWhiteSpace(permissions) ? "" : Perm.Serialize(Perm.Parse(permissions));
         using var c = _db.Open();
         var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id }) ?? throw new BusinessException("Không tìm thấy tài khoản.");
+        if (u.Role == Roles.Admin) RequireAdminFor("sửa tài khoản Quản trị");
         if (u.Permissions == clean) return;
         u.Permissions = clean;
         Sync?.BeforeSave(u);
@@ -158,12 +166,13 @@ public class AuthService
 
     public void UpdateUser(long id, string fullName, string role, bool isActive)
     {
-        _session.RequireAdmin();
+        _session.RequireAccountManager();
         if (!Roles.All.Contains(role)) throw new BusinessException("Vai trò không hợp lệ.");
         using var c = _db.Open();
         var u = c.QuerySingleOrDefault<User>("SELECT * FROM users WHERE id=@id", new { id })
                 ?? throw new BusinessException("Không tìm thấy tài khoản.");
-        if (u.Id == _session.CurrentUser!.Id && (!isActive || role != Roles.Admin))
+        if (u.Role == Roles.Admin || role == Roles.Admin) RequireAdminFor("sửa tài khoản Quản trị / nâng lên Quản trị");
+        if (u.Id == _session.CurrentUser!.Id && (!isActive || role != u.Role))
             throw new BusinessException("Không thể tự khóa hoặc tự hạ quyền tài khoản đang đăng nhập.");
         if (u.Role == Roles.Admin && (role != Roles.Admin || !isActive))
         {
@@ -180,7 +189,9 @@ public class AuthService
 
     public void ResetPassword(long id, string newPassword)
     {
-        _session.RequireAdmin();
+        _session.RequireAccountManager();
+        using (var c = _db.Open())
+            if (c.QuerySingleOrDefault<string>("SELECT role FROM users WHERE id=@id", new { id }) == Roles.Admin) RequireAdminFor("đặt lại mật khẩu tài khoản Quản trị");
         SetPassword(id, newPassword);
         _audit.Log(_session.Username, "Đặt lại mật khẩu", $"id {id}");
     }

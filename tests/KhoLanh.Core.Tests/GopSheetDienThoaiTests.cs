@@ -342,13 +342,20 @@ public class GopSheetDienThoaiTests : IDisposable
         a.Auth.CreateUser("nv1", "Nhân viên 1", "matkhau2", Roles.Staff);
         Assert.Contains(_phone.Acct.Rows, x => x["username"] == "nv1");
 
-        // Máy quản trị khác (chưa dùng chung) bấm chuyển sau → Sheet đã có mã khác → báo dán mã máy quản trị
+        // Máy quản trị khác (chưa dùng chung) bấm bật sau. 1.110 (người dùng: "bỏ bảo mật cao không cần thiết"): không chặn "đã bật từ máy khác"
+        // nữa — máy đó tự đặt lại mã; Sheet có Quản trị "admin" đang bật → giữ danh sách Sheet (tải về), mật khẩu theo Sheet.
         var (b, phoneB) = Machine("B");
         b.Auth.CreateFirstAdmin("admin", "Quản trị", "khac1234");
         b.Auth.Login("admin", "khac1234");
-        var ex = await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.MoveToPhoneSheetAsync(phoneB));
-        Assert.Contains("máy khác", ex.Message);
-        Assert.False(b.Accounts.Enabled);
+        var rb = await b.Accounts.MoveToPhoneSheetAsync(phoneB);
+        Assert.False(rb.Uploaded);
+        Assert.True(b.Accounts.Enabled && b.Accounts.CanWrite);
+        Assert.Contains(b.Auth.ListUsers(), u => u.Username == "nv1");
+        b.Auth.Logout();
+        Assert.Equal("admin", b.Auth.Login("admin", "matkhau1").Username);
+        // Máy A giữ mã cũ → đăng nhập lại là tự nối (pcDangNhap).
+        a.Auth.Logout();
+        Assert.Equal("nv1", (await LoginFlow.LoginAsync(a.Auth, a.Accounts, "nv1", "matkhau2")).User.Username);
     }
 
     [Fact]
@@ -389,33 +396,34 @@ public class GopSheetDienThoaiTests : IDisposable
         var (b, _) = Machine("B");   // máy B nối bằng mã của X
         await b.Accounts.ConnectAsync(x.Accounts.ConnectionCode(forAdmin: false));
 
-        // Máy chính A: tài khoản riêng, bấm "Bật tài khoản dùng chung" → bị chặn, có gợi ý đặt lại mã.
+        // Máy chính A: tài khoản riêng, bấm "Bật tài khoản dùng chung". Code.gs chưa có lệnh đặt lại mã → báo dán Code.gs mới (hoặc xóa Thuộc tính tay).
         var (a, phone) = Machine("A");
         a.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
         a.Auth.Login("admin", "matkhau1");
         a.Auth.CreateUser("khoa", "Khoa", "matkhau3", Roles.Admin);
-        var e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.MoveToPhoneSheetAsync(phone));
-        Assert.Contains("từ một máy khác", e.Message);
-        Assert.Contains("Đặt lại mã tài khoản dùng chung", e.Message);
-        Assert.False(a.Accounts.Enabled);
-
-        // Code.gs chưa có lệnh đặt lại → báo dán Code.gs mới (hoặc xóa Thuộc tính tay).
         _phone.NoReset = true;
-        e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.ResetCodesAsync(phone, keepSheet: false));
+        var e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.MoveToPhoneSheetAsync(phone));
         Assert.Contains("TK_MA_DOC", e.Message);
+        Assert.False(a.Accounts.Enabled);
         _phone.NoReset = false;
 
-        // Giữ danh sách trên Sheet nhưng Sheet không có Quản trị "admin" → không tải về (máy này không bị khóa).
-        e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.ResetCodesAsync(phone, keepSheet: true));
-        Assert.Contains("không có tài khoản Quản trị", e.Message);
-        Assert.True(a.Auth.ListUsers().All(u => u.IsActive));
-
-        // Thay danh sách trên Sheet bằng danh sách máy này.
-        var r = await a.Accounts.ResetCodesAsync(phone, keepSheet: false);
+        // 1.110: không bị chặn nữa — Sheet giữ mã của máy khác thì máy Quản trị tự đặt lại mã; Sheet không có "admin" → đưa danh sách máy này lên.
+        var r = await a.Accounts.MoveToPhoneSheetAsync(phone);
         Assert.True(r.Uploaded);
         Assert.Equal(2, r.Users);
         Assert.True(a.Accounts.Enabled && a.Accounts.OnPhoneSheet && a.Accounts.CanWrite);
         Assert.Equal(new[] { "admin", "khoa" }, _phone.Acct.Rows.Where(x => !x["username"].StartsWith('#')).Select(x => x["username"]).OrderBy(x => x));
+
+        // Đặt lại mã tay, giữ danh sách Sheet, mà Sheet không có Quản trị đang đăng nhập → không tải về (máy không bị khóa).
+        var (e2m, e2p) = Machine("E");
+        e2m.Auth.CreateFirstAdmin("boss", "Chủ", "boss1234"); e2m.Auth.Login("boss", "boss1234");
+        e = await Assert.ThrowsAsync<BusinessException>(() => e2m.Accounts.ResetCodesAsync(e2p, keepSheet: true));
+        Assert.Contains("không có tài khoản Quản trị", e.Message);
+        Assert.False(e2m.Accounts.Enabled);
+        Assert.True(e2m.Auth.ListUsers().All(u => u.IsActive));
+        // Mã vừa bị E đổi → A đặt lại (giữ danh sách Sheet vì có "admin").
+        var r1 = await a.Accounts.ResetCodesAsync(phone, keepSheet: null);
+        Assert.False(r1.Uploaded);
 
         // Máy B giữ mã cũ → "Sai mã kết nối"; đăng nhập khoa → hỏi Sheet bằng mật khẩu, tự nối lại với mã mới.
         await Assert.ThrowsAnyAsync<BusinessException>(() => b.Accounts.PullAsync());
@@ -423,6 +431,13 @@ public class GopSheetDienThoaiTests : IDisposable
         Assert.Equal("khoa", lr.User.Username);
         Assert.Equal(2, await b.Accounts.PullAsync());
         Assert.False(b.Auth.ListUsers().Single(u => u.Username == "quantricu").IsActive);   // tài khoản cũ không còn trên Sheet → khóa
+
+        // 1.110: Quản trị đổi mật khẩu khoa → máy B đăng nhập lại NGAY bằng mật khẩu mới (danh sách tải ngầm còn trong 2 phút dùng lại vẫn tải lại).
+        b.Auth.Logout();
+        a.Auth.ResetPassword(a.Auth.ListUsers().Single(u => u.Username == "khoa").Id, "moi12345");
+        Assert.Equal("khoa", (await LoginFlow.LoginAsync(b.Auth, b.Accounts, "khoa", "moi12345")).User.Username);
+        b.Auth.Logout();
+        await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(b.Auth, b.Accounts, "khoa", "matkhau3"));
 
         // Đặt lại lần nữa, giữ danh sách trên Sheet (đã có admin) → tải về, không ghi đè.
         a.Auth.CreateUser("rieng", "Chỉ trên máy A", "matkhau5", Roles.Staff);

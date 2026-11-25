@@ -74,7 +74,13 @@ public class AccountSyncService
     /// <summary>Đã bật dùng chung tài khoản qua Google Sheet.</summary>
     public bool Enabled => Url.Length > 0 && Token.Length > 0;
     /// <summary>Máy này được sửa tài khoản (có mã quản trị).</summary>
-    public bool CanWrite => Enabled && AdminKey.Length > 0;
+    /// <summary>
+    /// 1.110 (người dùng: "tài khoản quản trị đăng nhập máy nào thì máy đó là quản trị, chỉ phân quyền theo tài khoản không theo máy"):
+    /// + "tài khoản được phân quyền tạo tài khoản là đồng bộ lên Sheet được": sửa được tài khoản dùng chung = đang đăng nhập bằng Quản trị hoặc
+    /// tài khoản có quyền "Tạo / sửa tài khoản" (máy nào cũng vậy). Code.gs ≥ 1.110 (Sheet điện thoại) chỉ cần mã đọc hoặc PC_TOKEN để ghi;
+    /// mã quản trị cũ (nếu máy còn giữ) vẫn gửi kèm để Code.gs bản cũ nhận. Sheet tài khoản riêng kiểu cũ (TaiKhoan.gs) vẫn cần mã quản trị.
+    /// </summary>
+    public bool CanWrite => Enabled && (AdminKey.Length > 0 || (OnPhoneSheet && _session.CanManageAccounts));
     public string LastPull => _settings.Get(KeyLast);
     public bool HasPendingScript => Secret.Unprotect(_settings.Get(KeyPendToken)).Length > 0;
 
@@ -240,10 +246,20 @@ public class AccountSyncService
             throw new BusinessException("Danh sách tài khoản chưa có Quản trị nào đang dùng nên chưa chuyển được.");
         try { await phone.CallAsync("pc.tkCaiMa", new JsonObject { ["maDoc"] = token, ["maQuanTri"] = admin }, 60, ct); }
         catch (BusinessException e) when (e.Message.Contains("Không có chức năng")) { throw new BusinessException(OldPhoneScriptMsg); }
-        catch (BusinessException e) when (e.Message.Contains("từ một máy khác")) { throw new BusinessException(e.Message.TrimEnd() + " " + ResetHint); }
+        catch (BusinessException e) when (e.Message.Contains("từ một máy khác") && !Enabled)
+        {
+            // 1.110 (người dùng: "bỏ qua bảo mật cao, không cần thiết khiến kết nối phức tạp"): Sheet giữ mã của máy khác → máy Quản trị tự đặt lại mã,
+            // không bắt đi tìm mã máy kia. Danh sách trên Sheet có Quản trị đang đăng nhập → giữ (tải về); không có → đưa danh sách máy này lên.
+            var rr = await ResetCodesAsync(phone, null, ct);
+            return new MoveResult(rr.Users, rr.Uploaded, false);
+        }
         var cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
         bool uploaded = false;
-        if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is not null))
+        var meName = _session.CurrentUser?.Username ?? "";
+        bool SheetHasMe() => cur.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin } u && string.Equals(u.Username, meName, StringComparison.OrdinalIgnoreCase));
+        // 1.110: Sheet trống, hoặc danh sách trên Sheet không có Quản trị đang bật này (danh sách cũ của máy khác) → đưa danh sách máy này lên,
+        // không tải danh sách lạ về (tải về sẽ khóa chính tài khoản đang dùng).
+        if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is not null) || !SheetHasMe())
         {
             await CallAsync(url, token, admin, "replaceAll", new JsonObject { ["users"] = rows.DeepClone() }, ct);
             cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
@@ -286,7 +302,7 @@ public class AccountSyncService
     /// lại là tự nối (pcDangNhap). <paramref name="keepSheet"/>: true = giữ danh sách đang có trên Sheet (tải về máy này; Sheet trống thì đưa
     /// danh sách máy này lên), false = thay danh sách trên Sheet bằng danh sách máy này.
     /// </summary>
-    public async Task<ResetResult> ResetCodesAsync(PhoneWebApp phone, bool keepSheet, CancellationToken ct = default)
+    public async Task<ResetResult> ResetCodesAsync(PhoneWebApp phone, bool? keepSheet, CancellationToken ct = default)
     {
         _session.RequireAdmin();
         if (phone.Token.Length == 0)
@@ -294,17 +310,19 @@ public class AccountSyncService
         var url = CheckUrl(phone.Url);
         var local = new JsonArray(LocalUsers().Select(u => (JsonNode?)ToRow(u)).ToArray());
         bool LocalHasAdmin() => local.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin });
-        if (!keepSheet && !LocalHasAdmin()) throw new BusinessException("Máy này chưa có Quản trị nào đang dùng nên không đưa danh sách lên được.");
+        if (keepSheet == false && !LocalHasAdmin()) throw new BusinessException("Máy này chưa có Quản trị nào đang dùng nên không đưa danh sách lên được.");
         string token = NewCode(), admin = NewCode();
         try { await phone.CallAsync("pc.tkDatLaiMa", new JsonObject { ["maDoc"] = token, ["maQuanTri"] = admin }, 60, ct); }
         catch (BusinessException e) when (e.Message.Contains("Không có chức năng")) { throw new BusinessException(OldResetScriptMsg); }
         var cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
         var sheetHas = cur.OfType<JsonObject>().Any(o => FromRow(o) is not null);
+        var me = _session.CurrentUser?.Username ?? "";
+        var hasMe = cur.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin } u && string.Equals(u.Username, me, StringComparison.OrdinalIgnoreCase));
+        keepSheet ??= sheetHas && hasMe;   // tự chọn: Sheet có Quản trị đang đăng nhập → giữ danh sách Sheet, không thì đưa danh sách máy này lên
         bool uploaded = false;
-        if (keepSheet && sheetHas)
+        if (keepSheet == true && sheetHas)
         {
-            var me = _session.CurrentUser?.Username ?? "";
-            if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin } u && string.Equals(u.Username, me, StringComparison.OrdinalIgnoreCase)))
+            if (!hasMe)
                 throw new BusinessException($"Mã mới đã đặt, nhưng danh sách trên Google Sheet không có tài khoản Quản trị \"{me}\" đang dùng — chưa tải về để máy này không bị khóa. "
                     + "Chọn lại \"Đặt lại mã…\" với cách \"Thay danh sách trên Sheet bằng danh sách máy này\".");
         }
@@ -798,7 +816,12 @@ public class AccountSyncService
         var url = Url; var token = Token; var admin = AdminKey;
         var row = ToRow(u);
         try { Task.Run(() => CallAsync(url, token, admin, "save", new JsonObject { ["user"] = row })).GetAwaiter().GetResult(); }
-        catch (BusinessException ex) { throw new BusinessException("Chưa lưu được lên Google Sheet nên chưa đổi gì: " + ex.Message); }
+        catch (BusinessException ex)
+        {
+            var more = ex.Message.Contains("không có mã quản trị")
+                ? " (Code.gs trên Google còn bản cũ, ghi phải có mã quản trị — dán Code.gs mới vào Apps Script rồi Triển khai › Phiên bản mới.)" : "";
+            throw new BusinessException("Chưa lưu được lên Google Sheet nên chưa đổi gì: " + ex.Message + more);
+        }
     }
 
     // ---------------- dòng Sheet <-> User ----------------
@@ -885,6 +908,8 @@ public class AccountSyncService
         var body = payload ?? new JsonObject();
         body["token"] = token; body["action"] = action;
         if (admin.Length > 0) body["adminKey"] = admin;
+        // 1.110: Sheet điện thoại — gửi kèm PC_TOKEN (Code.gs ≥ 1.110 nhận thay mã đọc) → máy giữ mã đọc cũ (mã trên Sheet vừa đặt lại) vẫn đọc / ghi được.
+        if (Phone is { Token.Length: > 0 } ph && string.Equals(url.Trim(), PhoneUrl.Trim(), StringComparison.Ordinal)) body["pcToken"] = ph.Token;
         // Dùng chung 1 HttpClient (giữ sẵn kết nối TLS tới Google giữa các lần gọi — lần tải ngầm lúc mở cửa sổ làm "nóng" cho lần sau).
         using var own = _handler is null ? null : new HttpClient(_handler, false) { Timeout = TimeSpan.FromSeconds(60) };
         var h = own ?? Shared;
