@@ -693,26 +693,73 @@ public sealed partial class LichXuatService
         _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetEmail] = new JsonArray(keep.Select(r => JsonNode.Parse(JsonSerializer.Serialize(r, EmJson))).ToArray()) });
     }
 
-    public sealed record ScanResult(int New, int Auto, int ContSet, int XeFilled, int Waiting, List<string> Notes);
+    public sealed record ScanResult(int New, int Auto, int ContSet, int XeFilled, int Waiting, List<string> Notes)
+    {
+        /// <summary>Số thư nhận diện được (trước khi bỏ thư đã có) — 1.77.</summary>
+        public int Recognized { get; init; }
+    }
 
     /// <summary>
     /// Quét hộp thư: thư mới → đề xuất chờ duyệt. Thư «Thông tin xe» (không cần duyệt): ghi số cont vào lịch cùng LSX + điền thông tin xe vào phiếu xuất kho
     /// đã có (phiếu đã có thông tin xe thì không đè). Thư của người tin cậy, qua lưới an toàn (Guard) → tự áp vào lịch (hoàn tác được).
     /// Thư xe của người tin cậy nhận HÔM NAY mà lịch hôm nay chưa có LSX → tự tạo lịch hôm nay.
     /// </summary>
-    public async Task<ScanResult> ScanEmailAsync(CancellationToken ct = default)
+    public async Task<ScanResult> ScanEmailAsync(CancellationToken ct = default, Action<string>? progress = null)
     {
         if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
-        return await ScanCoreAsync(ct);
+        // 1.77: giới hạn 3 phút — trước đây hộp thư lớn khiến nút quét đứng ở "Đang đọc hộp thư…" không báo gì
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(ScanTimeout);
+        try { return await ScanCoreAsync(cts.Token, progress); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        { throw SetMailStatus(new BusinessException($"Quá {ScanTimeout.TotalMinutes:0} phút chưa đọc xong hộp thư — điền ô «Chỉ nhận thư từ» (lọc ngay trên Gmail) hoặc giảm số ngày đọc, rồi quét lại.")); }
+    }
+    public TimeSpan ScanTimeout { get; set; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>Trạng thái kết nối Gmail gần nhất (✓ / ✖ + giờ) — hiện ở đầu hộp Email (settings lx_mail_status).</summary>
+    public string MailStatus => _settings.Get("lx_mail_status");
+    private T SetMailStatus<T>(T e) where T : Exception { _settings.Set("lx_mail_status", $"✖ {Now():HH:mm dd/MM} · {e.Message}"); return e; }
+
+    /// <summary>Nút "Kiểm tra kết nối": đăng nhập Gmail, mở thư mục, đếm thư — không tải nội dung, không ghi lịch.</summary>
+    public async Task<string> CheckMailAsync(CancellationToken ct = default, Action<string>? progress = null)
+    {
+        if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
+        if (Mail is not ImapMailSource imap) return "✓ (nguồn thư thử nghiệm)";
+        imap.Progress = progress;
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct); cts.CancelAfter(TimeSpan.FromMinutes(1));
+        try
+        {
+            var msg = await imap.CheckAsync(MailCfg(), cts.Token);
+            _settings.Set("lx_mail_status", $"{msg.Split(" · ")[0]} lúc {Now():HH:mm dd/MM}");
+            return msg;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw SetMailStatus(new BusinessException("Quá 1 phút chưa kết nối được Gmail.")); }
+        catch (BusinessException e) { throw SetMailStatus(e); }
+        finally { imap.Progress = null; }
     }
 
     /// <summary>Quét thật (dùng chung cho quét tay của Quản trị và quét nền <see cref="StartAutoEmail"/>).</summary>
-    private async Task<ScanResult> ScanCoreAsync(CancellationToken ct)
+    private async Task<ScanResult> ScanCoreAsync(CancellationToken ct, Action<string>? progress = null)
     {
         if (!CanAutoMail) throw new BusinessException("Tài khoản không có quyền sửa Lịch xuất.");
         var cfg = MailCfg();
-        var msgs = await Mail.FetchAsync(cfg, ct);
-        return ProcessMessages(msgs, cfg);
+        List<LichXuatEmail.Msg> msgs;
+        if (Mail is ImapMailSource imap) imap.Progress = progress;
+        try { msgs = await Mail.FetchAsync(cfg, ct); }
+        catch (BusinessException e) { throw SetMailStatus(e); }
+        finally { if (Mail is ImapMailSource im) im.Progress = null; }
+        var r = ProcessMessages(msgs, cfg);
+        if (Mail is ImapMailSource st)
+        {
+            // số liệu từng bước — để biết thư bị loại ở đâu khi "quét không thấy thư"
+            var (folder, found, down) = st.LastStats;
+            r.Notes.Insert(0, $"Đọc «{folder}»: {found} thư trong {Math.Max(cfg.Days, 1)} ngày (+30 ngày lấy thư gốc)" + (cfg.AllowList.Count > 0 ? " từ người ở ô «Chỉ nhận thư từ»" : "") +
+                $" · {down} thư thuộc chuỗi có LSX trên tiêu đề (dạng 26.11.020) · {r.Recognized} thư nhận diện được (tạo / đổi / hủy lịch / thông tin xe)." +
+                (found > 0 && down == 0 ? " → Không thư nào có số LSX trên tiêu đề, nên không có gì để cập nhật lịch." : "") +
+                (down > 0 && r.Recognized == 0 ? " → Có chuỗi thư có LSX nhưng tiêu đề thiếu từ khóa (xem ô «Từ khóa») hoặc nội dung không nói về kéo đóng / xuất hàng." : ""));
+            _settings.Set("lx_mail_status", $"✓ Đã kết nối {cfg.Email} lúc {Now():HH:mm dd/MM} · {found} thư");
+        }
+        return r;
     }
 
     /// <summary>Xử lý thư đã đọc (tách khỏi IMAP để test).</summary>
@@ -764,7 +811,7 @@ public sealed partial class LichXuatService
         SaveEmailRows(store);
         _settings.Set("lx_mail_last", now.ToString("o", CultureInfo.InvariantCulture));
         var waiting = store.Count(r => r.TrangThai.Length == 0);
-        return new ScanResult(fresh.Count, auto, contN, xeN, waiting, notes);
+        return new ScanResult(fresh.Count, auto, contN, xeN, waiting, notes) { Recognized = built.Count };
     }
 
     public DateTime? LastScan => DateTime.TryParse(_settings.Get("lx_mail_last"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var d) ? d : null;

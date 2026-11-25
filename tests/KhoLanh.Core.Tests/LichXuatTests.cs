@@ -58,6 +58,28 @@ public class LichXuatTests : IDisposable
         Assert.DoesNotContain(KhoLanh.Core.Models.Perm.Items, i => i.Key == "lxmail");   // bỏ ô quyền cũ khỏi Phân quyền
     }
 
+    private sealed class SlowMail : IMailSource
+    {
+        public async Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default) { await Task.Delay(TimeSpan.FromMinutes(5), ct); return new(); }
+    }
+    private sealed class BadMail : IMailSource
+    {
+        public Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default) => throw new BusinessException("Gmail từ chối đăng nhập — thử");
+    }
+
+    [Fact]
+    public async Task Quet_email_qua_lau_bao_loi_khong_treo_va_ghi_trang_thai()
+    {
+        // 1.77: trước đây hộp thư lớn làm nút quét đứng mãi ở "Đang đọc hộp thư…"
+        Lx.Mail = new SlowMail(); Lx.ScanTimeout = TimeSpan.FromMilliseconds(200);
+        var e = await Assert.ThrowsAsync<BusinessException>(() => Lx.ScanEmailAsync());
+        Assert.Contains("Quá", e.Message);
+        Assert.StartsWith("✖", Lx.MailStatus);
+        Lx.Mail = new BadMail();
+        await Assert.ThrowsAsync<BusinessException>(() => Lx.ScanEmailAsync());
+        Assert.Contains("từ chối đăng nhập", Lx.MailStatus);
+    }
+
     // ------------------------------------------------------------------ lõi
 
     [Fact]

@@ -49,42 +49,103 @@ public interface IMailSource
 /// <summary>Đọc thư Gmail qua IMAP (chỉ đọc, mở hộp thư ở chế độ ReadOnly).</summary>
 public sealed class ImapMailSource : IMailSource
 {
-    public async Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default)
+    /// <summary>Báo tiến độ (đang kết nối / tìm thư / tải k/n) — giao diện hiện ở dòng trạng thái (1.77).</summary>
+    public Action<string>? Progress { get; set; }
+    /// <summary>Số liệu lần đọc gần nhất: thư mục, số thư tìm thấy, số thư thuộc chuỗi có LSX trên tiêu đề (đã tải nội dung).</summary>
+    public (string Folder, int Found, int Downloaded) LastStats { get; private set; }
+
+    private async Task<ImapClient> ConnectAsync(MailConfig cfg, CancellationToken ct)
     {
         if (!cfg.Ready) throw new BusinessException("Chưa khai báo tài khoản Gmail (địa chỉ + mật khẩu ứng dụng).");
         var pass = Secret.Unprotect(cfg.PassEnc);
-        using var c = new ImapClient { Timeout = 60_000 };
+        var c = new ImapClient { Timeout = 60_000 };
         try
         {
+            Progress?.Invoke("Đang kết nối " + cfg.Host + "…");
             await c.ConnectAsync(cfg.Host, cfg.Port, SecureSocketOptions.SslOnConnect, ct);
+            Progress?.Invoke("Đang đăng nhập " + cfg.Email + "…");
             await c.AuthenticateAsync(cfg.Email, pass, ct);
+            return c;
         }
-        catch (AuthenticationException) { throw new BusinessException("Gmail từ chối đăng nhập — kiểm tra địa chỉ và MẬT KHẨU ỨNG DỤNG (không phải mật khẩu Gmail), IMAP đã bật."); }
-        catch (Exception e) when (e is System.Net.Sockets.SocketException or IOException or TimeoutException) { throw new BusinessException("Không kết nối được " + cfg.Host + ": " + e.Message); }
+        catch (AuthenticationException) { c.Dispose(); throw new BusinessException("Gmail từ chối đăng nhập — kiểm tra địa chỉ và MẬT KHẨU ỨNG DỤNG 16 ký tự (không phải mật khẩu Gmail), Xác minh 2 bước đã bật."); }
+        catch (Exception e) when (e is System.Net.Sockets.SocketException or IOException or TimeoutException) { c.Dispose(); throw new BusinessException("Không kết nối được " + cfg.Host + ": " + e.Message); }
+        catch { c.Dispose(); throw; }
+    }
 
-        IMailFolder folder;
-        try { folder = await c.GetFolderAsync(cfg.Folder, ct); }
-        catch { folder = c.Inbox; }
+    /// <summary>
+    /// Thư mục cần đọc. "[Gmail]/All Mail" mang tên khác khi Gmail để tiếng Việt ("[Gmail]/Tất cả thư") → tìm theo công dụng
+    /// đặc biệt "All" (SPECIAL-USE); không có thì Hộp thư đến. Trả kèm ghi chú khi phải đổi.
+    /// </summary>
+    private static async Task<(IMailFolder F, string Note)> FolderAsync(ImapClient c, MailConfig cfg, CancellationToken ct)
+    {
+        try { return (await c.GetFolderAsync(cfg.Folder, ct), ""); }
+        catch (Exception) when (!ct.IsCancellationRequested) { }
+        if ((c.Capabilities & (ImapCapabilities.SpecialUse | ImapCapabilities.XList)) != 0)
+        {
+            try { var all = c.GetFolder(SpecialFolder.All); if (all is not null) return (all, $"không có thư mục «{cfg.Folder}» → dùng «{all.FullName}» (Tất cả thư)"); } catch { }
+        }
+        return (c.Inbox, $"không có thư mục «{cfg.Folder}» → đọc Hộp thư đến");
+    }
+
+    /// <summary>Tìm thư theo ngày, và theo người gửi NGAY TRÊN MÁY CHỦ nếu có ô "Chỉ nhận thư từ" (đỡ tải cả hộp thư).</summary>
+    private static SearchQuery Query(MailConfig cfg, int extraDays)
+    {
+        SearchQuery q = SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - extraDays));
+        var allow = cfg.AllowList;
+        if (allow.Count > 0)
+        {
+            SearchQuery from = SearchQuery.FromContains(allow[0]);
+            foreach (var a in allow.Skip(1)) from = from.Or(SearchQuery.FromContains(a));
+            q = q.And(from);
+        }
+        return q;
+    }
+
+    /// <summary>Kiểm tra kết nối (nút "Kiểm tra kết nối"): đăng nhập, mở thư mục, đếm thư — không tải nội dung, không ghi gì.</summary>
+    public async Task<string> CheckAsync(MailConfig cfg, CancellationToken ct = default)
+    {
+        using var c = await ConnectAsync(cfg, ct);
+        var (folder, note) = await FolderAsync(c, cfg, ct);
         await folder.OpenAsync(FolderAccess.ReadOnly, ct);
-        var uids = await folder.SearchAsync(SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - 30)), ct);
+        Progress?.Invoke("Đang đếm thư…");
+        var all = await folder.SearchAsync(SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1))), ct);
+        var mine = cfg.AllowList.Count > 0 ? (await folder.SearchAsync(Query(cfg, 0), ct)).Count : all.Count;
+        await c.DisconnectAsync(true, ct);
+        return $"✓ Đã kết nối {cfg.Email} · thư mục «{folder.FullName}»" + (note.Length > 0 ? $" ({note})" : "") +
+               $" · {all.Count} thư trong {Math.Max(cfg.Days, 1)} ngày" + (cfg.AllowList.Count > 0 ? $", trong đó {mine} thư từ người ở ô «Chỉ nhận thư từ»" : "") + ".";
+    }
+
+    public async Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default)
+    {
+        using var c = await ConnectAsync(cfg, ct);
+        var (folder, _) = await FolderAsync(c, cfg, ct);
+        await folder.OpenAsync(FolderAccess.ReadOnly, ct);
+        Progress?.Invoke("Đang tìm thư trong «" + folder.FullName + "»…");
+        // thêm 30 ngày để lấy thư gốc của chuỗi (nhận diện LSX / ngày ETD từ thư đầu)
+        var uids = await folder.SearchAsync(Query(cfg, 30), ct);
         var res = new List<LichXuatEmail.Msg>();
+        LastStats = (folder.FullName, uids.Count, 0);
         if (uids.Count == 0) { await c.DisconnectAsync(true, ct); return res; }
         var items = MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.InternalDate;
         if (c.Capabilities.HasFlag(ImapCapabilities.GMailExt1)) items |= MessageSummaryItems.GMailThreadId | MessageSummaryItems.GMailMessageId;
+        Progress?.Invoke($"Đang đọc tiêu đề {uids.Count} thư…");
         var sums = await folder.FetchAsync(uids, items, ct);
         // chỉ tải nội dung của thư thuộc chuỗi có LSX trên tiêu đề (đỡ tải cả hộp thư)
         var keepThreads = sums.Where(s => System.Text.RegularExpressions.Regex.IsMatch(s.Envelope?.Subject ?? "", @"\d{2}\.\d{2}\.\d{2,3}"))
             .Select(s => ThreadOf(s)).ToHashSet();
-        foreach (var s in sums)
+        var want = sums.Where(s => keepThreads.Contains(ThreadOf(s))).ToList();
+        var k = 0;
+        foreach (var s in want)
         {
             ct.ThrowIfCancellationRequested();
-            if (!keepThreads.Contains(ThreadOf(s))) continue;
+            Progress?.Invoke($"Đang tải thư {++k}/{want.Count} (chuỗi có LSX trên tiêu đề)…");
             var msg = await folder.GetMessageAsync(s.UniqueId, ct);
             var text = msg.TextBody ?? (msg.HtmlBody is { } h ? System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(h, "<(br|/p|/div)[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase)), "<[^>]+>", "") : "");
             var from = msg.From.Mailboxes.FirstOrDefault() is { } mb ? (mb.Name.Length > 0 ? mb.Name + " <" + mb.Address + ">" : mb.Address) : "";
             var id = s.GMailMessageId is { } gm ? gm.ToString() : (msg.MessageId ?? s.UniqueId.ToString());
             res.Add(new LichXuatEmail.Msg(id, ThreadOf(s), (s.InternalDate ?? msg.Date).LocalDateTime, from, msg.Subject ?? "", text));
         }
+        LastStats = (folder.FullName, uids.Count, want.Count);
         await c.DisconnectAsync(true, ct);
         return res;
     }
