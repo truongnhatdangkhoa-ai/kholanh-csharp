@@ -41,6 +41,7 @@ public static class Perm
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
         new("drivepush", "Gửi dữ liệu từ máy xem từ xa (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy xem từ xa (ngoài công ty) chỉ xem, không sửa được"),
+        new("landuphong", "Máy dự phòng LAN", "Hệ thống", new[] { Edit }, "Máy đăng nhập bằng tài khoản này làm máy dự phòng (giữ bản sao dữ liệu, tự làm máy chủ khi máy chủ chính tắt) nếu chưa có máy dự phòng. Không tích = máy con"),
     };
 
     /// <summary>
@@ -63,6 +64,7 @@ public static class Perm
     {
         var d = new Dictionary<string, string>();
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
+        d["landuphong"] = None;   // 1.106: máy dự phòng LAN chỉ khi Quản trị tích riêng
         if (role == Roles.Staff)
         {
             d["backup"] = None; d["audit"] = None; d["phone"] = None;

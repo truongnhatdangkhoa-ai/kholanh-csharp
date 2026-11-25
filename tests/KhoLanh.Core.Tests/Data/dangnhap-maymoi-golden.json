@@ -1,0 +1,26 @@
+[
+ {
+  "matKhau": "matkhau2",
+  "muoi": "h:00112233445566778899aabbccddeeff",
+  "bam": "h:a6c750a777cc1b0da0e779d21712bd1a1696f4736ea1bdde5c4d94e99ac458bc",
+  "dung": true,
+  "sai": false,
+  "base64": true
+ },
+ {
+  "matKhau": "Mật khẩu có dấu ✓",
+  "muoi": "h:ffeeddccbbaa99887766554433221100",
+  "bam": "h:6a3e7cf00dfaf0423f18c3da67c71cfd4e5635b990a79253b5adf4f3937e6d35",
+  "dung": true,
+  "sai": false,
+  "base64": true
+ },
+ {
+  "matKhau": "Kho@2026!",
+  "muoi": "h:0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+  "bam": "h:cf16b145ea341c4ccc215c781cbcf64825ee561585eeaf1313bd96165f913520",
+  "dung": true,
+  "sai": false,
+  "base64": true
+ }
+]

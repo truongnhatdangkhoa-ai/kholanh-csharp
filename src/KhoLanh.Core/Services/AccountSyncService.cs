@@ -326,6 +326,88 @@ public class AccountSyncService
         return new ConnectResult(uploaded, count, admin.Length > 0);
     }
 
+    // ---------------- 1.106: máy mới chỉ cần đăng nhập ----------------
+
+    /// <summary>Câu báo khi Code.gs trên Google chưa có lệnh đăng nhập máy mới (pcDangNhap).</summary>
+    public const string OldJoinScriptMsg =
+        "Google Sheet chung chưa cập nhật Code.gs mới (cần cho máy mới đăng nhập). Ở máy Quản trị: dán Code.gs mới vào Apps Script rồi Triển khai phiên bản mới; "
+        + "trong lúc chờ, dán mã KLKN1-… (Hệ thống › Kết nối › Chép mã cho máy khác).";
+
+    /// <summary>
+    /// 1.106: MÁY MỚI chỉ cần tên đăng nhập + mật khẩu. Gửi tới Web App Sheet chung cài sẵn (lệnh <c>pcDangNhap</c> của Code.gs): Web App kiểm mật khẩu bằng
+    /// chính mã băm PBKDF2 ở tab TaiKhoan, đúng thì trả mã đọc tài khoản + PC_TOKEN (+ mã GitHub) → máy tự kết nối như khi dán mã KLKN1. Sai nhiều lần
+    /// Web App tạm khóa (chống dò mật khẩu). Chỉ dùng khi máy CHƯA có tài khoản nào (máy đang dùng riêng thì kết nối ở Hệ thống › Kết nối).
+    /// </summary>
+    public async Task<int> JoinByPasswordAsync(string user, string pass, CancellationToken ct = default)
+    {
+        if (HasAnyUser()) throw new BusinessException("Máy này đã có tài khoản riêng — kết nối ở Hệ thống › Kết nối.");
+        if (user.Trim().Length == 0 || pass.Length == 0) throw new BusinessException("Nhập tên đăng nhập và mật khẩu.");
+        var url = PhoneUrl;
+        var r = await PostRawAsync(url, new JsonObject { ["action"] = "pcDangNhap", ["ten"] = user.Trim(), ["matKhau"] = pass }, ct);
+        if (r["ok"]?.GetValue<bool>() != true)
+        {
+            if (LooksLikePhoneScript(r) || (r["error"]?.ToString() ?? "").Contains("Không có chức năng")) throw new BusinessException(OldJoinScriptMsg);
+            throw new BusinessException(r["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
+        }
+        string token = r["maDoc"]?.ToString() ?? "", pcTok = r["pcToken"]?.ToString() ?? "", gh = r["gh"]?.ToString() ?? "";
+        if (token.Length == 0) throw new BusinessException("Web App không trả mã tài khoản — kiểm tra Code.gs.");
+        var users = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
+        if (MovedTo(users, url) is { } moved) { url = moved; users = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray(); }
+        if (users.Count == 0) throw new BusinessException("Google Sheet chung chưa có tài khoản nào.");
+        CachePlan(users);
+        var count = Apply(users);
+        _settings.Set(KeyUrl, url);
+        _settings.Set(KeyToken, Secret.Protect(token));
+        _settings.Set(KeyAdmin, "");
+        _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
+        if (gh.Length > 0) Updates?.ImportToken(gh);
+        if (pcTok.Length > 0)
+        {
+            var pu = url == PhoneWebApp.DefaultUrl ? "" : PhoneUrl;
+            if (Phone is not null) Phone.Save(pu, pcTok);
+            else { _settings.Set(PhoneWebApp.KeyUrl, pu.Length > 0 ? pu : PhoneWebApp.DefaultUrl); _settings.Set(PhoneWebApp.KeyToken, Secret.Protect(pcTok)); }
+        }
+        _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
+        _audit.Log(user.Trim(), "Kết nối tài khoản dùng chung", $"máy mới đăng nhập bằng mật khẩu, tải về {count} tài khoản");
+        return count;
+    }
+
+    /// <summary>
+    /// 1.106: máy Quản trị đẩy mã cập nhật phần mềm (GitHub) lên Sheet chung (lệnh <c>pc.ghMayMoi</c>, cần PC_TOKEN) để máy mới đăng nhập xong tự cập nhật được.
+    /// Chỉ gửi khi mã đổi (so dấu trong cài đặt <c>gh_maymoi_sig</c>).
+    /// </summary>
+    public async Task PushGithubForNewMachinesAsync(CancellationToken ct = default)
+    {
+        if (Phone is not { Enabled: true } || Updates is null) return;
+        var tok = Updates.ShareToken();
+        if (tok.Length == 0) return;
+        var sig = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Phone.Url + "|" + tok)))[..16];
+        if (_settings.Get(KeyGhSig) == sig) return;
+        await Phone.CallAsync("pc.ghMayMoi", new JsonObject { ["gh"] = tok }, 30, ct);
+        _settings.Set(KeyGhSig, sig);
+    }
+    private const string KeyGhSig = "gh_maymoi_sig";
+    /// <summary>Lượt đẩy mã GitHub ngầm gần nhất (để kiểm thử chờ).</summary>
+    internal Task GhTask { get; private set; } = Task.CompletedTask;
+
+    private async Task<JsonObject> PostRawAsync(string url, JsonObject body, CancellationToken ct)
+    {
+        using var own = _handler is null ? null : new HttpClient(_handler, false) { Timeout = TimeSpan.FromSeconds(60) };
+        var h = own ?? Shared;
+        HttpResponseMessage res;
+        try { res = await h.PostAsync(url, new StringContent(body.ToJsonString(), Encoding.UTF8, new MediaTypeHeaderValue("text/plain")), ct); }
+        catch (HttpRequestException) { throw new BusinessException("Không kết nối được Google Sheet chung — kiểm tra Internet."); }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new BusinessException("Google Sheet chung trả lời quá lâu — thử lại."); }
+        using (res)
+        {
+            var text = await res.Content.ReadAsStringAsync(ct);
+            JsonObject? o = null;
+            try { o = JsonNode.Parse(text) as JsonObject; } catch (JsonException) { }
+            return o ?? throw new BusinessException($"Web App trả về trang lạ (HTTP {(int)res.StatusCode}).");
+        }
+    }
+
     public void Disconnect()
     {
         _session.RequireAdmin();
@@ -537,6 +619,7 @@ public class AccountSyncService
     {
         _sessionKey = "";
         if (!Enabled || u.Role != Roles.Admin) return;
+        GhTask = Task.Run(async () => { try { await PushGithubForNewMachinesAsync(); } catch { /* lần đăng nhập sau thử lại */ } });
         try
         {
             CachedBlobs().TryGetValue(u.Username, out var mine);

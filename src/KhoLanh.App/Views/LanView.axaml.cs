@@ -73,36 +73,37 @@ public partial class LanView : UserControl, IPage
         AutoRows.Children.Clear(); _autoBoxes.Clear();
         if (!s.Accounts.Enabled)
         {
-            AutoOn.IsEnabled = AutoSaveButton.IsEnabled = ClaimButton.IsEnabled = DropStandbyButton.IsEnabled = false;
+            AutoOn.IsEnabled = AutoSaveButton.IsEnabled = ClaimButton.IsEnabled = DropStandbyButton.IsEnabled = StandbyButton.IsEnabled = false;
             AutoMsg.Text = "Cần bật tài khoản dùng chung (Google Sheet) trước: Hệ thống › Sao lưu và cài đặt.";
             AutoSlots.Text = "";
             ShowManual(false);
             return;
         }
-        AutoOn.IsChecked = plan.On;
-        // 1.56: vai từng tài khoản gán ở Hệ thống › Tài khoản (ô "Vai máy LAN"); ở đây chỉ hiện tóm tắt
-        var assigned = s.Auth.ListUsers().Where(u => u.IsActive && plan.RoleOf(u.Username) != LanService.RoleClient)
-            .Select(u => $"{u.Username} — {LanService.RoleLabel(plan.RoleOf(u.Username))}").ToList();
+        // 1.106: vai theo TÀI KHOẢN — không cài tay IP / mã LAN.
         AutoRows.Children.Add(new TextBlock
         {
-            Text = (assigned.Count == 0 ? "Chưa gán tài khoản nào làm máy chủ / dự phòng (mọi tài khoản = máy con)." : "Đã gán: " + string.Join(" · ", assigned))
-                   + "\nGán vai cho từng tài khoản ở Hệ thống › Tài khoản (ô Vai máy LAN).",
+            Text = "• Quản trị: bật / tắt máy chủ trên máy giữ dữ liệu chính (nên là máy luôn bật).\n"
+                   + "• Tài khoản có quyền \"Máy dự phòng LAN\" (Hệ thống › Tài khoản › phân quyền): máy đăng nhập là máy dự phòng.\n"
+                   + "• Mọi tài khoản khác: máy con — đăng nhập là tự nối máy chủ trong cùng mạng.",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep",
         });
-        var open = new Button { Content = "Mở Tài khoản" };
-        open.Click += (_, _) => MainWindow.Of(this)?.Navigate("users");
-        AutoRows.Children.Add(open);
         var canWrite = s.Accounts.CanWrite;
-        AutoOn.IsEnabled = AutoSaveButton.IsEnabled = canWrite;
-        ClaimButton.IsEnabled = canWrite && plan.On && !(plan.Chu?.Id == s.Lan.MachineId && s.Lan.Role == LanService.RoleServer);
-        DropStandbyButton.IsEnabled = canWrite && plan.On && plan.DuPhong is not null;
-        if (!canWrite) AutoMsg.Text = "Chưa mở khóa ghi Google Sheet nên chỉ xem được — đăng nhập bằng tài khoản Quản trị để sửa phân vai.";
+        var isServer = plan.Chu?.Id == s.Lan.MachineId && s.Lan.Role == LanService.RoleServer;
+        var admin = s.Session.Role == KhoLanh.Core.Models.Roles.Admin;
+        ClaimButton.IsVisible = admin && !isServer;
+        ClaimButton.Content = plan.Chu is null ? "Bật máy chủ trên máy này" : "Chuyển máy chủ về máy này";
+        ClaimButton.IsEnabled = canWrite;
+        StandbyButton.IsVisible = admin && isServer;
+        StandbyButton.IsEnabled = canWrite;
+        DropStandbyButton.IsEnabled = canWrite && plan.DuPhong is not null;
+        if (!canWrite) AutoMsg.Text = "Chỉ tài khoản Quản trị bật / tắt được máy chủ.";
         ShowPlanSlots(plan);
-        ShowManual(plan.On);
+        ShowManual(true);
     }
 
     private void ShowManual(bool planOn)
     {
+        ManualCard.IsVisible = ShareCard.IsVisible = !planOn;   // 1.106: có tài khoản dùng chung thì không cài tay IP / mã LAN
         ManualNote.IsVisible = planOn;
         foreach (var r in new[] { RoleSingle, RoleServer, RoleStandby, RoleClient }) r.IsEnabled = !planOn;
         CodePanel.IsEnabled = PortPanel.IsEnabled = ManualSave.IsEnabled = !planOn;
@@ -112,32 +113,30 @@ public partial class LanView : UserControl, IPage
     {
         var me = App.Services.Lan.MachineId;
         string S(LanPlan.Slot? x) => x is null ? "chưa có" : $"{x.Name}{(x.Id == me ? " (máy này)" : "")} — {string.Join(", ", x.Addrs)}";
-        AutoSlots.Text = plan.On
-            ? $"Máy chủ chính: {S(plan.Chu)}\nMáy dự phòng: {S(plan.DuPhong)}" + (App.LanPublishNote.Length > 0 ? "\n" + App.LanPublishNote : "")
-            : "Đang tắt — mỗi máy dùng vai cài tay bên dưới.";
+        AutoSlots.Text = $"Máy chủ chính: {S(plan.Chu)}\nMáy dự phòng: {S(plan.DuPhong)}" + (App.LanPublishNote.Length > 0 ? "\n" + App.LanPublishNote : "");
     }
 
     private async void OnAutoSave(object? sender, RoutedEventArgs e)
     {
         var s = App.Services;
         var on = AutoOn.IsChecked == true;
-        var vai = new Dictionary<string, string>(s.Accounts.Plan?.Vai ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
-        if (on && !vai.ContainsValue(LanService.RoleServer) && (s.Accounts.Plan?.Chu is null))
-        { await Ui.Message(this, "Chưa có tài khoản nào được gán Máy chủ chính và chưa có máy chủ — vào Hệ thống › Tài khoản, chọn tài khoản Quản trị của máy chủ, đặt Vai máy LAN = Máy chủ chính."); return; }
+        var noServer = on && s.Accounts.Plan?.Chu is null;
+        if (noServer && !await Ui.Confirm(this, "Chưa có máy chủ chính. Đặt MÁY NÀY làm máy chủ chính (giữ dữ liệu chính cho mọi máy)?\n\nMáy chủ nên là máy luôn bật. Muốn máy khác làm máy chủ: bấm Đóng, ra máy đó bật ở đây.", "Bật mạng LAN", "Đặt máy này")) return;
         LanPlan? plan = null;
-        if (!await Ui.RunAsync(this, async () => plan = await s.Accounts.UpdatePlanAsync(p =>
-            {
-                p.On = on;
-                p.Vai = new Dictionary<string, string>(vai, StringComparer.OrdinalIgnoreCase);
-                return true;
-            }))) return;
-        s.Audit.Log(s.Session.Username, "Phân vai LAN theo tài khoản", on ? string.Join(", ", vai.Select(p => $"{p.Key}={LanService.RoleLabel(p.Value)}")) : "tắt");
+        if (!await Ui.RunAsync(this, async () => plan = await s.Accounts.UpdatePlanAsync(p => { p.On = on; return true; }))) return;
+        s.Audit.Log(s.Session.Username, "Mạng LAN tự nối", on ? "bật" : "tắt");
+        if (noServer)
+        {
+            string m = "";
+            if (!await Ui.RunAsync(this, async () => m = await KhoLanh.Core.Lan.LanPlanSync.ClaimServerAsync(s))) { LoadPlan(); return; }
+            Resubscribe(); App.PublishLan(); AutoMsg.Text = m; LoadPlan(); return;
+        }
         // áp ngay cho máy này (như vừa đăng nhập)
         string? msg = null;
         try { msg = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s); } catch (Exception ex) { msg = "Không tự đổi vai LAN được: " + ex.Message; }
         Resubscribe();
         App.PublishLan();
-        AutoMsg.Text = "Đã lưu lên Google Sheet. Các máy khác nhận vai ở lần đăng nhập tới." + (msg is null ? "" : "\n" + msg);
+        AutoMsg.Text = "Đã lưu lên Google Sheet. Các máy khác tự nối ở lần đăng nhập tới." + (msg is null ? "" : "\n" + msg);
         LoadPlan();
     }
 
@@ -156,10 +155,23 @@ public partial class LanView : UserControl, IPage
         LoadPlan();
     }
 
+    private async void OnRelease(object? sender, RoutedEventArgs e)
+    {
+        var d = App.Services.Accounts.Plan?.DuPhong;
+        if (!await Ui.Confirm(this, "Tắt máy chủ trên máy này?" + (d is null
+                ? "\n\nChưa có máy dự phòng: các máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại (ở máy này hoặc máy khác) thì tự gộp."
+                : $"\n\nMáy dự phòng {d.Name} sẽ tự làm máy chủ."), "Tắt máy chủ", "Tắt")) return;
+        string msg = "";
+        if (!await Ui.RunAsync(this, async () => msg = await KhoLanh.Core.Lan.LanPlanSync.ReleaseServerAsync(App.Services))) return;
+        Resubscribe();
+        AutoMsg.Text = msg;
+        LoadPlan();
+    }
+
     private async void OnDropStandby(object? sender, RoutedEventArgs e)
     {
         if (App.Services.Accounts.Plan?.DuPhong is not { } d) return;
-        if (!await Ui.Confirm(this, $"Bỏ ghi nhận máy dự phòng {d.Name}? Lần đăng nhập tới máy đó thành máy con (trừ khi người đăng nhập được gán Máy dự phòng).", "Bỏ máy dự phòng", "Bỏ")) return;
+        if (!await Ui.Confirm(this, $"Bỏ ghi nhận máy dự phòng {d.Name}? Lần đăng nhập tới máy đó thành máy con.", "Bỏ máy dự phòng", "Bỏ")) return;
         if (!await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p => { p.DuPhong = null; return true; }))) return;
         AutoMsg.Text = "Đã bỏ máy dự phòng.";
         LoadPlan();
@@ -197,7 +209,7 @@ public partial class LanView : UserControl, IPage
                               + (lan.ListenError.Length > 0 ? "\n" + lan.ListenError : "");
             SyncText.Text = lan.LastSync.Length > 0 ? "Lần gửi sổ chờ gần nhất: " + lan.LastSync : "";
         }
-        ShareCard.IsVisible = lan.Enabled && lan.Role == LanService.RoleServer;
+        ShareCard.IsVisible = lan.Enabled && lan.Role == LanService.RoleServer && !App.Services.Accounts.Enabled;   // 1.106: dùng chung tài khoản thì máy tự nối, không cần mã LAN
         if (App.Services.Accounts.Plan is { } plan) ShowPlanSlots(plan);
         MachinesGrid.ItemsSource = lan.Machines().Select(m => new MachineRow(m.Name, LanService.RoleLabel(m.Role), m.Addr, m.At, m.Pending)).ToList();
         var sel = (ConflictsGrid.SelectedItem as ConflictRow)?.C.Id;

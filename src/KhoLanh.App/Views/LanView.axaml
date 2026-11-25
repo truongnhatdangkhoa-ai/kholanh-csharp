@@ -10,7 +10,7 @@
         <TextBlock x:Name="SyncText" Classes="muted" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
       </StackPanel>
     </Border>
-    <TabControl>
+    <TabControl x:Name="LanTabs">
       <TabItem Header="Máy đang nối &amp; trùng sửa">
         <!-- 1.80: cuộn được + bảng Trùng sửa cao tối thiểu 260 (trước dòng "*" trong 2 lớp tab ở màn 1366×768 gần như 0 → bị cắt, không cuộn được) -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
@@ -51,19 +51,20 @@
         </Grid>
         </ScrollViewer>
       </TabItem>
-      <TabItem Header="Cài đặt vai máy">
+      <TabItem Header="Máy chủ LAN">
         <ScrollViewer Margin="0,8,0,0">
           <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
             <Border Classes="card" VerticalAlignment="Top">
               <StackPanel Spacing="8">
-                <TextBlock Text="Phân vai theo tài khoản" Classes="section"
-                           ToolTip.Tip="Quản trị gán vai cho tài khoản, mọi máy tự nhận vai khi đăng nhập (không cần chép mã LAN). Không gán = máy con. Máy đã làm máy chủ / dự phòng giữ vai dù ai đăng nhập. Lưu trên Google Sheet tài khoản dùng chung."/>
-                <CheckBox x:Name="AutoOn" Content="Bật: máy tự nhận vai theo tài khoản đăng nhập"/>
+                <TextBlock Text="Máy chủ LAN theo tài khoản" Classes="section"
+                           ToolTip.Tip="Không cài tay IP / mã: Quản trị bật máy chủ trên máy giữ dữ liệu chính; tài khoản có quyền Máy dự phòng LAN đăng nhập máy nào thì máy đó làm dự phòng; mọi tài khoản khác là máy con, tự nối máy chủ trong cùng mạng. Địa chỉ máy chủ lưu trên Google Sheet chung."/>
+                <CheckBox x:Name="AutoOn" IsVisible="False"/>
                 <StackPanel x:Name="AutoRows" Spacing="4"/>
                 <TextBlock x:Name="AutoSlots" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
                 <WrapPanel ItemSpacing="6" LineSpacing="6">
-                  <Button x:Name="AutoSaveButton" Content="Lưu bật / tắt" Classes="primary" Click="OnAutoSave"/>
-                  <Button x:Name="ClaimButton" Content="Chuyển máy chủ về máy này" Click="OnClaim"/>
+                  <Button x:Name="AutoSaveButton" IsVisible="False"/>
+                  <Button x:Name="ClaimButton" Content="Bật máy chủ trên máy này" Classes="primary" Click="OnClaim"/>
+                  <Button x:Name="StandbyButton" Content="Tắt máy chủ trên máy này" Classes="danger" Click="OnRelease"/>
                   <Button x:Name="DropStandbyButton" Content="Bỏ máy dự phòng" Click="OnDropStandby"/>
                 </WrapPanel>
                 <TextBlock x:Name="AutoMsg" Classes="muted" TextWrapping="Wrap" FontSize="12" Tag="keep"/>

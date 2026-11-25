@@ -41,6 +41,22 @@ public class GopSheetDienThoaiTests : IDisposable
     {
         public readonly AccountSyncTests.FakeWebApp Acct = new();
         public bool OldScript;   // Code.gs bản cũ: chưa có phần tài khoản
+        public string Gh = "";
+        public readonly Dictionary<string, int> Sai = new();
+        /// <summary>Giống dnPost_ của Code.gs 1.106: PBKDF2 ở tab TaiKhoan, 5 lần sai / tài khoản → khóa.</summary>
+        private static byte[] B(string v) => v.StartsWith("h:") ? Convert.FromHexString(v[2..]) : Convert.FromBase64String(v);
+        private JsonObject DangNhap(string ten, string mk)
+        {
+            if (Acct.Token.Length == 0) return new() { ["ok"] = false, ["chuaBat"] = true, ["error"] = "Google Sheet chung chưa bật tài khoản dùng chung." };
+            var k = ten.ToLowerInvariant();
+            if (Sai.GetValueOrDefault(k) >= 5) return new() { ["ok"] = false, ["khoa"] = true, ["error"] = "Tài khoản này nhập sai mật khẩu 5 lần — tạm khóa đăng nhập máy mới 15 phút." };
+            var u = Acct.Rows.FirstOrDefault(x => string.Equals(x["username"], ten, StringComparison.OrdinalIgnoreCase) && !ten.StartsWith('#'));
+            var ok = u is not null && u.GetValueOrDefault("dang_dung") == "1" && u.GetValueOrDefault("muoi", "").Length > 0
+                && System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(mk, B(u["muoi"]), 100_000, System.Security.Cryptography.HashAlgorithmName.SHA256, 32)
+                   .SequenceEqual(B(u["mat_khau_bam"]));
+            if (!ok) { Sai[k] = Sai.GetValueOrDefault(k) + 1; return new() { ["ok"] = false, ["error"] = "Sai tên đăng nhập hoặc mật khẩu (hoặc tài khoản đã bị khóa)." }; }
+            return new() { ["ok"] = true, ["ten"] = u!["username"], ["maDoc"] = Acct.Token, ["pcToken"] = PcToken, ["gh"] = Gh };
+        }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct)
         {
             var text = await req.Content!.ReadAsStringAsync(ct);
@@ -53,7 +69,9 @@ public class GopSheetDienThoaiTests : IDisposable
                 else if (Acct.Token.Length == 0) res = new() { ["ok"] = false, ["error"] = "Google Sheet này chưa bật tài khoản dùng chung." };
                 else return await new HttpMessageInvoker(Acct, false).SendAsync(new HttpRequestMessage(HttpMethod.Post, req.RequestUri) { Content = new StringContent(text) }, ct);
             }
+            else if (action == "pcDangNhap" && !OldScript) res = DangNhap(r["ten"]?.ToString() ?? "", r["matKhau"]?.ToString() ?? "");
             else if (r["token"]?.ToString() != PcToken) res = new() { ["ok"] = false, ["code"] = "AUTH", ["error"] = "Mã truy cập không đúng." };
+            else if (action == "pc.ghMayMoi") { Gh = r["gh"]?.ToString() ?? ""; res = new() { ["ok"] = true }; }
             else if (action == "pc.tkCaiMa" && !OldScript)
             {
                 string doc = r["maDoc"]!.ToString(), qt = r["maQuanTri"]!.ToString();
@@ -125,6 +143,72 @@ public class GopSheetDienThoaiTests : IDisposable
         var old = AccountSyncService.ParseAny(AccountSyncService.CodePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(new JsonObject { ["u"] = PhoneUrl, ["t"] = "x" }.ToJsonString())).TrimEnd('='));
         Assert.Equal("", old.PhoneToken);
         Assert.Throws<BusinessException>(() => AccountSyncService.ParseAny("KLLAN1-abc"));
+    }
+
+    [Fact]
+    public async Task May_moi_chi_can_dang_nhap_tu_ket_noi()
+    {
+        // Máy Quản trị: dùng chung Sheet điện thoại, có mã GitHub → đăng nhập lại thì tự đẩy mã GitHub cho máy mới.
+        var (a, phone) = Machine("A");
+        a.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
+        a.Auth.Login("admin", "matkhau1");
+        await a.Accounts.MoveToPhoneSheetAsync(phone);
+        a.Auth.CreateUser("nv1", "Nhân viên 1", "matkhau2", Roles.Staff);
+        a.Updates.SaveConfig("", "ghp_test123", true);
+        a.Auth.Logout();
+        a.Auth.Login("admin", "matkhau1");
+        await a.Accounts.GhTask;
+        Assert.Equal("ghp_test123", _phone.Gh);
+
+        // Máy mới: chưa có mã gì (chỉ có link Web App cài sẵn) → tên + mật khẩu là đủ.
+        var (b, bPhone) = Machine("B", phoneLinked: false);
+        b.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);   // giả lập link cài sẵn (DefaultUrl) trỏ vào Web App giả
+        Assert.False(b.Accounts.Enabled);
+        var e = await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.JoinByPasswordAsync("nv1", "sai-mat-khau"));
+        Assert.Contains("Sai tên đăng nhập", e.Message);
+        Assert.False(b.Auth.HasAnyUser());
+        var n = await b.Accounts.JoinByPasswordAsync("NV1", "matkhau2");
+        Assert.Equal(2, n);
+        Assert.True(b.Accounts.Enabled);
+        Assert.True(b.Accounts.OnPhoneSheet);
+        Assert.Equal(PcToken, bPhone.Token);
+        Assert.True(b.Updates.HasToken);
+        var u = (await LoginFlow.LoginAsync(b.Auth, b.Accounts, "nv1", "matkhau2")).User;
+        Assert.Equal(Roles.Staff, u.Role);
+        // Máy đã có tài khoản thì không đăng nhập máy mới nữa (kết nối ở Hệ thống › Kết nối).
+        await Assert.ThrowsAsync<BusinessException>(() => b.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
+
+        // Dò mật khẩu: sai 5 lần → khóa, kể cả mật khẩu đúng.
+        var (c, _) = Machine("C", phoneLinked: false);
+        c.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
+        for (var i = 0; i < 5; i++) await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "doan" + i));
+        e = await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.JoinByPasswordAsync("admin", "matkhau1"));
+        Assert.Contains("tạm khóa", e.Message);
+        Assert.False(c.Auth.HasAnyUser());
+
+        // Code.gs trên Google còn bản cũ → báo dán Code.gs mới / dán mã KLKN1.
+        _phone.OldScript = true;
+        var (d, _) = Machine("D", phoneLinked: false);
+        d.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
+        e = await Assert.ThrowsAsync<BusinessException>(() => d.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
+        Assert.Equal(AccountSyncService.OldJoinScriptMsg, e.Message);
+    }
+
+    /// <summary>Code.gs (dnKiemMk_, PBKDF2 JavaScript thuần) và app PC (AuthService.Verify) cho cùng kết quả — đáp án sinh bằng chính Code.gs (Data/dangnhap-maymoi-golden.gen.js).</summary>
+    [Fact]
+    public void Kiem_mat_khau_Code_gs_khop_app_PC()
+    {
+        var arr = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Data", "dangnhap-maymoi-golden.json")))!.AsArray();
+        Assert.Equal(3, arr.Count);
+        foreach (var c in arr)
+        {
+            string mk = c!["matKhau"]!.ToString(), muoi = Convert.ToBase64String(Convert.FromHexString(c["muoi"]!.ToString()[2..])), bam = Convert.ToBase64String(Convert.FromHexString(c["bam"]!.ToString()[2..]));
+            Assert.True(AuthService.Verify(mk, muoi, bam));
+            Assert.False(AuthService.Verify(mk + "x", muoi, bam));
+            Assert.True(c["dung"]!.GetValue<bool>());
+            Assert.False(c["sai"]!.GetValue<bool>());
+            Assert.True(c["base64"]!.GetValue<bool>());
+        }
     }
 
     [Fact]
