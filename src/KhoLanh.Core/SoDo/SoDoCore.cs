@@ -243,8 +243,14 @@ public static class SoDoCore
         return order.Select(g => new Grp(g, n[g], 1)).ToList();
     }
     public static bool IsOver(Pos p, Built b) => !p.Z && b.Tang.TryGetValue(p.TangKey, out var m) && m.Used > m.Nk;
-    /// <summary>'e' trống · 'u' 1 mã · 'mm' nhiều mã.</summary>
-    public static string Status(Pos p) => p.It.Count == 0 ? "e" : p.It.Select(x => x.Ma).Distinct().Count() > 1 ? "mm" : "u";
+    /// <summary>'e' trống · 'u' có hàng 1 nhóm · 'mm' nhiều mã CẦN CẢNH BÁO.
+    /// 1.88: nhóm = cùng mặt hàng + cùng size (như pallet, <see cref="Pos.Grps"/>): 2 mã cùng size cùng mặt hàng → KHÔNG cảnh báo ('u');
+    /// từ 2 size, hoặc cùng size khác mặt hàng → 'mm'. Mã không quy ra size → mỗi mã 1 nhóm (như trước).</summary>
+    public static string Status(Pos p) => p.It.Count == 0 ? "e" : GroupCount(p) > 1 ? "mm" : "u";
+    /// <summary>Số nhóm (mặt hàng + size) trong vị trí; chưa tính nhóm (Grps rỗng) → đếm mã.</summary>
+    public static int GroupCount(Pos p) => p.Grps.Count > 0 ? p.Grps.Count : p.It.Select(x => x.Ma).Distinct().Count();
+    /// <summary>Số mã khác nhau trong vị trí.</summary>
+    public static int CodeCount(Pos p) => p.It.Select(x => x.Ma).Distinct().Count();
     public static string StatusLabel(string s) => s == "e" ? "Trống" : s == "u" ? "Có hàng" : "Nhiều mã";
     public sealed record Counts(int All, int E, int U, int Mm, int Ov, int Fill);
     public static Counts CountsOf(IEnumerable<Pos> list, Built b)

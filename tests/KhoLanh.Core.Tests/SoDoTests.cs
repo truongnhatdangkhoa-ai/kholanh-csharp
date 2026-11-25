@@ -272,4 +272,35 @@ public class SoDoTests : IDisposable
         Assert.Equal("m8", ModuleBridge.PermKey("so-do-vi-tri"));
         Assert.Contains(Perm.Items, x => x.Key == "m8");
     }
+    [Fact]
+    public void Nhieu_ma_chi_canh_bao_khi_khac_size_hoac_khac_mat_hang()
+    {
+        // nhóm = mặt hàng | size (như SoDoService.GrpOf); mã "X…" không quy ra size → mỗi mã 1 nhóm
+        var grp = new Dictionary<string, string> { ["M1"] = "NL|90", ["M2"] = "NL|90", ["M3"] = "NL|100", ["M4"] = "AĐ|90" };
+        string G(string ma, string ten) => grp.GetValueOrDefault(ma, "");
+        StockRow R(string vt, string ma) => new() { Vt = vt, Ma = ma, Sl = 10, Tl = 8 };
+        var rows = new[]
+        {
+            R("TG1.A.01.1.1", "M1"), R("TG1.A.01.1.1", "M2"),   // 2 mã cùng size, cùng mặt hàng → không cảnh báo
+            R("TG1.A.01.1.2", "M1"), R("TG1.A.01.1.2", "M3"),   // 2 size → cảnh báo
+            R("TG1.A.01.1.3", "M1"), R("TG1.A.01.1.4", "M4"),
+            R("TG1.A.01.2.1", "M2"), R("TG1.A.01.2.1", "M4"),   // cùng size 90, khác mặt hàng → cảnh báo
+            R("TG1.A.01.2.2", "X1"), R("TG1.A.01.2.2", "X2"),   // không rõ size → 2 mã = cảnh báo như cũ
+            R("TG1.A.01.2.3", "X1"), R("TG1.A.01.2.3", "X1"),   // cùng 1 mã 2 lô → không cảnh báo
+        };
+        var cfg = new Cfg { ["TG1"] = new() { new() { Khu = "A", D = 1, K = 4, T = 2 } } };
+        var b = Build(rows, cfg, _ => null, G);
+        Assert.Equal("u", Status(b.ByCode["TG1.A.01.1.1"]));
+        Assert.Equal(2, CodeCount(b.ByCode["TG1.A.01.1.1"]));
+        Assert.Equal("mm", Status(b.ByCode["TG1.A.01.1.2"]));
+        Assert.Equal("u", Status(b.ByCode["TG1.A.01.1.3"]));
+        Assert.Equal("mm", Status(b.ByCode["TG1.A.01.2.1"]));
+        Assert.Equal("mm", Status(b.ByCode["TG1.A.01.2.2"]));
+        Assert.Equal("u", Status(b.ByCode["TG1.A.01.2.3"]));
+        Assert.Equal("e", Status(b.ByCode["TG1.A.01.2.4"]));
+        var c = CountsOf(b.Pos, b);
+        Assert.Equal((8, 1, 4, 3), (c.All, c.E, c.U, c.Mm));
+        // bộ lọc trạng thái dùng cùng quy tắc
+        Assert.Equal(3, b.Pos.Count(p => Pass(p, new Filter { St = "mm" }, b, _ => "")));
+    }
 }
