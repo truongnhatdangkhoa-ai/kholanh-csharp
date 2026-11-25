@@ -615,6 +615,11 @@ public sealed class AnAnView : UserControl, IPage
                 _ => null,
             },
         };
+        // 1.96: dòng Bột + Sốt + Bếp / Tồn Kho Gửi → bấm (hoặc nút ↗) mở Tổng Hợp › Báo cáo ngoài sổ sách để cập nhật số
+        bool Link(int r) => r >= 0 && r < _bcRows.Count && _bcRows[r].Kind is "manual" or "khogui";
+        _bcg.RowClicked = r => { if (Link(r)) GoNgss(_bcRows[r].Kind == "khogui"); };
+        _bcg.CellTip = (r, _) => Link(r) ? "Bấm để mở Tổng Hợp › Báo cáo ngoài sổ sách và cập nhật số liệu" : null;
+        _bcg.CellForeground = (r, c) => c == 0 && Link(r) ? AppTheme.Brush("#1F6FD6") : null;
         _bdg = new SheetGrid(_bdm)
         {
             SpareRows = 0, Filterable = false, ShowTotals = false,
@@ -633,6 +638,8 @@ public sealed class AnAnView : UserControl, IPage
         // Bảng Tổng Hợp HLSO tab riêng
         var left = new StackPanel { Width = 580, Spacing = 4 };
         left.Children.Add(Label("Báo Cáo Tổng Tồn", true, 13.5)); left.Children.Add(Framed(_bcg)); left.Children.Add(_bcKhoGui);
+        var goNgss = new Button { Content = "↗ Cập nhật Bột + Sốt + Bếp / Tồn Kho Gửi (Báo cáo ngoài sổ sách)", Classes = { "ghost" }, Padding = new Thickness(6, 2), FontSize = 12.5 };
+        goNgss.Click += (_, _) => GoNgss(false); left.Children.Add(goNgss);
         var right = new StackPanel { Width = 600, Spacing = 4 };
         right.Children.Add(Label("Đối Soát: 8 Module vs Load Data", true, 13.5)); right.Children.Add(_bcAlert); right.Children.Add(Framed(_bdg)); right.Children.Add(_bcRecon);
         var both = new WrapPanel { ItemSpacing = 20, LineSpacing = 14, Children = { left, right } };
@@ -697,8 +704,8 @@ public sealed class AnAnView : UserControl, IPage
         _bcRows = BaoCaoTongTon.Bang(D);
         string Lbl(BaoCaoTongTon.Dong r) => r.Kind switch
         {
-            "manual" => r.Label + (BaoCaoTongTon.ManualMissing(D) ? "  (chưa nhập)" : ""),
-            "total" => "TỔNG TỒN KHO", "khogui" => "Tồn Kho Gửi (Kho Transimex Long An)" + (r.Weight is null ? "  (chưa có số liệu)" : ""),
+            "manual" => r.Label + (BaoCaoTongTon.ManualMissing(D) ? "  (chưa nhập)" : "") + "  ↗",
+            "total" => "TỔNG TỒN KHO", "khogui" => "Tồn Kho Gửi (Kho Transimex Long An)" + (r.Weight is null ? "  (chưa có số liệu)" : "") + "  ↗",
             _ => r.Label,
         };
         _bcm.Load(new[] { new GridColumn("l", "Tên hàng", 320, "text"), new GridColumn("w", "Tổng trọng lượng (kg)", 170, "number") },
@@ -974,7 +981,7 @@ public sealed class AnAnView : UserControl, IPage
         ngss.Children.Add(Row(AnAnData.KhoGuiLabel, _ngssKhoGui, AnAnData.KhoGuiLabel));
         if (_edit) ngss.Children.Add(Btn("Lấy Kho Gửi từ Tồn kho gửi", async () => await PullKhoGui()));
 
-        return new TabControl
+        return _thTabs = new TabControl
         {
             Items =
             {
@@ -983,6 +990,15 @@ public sealed class AnAnView : UserControl, IPage
                 new TabItem { Header = "Báo cáo ngoài sổ sách", Content = ngss },
             },
         };
+    }
+
+    private TabControl? _thTabs;
+    /// <summary>1.96: mở Tổng Hợp › Báo cáo ngoài sổ sách, đặt con trỏ vào ô cần sửa.</summary>
+    private void GoNgss(bool khoGui)
+    {
+        _tabs.SelectedIndex = _tabs.Items.Count - 1;   // Tổng Hợp (tab cuối)
+        if (_thTabs is not null) _thTabs.SelectedIndex = 2;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => { var b = khoGui ? _ngssKhoGui : _ngssManual; b.Focus(); b.SelectAll(); }, Avalonia.Threading.DispatcherPriority.Background);
     }
 
     private async Task SlipAct(bool deduct)
