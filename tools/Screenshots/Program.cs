@@ -880,6 +880,88 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// Giai đoạn 5: SHOTS_ONLY=v203 — Trợ lý › Các máy (dữ liệu mẫu 3 máy, 1 máy mất liên lạc) + Lịch sử 7 / 30 ngày, 1440×880 và 1366×768.
+// Tự kiểm: bảng đủ 3 máy, nhãn "Mất liên lạc", khung phải có cảnh báo, biểu đồ đủ cao, không control nào tràn ngang trang. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var now = DateTime.Now; var ok = true;
+    // máy này: quét thật + ghi tình trạng thật; 2 máy khác: ghi thẳng vào database dùng chung như khi nhận qua LAN / Drive
+    s.TroLy.Scan(false); s.TroLy.PublishStatus();
+    var store = s.TroLy.MayStore;
+    KhoLanh.Core.TroLy.PerfStore.Sample Smp(double cpu, double ram, double free) => new(now.AddMinutes(-3), cpu, 4, ram, 512, free, 237.9, 9, 120);
+    store.Write(KhoLanh.Core.TroLy.TroLyMay.Build("may-kho-02", "KHO-LANH-02", "1.101.0", "Máy con LAN", now.AddMinutes(-7), now.AddHours(-2),
+        2, 3, 11, new[] { ("do", "Đồng bộ", "Máy con mất kết nối máy chủ LAN 25 phút"), ("do", "Phần mềm", "Lỗi phần mềm: Object reference not set to an instance of an object."),
+            ("vang", "Hiệu năng", "RAM gần đầy kéo dài: trung bình 88% trong 30 phút"), ("vang", "Sao lưu", "Bản sao lưu cũ hơn 2 ngày"), ("vang", "Tồn kho An An", "Mã hợp lệ nhưng chưa có trong Danh sách mã hàng") },
+        Smp(76, 91, 8.4), 54, 83));
+    store.Write(KhoLanh.Core.TroLy.TroLyMay.Build("may-vp-03", "VAN-PHONG", "1.99.0", "Xem từ xa (Drive)", now.AddHours(-5), now.AddDays(-1),
+        0, 1, 14, new[] { ("vang", "Kết nối", "Gmail lịch xuất mất kết nối") }, Smp(18, 52, 120), 22, 48));
+    // lịch sử máy này 30 ngày
+    var rnd = new Random(5);
+    for (var d = 29; d >= 1; d--)
+        if (d % 6 != 3)
+            for (var k = 0; k < 1 + rnd.Next(3); k++)
+                s.TroLy.LichSu.Add(new KhoLanh.Core.TroLy.TroLyLichSu.Scan(now.Date.AddDays(-d).AddHours(8 + 3 * k), k == 0, Math.Max(0, (d % 9 == 0 ? 3 : 1) - rnd.Next(2)),
+                    2 + rnd.Next(6), 8 + rnd.Next(4), rnd.Next(3), d % 11 == 0 ? 1 : 0, rnd.Next(2)));
+    KhoLanh.App.Views.TroLyMayView Open(MainWindow w)
+    {
+        w.Navigate("troly"); P(40);
+        var tc = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Các máy"));
+        tc.SelectedItem = tc.Items.OfType<TabItem>().First(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Các máy"); P(40);
+        var v = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TroLyMayView>().First();
+        v.Refresh(); P(20);
+        return v;
+    }
+    bool Check(MainWindow w, KhoLanh.App.Views.TroLyMayView v, string tag)
+    {
+        var good = true;
+        var g = v.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+        var rows = g.Model.RowCount;
+        var lost = Enumerable.Range(0, rows).Count(r => g.Model.Get(r, 4).StartsWith("Mất liên lạc", StringComparison.Ordinal));
+        var det = v.GetVisualDescendants().OfType<TextBlock>().Count(t => t.IsEffectivelyVisible && t.Text is "NẶNG" or "CẦN XEM");
+        var pageW = w.PageHost.Bounds.Width;
+        var over = v.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible && c.Bounds.Width > 0)
+            .Count(c => c.TranslatePoint(new Point(c.Bounds.Width, 0), w.PageHost) is { } pt && pt.X > pageW + 2 && c is not TextBlock);
+        Console.WriteLine($"[v203 {tag}] máy {rows} · mất liên lạc {lost} · cảnh báo ở khung phải {det} · lưới {g.Bounds.Width:0}×{g.Bounds.Height:0} · trang rộng {pageW:0} · tràn ngang {over}");
+        if (rows != 3 || lost != 1 || det < 1 || g.Bounds.Height < 200 || over > 0) good = false;
+        return good;
+    }
+    var mv = Open(main);
+    ok &= Check(main, mv, "1440");
+    Snap(main, "v203-cac-may");
+    // chọn máy có cảnh báo Nặng
+    var grid = mv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var r2 = Enumerable.Range(0, grid.Model.RowCount).First(r => grid.Model.Get(r, 0).StartsWith("KHO-LANH-02", StringComparison.Ordinal));
+    grid.Select(r2, 0); P(10);
+    var nang = mv.GetVisualDescendants().OfType<TextBlock>().Count(t => t.IsEffectivelyVisible && t.Text == "NẶNG");
+    Console.WriteLine($"[v203] chọn KHO-LANH-02 → {nang} cảnh báo Nặng ở khung phải");
+    if (nang != 2) ok = false;
+    Snap(main, "v203-cac-may-chon");
+    mv.Tabs.SelectedIndex = 1; P(30);
+    Control Chart(KhoLanh.App.Views.TroLyMayView v) => v.GetVisualDescendants().OfType<Control>().First(c => c.GetType().Name == "DayChart");
+    var chart = Chart(mv);
+    Console.WriteLine($"[v203] biểu đồ lịch sử {chart.Bounds.Width:0}×{chart.Bounds.Height:0}");
+    if (chart.Bounds.Height < 200 || chart.Bounds.Width < 400) ok = false;
+    Snap(main, "v203-lich-su-7");
+    var seg = mv.GetVisualDescendants().OfType<KhoLanh.App.Controls.Seg>().First(); seg.Selected = 1;
+    mv.PaintHistory(); P(15);
+    Snap(main, "v203-lich-su-30");
+    // 1366×768: dùng cửa sổ nhỏ `small` đã mở sẵn ở đầu công cụ (headless không vẽ lại khi đổi cỡ cửa sổ / mở cửa sổ mới về sau)
+    var sw2 = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; sw2.Show(); P(20);
+    var mv2 = Open(sw2);
+    ok &= Check(sw2, mv2, "1366");
+    Snap(sw2, "v203-cac-may-1366");
+    mv2.Tabs.SelectedIndex = 1; P(30);
+    var c2 = mv2.GetVisualDescendants().OfType<Control>().First(c => c.GetType().Name == "DayChart");
+    Console.WriteLine($"[v203 1366] biểu đồ lịch sử {c2.Bounds.Width:0}×{c2.Bounds.Height:0}");
+    if (c2.Bounds.Width < 400 || c2.Bounds.Height < 200) ok = false;
+    // đổi tab con bằng SelectedIndex (như bấm) phải tự vẽ lịch sử
+    var hInfo = mv2.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible && t.Text?.Contains("lần quét trong") == true);
+    Console.WriteLine($"[v203 1366] dòng tóm tắt lịch sử: {(hInfo ? "có" : "KHÔNG")}");
+    if (!hInfo) ok = false;
+    Snap(sw2, "v203-lich-su-1366");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
 // 1.102: SHOTS_ONLY=v202 — Trợ lý giai đoạn 4: nút "Sửa nhanh" ở khung chi tiết (sao lưu ngay → quét lại hết cảnh báo), thông báo góc màn hình cho cảnh báo Nặng mới. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v202")

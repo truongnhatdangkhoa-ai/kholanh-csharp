@@ -23,7 +23,7 @@ namespace KhoLanh.Core.TroLy;
 /// do Quản trị bấm: "Thêm mã vào Danh sách mã hàng" (chỉ THÊM dòng mới, có ghi nhật ký).
 /// Trạng thái hàng đợi lưu riêng ở &lt;thư mục dữ liệu&gt;/tro-ly-state.json (theo máy).
 /// </summary>
-public sealed class TroLyService
+public sealed partial class TroLyService
 {
     private readonly Database _db;
     private readonly Func<ISheetSource> _src;
@@ -150,6 +150,7 @@ public sealed class TroLyService
         res.Findings = fin; res.Changes = ch; res.Ms = sw.ElapsedMilliseconds;
         Count(res);
         Last = res;
+        AfterScan(res);   // giai đoạn 5: lịch sử quét (hieu-nang.db) + ảnh chụp tình trạng máy (database dùng chung) — TroLyService.May.cs
         Scanned?.Invoke(res);
         return res;
     }
@@ -212,7 +213,7 @@ public sealed class TroLyService
         var s = LoadState();
         var send = pick.Where(x => s.Items.TryGetValue(x.Id, out var q) && q.St is "moi" or "taiPhat").Select(x => x.Id).ToList();
         if (send.Count > 0) { s.Items = TroLyQueue.Mark(s.Items, send, "daGui", Now(), Version).Items; SaveState(s); Refresh(); }
-        return TroLyReport.Build(pick, Version, Now(), anDanh);
+        return TroLyReport.Build(pick, Version, Now(), anDanh, ReportExtra(pick));
     }
 
     public sealed record AddResult(int Added, int SkippedNear);
