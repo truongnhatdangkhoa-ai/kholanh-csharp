@@ -532,10 +532,21 @@ public partial class MainWindow : Window
             var strip = StripOf(tc);
             var y = tc.TranslatePoint(new Point(0, 0), PageHost)?.Y ?? 0;
             if (strip is null || strip.Bounds.Height > 40) { RestoreLifted(); TitleOnly(); return; }
+            // 1.85.1: lúc xếp, phần trên TabControl chưa kịp có chiều cao (p0.Y < 6) nhưng sau khi vẽ thì cao hơn hẳn (vd Container 3D:
+            // thanh công cụ 38px) → trước đây dời cả trang lên −y, thanh công cụ chui lên thanh menu. Chỉ bù lệch nhỏ (viền / lề);
+            // lệch lớn → xếp lại theo vị trí thật (nhánh chuyển phần trên lên hàng tên trang), quá số lần → chỉ tên trang.
+            if (y > MaxTabShift)
+            {
+                RestoreLifted();
+                if (_alignRetry++ < 3) { var r = _alignRetry; AlignPageTabs(); _alignRetry = r; } else TitleOnly();
+                return;
+            }
             if (Math.Abs(y) > 0.5) PageHost.Margin = new Thickness(12, -y, 12, 8);
             InvalidateVisual();
         }, Avalonia.Threading.DispatcherPriority.Background);
     }
+    /// <summary>Lệch tối đa (px) giữa dải tab và đầu trang được bù bằng lề âm — lớn hơn là có phần nội dung nằm trên tab.</summary>
+    internal const double MaxTabShift = 6;
     private static Control? StripOf(TabControl tc) =>
         tc.GetVisualDescendants().OfType<ItemsPresenter>().FirstOrDefault(p => p.Name == "PART_ItemsPresenter" && p.TemplatedParent == tc);
     /// <summary>Công cụ chụp / kiểm tra: TabControl đang nằm chung hàng tên trang.</summary>
