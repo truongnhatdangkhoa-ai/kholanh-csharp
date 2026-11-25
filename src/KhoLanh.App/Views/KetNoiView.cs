@@ -158,6 +158,9 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         {
             kind = "bad";
             detail = $"Lỗi lúc {When(err.At)}: {err.Msg}" + (err.Kind == ConnErrorLog.KindPhoneScript ? "" : " — bấm ⋯ Thêm › Kiểm tra kết nối để thử lại.");
+            // 1.109: Sheet giữ mã của máy khác / máy này giữ mã cũ → không máy nào sửa được nữa: gợi ý Đặt lại mã.
+            if (Admin && ph.Enabled && (err.Msg.Contains("từ một máy khác") || err.Msg.Contains("Sai mã kết nối")) && !err.Msg.Contains("Đặt lại mã"))
+                detail += " " + AccountSyncService.ResetHint;
         }
         if (Admin && (a.Enabled || ph.Enabled))
         {
@@ -169,6 +172,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
             if (a.Enabled) items.Add(("Tạo bộ cài cho máy mới…", Bundle, false));
             items.Add(("Mã điện thoại (PC_TOKEN) / đường dẫn…", () => PhoneConnect.ShowAsync(this), false));
             if (a.Enabled && !a.OnPhoneSheet && a.CanWrite) items.Add(("Cập nhật mã Apps Script (Sheet tài khoản riêng)", UpgradeScript, false));
+            if (ph.Enabled) items.Add(("Đặt lại mã tài khoản dùng chung…", ResetCodes, true));
             if (a.Enabled) items.Add(("Ngắt tài khoản dùng chung…", DisconnectAccounts, true));
             acts.Add(More(items.ToArray()));
         }
@@ -230,6 +234,23 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         if (!await Ui.RunAsync(this, async () => r = await a.MoveToPhoneSheetAsync(S.Phone))) { _msg.Text = ""; return; }
         _msg.Text = $"Xong: {r!.Users} tài khoản dùng chung qua Google Sheet điện thoại."
             + (r.OldMarked ? " Các máy khác tự chuyển theo ở lần đăng nhập sau. Giữ Sheet tài khoản cũ vài ngày rồi mới xóa." : " Máy khác chỉ cần đăng nhập bằng tài khoản được cấp.");
+    }
+
+    /// <summary>1.109: Sheet chung giữ mã của máy khác (không máy nào còn mã) → Quản trị đặt lại 2 mã, chọn giữ / thay danh sách tài khoản.</summary>
+    private async Task ResetCodes()
+    {
+        var pick = await Ui.Pick(this,
+            "Đặt lại mã tài khoản dùng chung trên Google Sheet chung. Dùng khi thẻ báo \"đã bật tài khoản dùng chung từ một máy khác\" hoặc các máy báo \"Sai mã kết nối\" "
+            + "mà không máy nào còn mã đúng.\n\nMáy này giữ mã mới. Máy khác chỉ cần đăng nhập lại là tự nối (cần Code.gs mới trên Google); "
+            + "nếu máy đó báo Code.gs cũ thì dán mã KLKN1-… (⋯ Thêm › Chép mã kết nối máy).\n\nDanh sách tài khoản dùng chung lấy theo cách nào?",
+            "Đặt lại mã tài khoản dùng chung",
+            new[] { "Giữ danh sách đang có trên Google Sheet (tải về máy này)", "Thay danh sách trên Google Sheet bằng danh sách của máy này" });
+        if (pick < 0) return;
+        _msg.Text = "Đang đặt lại mã…";
+        AccountSyncService.ResetResult? r = null;
+        if (!await Ui.RunAsync(this, async () => r = await S.Accounts.ResetCodesAsync(S.Phone, keepSheet: pick == 0))) { _msg.Text = ""; return; }
+        _msg.Text = $"Đã đặt lại mã: {r!.Users} tài khoản dùng chung" + (r.Uploaded ? " (đã đưa danh sách máy này lên Sheet)." : " (lấy theo danh sách trên Sheet).")
+            + " Máy khác: đăng nhập lại bằng tài khoản được cấp là tự nối.";
     }
 
     private async Task UpgradeScript()

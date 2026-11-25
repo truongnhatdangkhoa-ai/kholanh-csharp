@@ -240,6 +240,7 @@ public class AccountSyncService
             throw new BusinessException("Danh sách tài khoản chưa có Quản trị nào đang dùng nên chưa chuyển được.");
         try { await phone.CallAsync("pc.tkCaiMa", new JsonObject { ["maDoc"] = token, ["maQuanTri"] = admin }, 60, ct); }
         catch (BusinessException e) when (e.Message.Contains("Không có chức năng")) { throw new BusinessException(OldPhoneScriptMsg); }
+        catch (BusinessException e) when (e.Message.Contains("từ một máy khác")) { throw new BusinessException(e.Message.TrimEnd() + " " + ResetHint); }
         var cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
         bool uploaded = false;
         if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is not null))
@@ -264,6 +265,67 @@ public class AccountSyncService
         ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         _audit.Log(_session.Username, "Tài khoản dùng chung sang Sheet điện thoại", $"{n} tài khoản{(uploaded ? ", đã đưa lên" : ", Sheet đã có sẵn")}{(marked ? ", Sheet cũ đã ghi dòng chuyển" : "")}");
         return new MoveResult(n, uploaded, marked);
+    }
+
+    // ---------------- 1.109: đặt lại mã tài khoản dùng chung ----------------
+
+    /// <summary>Câu gợi ý khi Sheet chung đã có mã của máy khác (pc.tkCaiMa từ chối).</summary>
+    public const string ResetHint =
+        "Không máy nào còn mã đó (máy cũ đã cài lại / mất mã) → máy Quản trị: Hệ thống › Kết nối › ⋯ Thêm › \"Đặt lại mã tài khoản dùng chung…\".";
+
+    internal const string OldResetScriptMsg =
+        "Apps Script của Google Sheet chung chưa có lệnh đặt lại mã (cần Code.gs mới ở repo kholanh-csharp-mobile › apps-script/Code.gs). "
+        + "Mở Sheet › Tiện ích mở rộng › Apps Script, xóa hết, dán Code.gs mới, Lưu, rồi Triển khai › Quản lý triển khai › ✏ › Phiên bản: Phiên bản mới › Triển khai. "
+        + "Hoặc làm tay: Apps Script › ⚙ Cài đặt dự án › Thuộc tính tập lệnh: xóa TK_MA_DOC và TK_MA_QUAN_TRI rồi bấm \"Bật tài khoản dùng chung\".";
+
+    public record ResetResult(int Users, bool Uploaded);
+
+    /// <summary>
+    /// Quản trị đặt lại 2 mã tài khoản dùng chung trên Google Sheet chung (lệnh <c>pc.tkDatLaiMa</c>, cần PC_TOKEN) — dùng khi Sheet báo
+    /// "đã bật từ một máy khác" mà không máy nào còn mã đó, hoặc mọi máy báo "Sai mã kết nối". Mã mới được máy này giữ; máy khác đăng nhập
+    /// lại là tự nối (pcDangNhap). <paramref name="keepSheet"/>: true = giữ danh sách đang có trên Sheet (tải về máy này; Sheet trống thì đưa
+    /// danh sách máy này lên), false = thay danh sách trên Sheet bằng danh sách máy này.
+    /// </summary>
+    public async Task<ResetResult> ResetCodesAsync(PhoneWebApp phone, bool keepSheet, CancellationToken ct = default)
+    {
+        _session.RequireAdmin();
+        if (phone.Token.Length == 0)
+            throw new BusinessException("Máy này chưa có mã điện thoại (PC_TOKEN) nên chưa đặt lại mã được. Nhập mã ở Hệ thống › Kết nối trước.");
+        var url = CheckUrl(phone.Url);
+        var local = new JsonArray(LocalUsers().Select(u => (JsonNode?)ToRow(u)).ToArray());
+        bool LocalHasAdmin() => local.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin });
+        if (!keepSheet && !LocalHasAdmin()) throw new BusinessException("Máy này chưa có Quản trị nào đang dùng nên không đưa danh sách lên được.");
+        string token = NewCode(), admin = NewCode();
+        try { await phone.CallAsync("pc.tkDatLaiMa", new JsonObject { ["maDoc"] = token, ["maQuanTri"] = admin }, 60, ct); }
+        catch (BusinessException e) when (e.Message.Contains("Không có chức năng")) { throw new BusinessException(OldResetScriptMsg); }
+        var cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
+        var sheetHas = cur.OfType<JsonObject>().Any(o => FromRow(o) is not null);
+        bool uploaded = false;
+        if (keepSheet && sheetHas)
+        {
+            var me = _session.CurrentUser?.Username ?? "";
+            if (!cur.OfType<JsonObject>().Any(o => FromRow(o) is { IsActive: true, Role: Roles.Admin } u && string.Equals(u.Username, me, StringComparison.OrdinalIgnoreCase)))
+                throw new BusinessException($"Mã mới đã đặt, nhưng danh sách trên Google Sheet không có tài khoản Quản trị \"{me}\" đang dùng — chưa tải về để máy này không bị khóa. "
+                    + "Chọn lại \"Đặt lại mã…\" với cách \"Thay danh sách trên Sheet bằng danh sách máy này\".");
+        }
+        else
+        {
+            if (!LocalHasAdmin()) throw new BusinessException("Google Sheet chưa có tài khoản và máy này cũng chưa có Quản trị nào để đưa lên.");
+            await CallAsync(url, token, admin, "replaceAll", new JsonObject { ["users"] = local.DeepClone() }, ct);
+            cur = (await CallAsync(url, token, "", "list", null, ct))["users"]?.AsArray() ?? new JsonArray();
+            uploaded = true;
+        }
+        _settings.Set(KeyUrl, url);
+        _settings.Set(KeyToken, Secret.Protect(token));
+        _settings.Set(KeyAdmin, Secret.Protect(admin));
+        _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
+        CachePlan(cur);
+        var n = Apply(cur);
+        _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Phone);
+        _audit.Log(_session.Username, "Đặt lại mã tài khoản dùng chung", $"{n} tài khoản{(uploaded ? ", đưa danh sách máy này lên" : ", giữ danh sách trên Sheet")}");
+        return new ResetResult(n, uploaded);
     }
 
     // ---------------- kết nối / ngắt ----------------
