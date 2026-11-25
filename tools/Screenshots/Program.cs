@@ -509,7 +509,9 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
 {
     // rà màn hình nhỏ: mỗi module × mỗi tab cấp 1 (và tab cấp 2 trong tab đang mở)
     var sw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; sw.Show();
+    var minBad = 0;
     var keys = new[] { "lx", "m6", "m13", "m1", "m2", "m7", "m3sk", "m1vtb", "m8", "m4", "m5", "m9", "m7ck", "m3", "m3dm", "m10", "m12", "m11", "m14", "m15", "m21", "m22" };
+    if (Environment.GetEnvironmentVariable("SMALL_KEYS") is { Length: > 0 } sk) keys = sk.Split(',');
     foreach (var k in keys)
     {
         try
@@ -520,15 +522,34 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
             for (var t = 0; t < n; t++)
             {
                 if (tc is not null) { tc.SelectedIndex = t; for (var i = 0; i < 25; i++) { Thread.Sleep(30); Pump(); } }
-                Snap(sw, $"s-{k}-{t}");
+                Snap(sw, $"s-{k}-{t}"); CheckMinRows($"s-{k}-{t}");
                 var inner = sw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x != tc && x.IsEffectivelyVisible).FirstOrDefault();
                 if (inner is not null)
-                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(sw, $"s-{k}-{t}-{u}"); }
+                    for (var u = 1; u < inner.ItemCount; u++) { inner.SelectedIndex = u; for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); } Snap(sw, $"s-{k}-{t}-{u}"); CheckMinRows($"s-{k}-{t}-{u}"); }
             }
         }
         catch (Exception e) { Console.WriteLine($"  [{k}] lỗi: {e.Message}"); }
     }
-    sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir); return;
+    sw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (small): " + outDir);
+    Console.WriteLine(minBad == 0 ? "[MIN8] OK: mọi bảng đang hiện đủ chiều cao tối thiểu" : $"[MIN8] {minBad} bảng thấp hơn tối thiểu");
+    if (minBad > 0) Environment.ExitCode = 1;
+    return;
+
+    // 1.83: mọi bảng đang hiện phải cao ≥ chiều cao tối thiểu (8 dòng, bảng chỉ đọc ít dòng thì đủ dòng của nó)
+    void CheckMinRows(string name)
+    {
+        foreach (var g in sw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Bounds.Width > 0))
+        {
+            var need = g.MinHeightFor(g.MinRowsEffective);
+            var c = Avalonia.Layout.LayoutInformation.GetPreviousMeasureConstraint(g);
+            var got = c is { } cs && !double.IsInfinity(cs.Height) ? Math.Min(g.Bounds.Height, cs.Height) : g.Bounds.Height;
+            if (Environment.GetEnvironmentVariable("MIN8_DEBUG") == "1") Console.WriteLine($"  [dbg] {name}: min {g.MinHeight:0} bounds {g.Bounds.Height:0} constraint {c} deficit {sw.GetVisualDescendants().OfType<KhoLanh.App.Controls.FillScroll>().First().Deficit():0}");
+            if (Environment.GetEnvironmentVariable("MIN8_DEBUG") == "1")
+                for (Avalonia.Visual? a = g; a is not null && a is not KhoLanh.App.Controls.FillScroll; a = a.GetVisualParent())
+                    if (a is Avalonia.Layout.Layoutable l) Console.WriteLine($"     {a.GetType().Name} y={a.TranslatePoint(new Point(0,0), sw)?.Y:0} h={a.Bounds.Height:0} des={l.DesiredSize.Height:0} min={l.MinHeight:0} hgt={l.Height} mc={Avalonia.Layout.LayoutInformation.GetPreviousMeasureConstraint(l)?.Height:0}");
+            if (got + 1 < need) { minBad++; Console.WriteLine($"  [MIN8] {name}: bảng được chia {got:0} < {need:0} ({g.MinRowsEffective} dòng)"); }
+        }
+    }
 }
 // Lưu trữ cá nhân (1.60): SHOTS_ONLY=lt
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lt")

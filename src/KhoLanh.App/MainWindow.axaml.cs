@@ -41,6 +41,9 @@ public partial class MainWindow : Window
         var u = s.Session.CurrentUser!;
         AppTheme.LoadFor(u.Username);
         Views.PhoneAutoSync.Start();
+        // 1.83: trang lấp đầy cửa sổ, nội dung cần cao hơn (mỗi bảng ≥ 8 dòng) thì cuộn dọc
+        PageArea.Children.Remove(PageHost);
+        PageArea.Children.Add(new Controls.FillScroll(PageHost));
         var root = (Control)Content!; Content = null;
         Content = _zoom = new LayoutTransformControl { Child = root };
         ApplyZoom();

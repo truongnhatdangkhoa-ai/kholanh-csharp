@@ -57,7 +57,7 @@
       </Grid>
     </Border>
 
-    <Panel>
+    <Panel x:Name="PageArea">
       <ContentControl x:Name="PageHost" Margin="16,8,16,16"/>
     </Panel>
   </DockPanel>
