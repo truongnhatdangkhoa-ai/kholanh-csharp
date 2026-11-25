@@ -37,6 +37,8 @@ public sealed class TroLyService
     private bool _running;
 
     public Func<DateTime> Now { get; set; } = () => DateTime.Now;
+    /// <summary>Cài đặt của máy — để kiểm tra cấu hình kết nối (null = bỏ bước đó).</summary>
+    public SettingsService? Settings { get; set; }
     public string Version { get; set; } = UpdateService.Current.ToString(3);
 
     public TroLyService(Database db, Func<ISheetSource> src, Session session, AuditService audit, BackupService backup, Func<LanService> lan, DriveSyncService? drive, string dataDir)
@@ -134,7 +136,9 @@ public sealed class TroLyService
             f.AddRange(CheckBackup(files, liveRows, probe, now));
         });
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));
+        StepRun("Cấu hình kết nối", () => f.AddRange(CheckConfig(CollectConfig())));
         StepRun("Thao tác chậm", () => f.AddRange(CheckSlow(Perf.Read(_dataDir, now))));
+        StepRun("Hiệu năng", () => f.AddRange(CheckPerf(now)));   // 1.101: CPU / RAM cao kéo dài, ổ sắp đầy, chậm dần sau cập nhật
 
         var st = LoadState();
         var fin = Sort(f);
@@ -455,6 +459,45 @@ public sealed class TroLyService
         {
             info.DriveEnabled = true; info.DriveStatus = dr.Status;
             if (dr.LastOk != default) info.DriveOkAgeMin = (now - dr.LastOk).TotalMinutes;
+        }
+        return info;
+    }
+
+    /// <summary>1.101: cảnh báo hiệu năng từ hieu-nang.db (bộ đo ngầm) + logs/cham.log 30 ngày. Chưa có số liệu thì không cảnh báo.</summary>
+    /// <summary>Khóa "trang sửa" đặc biệt: chuyển sang tab Hiệu năng của chính Trợ lý (không phải khóa menu).</summary>
+    public const string GoHieuNang = "#hieunang";
+    internal List<Finding> CheckPerf(DateTime now)
+    {
+        var res = new List<Finding>();
+        var path = Path.Combine(_dataDir, PerfStore.FileName);
+        var st = PerfMonitor.Current?.Store ?? (File.Exists(path) ? new PerfStore(path) : null);
+        if (st is not null)
+        {
+            res.AddRange(PerfChecks.CheckMachine(st.Range(now.AddHours(-1), now, 120), st.Latest(), now));
+            res.AddRange(PerfChecks.CheckStartupTrend(st.Marks(null, now.AddDays(-30)), now));
+        }
+        res.AddRange(PerfChecks.CheckSlowAfterUpdate(Perf.Read(_dataDir, now, 30)));
+        foreach (var x in res) if (x.Go.Length == 0) { x.Go = GoHieuNang; x.GoLabel = "tab Hiệu năng"; }
+        return res;
+    }
+
+    /// <summary>Cấu hình kết nối của máy: Tài khoản dùng chung, Web App điện thoại, Gmail lịch xuất, thư mục Drive dùng chung (CHỈ ĐỌC).</summary>
+    internal ConfigInfo? CollectConfig()
+    {
+        if (Settings is not { } st) return null;
+        var info = new ConfigInfo
+        {
+            AcctEnabled = st.Get("acct_url").Length > 0 && st.Get("acct_token").Length > 0,
+            AcctError = ConnErrorLog.Read(st, ConnErrorLog.Acct),
+        };
+        var phone = new PhoneWebApp(st);
+        info.PhoneEnabled = phone.Enabled; info.PhoneError = phone.LastError;
+        var mail = KhoLanh.Core.LichXuat.MailConfig.Load(st);
+        info.MailReady = mail.Ready; info.MailEmail = mail.Email; info.MailStatus = st.Get("lx_mail_status");
+        if (_drive is { Enabled: true } dr)
+        {
+            info.DriveEnabled = true; info.DriveDir = dr.Dir;
+            try { info.DriveDirExists = Directory.Exists(dr.Dir); } catch { info.DriveDirExists = false; }
         }
         return info;
     }

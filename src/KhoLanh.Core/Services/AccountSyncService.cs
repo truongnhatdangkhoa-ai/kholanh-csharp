@@ -187,6 +187,7 @@ public class AccountSyncService
         _settings.Set(KeyPendToken, ""); _settings.Set(KeyPendAdmin, "");
         if (github.Length > 0) Updates?.ImportToken(github);
         _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         _audit.Log(_session.Username, "Kết nối tài khoản dùng chung", $"{(uploaded ? "đưa lên" : "tải về")} {count} tài khoản{(admin.Length > 0 ? ", máy quản trị" : "")}");
         return new ConnectResult(uploaded, count, admin.Length > 0);
     }
@@ -195,6 +196,7 @@ public class AccountSyncService
     {
         _session.RequireAdmin();
         foreach (var k in new[] { KeyUrl, KeyToken, KeyAdmin, KeyPendToken, KeyPendAdmin, KeyBlobs }) _settings.Set(k, "");
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         _sessionKey = "";
         _audit.Log(_session.Username, "Ngắt tài khoản dùng chung", "mỗi máy dùng tài khoản riêng");
     }
@@ -208,15 +210,23 @@ public class AccountSyncService
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(timeout ?? TimeSpan.FromSeconds(8));
         JsonObject res;
+        // Trợ lý: ghi lỗi tải gần nhất (settings acct_last_error), tải được thì xóa — xem ConnErrorLog / TroLyChecks.CheckConfig
         try { res = await CallAsync(Url, Token, "", "list", null, cts.Token); }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new BusinessException("Google Sheet trả lời quá lâu."); }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { NoteError("Google Sheet trả lời quá lâu."); throw new BusinessException("Google Sheet trả lời quá lâu."); }
+        catch (Exception e) when (!ct.IsCancellationRequested) { NoteError(e.Message); throw; }
         var users = res["users"]?.AsArray() ?? new JsonArray();
-        if (users.Count == 0) throw new BusinessException("Google Sheet không có tài khoản nào — giữ danh sách trong máy.");
+        if (users.Count == 0) { NoteError("Google Sheet không có tài khoản nào."); throw new BusinessException("Google Sheet không có tài khoản nào — giữ danh sách trong máy."); }
+        ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);
         CachePlan(users);
         var n = Apply(users);
         _settings.Set(KeyLast, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         return n;
     }
+
+    /// <summary>Lỗi tải danh sách tài khoản gần nhất (null = lần gần nhất tải được / chưa tải lỗi).</summary>
+    public ConnErrorLog.Entry? LastError => ConnErrorLog.Read(_settings, ConnErrorLog.Acct);
+    private void NoteError(string msg) =>
+        ConnErrorLog.Note(_settings, ConnErrorLog.Acct, msg, msg == PhoneScriptMsg ? ConnErrorLog.KindPhoneScript : "");
 
     private readonly object _pfLock = new();
     private Task<int>? _prefetch;
@@ -587,9 +597,10 @@ public class AccountSyncService
                 throw new BusinessException($"Web App trả về trang lạ (HTTP {(int)res.StatusCode}). Kiểm tra: đường dẫn kết thúc bằng /exec và \"Ai có quyền truy cập\" là \"Bất kỳ ai\".");
             if (o["ok"]?.GetValue<bool>() != true)
             {
-                if (LooksLikePhoneScript(o)) throw new BusinessException(PhoneScriptMsg);
+                if (LooksLikePhoneScript(o)) { NoteError(PhoneScriptMsg); throw new BusinessException(PhoneScriptMsg); }
                 throw new BusinessException(o["error"]?.ToString() ?? "Web App báo lỗi không rõ.");
             }
+            ConnErrorLog.Clear(_settings, ConnErrorLog.Acct);   // Web App tài khoản trả lời đúng → hết lỗi cấu hình
             return o;
         }
     }

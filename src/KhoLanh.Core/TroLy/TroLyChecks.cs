@@ -25,6 +25,10 @@ public sealed class Finding
     public bool Nguon { get; set; }
     /// <summary>Mã có thể thêm vào Danh sách mã hàng (cảnh báo "Mã hợp lệ nhưng chưa có trong Danh sách mã hàng").</summary>
     public List<MaFix>? Fixes { get; set; }
+    /// <summary>Khóa menu của trang sửa (MainWindow.Navigate) — giao diện hiện nút «Mở trang sửa». Rỗng = không có.</summary>
+    public string Go { get; set; } = "";
+    /// <summary>Tên nút đi tới trang sửa (vd "Cài đặt máy").</summary>
+    public string GoLabel { get; set; } = "";
 
     // gắn từ hàng đợi khi hiển thị
     public string Q { get; set; } = "";
@@ -57,6 +61,7 @@ public static class TroLyChecks
         ["cham"] = new[] { "logs/cham.log (thao tác > 2 giây)", "src/KhoLanh.Core/TroLy/Perf.cs" },
         ["nghiep-vu"] = new[] { "src/KhoLanh.Core/PhieuXuat/PxhtService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
         ["ma-hang"] = new[] { "src/KhoLanh.Core/TonKho/NapExcel.cs (nạp Load Data)", "src/KhoLanh.Core/ViTri/ViTriService.cs › Import", "src/KhoLanh.Core/TongHop/TongHopService.cs", "file Excel nguồn" },
+        ["ket-noi"] = new[] { "src/KhoLanh.Core/Services/ConnErrorLog.cs", "src/KhoLanh.Core/Services/AccountSyncService.cs", "src/KhoLanh.Core/Services/PhoneWebApp.cs", "src/KhoLanh.Core/LichXuat/LichXuatService.cs › MailStatus", "src/KhoLanh.Core/Lan/DriveSync.cs" },
         ["cheo"] = new[] { "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
     };
 
@@ -324,14 +329,127 @@ public static class TroLyChecks
         return o;
     }
 
+    // ------------------------------------------------------------------ 5b) Cấu hình kết nối (Tài khoản dùng chung / điện thoại / Gmail / Drive)
+
+    /// <summary>Số liệu cấu hình kết nối của máy (TroLyService.CollectConfig gom từ settings) — chỉ dữ liệu thường để test được.</summary>
+    public sealed class ConfigInfo
+    {
+        public bool AcctEnabled;
+        public KhoLanh.Core.Services.ConnErrorLog.Entry? AcctError;
+        public bool PhoneEnabled;
+        public KhoLanh.Core.Services.ConnErrorLog.Entry? PhoneError;
+        public bool MailReady;
+        public string MailEmail = "";
+        public string MailStatus = "";
+        public bool DriveEnabled;
+        public string DriveDir = "";
+        public bool DriveDirExists = true;
+    }
+
+    private static Finding Go(Finding f, string key, string label) { f.Go = key; f.GoLabel = label; return f; }
+    private static string When(DateTime at) => at == default ? "" : $"lúc {at:HH:mm dd/MM/yyyy} · ";
+
+    /// <summary>
+    /// Kiểm tra cấu hình kết nối — mỗi lỗi là 1 phát hiện có nút «Mở trang sửa»: Tài khoản dùng chung trỏ nhầm Web App điện thoại (Nặng) / tải lỗi
+    /// (Cần xem) → Cài đặt máy; PC_TOKEN sai / đồng bộ điện thoại lỗi (Cần xem) → Đồng bộ điện thoại; Gmail lịch xuất mất kết nối (Cần xem) → Tổng quan;
+    /// thư mục Google Drive dùng chung không còn (Nặng) → Dữ liệu &amp; sao lưu › Thư mục / Drive dùng chung.
+    /// </summary>
+    public static List<Finding> CheckConfig(ConfigInfo? info)
+    {
+        var o = new List<Finding>();
+        if (info is null) return o;
+        if (info.AcctEnabled && info.AcctError is { } ae)
+        {
+            const string M = "Tài khoản dùng chung";
+            if (ae.Kind == KhoLanh.Core.Services.ConnErrorLog.KindPhoneScript)
+                o.Add(Go(Mk("ket-noi", "do", M, "Tài khoản dùng chung trỏ nhầm Web App của app điện thoại",
+                    "Không tải / tạo / sửa được tài khoản dùng chung: đường dẫn ở Cài đặt máy › Tài khoản dùng chung (Google Sheet) là Web App của APP ĐIỆN THOẠI "
+                    + "(hoặc Sheet tài khoản bị dán đè mã điện thoại). Sửa: dán lại mã \"Cập nhật mã Apps Script\" vào Sheet tài khoản rồi Triển khai phiên bản mới, "
+                    + "hoặc Kết nối lại đúng đường dẫn …/exec của Sheet tài khoản.",
+                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "backup", "Cài đặt máy"));
+            else
+                o.Add(Go(Mk("ket-noi", "vang", M, "Không tải được danh sách tài khoản dùng chung",
+                    "Lần tải gần nhất từ Google Sheet bị lỗi — máy đang dùng danh sách lưu sẵn (tài khoản mới / mật khẩu mới từ máy khác chưa về). Mất mạng tạm thời thì lần sau tự hết.",
+                    new[] { When(ae.At) + Short(ae.Msg, 240) }), "backup", "Cài đặt máy"));
+        }
+        if (info.PhoneEnabled && info.PhoneError is { } pe)
+        {
+            const string M = "Đồng bộ điện thoại";
+            if (pe.Kind == KhoLanh.Core.Services.ConnErrorLog.KindAuth)
+                o.Add(Go(Mk("ket-noi", "vang", M, "Web App điện thoại từ chối mã PC_TOKEN",
+                    "Mã PC_TOKEN của máy này không khớp mã trong Apps Script (Cài đặt dự án › Thuộc tính tập lệnh) — đồng bộ điện thoại (đẩy tồn, nhận phiếu) không chạy. Nhập lại mã ở Đồng bộ điện thoại › Kết nối.",
+                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "phone", "Đồng bộ điện thoại"));
+            else
+                o.Add(Go(Mk("ket-noi", "vang", M, "Đồng bộ điện thoại lỗi ở lần gần nhất",
+                    "Lần gọi Web App điện thoại gần nhất bị lỗi (mạng / Apps Script) — điện thoại có thể chưa thấy tồn mới, phiếu từ điện thoại chưa về.",
+                    new[] { When(pe.At) + Short(pe.Msg, 240) }), "phone", "Đồng bộ điện thoại"));
+        }
+        if (info.MailReady && info.MailStatus.TrimStart().StartsWith("✖", StringComparison.Ordinal))
+            o.Add(Go(Mk("ket-noi", "vang", "Email lịch xuất", "Gmail lịch xuất mất kết nối",
+                $"Máy không đọc được hộp thư {info.MailEmail} — lịch xuất không tự cập nhật theo email. Mở Tổng quan › Email, bấm «Lưu & kiểm tra kết nối» (mật khẩu ứng dụng bị thu hồi / đổi mật khẩu Gmail thì tạo mật khẩu ứng dụng mới).",
+                new[] { Short(info.MailStatus.Trim(), 240) }), "lx", "Tổng quan › Email"));
+        if (info.DriveEnabled && !info.DriveDirExists)
+            o.Add(Go(Mk("ket-noi", "do", "Đồng bộ Google Drive", "Thư mục Google Drive dùng chung không còn",
+                "Đồng bộ qua Drive đang bật nhưng không thấy thư mục — máy này không nhận / gửi dữ liệu với các máy khác. Kiểm tra Google Drive cho máy tính đang chạy và đã đăng nhập, hoặc chọn lại thư mục.",
+                new[] { info.DriveDir }), "drive", "Dữ liệu & sao lưu › Drive dùng chung"));
+        if (o.Count == 0 && (info.AcctEnabled || info.PhoneEnabled || info.MailReady || info.DriveEnabled))
+        {
+            var on = new List<string>();
+            if (info.AcctEnabled) on.Add("tài khoản dùng chung");
+            if (info.PhoneEnabled) on.Add("đồng bộ điện thoại");
+            if (info.MailReady) on.Add("Gmail lịch xuất");
+            if (info.DriveEnabled) on.Add("thư mục Drive dùng chung");
+            o.Add(Mk("ket-noi", "xanh", "Kết nối", "Cấu hình kết nối ổn", "Không thấy lỗi ở lần dùng gần nhất: " + string.Join(", ", on) + "."));
+        }
+        return o;
+    }
+
     // ------------------------------------------------------------------ 6) Lỗi của app (logs/loi.log + lỗi chưa bắt)
 
-    public sealed record AppError(string Mod, string Msg, string Type, int Count, DateTime Last, string Stack);
+    /// <summary>
+    /// Một NGUYÊN NHÂN GỐC lỗi phần mềm (đã gộp): Msg / Type = lỗi trong cùng (bỏ lớp AggregateException / "A Task's exception(s)…" bọc ngoài),
+    /// Count = tổng số lần trong mọi nơi phát sinh, Places = các nơi (màn hình / hàm) đã gặp, theo thứ tự gặp lần đầu.
+    /// </summary>
+    public sealed record AppError(string Mod, string Msg, string Type, int Count, DateTime Last, string Stack, IReadOnlyList<string>? Places = null);
 
-    /// <summary>Đọc logs/loi.log (Ui.Describe + lỗi chưa bắt ghi vào) → gom theo lời nhắn + loại lỗi, chỉ lấy trong <paramref name="days"/> ngày.</summary>
+    private static readonly Regex ErrHead = new(@"^([\w.`]+(?:Exception|Error))(?::\s*(.*))?$");
+    private static readonly Regex ErrInner = new(@"--->\s*(?:\(Inner Exception #\d+\)\s*)?([\w.`]+(?:Exception|Error))(?::\s*(.*))?$");
+    private static readonly Regex ErrWrap = new(@"^(?:A Task's exception\(s\) were not observed.*?|One or more errors occurred\.)\s*\((.*)\)\s*$", RegexOptions.Singleline);
+
+    /// <summary>Lỗi trong cùng của một khối log: dòng " ---> Loại: lời nhắn" cuối cùng, không có thì dòng đầu; bỏ lớp bọc "A Task's exception(s)… (X)" / "One or more errors occurred. (X)".</summary>
+    public static (string Type, string Msg) RootCause(IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0) return ("", "");
+        var first = lines[0].Trim();
+        var tm = ErrHead.Match(first);
+        string type = tm.Success ? tm.Groups[1].Value.Split('.').Last() : "";
+        string msg = tm.Success ? tm.Groups[2].Value.Trim() : first;
+        foreach (var l in lines.Skip(1))
+        {
+            var im = ErrInner.Match(l.Trim());
+            if (im.Success) { type = im.Groups[1].Value.Split('.').Last(); msg = im.Groups[2].Value.Trim(); }
+        }
+        for (var i = 0; i < 3 && ErrWrap.Match(msg) is { Success: true } wm; i++) msg = wm.Groups[1].Value.Trim();
+        if (msg.Length == 0) msg = type;
+        return (type, msg);
+    }
+
+    /// <summary>Lời nhắn bỏ phần hay thay đổi (số, đường dẫn, mã GUID) để gộp lỗi cùng nguyên nhân.</summary>
+    public static string NormMsg(string msg)
+    {
+        var m = Regex.Replace(msg, @"[A-Za-z]:\\[^\s'""()]+|(?<![\w])/(?:[\w.\-]+/)+[\w.\-]*", "…");
+        m = Regex.Replace(m, @"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b", "#");
+        m = Regex.Replace(m, @"\d+", "#");
+        return Regex.Replace(m, @"\s+", " ").Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Đọc logs/loi.log (Ui.Describe + lỗi chưa bắt ghi vào) → GỘP THEO NGUYÊN NHÂN GỐC (loại + lời nhắn của lỗi trong cùng, bỏ số / đường dẫn),
+    /// chỉ lấy trong <paramref name="days"/> ngày. Lỗi nghiệp vụ (BusinessException) đứng riêng thì bỏ (đã báo người dùng); cùng gốc với một lỗi
+    /// chưa bắt (vd tác vụ nền không ai chờ) thì gộp chung và được đếm.
+    /// </summary>
     public static List<AppError> ParseErrorLog(string text, DateTime now, int days = 7)
     {
-        var res = new Dictionary<string, AppError>();
         var head = new Regex(@"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?: bản (\S+))?(?: \[(.+?)\])?\s*$");
         var blocks = new List<(DateTime At, string Where, List<string> Lines)>();
         foreach (var raw in text.Replace("\r", "").Split('\n'))
@@ -341,23 +459,53 @@ public static class TroLyChecks
             { blocks.Add((at, m.Groups[3].Value, new())); continue; }
             if (blocks.Count > 0 && raw.Trim().Length > 0) blocks[^1].Lines.Add(raw);
         }
+        var groups = new Dictionary<string, List<(DateTime At, string Where, List<string> Lines, string Type, string Msg, bool Biz, string AtLine)>>();
+        var order = new List<string>();
         foreach (var b in blocks)
         {
             if ((now - b.At).TotalDays > days || b.Lines.Count == 0) continue;
-            var first = b.Lines[0].Trim();
-            var tm = Regex.Match(first, @"^([\w.`]+(?:Exception|Error))(?::\s*(.*))?$");
-            var type = tm.Success ? tm.Groups[1].Value.Split('.').Last() : "";
-            var msg = tm.Success ? (tm.Groups[2].Value.Length > 0 ? tm.Groups[2].Value : type) : first;
-            if (type == "BusinessException") continue; // lỗi nghiệp vụ đã báo người dùng — không phải lỗi app
-            var at = b.Lines.FirstOrDefault(l => Regex.IsMatch(l, @"^\s*at KhoLanh\.")) ?? "";
-            var mod = b.Where.Length > 0 ? b.Where : ModOfStack(at);
-            var key = type + "|" + msg + "|" + at.Trim();
-            var stack = string.Join(" ⏎ ", b.Lines.Take(4).Select(l => l.Trim()));
-            res[key] = res.TryGetValue(key, out var e)
-                ? e with { Count = e.Count + 1, Last = b.At > e.Last ? b.At : e.Last }
-                : new AppError(mod, msg, type, 1, b.At, stack);
+            var (type, msg) = RootCause(b.Lines);
+            var biz = ErrHead.Match(b.Lines[0].Trim()) is { Success: true } hm && hm.Groups[1].Value.EndsWith("BusinessException", StringComparison.Ordinal);
+            var atLine = b.Lines.FirstOrDefault(l => Regex.IsMatch(l, @"^\s*at KhoLanh\.")) ?? "";
+            var key = type + "|" + NormMsg(msg);
+            if (!groups.TryGetValue(key, out var g)) { groups[key] = g = new(); order.Add(key); }
+            g.Add((b.At, b.Where, b.Lines, type, msg, biz, atLine.Trim()));
         }
-        return res.Values.ToList();
+        var res = new List<AppError>();
+        foreach (var key in order)
+        {
+            var g = groups[key];
+            if (g.All(x => x.Biz)) continue; // chỉ toàn lỗi nghiệp vụ đã báo người dùng — không phải lỗi app
+            var latest = g.OrderBy(x => x.At).Last();
+            var places = new List<string>();
+            foreach (var x in g.OrderBy(x => x.At))
+            {
+                var p = PlaceOf(x.Where, x.AtLine, x.Biz);
+                if (!places.Contains(p)) places.Add(p);
+            }
+            var mods = g.Select(x => ModOfStack(x.AtLine)).Where(m => m != "Phần mềm").ToList();
+            var mod = mods.Count > 0 ? mods.GroupBy(m => m).OrderByDescending(m => m.Count()).First().Key
+                : g.Select(x => x.Where).FirstOrDefault(w => w.Length > 0) ?? "Phần mềm";
+            var src = g.Where(x => !x.Biz).OrderBy(x => x.At).Last();
+            var stack = string.Join(" ⏎ ", src.Lines.Take(4).Select(l => l.Trim()));
+            res.Add(new AppError(mod, latest.Msg, latest.Type, g.Count, latest.At, stack, places));
+        }
+        return res;
+    }
+
+    /// <summary>Nơi phát sinh để liệt kê: nhãn ghi kèm ([Lỗi chưa bắt]…) + hàm KhoLanh đầu tiên trong vết.</summary>
+    private static string PlaceOf(string where, string atLine, bool biz)
+    {
+        var fn = "";
+        if (Regex.Match(atLine, @"at (KhoLanh\.[^\s(]+)") is { Success: true } m)
+        {
+            var parts = m.Groups[1].Value.Split('.');
+            var ai = Array.FindIndex(parts, x => x.StartsWith('<'));   // hàm async: Lớp.<Hàm>d__12.MoveNext
+            fn = ai > 0 ? parts[ai - 1] + "." + Regex.Match(parts[ai], @"<(\w+)>").Groups[1].Value
+                : parts.Length >= 2 ? parts[^2] + "." + parts[^1] : parts[^1];
+        }
+        var tag = where.Length > 0 ? where : biz ? "đã báo người dùng" : "";
+        return tag.Length > 0 && fn.Length > 0 ? tag + " · " + fn : tag.Length > 0 ? tag : fn.Length > 0 ? fn : "(không rõ nơi)";
     }
 
     private static string ModOfStack(string at)
@@ -368,9 +516,14 @@ public static class TroLyChecks
 
     public static List<Finding> CheckErrors(IEnumerable<AppError> errs) => errs.Select(e =>
     {
+        var places = e.Places ?? Array.Empty<string>();
+        var ev = new List<string>();
+        if (places.Count > 1) ev.Add($"Gộp {places.Count} nơi phát sinh cùng nguyên nhân: " + string.Join(" · ", places.Take(8)) + (places.Count > 8 ? " …" : ""));
+        else if (places.Count == 1) ev.Add("Nơi phát sinh: " + places[0]);
+        if (e.Stack.Length > 0) ev.Add(e.Stack);
         var f = Mk("loi-app", e.Count >= 5 ? "do" : "vang", e.Mod, "Lỗi phần mềm: " + Short(e.Msg, 90),
-            $"Xuất hiện {e.Count} lần trong 7 ngày, lần cuối {e.Last:dd/MM/yyyy HH:mm}" + (e.Type.Length > 0 ? " · " + e.Type : ""),
-            e.Stack.Length > 0 ? new[] { e.Stack } : null, Hash("loi-app|" + e.Mod + "|" + e.Type + "|" + e.Msg));
+            $"Xuất hiện {e.Count} lần trong 7 ngày" + (places.Count > 1 ? $" ở {places.Count} nơi" : "") + $", lần cuối {e.Last:dd/MM/yyyy HH:mm}" + (e.Type.Length > 0 ? " · " + e.Type : ""),
+            ev, Hash("loi-app|" + e.Type + "|" + NormMsg(e.Msg)));
         return f;
     }).ToList();
 
