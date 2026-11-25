@@ -832,6 +832,15 @@ public sealed class ViTriService
         }
         return e;
     }
+    /// <summary>1.90: bỏ khỏi phiếu đang soạn các chỉ số dòng không còn trong <see cref="Rows"/> (dòng tạm của phiếu đang sửa bị dọn khi lưu,
+    /// dữ liệu vừa tải lại / nạp lại ngắn hơn). Trả số dòng đã bỏ.</summary>
+    public int DropStale(IDictionary<int, double> draft)
+    {
+        var n = Rows.Count;
+        var bad = draft.Keys.Where(i => i < 0 || i >= n).ToList();
+        foreach (var i in bad) draft.Remove(i);
+        return bad.Count;
+    }
     public void PruneGhosts() { Rows = Rows.Where(r => !(r.Ghost && r.Sl <= 1e-9)).ToList(); foreach (var r in Rows) r.Ghost = false; }
     public Slip SaveEdit(EditState e, List<Pick> picks, bool gop, string loai, DateTime ngay, string title)
     {

@@ -272,6 +272,30 @@ public class ViTriTests : IDisposable
         Assert.True(Vt.Active(Vt.Slips.Single(s => s.Id == s1.Id)));
     }
 
+    /// <summary>1.90 (Trợ lý báo ArgumentOutOfRange ở ViTriView.RenderDraft): sửa phiếu có dòng không còn trong file → dòng tạm (ghost)
+    /// ở cuối Rows; lưu xong PruneGhosts dọn dòng tạm → chỉ số trong phiếu đang soạn vượt Rows. DropStale phải bỏ các chỉ số đó.</summary>
+    [Fact]
+    public void Sua_phieu_co_dong_tam_luu_xong_bo_chi_so_cu_khoi_phieu_dang_soan()
+    {
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var ib = Idx(B, "B.01.03", "L3");
+        var s = Vt.CreateSlip(new() { new(ib, 4) }, false, "xuatxa", DateTime.Today, "");
+        Thread.Sleep(5);
+        Vt.Import(Vt.ReadFile(File_("TON 21.11.xlsx", (A, TenA, "L1", "A.02.01", 50, 10.8))));   // dòng B không còn
+        Vt.Unlock(s.Id);
+        var count = Vt.Rows.Count;
+        var e = Vt.BeginEdit(s.Id);
+        var ghost = e.Sel.Keys.Single();
+        Assert.True(ghost >= count);                         // dòng tạm nằm sau dữ liệu thật
+        var draft = new Dictionary<int, double>(e.Sel);     // = _draft của màn hình
+        Vt.SaveEdit(e, draft.Select(kv => new Pick(kv.Key, kv.Value)).ToList(), false, "xuatxa", DateTime.Today, "");
+        Assert.Equal(count, Vt.Rows.Count);                  // dòng tạm đã dọn → chỉ số cũ vượt Rows
+        Assert.Throws<ArgumentOutOfRangeException>(() => draft.Where(kv => kv.Value > Vt.Rows[kv.Key].Sl).ToList());   // đúng lỗi cũ
+        Assert.Equal(1, Vt.DropStale(draft));
+        Assert.Empty(draft);
+        Assert.Equal(0, Vt.DropStale(draft));
+    }
+
     [Fact]
     public void Reconcile_detects_moved_goods()
     {

@@ -162,13 +162,25 @@ public sealed class ViTriView : UserControl, IPage
         root.Children.Add(top);
         root.Children.Add(_tabs);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += (_, _) => _ = Safe(LoadAsync);
     }
 
     // =====================================================================================
     // Chung
     // =====================================================================================
 
+    /// <summary>1.90: nút chạy việc async — lỗi luôn được bắt, ghi logs/loi.log và báo người dùng (không thành lỗi chưa bắt / tác vụ nền).</summary>
+    private Button Btn(string text, Func<Task> click, bool primary = false, bool danger = false, string? tip = null) =>
+        Btn(text, (Action)(() => { _ = Safe(click); }), primary, danger, tip);
+    private async Task Safe(Func<Task> work)
+    {
+        try { await work(); }
+        catch (Exception e)
+        {
+            try { if (App.DataFolder.Length > 0) KhoLanh.Core.TroLy.TroLyService.LogUnhandled(App.DataFolder, e, "Tồn theo vị trí"); } catch { }
+            try { await Ui.Message(this, Ui.Describe(e), "Lỗi"); } catch { }
+        }
+    }
     private static Button Btn(string text, Action click, bool primary = false, bool danger = false, string? tip = null)
     {
         var b = new Button { Content = text, Padding = new Thickness(10, 4), FontSize = 12.5 };
@@ -187,8 +199,11 @@ public sealed class ViTriView : UserControl, IPage
     private async Task LoadAsync()
     {
         _status.Text = "Đang tải…";
+        // 1.90: Svc.Load thay Svc.Rows ở luồng nền — trong lúc đó không vẽ (chỉ số trong _draft / _rowIdx thuộc bản cũ)
+        _reloading++;
         try { await Task.Run(Svc.Load); }
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
+        finally { _reloading--; }
         _status.Text = "";
         _draft.Clear(); _editing = null;
         _loading = true;
@@ -230,8 +245,13 @@ public sealed class ViTriView : UserControl, IPage
         return false;
     }
 
+    /// <summary>&gt; 0: đang tải lại dữ liệu ở luồng nền → bỏ qua mọi lượt vẽ (vẽ lại khi tải xong).</summary>
+    private int _reloading;
+
     private void RenderAll()
     {
+        if (_reloading > 0) return;
+        Svc.DropStale(_draft);
         var i = Svc.Info;
         _fileInfo.Text = Svc.Rows.Count == 0
             ? "Chưa có dữ liệu vị trí — mở tab “Nạp file” để nạp file Tồn kho theo vị trí."
@@ -405,6 +425,8 @@ public sealed class ViTriView : UserControl, IPage
 
     private void RenderStock()
     {
+        if (_reloading > 0) return;
+        Svc.DropStale(_draft);
         _loading = true;
         try
         {
@@ -498,7 +520,8 @@ public sealed class ViTriView : UserControl, IPage
 
     private void RenderDraft()
     {
-        if (!_edit) return;
+        if (!_edit || _reloading > 0) return;
+        Svc.DropStale(_draft);   // 1.90: chỉ số dòng cũ (vd dòng tạm của phiếu đang sửa vừa bị dọn khi lưu) → trước đây Index out of range
         _draftHead.Text = _editing is null ? "Phiếu đang soạn" : $"Đang sửa phiếu {_editing.Id}";
         _cancelEdit.IsVisible = _editing is not null;
         _save.Content = _editing is null ? "💾 Lưu phiếu (trừ tồn)" : "💾 Lưu thay đổi phiếu";
@@ -530,10 +553,15 @@ public sealed class ViTriView : UserControl, IPage
         if (warns.Count > 0 && !await Ui.Confirm(this, "Kiểm tra lại trước khi lưu:\n\n• " + string.Join("\n• ", warns) + "\n\nVẫn lưu phiếu?", "Cảnh báo", "Vẫn lưu")) return;
         Slip? s = null;
         var editing = _editing;
-        if (!await Act(() => s = editing is null
-                ? Svc.CreateSlip(Picks(), _gop.IsChecked == true, LoaiKey, Ngay, _title.Text ?? "")
-                : Svc.SaveEdit(editing, Picks(), _gop.IsChecked == true, LoaiKey, Ngay, _title.Text ?? ""))) return;
-        _editing = null; _draft.Clear();
+        // 1.90: SaveEdit dọn dòng tạm (PruneGhosts → Svc.Rows ngắn lại) nên phải bỏ phiếu đang soạn NGAY sau khi lưu,
+        // trước khi Act vẽ lại — trước đây RenderAll đọc Svc.Rows[chỉ số dòng tạm] → ArgumentOutOfRangeException.
+        if (!await Act(() =>
+            {
+                s = editing is null
+                    ? Svc.CreateSlip(Picks(), _gop.IsChecked == true, LoaiKey, Ngay, _title.Text ?? "")
+                    : Svc.SaveEdit(editing, Picks(), _gop.IsChecked == true, LoaiKey, Ngay, _title.Text ?? "");
+                _editing = null; _draft.Clear();
+            })) return;
         _loading = true; _title.Text = ""; _loading = false;
         _status.Text = $"Đã lưu phiếu {s!.Id}: {s.Lines.Count} dòng, SL {Q(s.TongSl)} — đã trừ tồn.";
         RenderAll();

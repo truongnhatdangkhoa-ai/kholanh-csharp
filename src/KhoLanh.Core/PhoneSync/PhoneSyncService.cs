@@ -355,15 +355,36 @@ public sealed partial class PhoneSyncService
         { ("ton-kho-an-an", "PhieuXuat"), ("ton-vi-tri-an-an", "ViTriPhieuDienThoai"), ("ton-kho-an-an", "ViTriBotPhieuDienThoai"), ("ton-kho-gui", "PhieuXuat"), ("ton-kho-gui", "PhieuXuatItems") };
     public static bool IsPcSlipWrite(string db, IEnumerable<string> sheets) => sheets.Any(sh => PcSlipSheets.Any(x => x.Db == db && x.Sheet == sh));
     public string LastSlipPush { get; private set; } = "";
-    /// <summary>Đẩy riêng PhieuXuat_PC / PhieuXuatItems_PC. Lỗi (mất mạng…) → ghi lại, lượt đồng bộ định kỳ sẽ đẩy lại cả bảng.</summary>
+    /// <summary>Đẩy riêng PhieuXuat_PC / PhieuXuatItems_PC. Lỗi (mất mạng…) → ghi lại, lượt đồng bộ định kỳ sẽ đẩy lại cả bảng.
+    /// 1.90: mỗi bảng chỉ ghi khi nội dung khác lần ghi thành công trước (<see cref="_pcSig"/>) — lưu phiếu thường ghi cả sheet
+    /// tồn vị trí / sửa SL… mà danh sách phiếu PC không đổi; mỗi lần ghi là 1 lượt Google Apps Script ~3 giây.</summary>
     public async Task<int> PushPcSlipsAsync(CancellationToken ct = default)
     {
-        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đẩy phiếu PC lên điện thoại");
+        using var perf = KhoLanh.Core.TroLy.Perf.Measure("Đẩy phiếu PC lên điện thoại");
         var (ph, it, _) = CollectPcSlips();
-        await W.WriteTableAsync(Tab.PxPc, ph.Count > 0 ? PcHeaders : Array.Empty<string>(), ph.Select(r => (IDictionary<string, JsonNode?>)r), ct);
-        await W.WriteTableAsync(Tab.PxPci, it.Count > 0 ? PcItemHeaders : Array.Empty<string>(), it.Select(r => (IDictionary<string, JsonNode?>)r), ct);
-        LastSlipPush = $"Đã đẩy {ph.Count} phiếu PC lên điện thoại lúc {DateTime.Now:HH:mm:ss}";
+        var n = await WritePcSlipTablesAsync(ph, it, force: false, ct);
+        perf.Rows = ph.Count;
+        perf.Detail = n == 0 ? "không đổi, bỏ qua" : $"chạy nền · ghi {n} bảng lên Google Sheet";
+        LastSlipPush = n == 0 ? $"Phiếu PC không đổi — không cần đẩy ({DateTime.Now:HH:mm:ss})" : $"Đã đẩy {ph.Count} phiếu PC lên điện thoại lúc {DateTime.Now:HH:mm:ss}";
         return ph.Count;
+    }
+    /// <summary>Chữ ký nội dung lần ghi thành công gần nhất của 2 bảng phiếu PC (theo tab).</summary>
+    private readonly Dictionary<string, string> _pcSig = new();
+    /// <summary>Số lượt ghi bảng phiếu PC đã gửi (thử nghiệm).</summary>
+    internal int PcTableWrites;
+    private async Task<int> WritePcSlipTablesAsync(List<Dictionary<string, JsonNode?>> ph, List<Dictionary<string, JsonNode?>> it, bool force, CancellationToken ct)
+    {
+        var n = 0;
+        foreach (var (tab, cols, rows) in new[] { (Tab.PxPc, PcHeaders, ph), (Tab.PxPci, PcItemHeaders, it) })
+        {
+            var sig = Sig(rows);
+            lock (_pcSig) if (!force && _pcSig.TryGetValue(tab, out var old) && old == sig) continue;
+            lock (_pcSig) _pcSig.Remove(tab);   // đang ghi: lỗi giữa chừng thì lần sau ghi lại
+            await W.WriteTableAsync(tab, rows.Count > 0 ? cols : Array.Empty<string>(), rows.Select(r => (IDictionary<string, JsonNode?>)r), ct);
+            lock (_pcSig) _pcSig[tab] = sig;
+            Interlocked.Increment(ref PcTableWrites); n++;
+        }
+        return n;
     }
     private CancellationTokenSource? _slipCts;
     private bool _slipHooked;
@@ -489,8 +510,7 @@ public sealed partial class PhoneSyncService
             try
             {
                 var (ph, it, errs) = CollectPcSlips();
-                await W.WriteTableAsync(Tab.PxPc, ph.Count > 0 ? PcHeaders : Array.Empty<string>(), ph.Select(r => (IDictionary<string, JsonNode?>)r), ct);
-                await W.WriteTableAsync(Tab.PxPci, it.Count > 0 ? PcItemHeaders : Array.Empty<string>(), it.Select(r => (IDictionary<string, JsonNode?>)r), ct);
+                await WritePcSlipTablesAsync(ph, it, force: true, ct);   // lượt định kỳ luôn ghi lại (phòng Sheet bị sửa tay)
                 meta["pxPcAt"] = nowS; meta["pxPcRows"] = ph.Count; meta["pxPcLoi"] = string.Join(" | ", errs);
             }
             catch (Exception e) { meta["pxPcLoi"] = e.Message.Length > 300 ? e.Message[..300] : e.Message; }

@@ -84,6 +84,30 @@ public class PhoneSyncTests : IDisposable
         Assert.False(PhoneSyncService.IsPcSlipWrite("ton-kho-an-an", new[] { "LoadData" }));   // ghi tồn không đẩy phiếu
     }
 
+    /// <summary>1.90: đẩy phiếu PC chỉ ghi bảng có nội dung đổi (mỗi lần ghi = 1 lượt Google Apps Script vài giây).</summary>
+    [Fact]
+    public async Task Day_phieu_PC_bo_qua_bang_khong_doi()
+    {
+        var ps = Seed();
+        _s.Lan.Write("ton-vi-tri-an-an", new Dictionary<string, JsonArray?>
+        {
+            ["ViTriPhieuDienThoai"] = Cell("{\"slips\":[{\"id\":\"VT-0002\",\"source\":\"pc\",\"createdAt\":\"2026-11-24T01:00:00.000Z\",\"deducted\":true,\"loadAt\":1795000000000,\"lines\":[{\"key\":\"VRHLA|L1|A.01#0\",\"qty\":3,\"maGoc\":\"VRHLA\",\"vt\":\"A.01\"}]}],\"seq\":3}"),
+        });
+        await ps.PushPcSlipsAsync();
+        Assert.Equal(2, ps.PcTableWrites);
+        Assert.Contains(Tab("PhieuXuat_PC"), x => x["maPhieu"] == "VT-0002");
+        await ps.PushPcSlipsAsync();                       // không đổi gì → không gọi mạng
+        Assert.Equal(2, ps.PcTableWrites);
+        Assert.StartsWith("Phiếu PC không đổi", ps.LastSlipPush);
+        _s.Lan.Write("ton-vi-tri-an-an", new Dictionary<string, JsonArray?>
+        {
+            ["ViTriPhieuDienThoai"] = Cell("{\"slips\":[{\"id\":\"VT-0002\",\"source\":\"pc\",\"createdAt\":\"2026-11-24T01:00:00.000Z\",\"deducted\":true,\"loadAt\":1795000000000,\"lines\":[{\"key\":\"VRHLA|L1|A.01#0\",\"qty\":5,\"maGoc\":\"VRHLA\",\"vt\":\"A.01\"}]}],\"seq\":3}"),
+        });
+        await ps.PushPcSlipsAsync();                       // chỉ đổi SL dòng → chỉ ghi bảng dòng phiếu
+        Assert.Equal(3, ps.PcTableWrites);
+        Assert.Contains(Tab("PhieuXuatItems_PC"), x => x["soLuongXuat"] == "5");
+    }
+
     private PhoneSyncService Svc() => Seed();
     private List<Dictionary<string, string>> Tab(string n) { var t = _fake.Tabs[n]; return t.Rows.Select(r => t.H.Select((h, i) => (h, v: r[i]?.ToString() ?? "")).ToDictionary(x => x.h, x => x.v)).ToList(); }
 
