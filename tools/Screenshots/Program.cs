@@ -685,6 +685,44 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
+// 1.74: SHOTS_ONLY=v174 — hộp Email mở được (trước lỗi NullReference), đổi giao diện Tối → Sáng bằng hộp "Giao diện & cỡ chữ",
+// màu thanh tiêu đề Windows theo giao diện. Thoát mã 1 nếu kiểm tra hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")
+{
+    var ok = true;
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("lx"); P(60);
+    var tqv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TongQuanView>().First();
+    Exception? emailErr = null;
+    var et = tqv.OpenEmailForTest(); P(30);
+    if (et.IsFaulted) emailErr = et.Exception?.GetBaseException();
+    var ew = tqv.EmailWindow;
+    Console.WriteLine($"[Email] mở hộp: {(ew is not null && emailErr is null ? "được" : "LỖI " + emailErr?.Message)}");
+    if (ew is null || emailErr is not null) ok = false;
+    else
+    {
+        Snap(ew, "v174-email");
+        var tabs = ew.GetVisualDescendants().OfType<TabControl>().First(); tabs.SelectedIndex = 2; P(); Snap(ew, "v174-email-cai-dat");
+        ew.Close(); P(10);
+    }
+    // Giao diện: Tối → Sáng qua chính hộp thoại
+    void ThemeTo(bool dark)
+    {
+        main.OpenThemeForTest(); P(20);
+        var tw = main.ThemeWindow!;
+        var rb = tw.GetVisualDescendants().OfType<RadioButton>().ToList();
+        (dark ? rb[1] : rb[0]).IsChecked = true; P(10);
+        Console.WriteLine($"[Giao diện] chọn {(dark ? "Tối" : "Sáng")} → đang {AppTheme.Current} · nền thẻ {AppTheme.Brush("#FFFFFF").Color} · thanh tiêu đề {KhoLanh.App.TitleBar.ColorsFor(main).Caption}");
+        if (AppTheme.Current != (dark ? AppTheme.Mode.Dark : AppTheme.Mode.Light)) ok = false;
+        tw.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Lưu").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(20);
+    }
+    ThemeTo(true); Snap(main, "v174-toi");
+    ThemeTo(false); Snap(main, "v174-sang");
+    if (AppTheme.Brush("#FFFFFF").Color.R < 200) { Console.WriteLine("[Giao diện] LỖI: về Sáng mà nền vẫn tối"); ok = false; }
+    var dlg = new Window(); var (cap, txt, dk) = KhoLanh.App.TitleBar.ColorsFor(dlg);
+    Console.WriteLine($"[Thanh tiêu đề] hộp thoại (Sáng): nền {cap} chữ {txt} tối={dk} · COLORREF chính = 0x{KhoLanh.App.TitleBar.ColorRef(KhoLanh.App.TitleBar.ColorsFor(main).Caption):X6}");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v174) — ĐẠT: " : "Xong (v174) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)

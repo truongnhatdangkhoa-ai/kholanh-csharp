@@ -32,10 +32,13 @@ public class PerfTests : IDisposable
     [Fact]
     public void Measure_do_thoi_gian_thuc()
     {
-        Perf.DataDir = _dir; var seen = new List<Perf.Entry>();
-        Perf.Recorded = seen.Add; Perf.SlowMs = 50;
-        try { using (Perf.Measure("Thử", "a")) Thread.Sleep(120); using (Perf.Measure("Thử", "b")) { } }
+        // Perf là tĩnh: test khác chạy song song (Nhập liệu, đồng bộ điện thoại… cũng đo qua Perf) có thể ghi vào `seen`
+        // trong lúc ngưỡng đang hạ xuống 50 ms → chỉ xét lượt đo của chính test này (trước đây thỉnh thoảng đỏ khi chạy cả bộ).
+        Perf.DataDir = _dir; var seen = new System.Collections.Concurrent.ConcurrentQueue<Perf.Entry>();
+        Perf.Recorded = seen.Enqueue; Perf.SlowMs = 50;
+        try { using (Perf.Measure("Thử đo thời gian thực", "a")) Thread.Sleep(120); using (Perf.Measure("Thử đo thời gian thực", "b")) { } }
         finally { Perf.Recorded = null; Perf.SlowMs = 2000; }
-        Assert.Single(seen); Assert.Equal("a", seen[0].Detail);
+        var mine = seen.Where(e => e.Op == "Thử đo thời gian thực").ToList();
+        Assert.Single(mine); Assert.Equal("a", mine[0].Detail);
     }
 }
