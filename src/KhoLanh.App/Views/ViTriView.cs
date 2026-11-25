@@ -256,7 +256,7 @@ public sealed class ViTriView : UserControl, IPage
 
     private Control BuildStock()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_q); bar.Children.Add(Label("Khu:")); bar.Children.Add(_zone);
         bar.Children.Add(_onlyStock); bar.Children.Add(_onlyPick); bar.Children.Add(_onlyPos); bar.Children.Add(_gridInfo);
         _q.TextChanged += (_, _) => { if (!_loading) RenderStock(); };
@@ -333,7 +333,7 @@ public sealed class ViTriView : UserControl, IPage
         _gop.VerticalAlignment = VerticalAlignment.Center; form.Children.Add(_gop);
 
         // hàng 2: nút
-        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 0) };
+        var btns = new ToolRow { Margin = new Thickness(0, 8, 0, 0) };
         btns.Children.Add(Btn("➕ Chọn hàng từ tồn…", async () => await OpenPicker(), primary: true, tip: "Mở bảng tồn theo vị trí (cửa sổ lớn): lọc / tìm, tích ô đầu dòng hoặc gõ SL xuất."));
         _save.Classes.Remove("primary");
         btns.Children.Add(_save);
@@ -589,7 +589,7 @@ public sealed class ViTriView : UserControl, IPage
 
     private Control BuildSlips()
     {
-        var act = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var act = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         if (_edit)
         {
             act.Children.Add(Btn("✎ Sửa phiếu", async () => await EditSlip(), primary: true, tip: "Mở phiếu ở tab Tồn theo vị trí để sửa số lượng / thêm bớt dòng."));
@@ -801,7 +801,7 @@ public sealed class ViTriView : UserControl, IPage
 
     private Control BuildArchive()
     {
-        var act = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var act = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         if (_export)
         {
             act.Children.Add(Btn("🖨 In ngày…", async () => { if (CurArc() is { } g) await PrintItems(Svc.ArchiveItems(g), ArcTitle(g), ParseDay(g.Day)); }));
@@ -847,7 +847,7 @@ public sealed class ViTriView : UserControl, IPage
 
     private Control BuildStats()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(Label("Khoảng:")); bar.Children.Add(_range);
         _range.ItemsSource = Ranges.Select(r => r.Text).ToList(); _range.SelectedIndex = 0;
         _range.SelectionChanged += (_, _) => { if (!_loading) RenderStats(); };
@@ -881,7 +881,7 @@ public sealed class ViTriView : UserControl, IPage
         card.Children.Add(Label("Số liệu đang dùng", bold: true, size: 15));
         card.Children.Add(Label(Svc.Rows.Count == 0 ? "Chưa nạp file nào."
             : $"File: {i.FileName}\nSheet: {i.Sheet} (tiêu đề ở dòng {i.HeaderRowNumber})\nNgày dữ liệu: {(i.DataDate.Length > 0 ? i.DataDate : "—")}\nSố dòng: {Svc.Rows.Count:#,0} · Tổng tồn: {Q(Svc.Rows.Sum(r => r.Sl))} · Net: {Kg(Svc.Rows.Sum(r => r.Sl * r.Tl))} kg\nNạp lúc: {Nap(i.ImportedAt)}"));
-        var btns = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+        var btns = new ToolRow { Margin = new Thickness(0, 6, 0, 0) };
         if (_edit)
         {
             btns.Children.Add(Btn("📂 Nạp file Tồn kho theo vị trí…", async () => await ImportFile(), primary: true));

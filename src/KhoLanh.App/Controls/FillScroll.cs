@@ -10,7 +10,7 @@ using Avalonia.VisualTree;
 namespace KhoLanh.App.Controls;
 
 /// <summary>
-/// 1.83: vùng trang "lấp đầy hoặc cuộn". Đủ chỗ thì trang lấp đúng chiều cao cửa sổ như trước (dòng <c>*</c> giãn, bảng tự cuộn bên trong);
+/// 1.85: vùng trang "lấp đầy hoặc cuộn". Đủ chỗ thì trang lấp đúng chiều cao cửa sổ như trước (dòng <c>*</c> giãn, bảng tự cuộn bên trong);
 /// bảng nào được chia chỗ thấp hơn tối thiểu (<see cref="SheetGrid.MinRows"/> = 8 dòng) — vd 2 bảng xếp dọc ở màn hình 1366×768 — thì trang
 /// cao thêm đúng phần thiếu và cuộn dọc, thay vì ép bảng còn 2–3 dòng / đè lên chữ phía trên. Ngang luôn theo bề rộng cửa sổ.
 /// Cách tính: sau mỗi lượt bố cục, lấy chỗ cha đã chia cho từng bảng đang hiện (<see cref="LayoutInformation.GetPreviousMeasureConstraint"/>)

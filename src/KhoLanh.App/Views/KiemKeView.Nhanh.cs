@@ -40,7 +40,7 @@ public sealed partial class KiemKeView
         deb.Tick += (_, _) => { deb.Stop(); RenderNGrid(); };
         _nQ.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
 
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_nChips); bar.Children.Add(_nQ);
         bar.Children.Add(Btn("⧉ Sao chép", async () => await CopyView(), tip: "Sao chép bảng đang xem để dán vào Excel"));
         if (_export) bar.Children.Add(Btn("⬇ Excel", async () => await ExportView(), tip: "Xuất bảng đang xem ra Excel"));
@@ -131,7 +131,7 @@ public sealed partial class KiemKeView
             foreach (var c in Svc.Readiness())
                 rd.Children.Add(new TextBlock { Text = (c.Ok == "ok" ? "✓ " : c.Ok == "warn" ? "! " : "✕ ") + c.Text, FontSize = 12.5, TextWrapping = TextWrapping.Wrap,
                     Foreground = c.Ok == "ok" ? AppTheme.Brush("#1E7B34") : c.Ok == "warn" ? AppTheme.Brush("#8A5A00") : Warn });
-            var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 0) };
+            var acts = new ToolRow { Margin = new Thickness(0, 6, 0, 0) };
             if (_export)
             {
                 acts.Children.Add(Btn("⬇ Báo cáo chênh lệch", async () => await NExport(true), tip: "File Excel chỉ gồm các mã đang lệch"));

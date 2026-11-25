@@ -45,7 +45,7 @@ public partial class MainWindow : Window
         var u = s.Session.CurrentUser!;
         AppTheme.LoadFor(u.Username);
         Views.PhoneAutoSync.Start();
-        // 1.83: trang lấp đầy cửa sổ, nội dung cần cao hơn (mỗi bảng ≥ 8 dòng) thì cuộn dọc
+        // 1.85: trang lấp đầy cửa sổ, nội dung cần cao hơn (mỗi bảng ≥ 8 dòng) thì cuộn dọc
         // (tab của trang nằm trên hàng tên trang; cuộn xuống thì dải tên trang che phần đã cuộn qua)
         var pi = PageArea.Children.IndexOf(PageHost);
         PageArea.Children.Remove(PageHost);

@@ -59,7 +59,7 @@ public sealed class CuoiKyView : UserControl, IPage
         _from.SelectedDateChanged += (_, _) => PeriodChanged(); _to.SelectedDateChanged += (_, _) => PeriodChanged();
         _sync.Tick += (_, _) => SyncTick();
 
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var bar = new ToolRow { };
         bar.Children.Add(Lb("Kỳ đối chiếu từ")); bar.Children.Add(_from); bar.Children.Add(Lb("đến")); bar.Children.Add(_to);
         bar.Children.Add(Btn("▶ Đối chiếu", Run, "Tính lại đối chiếu với các file đã nạp", true));
         bar.Children.Add(Btn("⟳ Tải lại", Reload, "Đọc lại dữ liệu kỳ trên database dùng chung (máy khác vừa sửa)"));
@@ -176,7 +176,7 @@ public sealed class CuoiKyView : UserControl, IPage
         _sdOnly.IsCheckedChanged += (_, _) => RenderSrcData();
         var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; deb.Tick += (_, _) => { deb.Stop(); RenderSrcData(); };
         _sdQ.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var bar = new ToolRow { };
         bar.Children.Add(Lb("Nguồn")); bar.Children.Add(_sdKind); bar.Children.Add(_sdQ); bar.Children.Add(_sdOnly);
         if (Svc.CanEdit) bar.Children.Add(Btn("↺ Trả lại giá trị gốc ô đang chọn", RevertSel, "Hủy mọi lần sửa của ô (Mã hoặc Kg) đang chọn — hoàn tác được ở Lịch sử xử lý"));
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(_sdInfo);

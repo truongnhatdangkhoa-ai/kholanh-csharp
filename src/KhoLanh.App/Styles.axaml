@@ -277,13 +277,106 @@
   <Style Selector="TabControl.pagetabs > TabItem:selected /template/ Border#PART_SelectedPipe">
     <Setter Property="Margin" Value="0"/>
   </Style>
-  <!-- tab cấp 2 (TabControl nằm trong TabControl): gọn hơn -->
-  <Style Selector="TabControl TabControl > TabItem">
+  <!-- 1.84 mẫu chuẩn: tab cấp 2 trở xuống (TabControl lồng / class seg) = NÚT GẠT, nằm đầu thanh công cụ (ToolRow tự kéo vào) -->
+  <Style Selector="TabControl TabControl > TabItem, TabControl.seg > TabItem">
     <Setter Property="MinHeight" Value="28"/>
-    <Setter Property="Height" Value="30"/>
+    <Setter Property="Height" Value="28"/>
     <Setter Property="FontSize" Value="12.5"/>
-    <Setter Property="Padding" Value="2,0"/>
-    <Setter Property="Margin" Value="0,0,16,0"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="Margin" Value="0"/>
+    <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+    <Setter Property="BorderThickness" Value="1,1,0,1"/>
+    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:nth-child(1), TabControl.seg > TabItem:nth-child(1)">
+    <Setter Property="CornerRadius" Value="6,0,0,6"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:nth-last-child(1), TabControl.seg > TabItem:nth-last-child(1)">
+    <Setter Property="CornerRadius" Value="0,6,6,0"/>
+    <Setter Property="BorderThickness" Value="1"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:nth-child(1):nth-last-child(1), TabControl.seg > TabItem:nth-child(1):nth-last-child(1)">
+    <Setter Property="CornerRadius" Value="6"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:selected, TabControl.seg > TabItem:selected">
+    <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem /template/ Border#PART_SelectedPipe, TabControl.seg > TabItem /template/ Border#PART_SelectedPipe">
+    <Setter Property="IsVisible" Value="False"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:pointerover /template/ Border#PART_LayoutRoot, TabControl.seg > TabItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource Surface2}"/>
+  </Style>
+  <Style Selector="TabControl TabControl > TabItem:selected:pointerover /template/ Border#PART_LayoutRoot, TabControl.seg > TabItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+  </Style>
+  <Style Selector="TabControl TabControl /template/ ContentPresenter#PART_SelectedContentHost, TabControl.seg /template/ ContentPresenter#PART_SelectedContentHost">
+    <Setter Property="Margin" Value="0,6,0,0"/>
+  </Style>
+  <!-- nút gạt dựng bằng code (Controls/Seg) -->
+  <Style Selector="Border.seg">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="ClipToBounds" Value="True"/>
+    <Setter Property="Height" Value="30"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem">
+    <Setter Property="MinHeight" Value="28"/>
+    <Setter Property="Height" Value="28"/>
+    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="CornerRadius" Value="0"/>
+    <Setter Property="BorderThickness" Value="0,0,1,0"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+    <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem:nth-last-child(1)">
+    <Setter Property="BorderThickness" Value="0"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem:checked">
+    <Setter Property="FontWeight" Value="Bold"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource Surface2}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+  </Style>
+  <Style Selector="ToggleButton.segitem:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+  </Style>
+  <!-- dòng tóm tắt thông tin phiếu (Controls/InfoLine) -->
+  <Style Selector="Border.infoline">
+    <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Padding" Value="10,0"/>
+    <Setter Property="MinHeight" Value="34"/>
+  </Style>
+  <!-- nhãn nhỏ (file đang dùng / nguồn so sánh) -->
+  <Style Selector="Border.chip">
+    <Setter Property="Background" Value="{DynamicResource Surface2}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="13"/>
+    <Setter Property="Padding" Value="9,3"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.chip > TextBlock">
+    <Setter Property="FontSize" Value="12"/>
   </Style>
 
   <!-- Nhãn trạng thái: nền nhạt + chữ đậm (Border.pill.ok / .warn / .bad / .info / .accent, chữ bên trong tự đổi màu) -->

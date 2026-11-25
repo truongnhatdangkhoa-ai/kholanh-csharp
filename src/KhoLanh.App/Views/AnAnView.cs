@@ -80,7 +80,7 @@ public sealed class AnAnView : UserControl, IPage
     private static TextBlock Label(string t, bool bold = false, double size = 12.5) => new() { Text = t, FontSize = size, FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private static Border Framed(Control c) => new() { BorderBrush = Line, BorderThickness = new Thickness(1), Child = c };
-    private static WrapPanel Bar() => new() { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+    private static ToolRow Bar() => new() { Margin = new Thickness(0, 0, 0, 6) };   // 1.84: thanh công cụ 1 hàng (⋯ Thêm khi hết chỗ)
     /// <summary>Số hiện như bản cũ (toLocaleString en-US).</summary>
     private static string N(double? v, int min = 0, int max = 2) => v is double x && !double.IsNaN(x) ? JsText.En(x, min, max) : "";
     private static string Kg(double? v) => N(v, 2, 2);
@@ -187,21 +187,23 @@ public sealed class AnAnView : UserControl, IPage
         {
             bar.Children.Add(Btn("📂 Nạp file Excel…", async () => await PickAndImport(), primary: true, tip: "Chọn file → kiểm tra → xem trước → nạp. Dữ liệu cũ được chụp lại để hoàn tác."));
         }
-        bar.Children.Add(Btn("⟲ Lịch sử nạp", async () => await ShowHistory(), tip: "Các đợt nạp (ai · máy nào · file nào); hoàn tác đợt mới nhất."));
-        bar.Children.Add(Btn("⇄ So sánh 2 lần nạp", async () => await ShowCompare(), tip: "So dữ liệu hiện tại với lần nạp trước: mã mới / đã hết / tăng / giảm."));
+        bar.Children.Add(_ldQ);
         bar.Children.Add(Label("Ngày số liệu"));
         bar.Children.Add(_ldDate);
         if (_edit) bar.Children.Add(Btn("Lưu ngày", async () => await Act(() => Svc.SetDataDate(_ldDate.Text ?? ""), "Đã lưu ngày số liệu")));
         else _ldDate.IsReadOnly = true;
+        bar.Children.Add(ToolRow.Gap());
+        bar.Children.Add(Btn("⟲ Lịch sử nạp", async () => await ShowHistory(), tip: "Các đợt nạp (ai · máy nào · file nào); hoàn tác đợt mới nhất."));
+        bar.Children.Add(ToolRow.More(Btn("⇄ So sánh 2 lần nạp", async () => await ShowCompare(), tip: "So dữ liệu hiện tại với lần nạp trước: mã mới / đã hết / tăng / giảm.")));
         if (_export) bar.Children.Add(Btn("⬇ Xuất Excel", async () => await SaveXlsx(AnAnExport.DuLieu(D, LdRows()), $"DuLieu_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
-        if (_edit) bar.Children.Add(Btn("Xóa dữ liệu", async () =>
+        if (_edit) bar.Children.Add(ToolRow.More(Btn("Xóa dữ liệu", async () =>
         {
             if (!await Ui.Confirm(this, "Xóa toàn bộ dữ liệu Load Data đang lưu?\n\nĐặc Tính và Báo cáo ngoài sổ sách vẫn giữ nguyên.", "Xóa dữ liệu", "Xóa")) return;
             await Act(Svc.ClearLoadData, "Đã xóa dữ liệu Load Data");
-        }, danger: true));
+        }, danger: true)));
         _ldDate.KeyDown += async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter && _edit) await Act(() => Svc.SetDataDate(_ldDate.Text ?? ""), "Đã lưu ngày số liệu"); };
         _ldQ.TextChanged += (_, _) => { if (!_loading) RenderLoad(); };
-        var bar2 = Bar(); bar2.Children.Add(_ldQ); bar2.Children.Add(_ldSheets);
+        var bar2 = Bar(); bar2.Children.Add(_ldSheets);
         var head = new StackPanel(); head.Children.Add(bar); head.Children.Add(bar2); head.Children.Add(_ldStats);
         return Page(head, new DetailPane(Framed(_ldg), _ldg, "Chi tiết dòng"));   // 1.53: khung chi tiết bên phải
     }
@@ -638,7 +640,7 @@ public sealed class AnAnView : UserControl, IPage
         return Page(bar, tabs);
     }
 
-    private static double GridH(int rows) => SheetGrid.HeadH + SheetGrid.RowH * Math.Max(1, rows) + 40;   // + thanh cuộn ngang, không cần cuộn dọc
+    private static double GridH(int rows) => SheetGrid.HeadH + SheetGrid.RowH * Math.Max(1, rows) + 40 + SheetGrid.RowH * 2;   // 1.84: + dòng Tổng / đủ mọi dòng   // + thanh cuộn ngang, không cần cuộn dọc
 
     /// <summary>Xuất Excel tổng tồn: Bột + Sốt + Bếp / Kho Gửi chưa có số → nhắc trước (vẫn xuất được).</summary>
     private async Task ExportTongTon()
@@ -925,9 +927,11 @@ public sealed class AnAnView : UserControl, IPage
         _xhm.Changed += () => { if (!_loading) OnXhEdited(); };
 
         var bar = Bar();
-        bar.Children.Add(Label("Module nguồn:")); bar.Children.Add(_xhMod); bar.Children.Add(_xhQ);
+        bar.Children.Add(Label("Nguồn")); bar.Children.Add(_xhMod); bar.Children.Add(_xhQ);
+        bar.Children.Add(ToolRow.Gap());
         if (_edit)
         {
+            bar.Children.Add(Btn("Bỏ chọn", () => { _xhSel.Clear(); RenderXh(); }));
             bar.Children.Add(Btn("Tạo phiếu xuất", async () =>
             {
                 if (_xhSel.Count == 0) { await Ui.Message(this, "Tích chọn dòng (ô đầu dòng) hoặc gõ số lượng vào cột “SL xuất ✎” trước."); return; }
@@ -935,10 +939,9 @@ public sealed class AnAnView : UserControl, IPage
                 JsonObject? s = null;
                 if (await Act(() => s = Svc.CreateSlip(id, _xhSel)) && s is not null) { _xhSel.Clear(); _status.Text = $"Đã tạo phiếu {AnAnService.SlipId(s)} — chưa trừ tồn (bấm “Trừ tồn kho” ở danh sách phiếu)."; RenderTh(); }
             }, primary: true));
-            bar.Children.Add(Btn("Bỏ chọn", () => { _xhSel.Clear(); RenderXh(); }));
         }
         var top = new DockPanel();
-        var th = new StackPanel(); th.Children.Add(bar); th.Children.Add(_xhInfo);
+        var th = new StackPanel(); th.Children.Add(bar);   // 1.84: dòng "đang chọn…" vào dòng Tổng của bảng, hướng dẫn vào ⓘ
         DockPanel.SetDock(th, Dock.Top); top.Children.Add(th); top.Children.Add(Framed(_xhg));
 
         var sbar = Bar();
@@ -1030,6 +1033,8 @@ public sealed class AnAnView : UserControl, IPage
         _xhSnap = _xhm.Snapshot();
         _xhg.Refresh();
         _xhInfo.Text = $"{AnAnData.LabelOf(id)}: {N(all.Count)} dòng · đang chọn {N(_xhSel.Count)} dòng, tổng SL {N(_xhSel.Values.Sum())}. Tích ô đầu dòng để chọn (lấy hết tồn) hoặc gõ SL. Phiếu chỉ GHI NHẬN — trừ tồn khi bấm “Trừ tồn kho”.";
+        _xhg.Status = $"{AnAnData.LabelOf(id)} · đang chọn {N(_xhSel.Count)} dòng, SL {N(_xhSel.Values.Sum())}";
+        ToolTip.SetTip(_xhg, "Tích ô đầu dòng để chọn (lấy hết tồn) hoặc gõ SL. Phiếu chỉ GHI NHẬN — trừ tồn khi bấm “Trừ tồn kho”.");
     }
 
     private void OnXhEdited()
