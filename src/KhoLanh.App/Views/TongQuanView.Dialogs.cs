@@ -293,6 +293,10 @@ public sealed partial class TongQuanView
 
     // ------------------------------------------------------------------ ✉ Email
 
+    /// <summary>Hộp Email đang / vừa mở (công cụ chụp màn hình kiểm tra).</summary>
+    internal Window? EmailWindow;
+    internal Task OpenEmailForTest() => EmailDialog();
+
     private async Task EmailDialog()
     {
         var waitBox = new StackPanel { Spacing = 6 }; var histBox = new StackPanel { Spacing = 4 };
@@ -348,7 +352,8 @@ public sealed partial class TongQuanView
                 histBox.Children.Add(new Border { Child = row, Padding = new Thickness(4, 4), BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1) });
             }
             var last = Svc.LastScan;
-            status.Text = (status.Text.StartsWith("✓") ? status.Text + "\n" : "") + (last is { } l ? "Lần quét gần nhất: " + l.ToLocalTime().ToString("HH:mm dd/MM") : "Chưa quét lần nào.") + (Svc.MailCfg().Ready ? (Svc.MailCfg().Auto ? $" · tự quét mỗi {Svc.MailCfg().IntervalMin} phút" : " · tự quét đang tắt") : " · chưa khai báo Gmail (tab Cài đặt)");
+            // 1.74: TextBlock.Text mặc định null → trước đây lỗi NullReference ngay khi mở hộp Email (không vào được Cài đặt Gmail)
+            status.Text = ((status.Text ?? "").StartsWith("✓") ? status.Text + "\n" : "") + (last is { } l ? "Lần quét gần nhất: " + l.ToLocalTime().ToString("HH:mm dd/MM") : "Chưa quét lần nào.") + (Svc.MailCfg().Ready ? (Svc.MailCfg().Auto ? $" · tự quét mỗi {Svc.MailCfg().IntervalMin} phút" : " · tự quét đang tắt") : " · chưa khai báo Gmail (tab Cài đặt)");
         }
         scan.Click += async (_, _) =>
         {
@@ -414,6 +419,7 @@ public sealed partial class TongQuanView
         top.Children.Add(tb); top.Children.Add(status);
         DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(tabs);
         w = Win("✉ Email cập nhật lịch xuất", root, 900, 720);
+        EmailWindow = w;
         Paint();
         if (!Svc.MailCfg().Ready) tabs.SelectedIndex = 2;
         await Ui.Show(this, w);
