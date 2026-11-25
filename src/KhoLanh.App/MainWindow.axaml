@@ -7,7 +7,7 @@
   <!-- 1.83 "header gọn": 1 thanh 44px (logo · menu · LAN / Trợ lý / cập nhật · tài khoản), rồi 1 hàng 36px tên trang + tab cấp 1 của trang
        (TabControl đầu trang được kéo lên chung hàng — AlignPageTabs). Bỏ "Nhóm ›", mô tả (vào ⓘ), phiên bản vào menu tài khoản. -->
   <DockPanel>
-    <Border DockPanel.Dock="Top" Background="{DynamicResource NavBg}" Padding="10,0,8,0" Height="44">
+    <Border DockPanel.Dock="Top" Background="{DynamicResource NavBg}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="0,0,0,1" Padding="10,0,8,0" Height="44">
       <Grid ColumnDefinitions="Auto,*,Auto">
         <Image x:Name="LogoImage" Source="/Assets/logo.png" Width="26" Height="26" VerticalAlignment="Center" Margin="0,0,8,0"/>
         <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
@@ -17,8 +17,8 @@
           <Button x:Name="LanPill" Classes="topnav" IsVisible="False" Click="OnLanPill">
             <Ellipse x:Name="LanDot" Width="10" Height="10" Fill="#3FB950" VerticalAlignment="Center"/>
           </Button>
-          <Button x:Name="AutoButton" Classes="topnav" IsVisible="False" Foreground="#FFD27A" Click="OnAutoClick"/>
-          <Button x:Name="TroLyButton" Classes="topnav" IsVisible="False" Foreground="#FFB4A8" Click="OnTroLyClick"/>
+          <Button x:Name="AutoButton" Classes="topnav" IsVisible="False" Foreground="{DynamicResource Warn}" Click="OnAutoClick"/>
+          <Button x:Name="TroLyButton" Classes="topnav" IsVisible="False" Foreground="{DynamicResource Bad}" Click="OnTroLyClick"/>
           <Button x:Name="UpdateButton" Classes="primary" IsVisible="False" Click="OnUpdateClick"/>
           <Button x:Name="UserButton" Classes="topnav">
             <Button.Flyout>

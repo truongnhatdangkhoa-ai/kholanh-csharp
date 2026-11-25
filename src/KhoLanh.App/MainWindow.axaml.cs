@@ -141,7 +141,7 @@ public partial class MainWindow : Window
             new Border { Width = 26, Height = 26, CornerRadius = new Avalonia.CornerRadius(13), Background = AppTheme.Brush("#1F6FD6"),
                 Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
             // 1.83: 1 thanh 44px — chỉ tên (vai trò ở chú thích / menu tài khoản)
-            new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 13, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, MaxWidth = 150, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
+            new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 13, FontWeight = Avalonia.Media.FontWeight.SemiBold, MaxWidth = 150, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
             Controls.Icon.Make("chevron-down", 13),
         } };
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
