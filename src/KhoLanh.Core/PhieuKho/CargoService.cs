@@ -147,6 +147,8 @@ public sealed class CargoService
         catch { Stock = new(); StockRows = new(); }
     }
     public List<CargoStock.Result> StockCheck(CargoRec rec) => Stock.Count == 0 ? new() : CargoStock.CheckRec(Cfg, rec, Ks, Stock);
+    /// <summary>1.88: cảnh báo từng dòng (Size-quy cách sai, không có / hết / vượt tồn An An) — chỉ cảnh báo.</summary>
+    public List<CargoStock.LineWarn> LineWarnings(CargoRec rec) => CargoStock.LineWarnings(Cfg, rec, Ks, Stock);
 
     /// <summary>Đọc từ điển Mã hóa sản phẩm (menu 9 trọng lượng, 10 quy cách đóng thùng) + Danh sách mã hàng.</summary>
     public (CargoSuggest.Dict Dict, List<string> Ma) LoadSuggestRefs()
