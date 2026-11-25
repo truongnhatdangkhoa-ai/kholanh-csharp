@@ -505,7 +505,7 @@ public sealed partial class SoDoView : UserControl, IPage
     private string CellText(Pos p)
     {
         if (p.It.Count == 0) return "";
-        // 1.88: chỉ ghi "N mã" khi cảnh báo (khác size / mặt hàng); nhiều mã cùng size cùng mặt hàng → ghi size như ô 1 mã
+        // 1.89: chỉ ghi "N mã" khi cảnh báo (khác size / mặt hàng); nhiều mã cùng size cùng mặt hàng → ghi size như ô 1 mã
         if (Status(p) == "mm") return $"{CodeCount(p)} mã";
         var x = p.It[0]; var s = Size(x);
         return s.Length > 0 ? s : x.Ma.Length > 6 ? "…" + x.Ma[^6..] : x.Ma;
@@ -873,7 +873,7 @@ public sealed partial class SoDoView : UserControl, IPage
         try
         {
             var khus = Svc.KhuList(_kho);
-            // 1.88: phiếu vừa bỏ (_k = null do đổi Khu / Dãy / Tạo lại) → GIỮ ô người dùng vừa chọn; trước đây luôn về khu đầu + dãy 01
+            // 1.89: phiếu vừa bỏ (_k = null do đổi Khu / Dãy / Tạo lại) → GIỮ ô người dùng vừa chọn; trước đây luôn về khu đầu + dãy 01
             // nên không chọn được Khu / Dãy khác ở cả 2 tab con.
             var keep = _k is null && _kSelKho == _kho && _kKhu.SelectedItem is string;
             var curKhu = (_kKhu.SelectedItem as string ?? "").Replace("Khu ", ""); var curD = _kDay.SelectedIndex;

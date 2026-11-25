@@ -26,6 +26,9 @@ public sealed class CargoView : UserControl
     private static readonly IBrush CardBg = AppTheme.Brush("#F6F9FC");
     private static readonly IBrush BadBg = AppTheme.Brush("#FBD5C8");
     private static readonly IBrush OkBg = AppTheme.Brush("#E2EFDA");
+    private static readonly IBrush WarnBg = AppTheme.Brush("#FFF2D6");
+    /// <summary>1.88: cảnh báo từng dòng (mục, dòng) — tô ô Loại / Size-quy cách + chú thích, gom vào "Cần xử lý".</summary>
+    private Dictionary<(int, int), CargoStock.LineWarn> _warn = new();
 
     private readonly bool _edit, _export;
     private bool _loading, _dirty;
@@ -306,7 +309,8 @@ public sealed class CargoView : UserControl
         for (var d = 1; d <= NDay; d++) cols.Add(Day(d));
         string[] Row() => new[] { "KIỆN / DÃY", "" }.Concat(Enumerable.Range(1, NDay).Select(d => c.DayCap.GetValueOrDefault(d.ToString()) ?? "")).ToArray();
         gm.Load(cols, new[] { Row() });
-        var grid = new SheetGrid(gm) { SpareRows = 0, Filterable = false, ShowTotals = false, Sortable = false };
+        // 1.88: hàng nhập 1 dòng — không áp tối thiểu 8 dòng (bảng cao 8 dòng đẩy khung soạn phiếu tràn, trang cuộn khuất thanh trên)
+        var grid = new SheetGrid(gm) { SpareRows = 0, Filterable = false, ShowTotals = false, Sortable = false, MinRows = 0 };
         grid.Display = (r, col, raw) => col == 1 ? (Caps(c).Values.Sum() is var t && t > 0 ? t.ToString("#,0", Ui.Vi) : "") : raw;
         grid.Height = SheetGrid.HeadH + SheetGrid.RowH + ScrollH + 4;
         gm.Changed += () =>
@@ -415,9 +419,22 @@ public sealed class CargoView : UserControl
         };
         grid.CellBackground = (r, col) =>
         {
+            if (ks && r < b.Lines.Count && col <= 1)
+            {
+                if (_warn.TryGetValue((bi, r), out var w)) return w.Bad ? BadBg : WarnBg;
+                return ResolveLine(Svc.Cfg, b, b.Lines[r], Svc.Ks).SizeErrs > 0 ? BadBg : null;
+            }
             if (!ks || r >= b.Lines.Count || col is < 4 or > 9) return null;
             var ln = b.Lines[r]; if (LineTotal(ln) <= 0 && ln.Sn.Trim().Length == 0) return null;
             var res = ResolveLine(Svc.Cfg, b, ln, Svc.Ks); return res.Errors.Count > 0 ? BadBg : (res.Market.Length > 0 ? OkBg : null);
+        };
+        grid.CellTip = (r, col) =>
+        {
+            if (!ks || r >= b.Lines.Count || col is > 1 and < 4 || col > 9) return null;
+            if (_warn.TryGetValue((bi, r), out var w)) return "⚠ " + w.Text;
+            var res = ResolveLine(Svc.Cfg, b, b.Lines[r], Svc.Ks);
+            var errs = col <= 1 ? res.Errors.Take(res.SizeErrs) : res.Errors;
+            return errs.Any() ? string.Join("\n", errs) : null;
         };
         gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); grid.SpareRows = Math.Max(SpareOpen, MinRows - gm.RowCount); Dirty(); };
         _blocks.Add((b, gm));
@@ -588,10 +605,14 @@ public sealed class CargoView : UserControl
         _curTitle.Text = _cur is null ? "" : $"{_prof.Ten}{(_cur.Id.Length == 0 ? " · cont mới" : "")} · {so}";
     }
 
+    /// <summary>"Mục 1 dòng 4, 5" cho các cảnh báo cùng nội dung.</summary>
+    private static string WhereOf(IReadOnlyList<CargoStock.LineWarn> ws) =>
+        string.Join(" · ", ws.GroupBy(w => w.Block).Select(g => $"Mục {g.Key + 1} dòng {string.Join(", ", g.Select(w => w.Line + 1).Distinct())}"));
+
     private void RefreshAll()
     {
         RefreshTitle();
-        if (_cur is null) { _totals.Text = ""; _probPill.IsVisible = _stockPill.IsVisible = _savedPill.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _ksInfo.Text = ""; _stockInfo.Text = ""; return; }
+        if (_cur is null) { _warn = new(); _totals.Text = ""; _probPill.IsVisible = _stockPill.IsVisible = _savedPill.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _ksInfo.Text = ""; _stockInfo.Text = ""; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export;
         var chk = Svc.CheckRec(_prof, _cur);
         double kg;
@@ -600,12 +621,25 @@ public sealed class CargoView : UserControl
         _probBox.IsVisible = _problems.IsVisible = chk.Problems.Count > 0;
         _problems.Text = chk.Problems.Count == 0 ? "" : $"⚠ Cần xử lý trước khi xuất ({chk.Problems.Count}):\n• " + string.Join("\n• ", chk.Problems.Take(10)) + (chk.Problems.Count > 10 ? $"\n(+{chk.Problems.Count - 10} nữa)" : "");
         _probPill.IsVisible = chk.Problems.Count > 0; _probText.Text = $"⚠ {chk.Problems.Count} cần xử lý"; ToolTip.SetTip(_probPill, _problems.Text);
-        var sc = Svc.StockCheck(_cur); var bad = sc.Where(x => x.St != "ok").ToList();
-        _stockInfo.Foreground = bad.Count > 0 ? AppTheme.Brush("#9A5B00") : AppTheme.Brush("#1E7B4A");
-        _stockBox.Background = bad.Count > 0 ? AppTheme.Brush("#FFF2D6") : AppTheme.Brush("#E3F4EA");
-        _stockInfo.Text = Svc.Stock.Count == 0 ? "Chưa có Tồn kho An An để dò tồn (nạp file ở module Tồn kho An An)." : bad.Count == 0 ? (sc.Count > 0 ? $"✔ Dò tồn An An: {sc.Count} mã đều đủ tồn." : "") : $"Dò tồn An An — {bad.Count}/{sc.Count} mã cần xem (không chặn xuất):\n• " + string.Join("\n• ", bad.Take(8).Select(x => x.Ma + " — " + x.Text)) + (bad.Count > 8 ? "\n…" : "");
+        // 1.88: cảnh báo từng dòng (Size-quy cách sai · không có / hết / vượt tồn · đặc tính không còn hàng) — chỉ cảnh báo, không chặn lưu
+        var sc = Svc.StockCheck(_cur); var lw = Svc.LineWarnings(_cur);
+        _warn = lw.GroupBy(w => (w.Block, w.Line)).ToDictionary(g => g.Key, g => g.First());
+        var lines = lw.GroupBy(w => w.Text).Select(g => $"{WhereOf(g.ToList())}: {g.Key}").ToList();
+        string list = lines.Count == 0 ? "" : "• " + string.Join("\n• ", lines.Take(10)) + (lines.Count > 10 ? $"\n(+{lines.Count - 10} nữa)" : "");
+        var anyBad = lw.Any(w => w.Bad);
+        _stockInfo.Foreground = lw.Count > 0 ? AppTheme.Brush(anyBad ? "#B42318" : "#9A5B00") : AppTheme.Brush("#1E7B4A");
+        _stockBox.Background = lw.Count > 0 ? AppTheme.Brush(anyBad ? "#FDE8E6" : "#FFF2D6") : AppTheme.Brush("#E3F4EA");
+        _stockInfo.Text = lw.Count > 0
+            ? $"⚠ Cảnh báo {_warn.Count} dòng (chỉ cảnh báo, vẫn lưu được):\n" + list + (Svc.Stock.Count == 0 ? "\nChưa có Tồn kho An An để dò tồn (nạp file ở module Tồn kho An An)." : "")
+            : Svc.Stock.Count == 0 ? "Chưa có Tồn kho An An để dò tồn (nạp file ở module Tồn kho An An)." : sc.Count > 0 ? $"✔ Dò tồn An An: {sc.Count} mã đều đủ tồn." : "";
+        if (Svc.Stock.Count > 0 && lw.Count == 0 && sc.Any(x => x.St != "ok"))   // dự phòng: mã đủ 25 ký tự lệch tồn mà dòng không bắt được
+        {
+            var bad = sc.Where(x => x.St != "ok").ToList();
+            _stockBox.Background = AppTheme.Brush("#FFF2D6"); _stockInfo.Foreground = AppTheme.Brush("#9A5B00");
+            _stockInfo.Text = $"Dò tồn An An — {bad.Count}/{sc.Count} mã cần xem (không chặn xuất):\n• " + string.Join("\n• ", bad.Take(8).Select(x => x.Ma + " — " + x.Text));
+        }
         _stockBox.IsVisible = _stockInfo.Text.Length > 0;
-        _stockPill.IsVisible = bad.Count > 0; _stockText.Text = $"{bad.Count} mã cần xem"; ToolTip.SetTip(_stockPill, _stockInfo.Text);
+        _stockPill.IsVisible = lw.Count > 0; _stockText.Text = $"⚠ {_warn.Count} dòng cần xem"; ToolTip.SetTip(_stockPill, _stockInfo.Text);
         _ksInfo.Text = $"Kết quả kháng sinh đã nạp: {Svc.Ks.Size:#,0} lô (đọc lúc {Svc.KsAt:HH:mm:ss}). Chưa có kết quả thì nhập ở module “Kết quả kháng sinh” rồi bấm “Tra lại”, hoặc gõ số kết quả tay.";
         _savedPill.IsVisible = true;
         if (_dirty) { _savedText.Text = "● Chưa lưu"; PhieuShell.SetPill(_savedPill, "warn"); }

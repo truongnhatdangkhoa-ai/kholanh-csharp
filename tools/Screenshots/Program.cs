@@ -1262,7 +1262,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
     s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
 }
-// 1.88: Phiếu In vị trí — chọn Khu / Dãy ở CẢ 2 tab con phải giữ đúng lựa chọn (trước luôn về Khu A · Dãy 01): SHOTS_ONLY=kkchon (tự kiểm, thoát mã 1)
+// 1.89: Phiếu In vị trí — chọn Khu / Dãy ở CẢ 2 tab con phải giữ đúng lựa chọn (trước luôn về Khu A · Dãy 01): SHOTS_ONLY=kkchon (tự kiểm, thoát mã 1)
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "kkchon")
 {
     void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
@@ -1986,6 +1986,16 @@ void PxScene()
     TabControl Sub() => main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top);
     KhoLanh.App.Controls.SheetGrid Grid() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
     void Fail(string m) { Console.WriteLine("[PX] LỖI: " + m); Environment.Exit(1); }
+    // 1.88: khung soạn phiếu không được nằm chồng lên hàng tên trang ("Phiếu xuất kho" đè nút ← Danh sách)
+    void NoOverlap(string what)
+    {
+        W(8);
+        var band = main.FindControl<Border>("PageBand")!; var full = pkv.FullContent!;
+        var bandBottom = band.TranslatePoint(new Point(0, band.Bounds.Height), main)!.Value.Y;
+        var y = full.TranslatePoint(new Point(0, 0), main)!.Value.Y;
+        Console.WriteLine($"[PX] {what}: khung soạn y = {y:0}, đáy hàng tên trang = {bandBottom:0}");
+        if (y < bandBottom - 0.5) Fail(what + ": khung soạn phiếu chồng lên tên trang");
+    }
     double ow = main.Width, oh = main.Height; main.Width = 1366; main.Height = 768; W(10);   // màn hình nhỏ như máy người dùng
     // 1.82: danh sách nhóm theo tháng (dòng 0 = dòng tháng) → bấm đúp phiếu → khung soạn phiếu chiếm cả trang (phương án B)
     top.SelectedIndex = 0; W(10);
@@ -2004,10 +2014,12 @@ void PxScene()
     var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
     Console.WriteLine($"[PX] soạn phiếu xuất khẩu: lưới mặt hàng cao {eg.Bounds.Height:0} px, rộng {eg.Bounds.Width:0} px (cửa sổ {main.Bounds.Width:0}×{main.Bounds.Height:0})");
     if (eg.Bounds.Height < 0.38 * main.Bounds.Height) Fail("lưới mặt hàng còn thấp");
+    NoOverlap("soạn phiếu xuất khẩu");
     Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
     var closeX = (Func<Task>)Delegate.CreateDelegate(typeof(Func<Task>), pkv, pkv.GetType().GetMethod("CloseEditor", bfx)!);
     _ = closeX(); W(10);
     if (pkv.EditorOpen) Fail("← Danh sách không đóng phiếu");
+    W(10); if (main.PageTabs is null) Fail("đóng phiếu: tab đầu trang không kéo lên lại hàng tên trang");
     Console.WriteLine("[PX] ← Danh sách: đã về danh sách");
     // Phiếu xuất nội địa
     top.SelectedIndex = 2; W(14);
@@ -2017,6 +2029,7 @@ void PxScene()
     g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
     if (!pkv.EditorOpen) Fail("bấm đúp cont không mở khung soạn phiếu");
     Snap(main, "31b-phieu-noi-dia-nhap-lieu");
+    NoOverlap("soạn phiếu nội địa");
     {   // lưới mục hàng Cargo luôn có dòng trống; gõ dòng trống cuối thì thêm dòng · KIỆN / DÃY + gõ Tổng đổ đầy
         var cgg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12 && x.Model.Columns[0].Header != "");
         int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Bounds.Height;
@@ -2033,6 +2046,26 @@ void PxScene()
         Console.WriteLine($"[CARGO] KIỆN/DÃY 20×63, gõ Tổng 150 → dãy 1–4: {string.Join(", ", Enumerable.Range(10, 4).Select(c => cgg.Model.Get(0, c)))}");
         Snap(main, "31b3-phieu-noi-dia-kien-day");
         cgg.Model.Undo(); cap.Model.Undo(); W(2);
+        // 1.88: Ctrl+D ở hàng KIỆN / DÃY (1 dòng) = chép ô đầu vùng chọn sang các ô còn lại; Ctrl+R như Excel
+        cap.Model.Set(0, 2, "55"); cap.SelectRange(new KhoLanh.Core.Grid.CellRange(0, 2, 0, 8)); cap.Focus(); W(2);
+        cap.OnKey(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.D, KeyModifiers = Avalonia.Input.KeyModifiers.Control, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); W(3);
+        var capVals = string.Join(",", Enumerable.Range(2, 8).Select(c => cap.Model.Get(0, c)));
+        Console.WriteLine($"[CARGO] Ctrl+D dãy 1–7: {capVals}");
+        if (capVals != "55,55,55,55,55,55,55,") Fail("Ctrl+D hàng KIỆN / DÃY không chép sang");
+        Snap(main, "31b4-kien-day-ctrl-d");
+        cap.Model.Undo(); cap.Model.Set(0, 9, "40"); cap.SelectRange(new KhoLanh.Core.Grid.CellRange(0, 9, 0, 11)); W(2);
+        cap.OnKey(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.R, KeyModifiers = Avalonia.Input.KeyModifiers.Control, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); W(3);
+        if (cap.Model.Get(0, 11) != "40") Fail("Ctrl+R không chép sang phải");
+        cap.Model.Undo(); cap.Model.Undo(); cap.Model.Undo(); W(2);
+        // 1.88: gõ Size-quy cách sai / không có tồn → chỉ cảnh báo (ô Loại + Size-quy cách tô màu, khung phải "Cần xử lý")
+        var r0 = cgg.Model.RowCount;
+        cgg.Model.SetCells(new List<(int, int, string)> { (r0, 0, "BTP"), (r0, 1, "0390-6"), (r0 + 1, 0, "BTP"), (r0 + 1, 1, "12x") }); W(6);
+        var warn = (System.Collections.IDictionary)typeof(KhoLanh.App.Views.CargoView).GetField("_warn", bfx)!.GetValue(cgv)!;
+        var info = ((TextBlock)typeof(KhoLanh.App.Views.CargoView).GetField("_stockInfo", bfx)!.GetValue(cgv)!).Text ?? "";
+        Console.WriteLine($"[CARGO] cảnh báo {warn.Count} dòng: {info.Replace("\n", " | ")}");
+        if (warn.Count < 2 || cgg.CellBackground!(r0, 1) is null || cgg.CellTip!(r0 + 1, 1) is null) Fail("không cảnh báo Size-quy cách sai / không có tồn");
+        Snap(main, "31b5-canh-bao-size-quy-cach");
+        cgg.Model.Undo(); W(2);
     }
     var pvb = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(x => x.IsEffectivelyVisible && x.Content as string == "Xem trước");
     pvb.IsChecked = true; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pvb.IsChecked = false; W(2);

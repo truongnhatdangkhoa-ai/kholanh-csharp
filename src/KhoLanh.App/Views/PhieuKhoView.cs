@@ -130,6 +130,8 @@ public sealed class PhieuKhoView : UserControl, IPage
     private void ShowFull(Control? c)
     {
         _full.Child = c; _full.IsVisible = c is not null; _outer.IsVisible = c is null;
+        // 1.88: đổi danh sách ↔ khung soạn = đổi "trang" → vùng cuộn trang về đầu, tính lại chiều cao (không còn khung soạn nằm khuất dưới tên trang)
+        if (this.FindAncestorOfType<FillScroll>() is { } fs) { fs.Reset(); fs.Offset = default; }
         if (c is not null) Dispatcher.UIThread.Post(() => c.Focus());
         else Dispatcher.UIThread.Post(() => (_outer.SelectedIndex == 0 ? _lg : (Control?)null)?.Focus());
     }

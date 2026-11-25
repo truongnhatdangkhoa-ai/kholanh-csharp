@@ -244,7 +244,7 @@ public static class SoDoCore
     }
     public static bool IsOver(Pos p, Built b) => !p.Z && b.Tang.TryGetValue(p.TangKey, out var m) && m.Used > m.Nk;
     /// <summary>'e' trống · 'u' có hàng 1 nhóm · 'mm' nhiều mã CẦN CẢNH BÁO.
-    /// 1.88: nhóm = cùng mặt hàng + cùng size (như pallet, <see cref="Pos.Grps"/>): 2 mã cùng size cùng mặt hàng → KHÔNG cảnh báo ('u');
+    /// 1.89: nhóm = cùng mặt hàng + cùng size (như pallet, <see cref="Pos.Grps"/>): 2 mã cùng size cùng mặt hàng → KHÔNG cảnh báo ('u');
     /// từ 2 size, hoặc cùng size khác mặt hàng → 'mm'. Mã không quy ra size → mỗi mã 1 nhóm (như trước).</summary>
     public static string Status(Pos p) => p.It.Count == 0 ? "e" : GroupCount(p) > 1 ? "mm" : "u";
     /// <summary>Số nhóm (mặt hàng + size) trong vị trí; chưa tính nhóm (Grps rỗng) → đếm mã.</summary>
