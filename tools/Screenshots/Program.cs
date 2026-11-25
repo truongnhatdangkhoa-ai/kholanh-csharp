@@ -744,6 +744,23 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v176")
     Console.WriteLine($"[Điện thoại] tab: {((TabItem)tc.Items[tc.ItemCount - 1]!).Header} · {s.PhoneAccounts.List().Count(e => e.Bat)} tài khoản bật");
     s.Lan.Dispose(); Console.WriteLine("Xong (v176): " + outDir); return;
 }
+// 1.80: SHOTS_ONLY=v180 — Dữ liệu & sao lưu › Máy chủ LAN ở 1366×768: bảng "Trùng sửa / tự gộp" không bị cắt, cuộn được. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v180")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P(20);
+    w.Navigate("dulieu"); P(40);
+    var lv = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().First();
+    var sub = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.Items.OfType<TabItem>().Any(i => i.Content == lv || (i.Content as Control)?.GetVisualDescendants().Contains(lv) == true));
+    sub.SelectedItem = sub.Items.OfType<TabItem>().First(i => i.Content == lv || (i.Content as Control)?.GetVisualDescendants().Contains(lv) == true); P(30);
+    var cg = lv.FindControl<DataGrid>("ConflictsGrid")!;
+    var sv = cg.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+    Console.WriteLine($"[LAN] bảng Trùng sửa cao {cg.Bounds.Height:0} px · trong vùng cuộn: {sv is not null} · vùng cuộn {sv?.Extent.Height:0}/{sv?.Viewport.Height:0}");
+    Snap(w, "v180-lan-trung-sua");
+    sv?.ScrollToEnd(); P(10); Snap(w, "v180-lan-trung-sua-cuon");
+    var ok = cg.Bounds.Height >= 250 && sv is not null;
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v180) — ĐẠT: " : "Xong (v180) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
