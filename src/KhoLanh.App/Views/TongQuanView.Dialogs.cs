@@ -75,7 +75,22 @@ public sealed partial class TongQuanView
                 ContSo = cont.Text ?? "", GhiChu = note.Text ?? "", ChungVoi = chung.SelectedIndex > 0 ? mates[chung.SelectedIndex - 1].Id : "",
             };
             save.IsEnabled = false;
-            try { await Task.Run(() => { if (id is null) Svc.Add(inp); else Svc.Update(id, inp); }); w.Close(); }
+            // 1.90: LSX đã có lịch chưa xuất ở ngày khác → hỏi chuyển lịch cũ (kế hoạch đổi ngày) hay thêm lịch mới (vd cont khác) — không tự tạo trùng
+            string? moveId = null;
+            if (id is null && IsIso(inp.Ngay))
+            {
+                List<Lich> other = new();
+                try { other = await Task.Run(() => Svc.OtherDays(inp.Lsx, inp.Ngay)); } catch { }
+                if (other.Count > 0)
+                {
+                    var opts = other.Select(o => $"Chuyển lịch {Label(o.Lsx)} ngày {Vn(o.Ngay)}{(o.Gio.Length > 0 ? " " + GioVn(o.Gio) : "")} sang ngày {Vn(inp.Ngay)} (đổi kế hoạch)").ToList();
+                    opts.Add($"Thêm lịch mới ngày {Vn(inp.Ngay)}, giữ cả lịch cũ (vd khác cont)");
+                    var k = await Ui.Pick(w, $"{Label(LichXuatService.NormLsxInput(inp.Lsx))} đã có lịch chưa xuất ngày {string.Join(", ", other.Select(o => Vn(o.Ngay)))}.\nNếu đây là đổi ngày, nên chuyển lịch cũ để không bị trùng LSX (giữ việc cần làm, dò tồn; giờ / ghi chú / số cont lấy theo ô vừa nhập nếu có).", "LSX đã có lịch", opts);
+                    if (k < 0) { save.IsEnabled = true; return; }
+                    if (k < other.Count) moveId = other[k].Id;
+                }
+            }
+            try { await Task.Run(() => { if (moveId is not null) Svc.MoveInto(moveId, inp); else if (id is null) Svc.Add(inp); else Svc.Update(id, inp); }); w.Close(); }
             catch (Exception e) { err.Text = e is KhoLanh.Core.Services.BusinessException ? e.Message : Ui.Describe(e); save.IsEnabled = true; }
         };
         cancel.Click += (_, _) => w.Close();
@@ -83,6 +98,47 @@ public sealed partial class TongQuanView
         w.Opened += (_, _) => lsx.Focus();
         await Ui.Show(this, w);
         PaintAll(); PaintMonth();
+    }
+
+    // ------------------------------------------------------------------ 1.90: LSX trùng lịch
+
+    internal Task OpenDupForTest(DupGroup g) => DupDialog(g);
+    internal Window? DupWindow;
+
+    /// <summary>Nhóm lịch trùng LSX: giữ 1 lịch (gộp giờ / số cont / ghi chú / việc của lịch kia vào) · đánh dấu hợp lệ · mở từng lịch để sửa.</summary>
+    private async Task DupDialog(DupGroup g)
+    {
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new TextBlock { Text = $"LSX {g.Lsx} đang có {g.Rows.Count} lịch chưa xuất. Thường do lịch đã sửa tay rồi email / nhập nhanh tạo thêm lịch mới. Giữ lịch đúng, các lịch kia bị xóa (giờ, số cont còn trống, ghi chú và việc cần làm được gộp vào lịch giữ lại). Nếu đúng là nhiều cont / nhiều ngày xuất, bấm «Trùng hợp lệ».", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
+        Window? w = null;
+        foreach (var x in g.Rows)
+        {
+            var row = new DockPanel();
+            var keep = Btn("Giữ lịch này", async () =>
+            {
+                string m = "";
+                if (!await Ui.Confirm(w!, $"Giữ lịch {Label(x.Lsx)} ngày {Vn(x.Ngay)}, xóa {g.Rows.Count - 1} lịch còn lại?", "Gộp lịch trùng", "Giữ lịch này")) return;
+                if (await Ui.Run(w!, () => m = Svc.ResolveDup(x.Id, g.Rows.Select(z => z.Id)))) { w!.Close(); await Ui.Message(this, m, "Gộp lịch trùng"); }
+            }, primary: false);
+            var edit = Btn("Sửa", async () => { w!.Close(); await EditDialog(x.Id, null); });
+            var acts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 }; acts.Children.Add(edit); acts.Children.Add(keep);
+            if (!Svc.CanEdit) acts.IsVisible = false;
+            DockPanel.SetDock(acts, Dock.Right); row.Children.Add(acts);
+            var info = new StackPanel();
+            info.Children.Add(new TextBlock { Text = $"{DayLabel(x.Ngay)}{(x.Gio.Length > 0 ? " · " + GioVn(x.Gio) : "")} · {StLabel.GetValueOrDefault(x.TrangThai, x.TrangThai)}", FontWeight = FontWeight.SemiBold, FontSize = 12.5 });
+            info.Children.Add(new TextBlock { Text = string.Join(" · ", new[] { Label(x.Lsx), x.Khach, x.ContSo.Length > 0 ? "cont " + x.ContSo : "", x.GhiChu, ViecOf(x).Count > 0 ? ViecOf(x).Count + " việc" : "" }.Where(t => t.Length > 0)), FontSize = 12, Foreground = Muted, TextWrapping = TextWrapping.Wrap });
+            row.Children.Add(info);
+            body.Children.Add(new Border { Child = row, Padding = new Thickness(8, 6), BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6) });
+        }
+        var ok = new Button { Content = "Trùng hợp lệ (không báo nữa)", IsVisible = Svc.CanEdit };
+        ToolTip.SetTip(ok, "Cùng LSX nhiều cont / nhiều ngày xuất — chỉ cho đúng bộ lịch này; thêm lịch mới cho LSX thì sẽ báo lại.");
+        var close = new Button { Content = "Đóng", IsCancel = true };
+        body.Children.Add(Ui.Buttons(ok, close));
+        w = Ui.Dialog("LSX trùng lịch", body, 640); DupWindow = w;
+        ok.Click += async (_, _) => { if (await Ui.Run(w, () => Svc.MarkDupOk(g))) w.Close(); };
+        close.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        PaintAll();
     }
 
     // ------------------------------------------------------------------ chi tiết lịch
@@ -219,7 +275,7 @@ public sealed partial class TongQuanView
                 prev.Children.Add(new TextBlock { Text = DayLabel(g.Key), FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 4, 0, 0) });
                 foreach (var r in g)
                 {
-                    var dup = SameDayDup(Svc.Rows, r.Lsx, r.Ngay) is not null; var other = Svc.Rows.Where(x => x.Ngay != r.Ngay && Sq(x.Lsx) == Sq(r.Lsx)).Select(x => Dm(x.Ngay)).ToList();
+                    var dup = SameDayDup(Svc.Rows, r.Lsx, r.Ngay) is not null; var other = OpenOther(Svc.Rows, r.Lsx, r.Ngay).Select(x => Dm(x.Ngay)).ToList();
                     prev.Children.Add(new TextBlock
                     {
                         Text = $"   {r.Lsx}{(r.Grp.Length > 0 ? "  (chung cont " + r.Grp + ")" : "")} · {StLabel[r.TrangThai]}" + (dup ? "  — đã có, bỏ qua" : other.Count > 0 ? "  — ⚠ đã có lịch ngày " + string.Join(", ", other) : ""),
@@ -244,9 +300,21 @@ public sealed partial class TongQuanView
         go.Click += async (_, _) =>
         {
             go.IsEnabled = false; LichXuatService.QuickResult? r = null; var list = rows.ToList();
-            if (!await Ui.RunAsync(w, async () => r = await Task.Run(() => Svc.AddQuick(list)))) { go.IsEnabled = true; return; }
+            // 1.90: LSX đã có lịch chưa xuất ngày khác → hỏi chuyển lịch cũ hay thêm mới (giữ cả hai)
+            var moveOther = false;
+            List<(QuickRow Row, List<Lich> Other)> conf = new();
+            try { conf = await Task.Run(() => Svc.QuickConflicts(list)); } catch { }
+            if (conf.Count > 0)
+            {
+                var txt = "Các LSX sau đã có lịch chưa xuất ở ngày khác:\n" + string.Join("\n", conf.Select(c => $"  • {c.Row.Lsx}: đang ở {string.Join(", ", c.Other.Select(o => Vn(o.Ngay)))} → kế hoạch mới {Vn(c.Row.Ngay)}"));
+                var k = await Ui.Pick(w, txt, "LSX đã có lịch", new[] { "Chuyển lịch cũ sang ngày mới (đổi kế hoạch — không tạo trùng; LSX có nhiều lịch cũ thì vẫn thêm và báo)", "Thêm lịch mới, giữ cả lịch cũ (vd khác cont)" });
+                if (k < 0) { go.IsEnabled = true; return; }
+                moveOther = k == 0;
+            }
+            if (!await Ui.RunAsync(w, async () => r = await Task.Run(() => Svc.AddQuick(list, moveOther)))) { go.IsEnabled = true; return; }
             var msg = new List<string>();
             if (r!.Added.Count > 0) msg.Add($"✅ Đã thêm {r.Added.Count} lịch:\n  " + string.Join("\n  ", r.Added));
+            if (r.Moved.Count > 0) msg.Add($"↪ Đã chuyển {r.Moved.Count} lịch cũ:\n  " + string.Join("\n  ", r.Moved));
             if (r.Dup.Count > 0) msg.Add("↩ Đã có sẵn (bỏ qua): " + string.Join(", ", r.Dup));
             if (r.NotFound.Count > 0) msg.Add("⚠ Chưa dò được (vẫn lưu lịch):\n  " + string.Join("\n  ", r.NotFound));
             if (r.OtherDay.Count > 0) msg.Add("⚠ Kế hoạch có thể đã đổi:\n  " + string.Join("\n  ", r.OtherDay));
@@ -342,7 +410,26 @@ public sealed partial class TongQuanView
                 act.Children.Add(Btn("✔ Duyệt", async () =>
                 {
                     string m = ""; var nd = d.SelectedDate is { } dd ? Iso(dd) : ""; var g2 = gio.Text ?? "";
-                    if (await Ui.RunAsync(w!, async () => m = await Task.Run(() => Svc.Decide(id, true, nd, g2)))) { status.Text = "✓ " + m; Paint(); }
+                    // 1.90: LSX đã có lịch ngày khác (đã sửa tay / nhiều cont) → hỏi chuyển lịch nào / giữ cả hai / bỏ qua thư
+                    string? choice = null;
+                    if (IsIso(nd))
+                    {
+                        List<LichXuatEmail.PlanItem> plan = new();
+                        try { plan = await Task.Run(() => Svc.EmailPlan(r, nd)); } catch { }
+                        var ask = plan.Where(p => p.Kind == LichXuatEmail.PlanKind.Choose).ToList();
+                        if (ask.Count > 0)
+                        {
+                            var cands = ask.SelectMany(p => p.Cands).DistinctBy(x => x.Id).ToList();
+                            var opts = cands.Select(x => $"Chuyển lịch {Label(x.Lsx)} ngày {Vn(x.Ngay)}{(x.Gio.Length > 0 ? " " + GioVn(x.Gio) : "")}{(x.TrangThai == "ok" ? " (đã xuất)" : "")} sang ngày {Vn(nd)}").ToList();
+                            opts.Add($"Thêm lịch mới ngày {Vn(nd)}, giữ cả lịch cũ (vd khác cont)");
+                            opts.Add("Bỏ qua thư này (giữ lịch như đang có)");
+                            var k = await Ui.Pick(w!, $"Thư {r.HanhDongTen.ToLowerInvariant()} LSX {r.Lsx} ngày {Vn(nd)}, nhưng LSX đã có lịch ngày {string.Join(", ", cands.Select(x => Vn(x.Ngay)))} (có thể đã sửa tay, hoặc nhiều cont). Chọn cách xử lý:", "LSX đã có lịch", opts, 560);
+                            if (k < 0) return;
+                            if (k == opts.Count - 1) { if (await Ui.Run(w!, () => Svc.Decide(id, false))) Paint(); return; }
+                            choice = k < cands.Count ? cands[k].Id : LichXuatService.ChoiceKeep;
+                        }
+                    }
+                    if (await Ui.RunAsync(w!, async () => m = await Task.Run(() => Svc.Decide(id, true, nd, g2, choice)))) { status.Text = "✓ " + m; Paint(); }
                 }, primary: true));
                 act.Children.Add(Btn("Bỏ qua", async () => { if (await Ui.Run(w!, () => Svc.Decide(id, false))) Paint(); }));
                 c.Children.Add(act);

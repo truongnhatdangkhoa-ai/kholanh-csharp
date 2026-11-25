@@ -723,6 +723,31 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
+// 1.90: SHOTS_ONLY=lxtrung — LSX trùng lịch: cảnh báo ở tab Việc cần làm, hộp giữ 1 lịch / trùng hợp lệ; gộp xong hết báo. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lxtrung")
+{
+    var ok = true;
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var lx = s.LichXuat; lx.Load();
+    string D(int d) => KhoLanh.Core.LichXuat.LichXuatCore.Iso(DateTime.Today.AddDays(d));
+    var a = lx.Add(new() { Ngay = D(1), Lsx = "26.09.020", Gio = "10:00", GhiChu = "sửa tay" });
+    lx.Add(new() { Ngay = D(2), Lsx = "26.09.020" });
+    lx.Load();
+    var groups = lx.DupGroups();
+    Console.WriteLine($"[Trùng] nhóm: {string.Join(" | ", groups.Select(g => g.Lsx + " ×" + g.Rows.Count))}");
+    if (!groups.Any(g => g.Lsx == "26.09.020")) ok = false;
+    main.Navigate("lx"); P(60);
+    var tqv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TongQuanView>().First();
+    var todo = tqv.GetVisualDescendants().OfType<TabItem>().FirstOrDefault(t => (t.Header as string ?? "").StartsWith("Việc cần làm"));
+    Console.WriteLine($"[Trùng] tab: {todo?.Header}");
+    if (todo is not null) { todo.IsSelected = true; P(20); }
+    Snap(main, "lx-trung-viec-can-lam");
+    var t = tqv.OpenDupForTest(groups.First(g => g.Lsx == "26.09.020")); P(30);
+    if (tqv.DupWindow is { } dw) { Snap(dw, "lx-trung-hop-giu-lich"); dw.Close(); P(10); } else ok = false;
+    lx.ResolveDup(a.Id, groups.First(g => g.Lsx == "26.09.020").Rows.Select(r => r.Id)); lx.Load();
+    if (lx.DupGroups().Any(g => g.Lsx == "26.09.020")) { Console.WriteLine("[Trùng] LỖI: gộp xong vẫn báo"); ok = false; }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (lxtrung) — ĐẠT: " : "Xong (lxtrung) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.74: SHOTS_ONLY=v174 — hộp Email mở được (trước lỗi NullReference), đổi giao diện Tối → Sáng bằng hộp "Giao diện & cỡ chữ",
 // màu thanh tiêu đề Windows theo giao diện. Thoát mã 1 nếu kiểm tra hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")

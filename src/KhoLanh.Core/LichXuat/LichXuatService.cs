@@ -188,6 +188,87 @@ public sealed partial class LichXuatService
         public string ChungVoi = "";
     }
 
+    // ------------------------------------------------------------------ 1.90: LSX trùng lịch
+
+    /// <summary>Nhóm đã đánh dấu "trùng hợp lệ" (sheet LX_TrungHopLe trong database lichxuat — mọi máy thấy chung).</summary>
+    public HashSet<string> DupOkSigs() => Read(SheetDupOk).OfType<JsonObject>().Select(o => S(o["sig"])).Where(x => x.Length > 0).ToHashSet();
+
+    /// <summary>LSX đang có từ 2 lịch chưa xuất trở lên (trừ nhóm đã đánh dấu hợp lệ).</summary>
+    public List<DupGroup> DupGroups() => DupLsx(Rows, DupOkSigs());
+
+    /// <summary>Đánh dấu nhóm trùng là hợp lệ (vd cùng LSX nhiều cont / nhiều ngày) — không báo nữa cho đúng bộ lịch này.</summary>
+    public void MarkDupOk(DupGroup g)
+    {
+        RequireEdit();
+        lock (_lock)
+        {
+            var cur = Read(SheetDupOk).OfType<JsonObject>().Select(o => (JsonObject)o.DeepClone()).Where(o => S(o["sig"]) != g.Sig).ToList();
+            var live = Rows.Select(r => r.Id).ToHashSet();
+            // bỏ dấu cũ của bộ lịch đã không còn (giữ bảng gọn)
+            cur = cur.Where(o => S(o["sig"]).Split('|').Last().Split(',').Any(live.Contains)).ToList();
+            cur.Add(new JsonObject { ["sig"] = g.Sig, ["lsx"] = g.Lsx, ["by"] = _session.Username, ["at"] = Now().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) });
+            _src().Write(Db, new Dictionary<string, JsonArray?> { [SheetDupOk] = new JsonArray(cur.Select(o => (JsonNode)o).ToArray()) });
+        }
+        _audit.Log(_session.Username, "Lịch xuất", $"Đánh dấu LSX {g.Lsx} trùng lịch hợp lệ ({string.Join(", ", g.Rows.Select(r => Vn(r.Ngay)))})");
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Gộp lịch trùng: giữ lịch <paramref name="keepId"/>, xóa các lịch <paramref name="dropIds"/>; giờ / số cont còn trống lấy từ lịch bị xóa,
+    /// ghi chú và việc cần xử lý được gộp lại (không mất dữ liệu đã sửa tay).
+    /// </summary>
+    public string ResolveDup(string keepId, IEnumerable<string> dropIds)
+    {
+        var drop = dropIds.Where(x => x != keepId).ToHashSet();
+        return Mutate(l =>
+        {
+            var k = l.FirstOrDefault(x => x.Id == keepId) ?? throw new BusinessException("Không còn lịch này (máy khác vừa sửa?).");
+            var gone = l.Where(x => drop.Contains(x.Id)).ToList();
+            foreach (var d in gone)
+            {
+                if (k.Gio.Length == 0) k.Gio = d.Gio;
+                if (k.ContSo.Length == 0) k.ContSo = d.ContSo;
+                if (d.GhiChu.Trim().Length > 0 && !k.GhiChu.Contains(d.GhiChu.Trim())) k.GhiChu = (k.GhiChu.Trim() + " · " + d.GhiChu.Trim()).Trim(' ', '·');
+                var a = ViecOf(k);
+                foreach (var v in ViecOf(d)) if (!a.Any(x => string.Equals(x.T.Trim(), v.T.Trim(), StringComparison.OrdinalIgnoreCase))) a.Add(v);
+                SetViec(k, a);
+            }
+            l.RemoveAll(x => drop.Contains(x.Id));
+            return $"Giữ lịch {Label(k.Lsx)} ngày {Vn(k.Ngay)}, xóa {gone.Count} lịch trùng ({string.Join(", ", gone.Select(x => Vn(x.Ngay)))}).";
+        }, $"Gộp lịch trùng LSX → giữ {keepId}, xóa {string.Join(", ", drop)}");
+    }
+
+    /// <summary>Lịch chưa xuất của LSX ở ngày khác (đọc bản mới nhất) — hộp Thêm lịch hỏi "chuyển lịch cũ hay thêm mới" (1.90).</summary>
+    public List<Lich> OtherDays(string lsx, string ngay, string? exceptId = null) => OpenOther(ReadAll().Where(Keep), NormLsxInput(lsx), ngay, exceptId);
+
+    /// <summary>
+    /// Thêm lịch NHƯNG là chuyển lịch cũ <paramref name="moveId"/> của cùng LSX sang ngày mới (kế hoạch đổi ngày, không tạo trùng):
+    /// giữ việc / dò tồn / số LSX của lịch cũ; giờ, ghi chú, số cont, trạng thái lấy theo ô vừa nhập nếu có.
+    /// </summary>
+    public Lich MoveInto(string moveId, Input inp)
+    {
+        RequireEdit();
+        if (!IsIso(inp.Ngay)) throw new BusinessException("Chọn ngày xuất.");
+        return Mutate(l =>
+        {
+            var r = l.FirstOrDefault(x => x.Id == moveId) ?? throw new BusinessException("Không còn lịch cũ này (máy khác vừa xóa?).");
+            if (SameDayDup(l, r.Lsx, inp.Ngay, r.Id) is { } d) throw new BusinessException($"{Label(d.Lsx)} đã có lịch ngày {Vn(d.Ngay)}.");
+            var from = r.Ngay;
+            MoveRec(r, inp.Ngay, Now());
+            if (NormGio(inp.Gio) is { Length: > 0 } g) r.Gio = g;
+            if (inp.GhiChu.Trim() is { Length: > 0 } gc) r.GhiChu = gc;
+            if (inp.ContSo.Trim() is { Length: > 0 } cs) r.ContSo = cs.ToUpperInvariant();
+            if (StLabel.ContainsKey(inp.TrangThai) && inp.TrangThai != "plan") r.TrangThai = inp.TrangThai;
+            if (inp.ChungVoi.Length > 0 && l.FirstOrDefault(x => x.Id == inp.ChungVoi && x.Ngay == r.Ngay) is { } mate)
+            {
+                if (mate.Cont.Length == 0) mate.Cont = "c" + B36(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                r.Cont = mate.Cont;
+            }
+            _audit.Log(_session.Username, "Lịch xuất", $"Chuyển lịch {Label(r.Lsx)} ngày {Vn(from)} → {Vn(inp.Ngay)} (thay vì thêm lịch trùng)");
+            return r;
+        });
+    }
+
     /// <summary>Thêm 1 lịch (tự dò Thành Phẩm Chính). Trả về lịch đã lưu.</summary>
     public Lich Add(Input inp)
     {
@@ -433,9 +514,25 @@ public sealed partial class LichXuatService
 
     // ------------------------------------------------------------------ nhập nhanh
 
-    public sealed record QuickResult(List<string> Added, List<string> Dup, List<string> NotFound, List<string> OtherDay);
+    public sealed record QuickResult(List<string> Added, List<string> Dup, List<string> NotFound, List<string> OtherDay)
+    {
+        /// <summary>1.90: lịch cũ của LSX đã chuyển sang ngày mới (thay vì thêm lịch trùng).</summary>
+        public List<string> Moved { get; init; } = new();
+    }
 
-    public QuickResult AddQuick(IEnumerable<QuickRow> list)
+    /// <summary>Dòng nhập nhanh mà LSX đã có lịch chưa xuất ở ngày khác (hộp Nhập nhanh hỏi trước khi thêm).</summary>
+    public List<(QuickRow Row, List<Lich> Other)> QuickConflicts(IEnumerable<QuickRow> list)
+    {
+        var cur = ReadAll().Where(Keep).ToList();
+        return list.Where(q => IsIso(q.Ngay) && SameDayDup(cur, NormLsxInput(q.Lsx), q.Ngay) is null)
+            .Select(q => (q, OpenOther(cur, NormLsxInput(q.Lsx), q.Ngay))).Where(x => x.Item2.Count > 0).ToList();
+    }
+
+    /// <summary>
+    /// Nhập nhanh. <paramref name="moveOther"/> (1.90): LSX đã có ĐÚNG 1 lịch chưa xuất ở ngày khác → chuyển lịch đó sang ngày mới thay vì thêm lịch trùng
+    /// (nhiều lịch → vẫn thêm và báo kiểm tra).
+    /// </summary>
+    public QuickResult AddQuick(IEnumerable<QuickRow> list, bool moveOther = false)
     {
         RequireEdit();
         var baseMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -447,18 +544,28 @@ public sealed partial class LichXuatService
             var lk = Lookup(r.Lsx); if (lk.Found) Merge(r, lk); else notFound.Add($"{Vn(r.Ngay)} · {r.Lsx}: {lk.Message}");
             fresh.Add(r);
         }
-        var dup = new List<string>(); var other = new List<string>(); var added = new List<string>();
+        var dup = new List<string>(); var other = new List<string>(); var added = new List<string>(); var moved = new List<string>();
         Mutate(l =>
         {
+            var newIds = fresh.Select(x => x.Id).ToHashSet(); var used = new HashSet<string>();
             foreach (var r in fresh)
             {
                 if (SameDayDup(l, r.Lsx, r.Ngay) is not null) { dup.Add(Vn(r.Ngay) + " · " + r.Lsx); continue; }
-                var o = l.Where(x => !x.IsNhap && x.Ngay != r.Ngay && Sq(x.Lsx) == Sq(r.Lsx)).Select(x => Vn(x.Ngay)).ToList();
+                if (moveOther && OpenOther(l.Where(Keep), r.Lsx, r.Ngay).Where(x => !newIds.Contains(x.Id) && !used.Contains(x.Id)).ToList() is { Count: 1 } one)
+                {
+                    var o1 = one[0]; var from = o1.Ngay; used.Add(o1.Id);
+                    MoveRec(o1, r.Ngay, Now());
+                    if (r.Cont.Length > 0) o1.Cont = r.Cont;
+                    if (r.TrangThai != "plan") o1.TrangThai = r.TrangThai;
+                    moved.Add($"{Label(o1.Lsx)}: {Vn(from)} → {Vn(r.Ngay)}");
+                    continue;
+                }
+                var o = OpenOther(l.Where(Keep), r.Lsx, r.Ngay).Where(x => !newIds.Contains(x.Id)).Select(x => Vn(x.Ngay)).ToList();
                 if (o.Count > 0) other.Add($"{r.Lsx} (thêm ngày {Vn(r.Ngay)}) đã có lịch ngày {string.Join(", ", o)} — kế hoạch đổi? Kiểm tra / chuyển lịch cũ.");
                 l.Add(r); added.Add(Vn(r.Ngay) + " · " + r.Lsx + (r.Khach.Length > 0 ? " · " + r.Khach : ""));
             }
-        }, $"Nhập nhanh {fresh.Count} lịch");
-        return new QuickResult(added, dup, notFound, other);
+        }, $"Nhập nhanh {fresh.Count} lịch" + (moved.Count > 0 ? $" (chuyển {moved.Count} lịch cũ)" : ""));
+        return new QuickResult(added, dup, notFound, other) { Moved = moved };
     }
 
     // ------------------------------------------------------------------ tạo List sản xuất / Phiếu xuất kho từ lịch
@@ -766,6 +873,8 @@ public sealed partial class LichXuatService
     public ScanResult ProcessMessages(List<LichXuatEmail.Msg> msgs, MailConfig cfg)
     {
         var now = Now();
+        // 1.90: quét nền chạy lâu — lịch trong bộ nhớ có thể cũ (sửa tay ở máy khác / điện thoại) → đọc lại trước khi khớp LSX
+        lock (_lock) Rows = ReadAll().Where(Keep).ToList();
         var built = LichXuatEmail.BuildRows(msgs, cfg.KeywordList, cfg.AllowList, cfg.Days, now);
         var store = EmailRows(); var known = store.Select(r => r.Id).ToHashSet();
         var fresh = built.Where(r => !known.Contains(r.Id)).ToList();
@@ -780,7 +889,7 @@ public sealed partial class LichXuatService
             {
                 if (trust.Length > 0 && LichXuatEmail.Trusted(x.NguoiGui, trust) && x.NhanLuc.Date == now.Date && CanEdit)
                 {
-                    var miss = codes.Where(c => !Rows.Any(r => Sq(r.Lsx) == Sq(c))).ToList();
+                    var miss = codes.Where(c => !Rows.Any(r => SharesLsx(r, new[] { Sq(c) }))).ToList();
                     if (miss.Count > 0)
                     {
                         AddQuick(miss.Select(c => new QuickRow(Iso(now), WithLsx(c), "run", miss.Count > 1 ? "M" : "")));
@@ -835,51 +944,99 @@ public sealed partial class LichXuatService
         catch { return 0; }
     }
 
-    /// <summary>Áp 1 thư vào lịch: tạo (LSX chưa có lịch) · đổi ngày / giờ (LSX có đúng 1 lịch chưa xuất) · hủy (xóa lịch ngày đó). Trả lời nhắn.</summary>
-    public string ApplyEmail(LichXuatEmail.Row r, string ngay, string gio)
+    /// <summary>Lựa chọn khi thư không chắc (LSX đã có lịch ngày khác / nhiều lịch): <see cref="ChoiceKeep"/> = thêm lịch mới, giữ cả hai;
+    /// mã 1 lịch = chuyển lịch đó sang ngày thư.</summary>
+    public const string ChoiceKeep = "keep";
+
+    /// <summary>Kế hoạch áp thư (đọc bản lịch mới nhất) — hộp duyệt dùng để hỏi khi có mục <see cref="LichXuatEmail.PlanKind.Choose"/>.</summary>
+    public List<LichXuatEmail.PlanItem> EmailPlan(LichXuatEmail.Row r, string ngay) => LichXuatEmail.Plan(r, ngay, ReadAll().Where(Keep));
+
+    /// <summary>
+    /// Áp 1 thư vào lịch, KHỚP THEO SỐ LSX (1.90 — lịch đã sửa tay ngày / giờ vẫn được nhận ra, không tạo trùng):
+    /// tạo (LSX chưa có lịch) · đã có lịch đúng ngày → chỉ cập nhật giờ · đổi → chuyển lịch chưa xuất duy nhất của LSX (giữ giờ, ghi chú, việc, số cont sửa tay) ·
+    /// không chắc (<see cref="LichXuatEmail.PlanKind.Choose"/>) → cần <paramref name="choice"/>: <see cref="ChoiceKeep"/> hoặc mã lịch muốn chuyển · hủy (xóa lịch ngày đó).
+    /// </summary>
+    public string ApplyEmail(LichXuatEmail.Row r, string ngay, string gio, string? choice = null)
     {
         var codes = LichXuatEmail.CodesOf(r.Lsx);
         if (codes.Count == 0) throw new BusinessException("Không đọc được LSX từ tiêu đề thư.");
         if (!IsIso(ngay)) throw new BusinessException("Chọn ngày trước khi duyệt.");
         gio = NormGio(gio);
-        bool Same(Lich x, string c) => !x.IsNhap && Sq(c) == Sq(x.Lsx);
-        r.Undo = JsonSerializer.Serialize(Rows.Where(x => codes.Any(c => Same(x, c))).Select(x => x.ToJson().ToJsonString()).ToList());
+        var keys = codes.Select(Sq).ToList();
+        bool Mine(Lich x) => SharesLsx(x, keys);
+        r.Undo = JsonSerializer.Serialize(ReadAll().Where(Mine).Select(x => x.ToJson().ToJsonString()).ToList());
         if (r.HanhDong == "huy")
         {
-            var other = new List<string>();
-            var del = Mutate(l => { var n = l.RemoveAll(x => codes.Any(c => Same(x, c)) && x.Ngay == ngay); other.AddRange(l.Where(x => codes.Any(c => Same(x, c))).Select(x => Vn(x.Ngay))); return n; }, $"Email: hủy {r.Lsx} ngày {Vn(ngay)}");
-            return del > 0 ? $"Đã hủy {del} lịch ngày {Vn(ngay)}" : other.Count > 0 ? $"Không có lịch ngày {Vn(ngay)} (LSX đang ở ngày {string.Join(", ", other)}) — giữ nguyên" : "Không có lịch nào để hủy";
+            var other = new List<string>(); var ghep = new List<string>();
+            var del = Mutate(l =>
+            {
+                // chỉ xóa lịch mà MỌI số LSX trong ô đều thuộc thư hủy — lịch cont ghép với LSX khác giữ lại, báo kiểm tay
+                var hit = l.Where(x => Mine(x) && x.Ngay == ngay).ToList();
+                foreach (var x in hit.Where(x => !Keys(x.Lsx).All(keys.Contains))) ghep.Add(Label(x.Lsx));
+                var n = l.RemoveAll(x => hit.Contains(x) && Keys(x.Lsx).All(keys.Contains));
+                other.AddRange(l.Where(x => Mine(x) && x.Ngay != ngay).Select(x => Vn(x.Ngay)));
+                return n;
+            }, $"Email: hủy {r.Lsx} ngày {Vn(ngay)}");
+            var msg = del > 0 ? $"Đã hủy {del} lịch ngày {Vn(ngay)}" : other.Count > 0 ? $"Không có lịch ngày {Vn(ngay)} (LSX đang ở ngày {string.Join(", ", other.Distinct())}) — giữ nguyên" : ghep.Count == 0 ? "Không có lịch nào để hủy" : "";
+            if (ghep.Count > 0) msg += (msg.Length > 0 ? " · " : "") + $"{string.Join(", ", ghep)} ngày {Vn(ngay)} đang chung cont với LSX khác — giữ nguyên, kiểm tra tay";
+            return msg;
         }
-        var fresh = new List<string>(); var moved = new List<(string Id, string C, string From)>(); var kept = new List<string>();
-        foreach (var c in codes)
+        // dựng sẵn lịch mới (dò Thành Phẩm Chính) cho mọi số LSX — chỉ dùng cho số nào cần thêm
+        var baseMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); var i = 0;
+        var st = string.CompareOrdinal(ngay, Iso(Now())) < 0 ? "ok" : "plan";
+        var made = codes.ToDictionary(c => c, c =>
         {
-            var cand = Rows.Where(x => Same(x, c)).OrderByDescending(x => x.Ngay, StringComparer.Ordinal).FirstOrDefault();
-            if (cand is null) fresh.Add(c);
-            else if (r.HanhDong == "tao") kept.Add($"{c} đã có lịch ngày {Vn(cand.Ngay)}");
-            else moved.Add((cand.Id, c, cand.Ngay));
-        }
-        if (fresh.Count > 0) AddQuick(fresh.Select(c => new QuickRow(ngay, WithLsx(c), string.CompareOrdinal(ngay, Iso(Now())) < 0 ? "ok" : "plan", fresh.Count > 1 ? "M" : "")));
+            var x = new Lich { Id = NewId(i++), Ngay = ngay, Gio = gio, TrangThai = st, Lsx = WithLsx(c) };
+            var lk = Lookup(x.Lsx); if (lk.Found) Merge(x, lk);
+            return x;
+        });
+        var added = new List<string>(); var moved = new List<string>(); var same = new List<string>();
         Mutate(l =>
         {
-            foreach (var m in moved) if (l.FirstOrDefault(x => x.Id == m.Id) is { } z && z.Ngay != ngay && SameDayDup(l, z.Lsx, ngay, z.Id) is null) MoveRec(z, ngay, Now());
-            if (gio.Length > 0) foreach (var x in l.Where(x => x.Ngay == ngay && codes.Any(c => Same(x, c)))) x.Gio = gio;
+            var plan = LichXuatEmail.Plan(r, ngay, l.Where(Keep));
+            if (choice is null && plan.FirstOrDefault(p => p.Kind == LichXuatEmail.PlanKind.Choose) is { } q)
+                throw new BusinessException($"LSX {q.Code} đã có lịch ngày {string.Join(", ", q.Cands.Select(x => Vn(x.Ngay)))} — chọn chuyển lịch cũ hay giữ cả hai.");
+            var fresh = new List<Lich>(); var done = new HashSet<string>();
+            foreach (var p in plan)
+            {
+                var kind = p.Kind; var tgt = p.Target;
+                if (kind == LichXuatEmail.PlanKind.Choose)
+                {
+                    if (choice == ChoiceKeep) kind = LichXuatEmail.PlanKind.Add;
+                    else { tgt = p.Cands.FirstOrDefault(x => x.Id == choice) ?? l.FirstOrDefault(x => x.Id == choice && Mine(x)) ?? throw new BusinessException("Lịch đã chọn không còn (máy khác vừa sửa?) — mở lại thư."); kind = LichXuatEmail.PlanKind.Move; }
+                }
+                switch (kind)
+                {
+                    case LichXuatEmail.PlanKind.SameDay: same.Add(p.Code); break;
+                    case LichXuatEmail.PlanKind.Add: fresh.Add(made[p.Code]); added.Add(p.Code); break;
+                    case LichXuatEmail.PlanKind.Move when tgt is not null:
+                        if (!done.Add(tgt.Id)) { same.Add(p.Code); break; }   // cont ghép: 1 lịch chứa nhiều số LSX của thư → chuyển 1 lần
+                        var from = tgt.Ngay;
+                        if (SameDayDup(l, tgt.Lsx, ngay, tgt.Id) is not null) { moved.Add($"{p.Code}: đã có lịch ngày {Vn(ngay)}, giữ lịch ngày {Vn(from)}"); break; }
+                        MoveRec(tgt, ngay, Now()); moved.Add($"{p.Code}: {Vn(from)} → {Vn(ngay)}");
+                        break;
+                }
+            }
+            if (fresh.Count > 1) { var g = "q" + B36(baseMs) + "M"; foreach (var x in fresh) x.Cont = g; }
+            l.AddRange(fresh);
+            if (gio.Length > 0) foreach (var x in l.Where(x => x.Ngay == ngay && Mine(x))) x.Gio = gio;
         }, $"Email: {r.HanhDongTen} {r.Lsx} → {Vn(ngay)}");
         return string.Join(" · ", new[]
         {
-            fresh.Count > 0 ? $"Đã thêm {string.Join(", ", fresh)} ngày {Vn(ngay)}" : "",
-            string.Join("; ", moved.Select(m => m.From == ngay ? $"{m.C}: giữ ngày {Vn(ngay)}" + (gio.Length > 0 ? ", giờ " + GioVn(gio) : "") : $"{m.C}: {Vn(m.From)} → {Vn(ngay)}")),
-            kept.Count > 0 ? string.Join("; ", kept) + " — không thêm trùng" : "",
+            added.Count > 0 ? $"Đã thêm {string.Join(", ", added)} ngày {Vn(ngay)}" + (choice == ChoiceKeep ? " (giữ cả lịch cũ)" : "") : "",
+            string.Join("; ", moved),
+            same.Count > 0 ? $"{string.Join(", ", same)}: giữ ngày {Vn(ngay)}" + (gio.Length > 0 ? ", giờ " + GioVn(gio) : "") + " — không thêm trùng" : "",
         }.Where(x => x.Length > 0));
     }
 
-    /// <summary>Duyệt (áp vào lịch) hoặc bỏ qua 1 thư chờ duyệt.</summary>
-    public string Decide(string id, bool approve, string? ngay = null, string? gio = null)
+    /// <summary>Duyệt (áp vào lịch) hoặc bỏ qua 1 thư chờ duyệt. <paramref name="choice"/>: xem <see cref="ApplyEmail"/>.</summary>
+    public string Decide(string id, bool approve, string? ngay = null, string? gio = null, string? choice = null)
     {
         if (!CanMail) throw new BusinessException("Mục Email chỉ dành cho tài khoản Quản trị.");
         var store = EmailRows(); var r = store.FirstOrDefault(x => x.Id == id) ?? throw new BusinessException("Không còn thư này.");
         if (r.TrangThai.Length > 0) throw new BusinessException("Thư này đã xử lý (" + r.TrangThai + ").");
         string msg;
-        if (approve) { msg = ApplyEmail(r, ngay ?? r.Ngay, gio ?? r.Gio); r.Ngay = ngay ?? r.Ngay; r.Gio = gio ?? r.Gio; r.TrangThai = "Đã duyệt"; }
+        if (approve) { msg = ApplyEmail(r, ngay ?? r.Ngay, gio ?? r.Gio, choice); r.Ngay = ngay ?? r.Ngay; r.Gio = gio ?? r.Gio; r.TrangThai = "Đã duyệt"; }
         else { msg = "Đã bỏ qua thư " + r.Lsx; r.TrangThai = "Bỏ qua"; }
         r.XuLyLuc = Now(); r.KetQua = msg;
         SaveEmailRows(store);
@@ -895,10 +1052,10 @@ public sealed partial class LichXuatService
         if (r.TrangThai == "Đã duyệt" && r.HanhDong != "xe" && r.Undo.Length > 0)
         {
             var before = (JsonSerializer.Deserialize<List<string>>(r.Undo) ?? new()).Select(s => Lich.From(JsonNode.Parse(s)!.AsObject())).ToList();
-            var ids = before.Select(b => b.Id).ToHashSet(); var codes = LichXuatEmail.CodesOf(r.Lsx);
+            var ids = before.Select(b => b.Id).ToHashSet(); var keys = LichXuatEmail.CodesOf(r.Lsx).Select(Sq).ToList();
             n = Mutate(l =>
             {
-                var k = l.RemoveAll(x => !ids.Contains(x.Id) && x.Ngay == r.Ngay && codes.Any(c => Sq(c) == Sq(x.Lsx)));
+                var k = l.RemoveAll(x => !ids.Contains(x.Id) && x.Ngay == r.Ngay && SharesLsx(x, keys));
                 foreach (var b in before)
                 {
                     var z = l.FirstOrDefault(x => x.Id == b.Id);
