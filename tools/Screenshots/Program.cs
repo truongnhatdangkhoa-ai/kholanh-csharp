@@ -1266,8 +1266,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v206")
     var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show();
     w.Navigate("lan"); Wait6(60);
     var lv = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().FirstOrDefault();
-    var ok6 = lv is not null && !lv.ManualCard.IsVisible && lv.ClaimButton.IsVisible;
-    Console.WriteLine($"[v206] Mạng LAN: cài tay {(lv?.ManualCard.IsVisible == true ? "hiện" : "ẩn")}, nút \"{lv?.ClaimButton.Content}\" {(lv?.ClaimButton.IsVisible == true ? "hiện" : "ẩn")}");
+    var ok6 = lv is not null && lv.ClaimButton.IsVisible;
+    Console.WriteLine($"[v206] Mạng LAN: nút \"{lv?.ClaimButton.Content}\" {(lv?.ClaimButton.IsVisible == true ? "hiện" : "ẩn")}");
     if (lv is not null) { lv.LanTabs.SelectedIndex = 1; Wait6(30); }
     CheckUnderNav(w, "v206-lan-theo-tai-khoan"); Snap(w, "v206-lan-theo-tai-khoan");
     s.Lan.Dispose();

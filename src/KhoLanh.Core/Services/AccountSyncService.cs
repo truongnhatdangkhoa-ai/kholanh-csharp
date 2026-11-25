@@ -341,7 +341,7 @@ public class AccountSyncService
 
     public const string OldJoinScriptMsg =
         "Google Sheet chung chưa cập nhật Code.gs mới (cần cho máy mới đăng nhập). Ở máy Quản trị: dán Code.gs mới vào Apps Script rồi Triển khai phiên bản mới; "
-        + "trong lúc chờ, dán mã KLKN1-… (Hệ thống › Kết nối › Chép mã cho máy khác).";
+        + "trong lúc chờ, dán mã KLKN1-… (máy Quản trị: Hệ thống › Kết nối › ⋯ Thêm › Chép mã kết nối máy).";
 
     /// <summary>
     /// 1.106: MÁY MỚI chỉ cần tên đăng nhập + mật khẩu. Gửi tới Web App Sheet chung cài sẵn (lệnh <c>pcDangNhap</c> của Code.gs): Web App kiểm mật khẩu bằng

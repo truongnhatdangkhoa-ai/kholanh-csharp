@@ -239,6 +239,16 @@ public class GopSheetDienThoaiTests : IDisposable
         e = await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(x.Auth, x.Accounts, "chuaco", "abc123"));
         Assert.Contains("chưa có trên Google Sheet chung", e.Message);
         Assert.Contains("Đồng bộ tài khoản ngay", e.Message);
+        // 1.108 (ảnh người dùng: "Không lấy được danh sách mới … (Sai mã kết nối)"): máy đã nối nhưng giữ mã cũ → đăng nhập hỏi lại Sheet
+        // bằng tên + mật khẩu, tự thay mã, vào được tài khoản mới tạo ở máy chính.
+        x.Settings.Set("acct_token", KhoLanh.Core.Services.Secret.Protect("ma-cu-sai"));
+        a.Auth.CreateUser("moi", "Mới", "matkhau4", Roles.Staff);
+        var r2 = await LoginFlow.LoginAsync(x.Auth, x.Accounts, "moi", "matkhau4");
+        Assert.Equal("moi", r2.User.Username);
+        Assert.Contains("kết nối lại", r2.Note);
+        Assert.Equal(3, await x.Accounts.PullAsync());   // admin, khoa, moi
+        x.Auth.Logout();
+
         // Có tài khoản, sai mật khẩu → câu cũ.
         e = await Assert.ThrowsAsync<BusinessException>(() => LoginFlow.LoginAsync(x.Auth, x.Accounts, "khoa", "sai"));
         Assert.Equal("Sai tên đăng nhập hoặc mật khẩu.", e.Message);
@@ -247,7 +257,7 @@ public class GopSheetDienThoaiTests : IDisposable
         var (y, _) = Machine("Y", phoneLinked: false);
         y.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
         y.Auth.CreateFirstAdmin("chu", "Chủ máy Y", "rieng123");
-        e = await Assert.ThrowsAsync<JoinException>(() => LoginFlow.LoginAsync(y.Auth, y.Accounts, "khach", "abc123"));
+        e = await Assert.ThrowsAnyAsync<BusinessException>(() => LoginFlow.LoginAsync(y.Auth, y.Accounts, "khach", "abc123"));
         Assert.Contains("chưa có trên Google Sheet chung", e.Message);
         Assert.False(y.Accounts.Enabled);
         Assert.Equal("chu", (await LoginFlow.LoginAsync(y.Auth, y.Accounts, "chu", "rieng123")).User.Username);

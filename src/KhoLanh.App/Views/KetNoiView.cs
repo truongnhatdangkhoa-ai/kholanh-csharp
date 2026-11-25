@@ -13,20 +13,19 @@ namespace KhoLanh.App.Views;
 /// gom về 1 trang, mỗi kết nối 1 thẻ: tên dễ hiểu · Đã kết nối / Chưa / Lỗi · 1 nút chính, việc ít dùng vào "⋯ Thêm".
 ///  • Google Sheet chung (tài khoản dùng chung + điện thoại — 1 Sheet, 1 Apps Script từ 1.104) · Gmail sao lưu (Drive cá nhân) ·
 ///    Đăng nhập bằng Google · Gmail nhận lịch xuất · Cập nhật phần mềm (GitHub).
-///  • Khung phải "Máy mới? Chỉ cần 2 bước": dán MÃ KẾT NỐI MÁY (KLKN1- = tài khoản + PC_TOKEN điện thoại + GitHub).
+///  • 1.108: bỏ khung "Máy mới? Chỉ cần 2 bước" + nút "Chép mã cho máy khác" (máy mới chỉ cần đăng nhập, 1.106 / 1.107); mã KLKN1- còn ở ⋯ Thêm (dự phòng).
 /// Trước đây nằm rải ở Cài đặt máy (tài khoản dùng chung, GitHub), hộp "Kết nối điện thoại…", Tài khoản (Đăng nhập Google).
 /// </summary>
 public sealed class KetNoiView : UserControl, IPage, IKeepFresh
 {
     public string Title => "Kết nối";
-    public string Subtitle => "Mọi kết nối của máy này ở một chỗ: Google Sheet chung (tài khoản + điện thoại), Gmail sao lưu, đăng nhập Google, Gmail lịch xuất, cập nhật phần mềm. Máy mới chỉ cần dán 1 mã kết nối.";
+    public string Subtitle => "Mọi kết nối của máy này ở một chỗ: Google Sheet chung (tài khoản + điện thoại), Gmail sao lưu, đăng nhập Google, Gmail lịch xuất, cập nhật phần mềm. Máy khác chỉ cần đăng nhập bằng tài khoản được cấp — app tự kết nối.";
 
     private static KhoLanh.Core.AppServices S => App.Services;
     private static bool Admin => Roles.IsAdmin(S.Session.Role);
     private readonly StackPanel _cards = new() { Spacing = 10 };
     private readonly Border _banner = new() { CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10) };
     private readonly TextBlock _msg = new() { Classes = { "muted" }, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Tag = "keep" };
-    private readonly TextBox _code = new() { Watermark = "Dán mã KLKN1-… vào đây" };
 
     /// <summary>Thẻ đang hiện (công cụ chụp kiểm).</summary>
     internal List<(string Name, string State)> Shown { get; } = new();
@@ -36,7 +35,6 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         var left = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 6, 0) };
         left.Children.Add(_banner); left.Children.Add(_cards); left.Children.Add(_msg);
         var right = new StackPanel { Spacing = 10, Width = 330 };
-        if (Admin) right.Children.Add(NewMachineBox());
         right.Children.Add(Legend());
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,12,Auto") };
         var sv = new ScrollViewer { Content = left, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
@@ -138,7 +136,6 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         {
             kind = "ok";
             detail = "Tài khoản + điện thoại cùng 1 Google Sheet" + (a.LastPull.Length > 0 ? $" · tải tài khoản lúc {a.LastPull}" : "") + (a.CanWrite ? " · máy này sửa được tài khoản" : "");
-            if (Admin) acts.Add(Btn("Chép mã cho máy khác", () => CopyCode(false)));
         }
         else if (a.Enabled && !a.OnPhoneSheet)
         {
@@ -167,6 +164,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
             var items = new List<(string, Func<Task>, bool)>();
             items.Add(("Kiểm tra kết nối", CheckNow, false));
             if (a.Enabled) items.Add(("Đồng bộ tài khoản ngay", PullAccounts, false));
+            if (a.Enabled) items.Add(("Chép mã kết nối máy (dự phòng)", () => CopyCode(false), false));
             if (a.Enabled) items.Add(("Chép mã cho máy quản trị…", () => CopyCode(true), false));
             if (a.Enabled) items.Add(("Tạo bộ cài cho máy mới…", Bundle, false));
             items.Add(("Mã điện thoại (PC_TOKEN) / đường dẫn…", () => PhoneConnect.ShowAsync(this), false));
@@ -184,7 +182,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         if (!await Ui.Run(this, () => code = S.Accounts.ConnectionCode(admin))) return;
         await Copy(code!);
         _msg.Text = (admin ? "Đã chép mã cho máy quản trị." : "Đã chép mã kết nối máy (KLKN1-…).")
-            + " Gửi mã sang máy kia (Zalo / email): ở máy đó mở Hệ thống › Kết nối, dán vào ô \"Máy mới\" rồi bấm Kết nối — hoặc lúc mở phần mềm lần đầu bấm \"Dùng chung tài khoản với máy khác…\"."
+            + " Thường không cần: máy khác chỉ cần đăng nhập. Mã chỉ dùng khi Google Sheet chưa có Code.gs mới — ở máy đó, màn đăng nhập lần đầu bấm \"Có mã kết nối KLKN1-? Dán mã…\"."
             + (S.Phone.Enabled ? " Mã gồm luôn mã điện thoại." : "");
     }
 
@@ -231,7 +229,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         AccountSyncService.MoveResult? r = null;
         if (!await Ui.RunAsync(this, async () => r = await a.MoveToPhoneSheetAsync(S.Phone))) { _msg.Text = ""; return; }
         _msg.Text = $"Xong: {r!.Users} tài khoản dùng chung qua Google Sheet điện thoại."
-            + (r.OldMarked ? " Các máy khác tự chuyển theo ở lần đăng nhập sau. Giữ Sheet tài khoản cũ vài ngày rồi mới xóa." : " Bấm \"Chép mã cho máy khác\" rồi gửi mã cho các máy còn lại.");
+            + (r.OldMarked ? " Các máy khác tự chuyển theo ở lần đăng nhập sau. Giữ Sheet tài khoản cũ vài ngày rồi mới xóa." : " Máy khác chỉ cần đăng nhập bằng tài khoản được cấp.");
     }
 
     private async Task UpgradeScript()
@@ -278,21 +276,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         Ui.Exported(this, dir!);
     }
 
-    // ---------------- khung "Máy mới" + hướng dẫn kết nối lần đầu ----------------
-
-    private Control NewMachineBox()
-    {
-        var go = new Button { Content = "Kết nối", HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };
-        go.Click += async (_, _) => { await JoinWithCode(this, _code.Text ?? "", m => _msg.Text = m); _code.Text = ""; Render(); };
-        var p = new StackPanel { Spacing = 8 };
-        p.Children.Add(new TextBlock { Text = "Máy mới? Chỉ cần 2 bước", FontSize = 14.5, FontWeight = FontWeight.Bold });
-        p.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Classes = { "muted" }, Tag = "keep",
-            Text = "1. Trên máy Quản trị bấm \"Chép mã cho máy khác\", gửi mã qua Zalo / email.\n2. Dán mã vào ô dưới, bấm Kết nối." });
-        p.Children.Add(_code); p.Children.Add(go);
-        p.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12, Classes = { "muted" }, Tag = "keep",
-            Text = "Mã gồm luôn tài khoản dùng chung + mã điện thoại (+ mã cập nhật) — không cần dán đường dẫn hay PC_TOKEN riêng. Mã cũ KLTK1-… vẫn dùng được." });
-        return new Border { Classes = { "card" }, Padding = new Thickness(16, 14), BorderBrush = AppTheme.Brush("#8DB6EC"), Child = p };
-    }
+    // ---------------- hướng dẫn kết nối lần đầu ----------------
 
     private static Control Legend()
     {
@@ -316,7 +300,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
     {
         code = code.Trim();
         if (code.Length == 0) { await Ui.Message(owner, "Dán mã kết nối (bắt đầu bằng KLKN1-) vào ô trước."); return false; }
-        if (!AccountSyncService.IsCode(code)) { await Ui.Message(owner, "Mã kết nối phải bắt đầu bằng KLKN1- (hoặc KLTK1- bản cũ). Chép lại đủ cả dòng mã ở máy Quản trị › Hệ thống › Kết nối › Chép mã cho máy khác."); return false; }
+        if (!AccountSyncService.IsCode(code)) { await Ui.Message(owner, "Mã kết nối phải bắt đầu bằng KLKN1- (hoặc KLTK1- bản cũ). Chép lại đủ cả dòng mã ở máy Quản trị › Hệ thống › Kết nối › ⋯ Thêm › Chép mã kết nối máy."); return false; }
         if (S.Accounts.Enabled && !await Ui.Confirm(owner, "Máy này đang kết nối Google Sheet. Dán mã mới sẽ thay kết nối cũ (danh sách tài khoản lấy theo mã mới). Tiếp tục?", "Kết nối", "Thay kết nối")) return false;
         say("Đang kết nối…");
         AccountSyncService.ConnectResult? r = null;
@@ -382,7 +366,7 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
                 msg.Text = "Đang đưa tài khoản lên Google Sheet…";
                 AccountSyncService.MoveResult? r = null;
                 if (!S.Accounts.Enabled && !await Ui.RunAsync(w, async () => r = await S.Accounts.MoveToPhoneSheetAsync(S.Phone))) { msg.Text = "Điện thoại đã nối; tài khoản chưa bật dùng chung (xem lỗi vừa báo)."; return; }
-                owner._msg.Text = "Đã kết nối Google Sheet chung" + (r is not null ? $": {r.Users} tài khoản dùng chung" : "") + ". Bấm \"Chép mã cho máy khác\" rồi gửi mã cho các máy còn lại.";
+                owner._msg.Text = "Đã kết nối Google Sheet chung" + (r is not null ? $": {r.Users} tài khoản dùng chung" : "") + ". Máy khác chỉ cần đăng nhập bằng tài khoản được cấp.";
                 w.Close();
             }
             finally { ok.IsEnabled = true; }

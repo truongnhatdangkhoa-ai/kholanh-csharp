@@ -297,7 +297,7 @@ public sealed class DongBoView : UserControl, IPage, IKeepFresh
         p.Children.Add(DuLieuView.Muted("Dữ liệu nằm trong file database trên máy này, không dùng chung với máy khác. Hợp với máy làm việc một mình.\n• App tự sao lưu mỗi ngày (tab Sao lưu › Trên máy này).\n• Muốn có bản ngoài máy (máy hỏng vẫn còn): tab Sao lưu › Google Drive — đăng nhập Gmail, tự sao lưu theo lịch."));
         p.Children.Add(mode == 0
             ? new TextBlock { Text = "✔ Máy này đang dùng cách này.", Foreground = AppTheme.Brush("#1E7B4A"), FontWeight = FontWeight.SemiBold }
-            : DuLieuView.Muted("Máy này đang dùng cách khác. Muốn về cách này: " + (mode == 2 ? "chọn Mạng LAN trong kho › Cài đặt vai máy › Máy đơn, rồi mở lại phần mềm." : "chọn Thư mục / Drive dùng chung › Tắt › Lưu.")));
+            : DuLieuView.Muted("Máy này đang dùng cách khác. Muốn về cách này: " + (mode == 2 ? "Quản trị bấm \"Tắt máy chủ trên máy này\" ở tab Giữa các máy › Máy chủ LAN." : "chọn Thư mục / Drive dùng chung › Tắt › Lưu.")));
         return new ScrollViewer { Content = new Border { Classes = { "card" }, Child = p, HorizontalAlignment = HorizontalAlignment.Left } };
     }
 
