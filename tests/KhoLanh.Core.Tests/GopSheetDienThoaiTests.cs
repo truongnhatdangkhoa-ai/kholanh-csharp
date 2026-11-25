@@ -41,6 +41,7 @@ public class GopSheetDienThoaiTests : IDisposable
     {
         public readonly AccountSyncTests.FakeWebApp Acct = new();
         public bool OldScript;   // Code.gs bản cũ: chưa có phần tài khoản
+        public bool NoReset;     // Code.gs 1.104–1.108: chưa có pc.tkDatLaiMa
         public string Gh = "";
         public readonly Dictionary<string, int> Sai = new();
         /// <summary>Giống dnPost_ của Code.gs 1.106: PBKDF2 ở tab TaiKhoan, 5 lần sai / tài khoản → khóa.</summary>
@@ -82,6 +83,11 @@ public class GopSheetDienThoaiTests : IDisposable
                 string doc = r["maDoc"]!.ToString(), qt = r["maQuanTri"]!.ToString();
                 if (Acct.Token.Length > 0 && (Acct.Token != doc || Acct.Admin != qt)) res = new() { ["ok"] = false, ["error"] = "Google Sheet này đã bật tài khoản dùng chung từ một máy khác." };
                 else { var had = Acct.Token.Length > 0; Acct.Token = doc; Acct.Admin = qt; res = new() { ["ok"] = true, ["daCo"] = had }; }
+            }
+            else if (action == "pc.tkDatLaiMa" && !OldScript && !NoReset)
+            {
+                var had = Acct.Token.Length > 0; Acct.Token = r["maDoc"]!.ToString(); Acct.Admin = r["maQuanTri"]!.ToString();
+                res = new() { ["ok"] = true, ["daCo"] = had, ["soTaiKhoan"] = Acct.Rows.Count(x => !x["username"].StartsWith('#')) };
             }
             else res = new() { ["ok"] = false, ["error"] = $"Không có chức năng \"{action}\"." };
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(res.ToJsonString(), Encoding.UTF8, "application/json") };
@@ -366,5 +372,63 @@ public class GopSheetDienThoaiTests : IDisposable
         c.Auth.Login("admin", "matkhau1");
         var ex3 = await Assert.ThrowsAsync<BusinessException>(() => c.Accounts.MoveToPhoneSheetAsync(phoneC));
         Assert.Contains("PC_TOKEN", ex3.Message);
+    }
+
+    /// <summary>
+    /// 1.109 (ảnh người dùng: thẻ Google Sheet chung "đã bật tài khoản dùng chung từ một máy khác" + máy kia "Sai mã kết nối"): Sheet giữ mã của
+    /// một máy không còn ai có → Quản trị đặt lại mã (pc.tkDatLaiMa), đưa danh sách máy mình lên; máy giữ mã cũ đăng nhập lại là tự nối.
+    /// </summary>
+    [Fact]
+    public async Task Dat_lai_ma_khi_Sheet_giu_ma_cua_may_khac()
+    {
+        // Máy cũ X bật dùng chung rồi mất (cài lại) — Sheet còn mã của X, danh sách cũ.
+        var (x, xPhone) = Machine("X");
+        x.Auth.CreateFirstAdmin("quantricu", "Quản trị cũ", "cu123456");
+        x.Auth.Login("quantricu", "cu123456");
+        await x.Accounts.MoveToPhoneSheetAsync(xPhone);
+        var (b, _) = Machine("B");   // máy B nối bằng mã của X
+        await b.Accounts.ConnectAsync(x.Accounts.ConnectionCode(forAdmin: false));
+
+        // Máy chính A: tài khoản riêng, bấm "Bật tài khoản dùng chung" → bị chặn, có gợi ý đặt lại mã.
+        var (a, phone) = Machine("A");
+        a.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1");
+        a.Auth.Login("admin", "matkhau1");
+        a.Auth.CreateUser("khoa", "Khoa", "matkhau3", Roles.Admin);
+        var e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.MoveToPhoneSheetAsync(phone));
+        Assert.Contains("từ một máy khác", e.Message);
+        Assert.Contains("Đặt lại mã tài khoản dùng chung", e.Message);
+        Assert.False(a.Accounts.Enabled);
+
+        // Code.gs chưa có lệnh đặt lại → báo dán Code.gs mới (hoặc xóa Thuộc tính tay).
+        _phone.NoReset = true;
+        e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.ResetCodesAsync(phone, keepSheet: false));
+        Assert.Contains("TK_MA_DOC", e.Message);
+        _phone.NoReset = false;
+
+        // Giữ danh sách trên Sheet nhưng Sheet không có Quản trị "admin" → không tải về (máy này không bị khóa).
+        e = await Assert.ThrowsAsync<BusinessException>(() => a.Accounts.ResetCodesAsync(phone, keepSheet: true));
+        Assert.Contains("không có tài khoản Quản trị", e.Message);
+        Assert.True(a.Auth.ListUsers().All(u => u.IsActive));
+
+        // Thay danh sách trên Sheet bằng danh sách máy này.
+        var r = await a.Accounts.ResetCodesAsync(phone, keepSheet: false);
+        Assert.True(r.Uploaded);
+        Assert.Equal(2, r.Users);
+        Assert.True(a.Accounts.Enabled && a.Accounts.OnPhoneSheet && a.Accounts.CanWrite);
+        Assert.Equal(new[] { "admin", "khoa" }, _phone.Acct.Rows.Where(x => !x["username"].StartsWith('#')).Select(x => x["username"]).OrderBy(x => x));
+
+        // Máy B giữ mã cũ → "Sai mã kết nối"; đăng nhập khoa → hỏi Sheet bằng mật khẩu, tự nối lại với mã mới.
+        await Assert.ThrowsAnyAsync<BusinessException>(() => b.Accounts.PullAsync());
+        var lr = await LoginFlow.LoginAsync(b.Auth, b.Accounts, "khoa", "matkhau3");
+        Assert.Equal("khoa", lr.User.Username);
+        Assert.Equal(2, await b.Accounts.PullAsync());
+        Assert.False(b.Auth.ListUsers().Single(u => u.Username == "quantricu").IsActive);   // tài khoản cũ không còn trên Sheet → khóa
+
+        // Đặt lại lần nữa, giữ danh sách trên Sheet (đã có admin) → tải về, không ghi đè.
+        a.Auth.CreateUser("rieng", "Chỉ trên máy A", "matkhau5", Roles.Staff);
+        _phone.Acct.Rows.RemoveAll(x => x["username"] == "rieng");
+        var r2 = await a.Accounts.ResetCodesAsync(phone, keepSheet: true);
+        Assert.False(r2.Uploaded);
+        Assert.DoesNotContain(_phone.Acct.Rows, x => x["username"] == "rieng");
     }
 }
