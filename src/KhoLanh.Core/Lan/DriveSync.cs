@@ -160,6 +160,7 @@ public sealed class DriveSyncService
     /// <summary>Đồng bộ một lượt ngay. Trả dòng kết quả (cũng gán vào Status).</summary>
     public string SyncNow()
     {
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đồng bộ thư mục / Drive");
         lock (_run)
         {
             var lan = _lan();

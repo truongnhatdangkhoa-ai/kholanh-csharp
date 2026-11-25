@@ -68,6 +68,22 @@ public class PhoneSyncTests : IDisposable
         w.Save("https://script.google.com/macros/s/KHAC/exec", "PC-ma");
         Assert.True(w.CustomUrl); Assert.EndsWith("/KHAC/exec", w.Url);
     }
+    [Fact]
+    public async Task Phieu_PC_luu_xong_day_len_dien_thoai_ngay()
+    {
+        var ps = Seed();
+        ps.Pick = new HashSet<string> { "M01VT" };
+        ps.StartInstantSlipPush();
+        _s.Lan.Write("ton-vi-tri-an-an", new Dictionary<string, JsonArray?>
+        {
+            ["ViTriPhieuDienThoai"] = Cell("{\"slips\":[{\"id\":\"VT-0002\",\"source\":\"pc\",\"createdAt\":\"2026-11-24T01:00:00.000Z\",\"deducted\":true,\"loadAt\":1795000000000,\"lines\":[{\"key\":\"VRHLA|L1|A.01#0\",\"qty\":3,\"maGoc\":\"VRHLA\",\"vt\":\"A.01\"}]}],\"seq\":3}"),
+        });
+        for (var i = 0; i < 150 && ps.LastSlipPush.Length == 0; i++) await Task.Delay(100);   // gom 3 giây rồi đẩy
+        Assert.Contains(Tab("PhieuXuat_PC"), x => x["maPhieu"] == "VT-0002");
+        Assert.StartsWith("Đã đẩy 1 phiếu PC", ps.LastSlipPush);
+        Assert.False(PhoneSyncService.IsPcSlipWrite("ton-kho-an-an", new[] { "LoadData" }));   // ghi tồn không đẩy phiếu
+    }
+
     private PhoneSyncService Svc() => Seed();
     private List<Dictionary<string, string>> Tab(string n) { var t = _fake.Tabs[n]; return t.Rows.Select(r => t.H.Select((h, i) => (h, v: r[i]?.ToString() ?? "")).ToDictionary(x => x.h, x => x.v)).ToList(); }
 

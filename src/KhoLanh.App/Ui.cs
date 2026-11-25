@@ -44,6 +44,63 @@ public static class Ui
         return false;
     }
 
+    /// <summary>
+    /// 1.72 (A2): chạy việc nặng (đọc / nạp file Excel lớn…) trên luồng nền + cửa sổ "Đang …" có thanh chạy và số giây, không đơ cửa sổ chính.
+    /// <paramref name="cancellable"/> = có nút Hủy (chỉ dùng cho bước ĐỌC: bấm Hủy thì bỏ kết quả, không ghi gì). Ghi thời gian vào đo thao tác chậm.
+    /// Trả (xong, kết quả); lỗi ném lại cho nơi gọi xử lý như cũ.
+    /// </summary>
+    public static async Task<(bool Done, T? Result)> Busy<T>(Visual v, string text, Func<T> work, bool cancellable = false, string op = "", string detail = "", Func<T, int>? rows = null)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var task = Task.Run(work);
+        // việc xong nhanh (< 0,4 s) thì không hiện cửa sổ cho đỡ nháy
+        if (await Task.WhenAny(task, Task.Delay(400)) == task) { var r0 = await task; Rec(r0); return (true, r0); }
+        var msg = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        var sec = new TextBlock { Classes = { "muted" }, FontSize = 12 };
+        var bar = new ProgressBar { IsIndeterminate = true, Height = 6, Margin = new Thickness(0, 10, 0, 4) };
+        var body = new StackPanel(); body.Children.Add(msg); body.Children.Add(bar); body.Children.Add(sec);
+        var cancelled = new TaskCompletionSource<bool>();
+        if (cancellable)
+        {
+            var cancel = new Button { Content = "Hủy", IsCancel = true };
+            cancel.Click += (_, _) => cancelled.TrySetResult(true);
+            body.Children.Add(Buttons(cancel));
+        }
+        var w = Dialog("Đang xử lý", body, 380);
+        w.Closing += (_, e) => { if (!task.IsCompleted && !cancelled.Task.IsCompleted) { if (cancellable) cancelled.TrySetResult(true); else e.Cancel = true; } };
+        var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        timer.Tick += (_, _) => sec.Text = $"{sw.Elapsed.TotalSeconds:0} giây…";
+        timer.Start();
+        ApplyZoom(w);
+        if (Owner(v) is { } owner) _ = w.ShowDialog(owner); else w.Show();
+        try
+        {
+            var first = await Task.WhenAny(task, cancelled.Task);
+            if (first != task) { _ = task.ContinueWith(t => _ = t.Exception, TaskScheduler.Default); return (false, default); }   // bỏ kết quả, việc nền tự kết thúc
+            var r = await task; Rec(r); return (true, r);
+        }
+        finally { timer.Stop(); cancelled.TrySetResult(false); try { w.Close(); } catch { } }
+
+        void Rec(T r) { if (op.Length > 0) KhoLanh.Core.TroLy.Perf.Record(op, detail, sw.ElapsedMilliseconds, rows is null || r is null ? 0 : rows(r)); }
+    }
+    public static Task<(bool Done, bool Result)> Busy(Visual v, string text, Action work, string op = "", string detail = "") =>
+        Busy(v, text, () => { work(); return true; }, false, op, detail);
+
+    /// <summary>1.72 (A2): "dấu vân tay" file (tên + cỡ + giờ sửa) — nạp lại đúng file đã nạp thì hỏi trước (bỏ qua cho nhanh).</summary>
+    public static string FileStamp(string path) { try { var f = new FileInfo(path); return $"{f.Name}|{f.Length}|{f.LastWriteTimeUtc.Ticks}"; } catch { return ""; } }
+    public static async Task<bool> ConfirmChangedFile(Visual v, string key, string path)
+    {
+        var st = App.Services.Settings.Get("nap_fp:" + key); var cur = FileStamp(path);
+        if (cur.Length == 0 || st.Length == 0 || !st.StartsWith(cur + "|")) return true;
+        var at = st[(cur.Length + 1)..];
+        return await Confirm(v, $"File “{Path.GetFileName(path)}” đã nạp lúc {at} và CHƯA ĐỔI từ đó (cùng cỡ, cùng giờ sửa).\n\nVẫn nạp lại?", "File không đổi", "Nạp lại");
+    }
+    public static void RememberFile(string key, string path)
+    {
+        var cur = FileStamp(path); if (cur.Length == 0) return;
+        try { App.Services.Settings.Set("nap_fp:" + key, cur + "|" + DateTime.Now.ToString("dd/MM/yyyy HH:mm")); } catch { }
+    }
+
     public static async Task<bool> RunAsync(Visual v, Func<Task> action)
     {
         try { await action(); return true; }

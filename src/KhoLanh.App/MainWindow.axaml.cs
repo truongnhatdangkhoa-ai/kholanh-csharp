@@ -15,6 +15,9 @@ public interface IPage
     string Subtitle => "";
 }
 
+/// <summary>1.72: màn hình KHÔNG giữ lại khi chuyển menu (luôn dựng mới khi mở).</summary>
+public interface IKeepFresh { }
+
 public partial class MainWindow : Window
 {
     public event Action? LoggedOut;
@@ -132,6 +135,7 @@ public partial class MainWindow : Window
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
         s.Lan.Changed += OnLanChanged;
+        try { s.PhoneSync.StartInstantSlipPush(); } catch { /* 1.72 (B6): đẩy phiếu PC lên điện thoại ngay khi lưu */ }
         Closed += (_, _) => s.Lan.Changed -= OnLanChanged;
         _lanTimer.Tick += (_, _) => ShowLan();
         _lanTimer.Start();
@@ -154,13 +158,14 @@ public partial class MainWindow : Window
             s.TroLy.StartAuto(TimeSpan.FromSeconds(90), TimeSpan.FromHours(6));
             if (s.TroLy.Last is { } last) OnTroLyScanned(last);
         }
-        // Số "Cần xử lý" của Danh mục mã hàng trên thanh bên: tính ngầm 30 giây sau khi mở app (như app cũ), không làm chậm lúc khởi động.
+        // Số "Cần xử lý" của Danh mục mã hàng trên thanh menu: tính ngầm 30 giây sau khi mở app (như app cũ), rồi tự tính lại khi
+        // danh mục / Mã hóa / tồn (An An, Gửi, vị trí, Sổ kho) đổi — kể cả do máy khác qua LAN (1.72).
         if (s.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey))
-            Avalonia.Threading.DispatcherTimer.RunOnce(async () =>
-            {
-                try { var n = await Task.Run(() => { var d = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => null); d.Load(); return d.XlNow().Count; }); SetBadge("m3dm", n); }
-                catch { /* chỉ là số gợi ý, lỗi thì bỏ qua */ }
-            }, TimeSpan.FromSeconds(30));
+        {
+            Avalonia.Threading.DispatcherTimer.RunOnce(() => { RefreshDmBadge(); _dmTimer.Start(); }, TimeSpan.FromSeconds(30));
+            _dmTimer.Tick += (_, _) => RefreshDmBadge(onlyIfChanged: true);
+            Closed += (_, _) => _dmTimer.Stop();
+        }
         Navigate(_menu.SelectMany(m => m.items).FirstOrDefault(Allowed)?.Key ?? "backup");
     }
 
@@ -302,6 +307,34 @@ public partial class MainWindow : Window
         foreach (var (k, n) in _badgeN.ToList()) SetBadge(k, n);
     }
 
+    // ------------------------------------------------------------------ số "Cần xử lý" Danh mục mã hàng (1.72)
+
+    private readonly Avalonia.Threading.DispatcherTimer _dmTimer = new() { Interval = TimeSpan.FromSeconds(60) };
+    private string _dmPrint = "";
+    private bool _dmBusy, _dmAgain;
+    /// <summary>Tính lại số "Cần xử lý" của Danh mục mã hàng (chạy ngầm). <paramref name="onlyIfChanged"/>: chỉ tính khi các bảng liên quan đã đổi phiên bản.</summary>
+    public void RefreshDmBadge(bool onlyIfChanged = false)
+    {
+        var s = App.Services;
+        if (!s.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey)) return;
+        if (_dmBusy) { if (!onlyIfChanged) _dmAgain = true; return; }
+        _dmBusy = true;
+        Task.Run(() =>
+        {
+            var fp = KhoLanh.Core.DanhMuc.DanhMucService.Fingerprint(s.Modules.AllVersions());
+            if (onlyIfChanged && fp == _dmPrint) return (int?)null;
+            var d = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => null);
+            var n = d.XlCount(); _dmPrint = fp; return n;
+        }).ContinueWith(t => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            _dmBusy = false;
+            if (t.Status == TaskStatus.RanToCompletion && t.Result is { } n) SetBadge("m3dm", n);   // lỗi: chỉ là số gợi ý, bỏ qua
+            if (_dmAgain) { _dmAgain = false; RefreshDmBadge(); }
+        }));
+    }
+    /// <summary>Báo cho cửa sổ chính (nếu có) tính lại số "Cần xử lý" của Danh mục mã hàng — gọi sau khi sửa danh mục / nạp tồn mới.</summary>
+    public static void DmChanged(Control from) => Of(from)?.RefreshDmBadge();
+
     /// <summary>Số việc cần xử lý cạnh tên module (0 = ẩn); nhóm thả xuống hiện tổng số của các mục bên trong.</summary>
     public void SetBadge(string key, int n)
     {
@@ -329,7 +362,15 @@ public partial class MainWindow : Window
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;
         if (!Allowed(item)) return;
-        page ??= item.Create();
+        // 1.72 (A3): giữ màn hình đã mở trong phiên — quay lại không dựng lại nếu dữ liệu chưa đổi (mốc CurrentSeq của CSDL module)
+        var seq = DataSeq();
+        if (page is null && CacheEnabled && _cache.TryGetValue(key, out var c0) && c0.Seq == seq) { page = c0.Page; _cache[key] = (c0.Page, seq, DateTime.Now); }
+        if (page is null)
+        {
+            using (var m = KhoLanh.Core.TroLy.Perf.Measure("Mở module", item.Label)) page = item.Create();
+            if (page is not IKeepFresh) _cache[key] = (page, seq, DateTime.Now);
+            while (_cache.Count > CacheMax) _cache.Remove(_cache.OrderBy(x => x.Value.At).First().Key);   // bỏ màn hình lâu không mở
+        }
         PageHost.IsVisible = true;
         PageHost.Content = page;
         // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
@@ -343,6 +384,16 @@ public partial class MainWindow : Window
     }
 
     public void SetSubtitle(string text) => PageSubtitle.Text = text;
+
+    // ------------------------------------------------------------------ 1.72 (A3): giữ màn hình đã mở
+    private const int CacheMax = 8;
+    /// <summary>Tắt giữ màn hình (công cụ chụp ảnh cần màn hình mới mỗi lần mở).</summary>
+    public static bool CacheEnabled { get; set; } = true;
+    private readonly Dictionary<string, (Control Page, long Seq, DateTime At)> _cache = new();
+    /// <summary>Mốc dữ liệu module (tăng mỗi lần có sheet đổi, kể cả nhận từ LAN / Drive) — đổi thì dựng lại màn hình khi mở.</summary>
+    private static long DataSeq() { try { return App.Services.Modules.CurrentSeq(); } catch { return -1; } }
+    /// <summary>Bỏ các màn hình đã giữ (đổi giao diện / cỡ chữ, đổi quyền…).</summary>
+    public void ClearPageCache() => _cache.Clear();
 
     private async void OnChangePassword(object? sender, RoutedEventArgs e)
     {
@@ -412,7 +463,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Dựng lại màn hình đang mở (để các ô vẽ tay lấy màu mới).</summary>
-    private void ReloadPage() { if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
+    private void ReloadPage() { _cache.Clear(); if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
 
     private void Zoom(double delta)
     {

@@ -916,9 +916,10 @@ public sealed class ViTriView : UserControl, IPage
     {
         var path = await Ui.OpenFile(this, "Chọn file Tồn kho theo vị trí", "xlsx", "Excel");
         if (path is null) return;
+        if (!await Ui.ConfirmChangedFile(this, "vitri", path)) return;   // 1.72: đúng file đã nạp, chưa đổi → hỏi trước
         FileData? f = null;
         _status.Text = "Đang đọc file…";
-        try { f = await Task.Run(() => Svc.ReadFile(path)); }
+        try { var (done, rd) = await Ui.Busy(this, $"Đang đọc file “{System.IO.Path.GetFileName(path)}”…", () => Svc.ReadFile(path), cancellable: true, op: "Đọc file Excel", detail: "Tồn theo vị trí", rows: x => x.Rows.Count); if (!done) { _status.Text = "Đã hủy đọc file."; return; } f = rd; }
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex), "Không đọc được file"); return; }
         _status.Text = "";
         var today = Svc.Slips.Count(s => s.Deducted && IsToday(s));
@@ -928,7 +929,10 @@ public sealed class ViTriView : UserControl, IPage
         if (!await Ui.Confirm(this, text, "Nạp file vị trí", "Nạp")) return;
         ImportResult? r = null;
         _editing = null; _draft.Clear();
-        if (!await Act(() => r = Svc.Import(f), $"Đã nạp {f.Rows.Count:#,0} dòng")) return;
+        try { var (_, rr) = await Ui.Busy(this, $"Đang nạp {f.Rows.Count:#,0} dòng…", () => Svc.Import(f), op: "Nạp file Excel", detail: "Tồn theo vị trí"); r = rr; }
+        catch (Exception ex) { await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex), "Không nạp được"); return; }
+        Ui.RememberFile("vitri", path);
+        _status.Text = $"Đã nạp {f.Rows.Count:#,0} dòng ({DateTime.Now:HH:mm:ss})"; RenderAll();
         _tabs.SelectedIndex = 4;
         RenderFile();
         var msg = $"Đã nạp {r!.Rows:#,0} dòng." + (r.KeepSlips > 0 ? $"\nTrừ lại {r.KeepSlips} phiếu hôm nay" + (r.KeepSkipped > 0 ? $" ({r.KeepSkipped} ô file đã giảm sẵn — không trừ lại)" : "") + (r.KeepMissing > 0 ? $", {r.KeepMissing} dòng không còn trong file mới" : "") + "." : "");

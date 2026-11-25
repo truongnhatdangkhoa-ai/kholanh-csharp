@@ -81,4 +81,100 @@ public static class CargoStock
         }
         return o.OrderBy(r => r.St == "ok" ? 1 : 0).ThenBy(r => r.Ma, StringComparer.Ordinal).ToList();
     }
+
+    // ------------------------------------------------------------------ 1.72: "Chọn từ tồn" — gộp tồn theo SIZE + ĐẶC TÍNH (+ quy cách), không tách lô
+
+    /// <summary>
+    /// 1 nhóm tồn: Size (nhãn như cột Size của Cargo) · Đặc tính (KQ kháng sinh — 4 số cuối mã 25 ký tự, hoặc cột Đặc tính) · Quy cách (mã gói 4 ký tự 18–21 → danh mục Size-quy cách).
+    /// Loai / Sn suy được khi mã gói + tiền tố có trong danh mục; KsStt &gt; 0 khi đặc tính là số kết quả 1–83.
+    /// </summary>
+    public sealed record SizeRow(string Key, string Size, string Dt, string Pack, string Loai, string Sn, int KsStt, double Ton, double Have, double? Tl, int NMa, string MaMau)
+    {
+        public double Left => Math.Max(0, Math.Round(Ton - Have, 6));
+    }
+
+    private static string Norm(string? ma) => System.Text.RegularExpressions.Regex.Replace((ma ?? "").ToUpperInvariant(), @"\s+", "").Replace("TPC-", "");
+    private static int Stt4(string s) => s.Length == 4 && int.TryParse(s, out var n) ? n : 0;
+
+    /// <summary>Phần mã 25 ký tự: tiền tố 13 · size 4 · mã gói 4 · KQ 4 (mã 21 ký tự: không có KQ).</summary>
+    public static (string Pre, string Size4, string Pack4, int Ks) Split(string? ma)
+    {
+        var m = Norm(ma);
+        return (Cut(m, 0, 13), Cut(m, 13, 4), Cut(m, 17, 4), Stt4(Cut(m, 21, 4)));
+    }
+
+    /// <summary>Khóa gộp (size | quy cách | KQ hoặc chữ đặc tính) — dùng chung cho tồn và cho dòng đã có trong cont.</summary>
+    public static string GroupKey(string size, string pack, int ks, string dt) =>
+        (size.Trim() + "|" + pack.Trim() + "|" + (ks > 0 ? "#" + ks : dt.Trim())).ToUpperInvariant();
+
+    /// <summary>Nhóm của 1 dòng tồn (null = không phải mã hàng dạng 21 / 25 ký tự).</summary>
+    public static (string Size, string Pack, string Loai, string Sn, int Ks, string Dt)? Describe(CargoCfg cfg, string ma, string dtCol)
+    {
+        var m = Norm(ma); if (m.Length < 21) return null;
+        var (pre, size4, pack4, ks) = Split(m);
+        var qc = cfg.Qc.FirstOrDefault(q => q.Pack.Length > 0 && string.Equals(q.Pack, pack4, StringComparison.OrdinalIgnoreCase));
+        var loai = qc?.Pre.FirstOrDefault(p => string.Equals(p.Value, pre, StringComparison.OrdinalIgnoreCase)).Key ?? "";
+        if (loai.Length == 0) loai = pre.StartsWith("VRHO") ? (cfg.Loai.Any(l => l.Code == "NL") ? "NL" : "") : pre.StartsWith("VRHL") ? (cfg.Loai.Any(l => l.Code == "BTP") ? "BTP" : "") : "";
+        var sl = CargoCore.SizeLabel(m);
+        var size = sl.Length > 0 ? sl : loai.Length > 0 && long.TryParse(size4, out var n) ? loai + n : size4;
+        var sn = qc is not null && loai.Length > 0 && qc.Pre.ContainsKey(loai) ? size4 + "-" + qc.D : "";
+        var dt = dtCol.Trim().Length > 0 ? dtCol.Trim() : ks > 0 ? CargoCore.KsLabel(CargoCore.KsRule(ks)) is { Length: > 0 } k ? k : ks.ToString() : "";
+        return (size, qc?.Label ?? "", loai, sn, ks, dt);
+    }
+
+    /// <summary>Kiện đã có trong cont theo khóa gộp (mọi mục hàng, cả mục "khác" — khớp theo Size + Quy cách gõ tay).</summary>
+    public static Dictionary<string, double> HaveByGroup(CargoCfg cfg, CargoRec rec, CargoCore.KsIndex? ks)
+    {
+        var o = new Dictionary<string, double>();
+        foreach (var b in rec.Blocks)
+            foreach (var ln in b.Lines)
+            {
+                var r = CargoCore.ResolveLine(cfg, b, ln, ks); if (r.Kien <= 0) continue;
+                var k = r.Other ? GroupKey(r.Size, r.Pack, 0, "") : GroupKey(r.Size, r.Pack, r.Ks?.Stt ?? 0, "");
+                o[k] = o.GetValueOrDefault(k) + r.Kien;
+            }
+        return o;
+    }
+
+    /// <summary>
+    /// Tồn Tồn kho An An gộp theo Size + Đặc tính + Quy cách (KHÔNG tách lô / hợp đồng), kèm số kiện đã có trong cont đang soạn.
+    /// Chỉ các nhóm còn tồn &gt; 0. Sắp theo Size rồi Quy cách, Đặc tính.
+    /// </summary>
+    public static List<SizeRow> BySize(IEnumerable<KiemKeCore.Stock> stock, CargoCfg cfg, CargoRec? rec, CargoCore.KsIndex? ks)
+    {
+        var have = rec is null ? new() : HaveByGroup(cfg, rec, ks);
+        var g = new Dictionary<string, (string Size, string Pack, string Loai, string Sn, int Ks, string Dt, double Ton, double? Tl, HashSet<string> Ma, string Mau)>();
+        foreach (var s in stock)
+        {
+            if (!(s.Ton > 0) || Describe(cfg, s.Ma, s.Dt) is not { } d) continue;
+            var k = GroupKey(d.Size, d.Pack, d.Ks, d.Dt);
+            if (!g.TryGetValue(k, out var e)) e = (d.Size, d.Pack, d.Loai, d.Sn, d.Ks, d.Dt, 0, s.Tl, new HashSet<string>(), Norm(s.Ma));
+            e.Ton += s.Ton; e.Ma.Add(Norm(s.Ma)); e.Tl ??= s.Tl;
+            g[k] = e;
+        }
+        return g.Select(kv =>
+        {
+            var e = kv.Value;
+            // dòng trong cont chưa ra KQ kháng sinh (chưa gõ lô) được đếm vào nhóm KQ = 0 → cộng vào nhóm cùng size + quy cách khi nhóm KQ đó có
+            var h = have.GetValueOrDefault(kv.Key);
+            return new SizeRow(kv.Key, e.Size, e.Dt, e.Pack, e.Loai, e.Sn, e.Ks, Math.Round(e.Ton, 6), Math.Round(h, 6), e.Tl, e.Ma.Count, e.Mau);
+        }).OrderBy(r => SizeOrder(r.Size)).ThenBy(r => r.Size, StringComparer.Ordinal).ThenBy(r => r.Pack, StringComparer.Ordinal).ThenBy(r => r.Dt, StringComparer.Ordinal).ToList();
+    }
+    private static (int, double) SizeOrder(string size)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(size, @"^([A-Z]*)\s*(\d+)");
+        return m.Success ? (m.Groups[1].Value switch { "BTP" => 0, "" => 1, "NL" => 2, _ => 3 }, double.Parse(m.Groups[2].Value)) : (9, 0);
+    }
+
+    /// <summary>Dòng Cargo mới từ 1 nhóm tồn. Mục kháng sinh: Loại + Size-quy cách (+ KQ KS tay = đặc tính của nhóm), Lô để trống;
+    /// mục "khác": Size + Quy cách (không có trong danh mục → "x kg x 1" theo trọng lượng). Ok = false khi mục kháng sinh chưa suy được Size-quy cách.</summary>
+    public static (CargoLine Line, bool Ok) LineFor(SizeRow r, bool ksBlock)
+    {
+        if (!ksBlock)
+        {
+            var pack = r.Pack.Length > 0 ? r.Pack : r.Tl is > 0 ? r.Tl.Value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + " kg x 1" : "";
+            return (new CargoLine { Size = r.Size, Pack = pack }, true);
+        }
+        return (new CargoLine { Loai = r.Loai, Sn = r.Sn, KsTay = r.KsStt > 0 ? r.KsStt.ToString() : "" }, r.Sn.Length > 0);
+    }
 }

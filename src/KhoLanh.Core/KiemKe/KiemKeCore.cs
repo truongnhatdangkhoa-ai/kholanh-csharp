@@ -537,6 +537,70 @@ public static class KiemKeCore
         return o;
     }
 
+    // ================================================================== 1 trang Nhập liệu kiểm kê ↔ sơ đồ (1.72, Sơ đồ kho › chế độ "Kiểm kê")
+
+    /// <summary>Trạng thái 1 ô vị trí so với 1 trang kiểm kê: khớp · lệch · thiếu (sổ có, đếm không / = 0) · thừa (đếm có, sổ trống) · chưa đếm (dãy không có trong trang).</summary>
+    public const string KkKhop = "khop", KkLech = "lech", KkThieu = "thieu", KkThua = "thua", KkChuaDem = "chua";
+    public static readonly string[] KkStates = { KkKhop, KkLech, KkThieu, KkThua, KkChuaDem };
+    public static string KkText(string st) => st switch { KkKhop => "Khớp", KkLech => "Lệch", KkThieu => "Thiếu (sổ có, đếm không)", KkThua => "Thừa (đếm có, sổ không)", _ => "Chưa đếm" };
+    public sealed class KkMap
+    {
+        public Dictionary<string, string> St = new();           // mã vị trí → trạng thái
+        public Dictionary<string, VtCell> Cells = new();        // mã vị trí → chi tiết so (sổ / đếm theo mã · lô)
+        public Dictionary<string, int> RowOf = new();           // mã vị trí → dòng ĐẦU TIÊN của vị trí trên trang (0 = dòng 1)
+        public HashSet<string> Days = new();                    // các dãy có trong trang (Kho.Khu.Dãy)
+        public Dictionary<string, int> N = KkStates.ToDictionary(x => x, _ => 0);
+        public List<(Line R, string Why)> Bad = new();
+        public string Kho = "", Khu = ""; public int D;         // dãy / khu / kho xuất hiện nhiều nhất trong trang
+        public int Empty;                                       // ô trống đúng (sổ trống, đếm trống) — đã tính trong "Khớp"
+        /// <summary>Trang chỉ có 1 khu (sơ đồ mở đúng khu đó); nhiều khu thì mở "Tất cả".</summary>
+        public bool OneKhu => Days.Select(k => k[..k.LastIndexOf('.')]).Distinct().Count() == 1;
+    }
+
+    /// <summary>
+    /// So 1 trang Nhập liệu kiểm kê (cột Vị trí, Mã hàng, Số lượng / Số lượng còn lại…) với sổ sách theo VỊ TRÍ của Sơ đồ kho.
+    /// Mọi ô của các dãy có trong trang được xét (ô không ghi dòng nào = đếm trống); ô ở dãy khác = "chưa đếm".
+    /// <paramref name="qcOf"/> đổi gói → kiện cho sổ sách (null = so số lượng như ghi, như trang tạo từ Sơ đồ kho).
+    /// </summary>
+    public static KkMap MapPage(SoDoCore.Built b, Page page, Func<string, SoDoCore.Qc?>? qcOf = null)
+    {
+        var o = new KkMap();
+        var ex = ExtractRows(new[] { page });
+        var cmp = CompareVt(b, ex.Rows, qcOf ?? (_ => null));
+        o.Bad = cmp.Bad;
+        var C = PageCols(page.Columns);
+        var dayN = new Dictionary<string, int>();
+        if (C.TryGetValue("vt", out var cv))
+            for (var r = 0; r < page.Rows.Count; r++)
+            {
+                var row = page.Rows[r]; var vt = cv < row.Length ? (row[cv] ?? "").Trim() : "";
+                if (SoDoCore.Parse(vt) is not { } p || p.Z || !b.ByCode.ContainsKey(p.Code)) continue;
+                var dk = DayKey(p.Kho, p.Khu, p.D); o.Days.Add(dk); dayN[dk] = dayN.GetValueOrDefault(dk) + 1;
+                o.RowOf.TryAdd(p.Code, r);
+            }
+        foreach (var (code, c) in cmp.Cells)
+        {
+            var covered = o.Days.Contains(DayKey(c.P.Kho, c.P.Khu, c.P.D));
+            var st = c.St switch
+            {
+                VtKhop => KkKhop,
+                VtTrong => covered ? KkKhop : KkChuaDem,
+                VtChua => covered ? KkThieu : KkChuaDem,
+                VtThua => KkThua,
+                _ => c.Cnt <= VtTol ? KkThieu : KkLech,
+            };
+            if (st == KkKhop && c.St == VtTrong) o.Empty++;
+            o.St[code] = st; o.Cells[code] = c; o.N[st]++;
+        }
+        if (dayN.Count > 0)
+        {
+            var top = dayN.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.Ordinal).First().Key;
+            var any = b.Pos.First(p => !p.Z && DayKey(p.Kho, p.Khu, p.D) == top);
+            o.Kho = any.Kho; o.Khu = any.Khu; o.D = any.D;
+        }
+        return o;
+    }
+
     public sealed class Order { public string Id = "", Kho = "", Khu = "", Nguoi = ""; public int D, NPos, NExp, NItems; public double Sl; }
     /// <summary>Lệnh đếm: mỗi dãy 1 lệnh; chia đều cho người đếm theo số vị trí có hàng.</summary>
     public static List<Order> MakeOrders(SoDoCore.Built b, string kho, string khu, bool onlyWithStock, IList<string> people)

@@ -22,7 +22,7 @@ AppBuilder.Configure<App>()
     .SetupWithoutStarting();
 
 var data = Path.Combine(Path.GetTempPath(), "kholanh-demo-" + Guid.NewGuid().ToString("N")[..6]);
-App.InitServices(data);
+App.InitServices(data); KhoLanh.App.MainWindow.CacheEnabled = false;   // ảnh chụp cần màn hình mới mỗi lần mở
 var s = App.Services;
 
 void Pump() { for (var i = 0; i < 5; i++) { Dispatcher.UIThread.RunJobs(); Thread.Sleep(30); } }
@@ -112,7 +112,7 @@ login.Close();
 s.Settings.Set("lan_addrs", "192.168.1.10:47820");
 s.Settings.Set("lan_name", "MAY-CHU-KHO");
 KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleServer, null, 47000 + Random.Shared.Next(900));
-App.InitServices(data);
+App.InitServices(data); KhoLanh.App.MainWindow.CacheEnabled = false;
 s = App.Services;
 s.Auth.Login("admin", "matkhau1");
 s.Lan.Speed = 0.01; s.Lan.TickMs = 20;
@@ -670,6 +670,21 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bc")
     Console.WriteLine($"[BC] cảnh báo xuất Excel: {bd.Count} · " + string.Join(" | ", bd));
     s.Lan.Dispose(); Console.WriteLine("Xong (bc): " + outDir); return;
 }
+// 1.72 (A3): đo thời gian mở module — lần đầu (dựng mới) và lần mở lại (giữ màn hình), không đổi dữ liệu giữa 2 lần
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
+{
+    KhoLanh.App.MainWindow.CacheEnabled = true; main.ClearPageCache();
+    var keysP = new[] { "lx", "m1", "m2", "m7", "m8", "m6", "m3sk", "m13", "m9", "m3dm", "m4" };
+    var firstMs = new Dictionary<string, double>();
+    foreach (var k in keysP) { var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Pump(); firstMs[k] = sw.Elapsed.TotalMilliseconds; for (var i = 0; i < 10; i++) { Thread.Sleep(20); Pump(); } }
+    foreach (var k in keysP)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Pump(); var again = sw.Elapsed.TotalMilliseconds;
+        Console.WriteLine($"[PERF] {k,-6} mở lần đầu {firstMs[k],7:0} ms · mở lại {again,6:0} ms");
+        for (var i = 0; i < 5; i++) { Thread.Sleep(20); Pump(); }
+    }
+    s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
@@ -707,6 +722,120 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
         }
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (ui): " + outDir); return;
+}
+// 1.72 (luồng 2): SHOTS_ONLY=l2 — B4 số "Cần xử lý" Danh mục trên menu + chuột phải "Thêm vào danh mục"; B1 Sơ đồ kho › kết quả kiểm kê
+// (+ mở Nhập liệu đúng dòng); B2 Phiếu xuất nội địa › "Chọn từ tồn" theo size + đặc tính. Thoát mã 1 nếu kiểm tra hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "l2")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    void Fail(string m) { Console.WriteLine("[L2] LỖI: " + m); s.Lan.Dispose(); Environment.Exit(1); }
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    var sf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static;
+    // ---------- B4: mã lạ ở Nhập liệu → chuột phải "Thêm vào danh mục mã hàng"
+    var known = s.ViTri.Rows.Select(r => r.Ma).Where(m => m.Length > 0).Distinct().Take(3).ToList();
+    var maLa = "VRHLBTNXXXR00" + "0099" + "IME1";
+    var pg = s.Entry.Create("Kiểm kê thử mã lạ " + DateTime.Today.ToString("dd/MM/yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    s.Entry.Save(pg, pg.Columns, known.Select((m, i) => (IReadOnlyList<string>)new[] { $"TG1.A.0{i + 1}.1.1", m, "", "", "10", "", "", "" }).Append(new[] { "TG1.A.04.1.1", maLa, "", "", "5", "", "", "" }).ToList());
+    main.RefreshDmBadge(); W(300);
+    var badgeN = (Dictionary<string, int>)typeof(MainWindow).GetField("_badgeN", bf)!.GetValue(main)!;
+    for (var i = 0; i < 200 && !badgeN.ContainsKey("m3dm"); i++) W(60);
+    var n0 = badgeN.GetValueOrDefault("m3dm", -1);
+    Console.WriteLine($"[L2] số Cần xử lý Danh mục trên menu: {n0}");
+    if (n0 < 0) Fail("chưa tính số Cần xử lý");
+    var gb = main.GetVisualDescendants().OfType<Button>().First(b => b.Classes.Contains("navtab") && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Chức năng"));
+    gb.Flyout!.ShowAt(gb); W(300);
+    SnapFlyout(main, gb, "47-danh-muc-can-xu-ly-tren-menu");
+    gb.Flyout.Hide(); W(100);
+
+    main.Navigate("m6"); W(600);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    for (var i = 0; i < 150 && typeof(EntryView).GetField("_lookup", sf)!.GetValue(null) is null; i++) W(60);
+    ev.OpenAt(pg.Id, 3); W(500);
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
+    g.Select(3, mc); W(200);
+    main.Height = 1020; W(300);   // menu chuột phải dài — cửa sổ cao hơn để ảnh không cắt
+    var surf = g.GetVisualDescendants().OfType<Control>().First(c => c.ContextMenu is not null);
+    var cm = surf.ContextMenu!;
+    surf.RaiseEvent(new ContextRequestedEventArgs()); W(300);
+    if (!cm.IsOpen) cm.Open(surf); W(300);
+    var dmItem = cm.Items.OfType<MenuItem>().FirstOrDefault(x => x.IsVisible && (x.Header as string ?? "").Contains("danh mục mã hàng"));
+    var mapItem = cm.Items.OfType<MenuItem>().FirstOrDefault(x => x.IsVisible && (x.Header as string ?? "").Contains("sơ đồ kho"));
+    Console.WriteLine($"[L2] chuột phải ô mã lạ: “{dmItem?.Header}” · “{mapItem?.Header}”");
+    if (dmItem is null) Fail("không có mục Thêm vào danh mục");
+    Snap(main, "47b-nhap-lieu-them-vao-danh-muc");   // ảnh headless có sẵn lớp popup (menu chuột phải)
+    cm.Close(); main.Height = 880; W(200);
+    var tAdd = (Task)typeof(EntryView).GetMethod("AddToDanhMuc", bf)!.Invoke(ev, null)!;
+    for (var i = 0; i < 300 && !tAdd.IsCompleted; i++) W(30);
+    W(1500);
+    s.DanhMuc.Load(); var inDm = s.DanhMuc.Rows.Any(r => r.Code == maLa);
+    Console.WriteLine($"[L2] sau khi thêm: mã có trong danh mục = {inDm}; số Cần xử lý = {badgeN.GetValueOrDefault("m3dm")}");
+    if (!inDm) Fail("mã chưa vào danh mục");
+    g.Select(3, mc); W(200);
+    Snap(main, "47c-nhap-lieu-da-them-danh-muc");
+
+    // ---------- B1: Sơ đồ kho › kết quả kiểm kê
+    s.SoDo.Load();
+    var kp0 = s.SoDo.KkPages().OrderByDescending(p => p.Rows).First(p => p.Name.StartsWith("Kiểm kê TG1 khu A-B"));
+    // trang thử 2 dãy (A 01–02): bỏ 2 vị trí có hàng (→ thiếu), thêm hàng vào 1 ô trống (→ thừa); các dãy khác = chưa đếm
+    var kRows = s.Entry.Load(kp0).Where(r => r[0].StartsWith("TG1.A.01.") || r[0].StartsWith("TG1.A.02.")).ToList();
+    var drop = kRows.Select(r => r[0]).Distinct().Skip(3).Take(2).ToHashSet();
+    var emptyPos = s.SoDo.B.Pos.First(p => p.Kho == "TG1" && p.Khu == "A" && p.D == 2 && p.It.Count == 0).Code;
+    var kNew = kRows.Where(r => !drop.Contains(r[0])).Select(r => (IReadOnlyList<string>)r.Take(kp0.Columns.Count).ToArray()).ToList();
+    var extra = new string[kp0.Columns.Count]; Array.Fill(extra, ""); extra[0] = emptyPos; extra[1] = kRows[0][1]; extra[4] = "12"; kNew.Add(extra);
+    var kkp = s.Entry.Create("Kho 1 A dãy 01-02 kiểm kê " + DateTime.Today.ToString("dd-MM-yyyy"), KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    kkp = s.Entry.Save(kkp, kp0.Columns, kNew);
+    var mapRes = s.SoDo.KkMapOf(kkp.Id);
+    Console.WriteLine("[L2] kiểm kê trên sơ đồ: " + string.Join(", ", mapRes.N.Select(kv => $"{kv.Key} {kv.Value}")) + $" · {mapRes.Kho} khu {mapRes.Khu} (1 khu: {mapRes.OneKhu})");
+    var lechCode = mapRes.St.FirstOrDefault(kv => kv.Value == KhoLanh.Core.KiemKe.KiemKeCore.KkLech).Key ?? mapRes.St.First(kv => kv.Value != "chua").Key;
+    main.Show("m8", new SoDoView(kkp.Id, lechCode)); W(2500);
+    Snap(main, "25h-so-do-ket-qua-kiem-ke");
+    var sd = main.PageHost.GetVisualDescendants().OfType<SoDoView>().First();
+    var tOpen = (Task)typeof(SoDoView).GetMethod("KkOpenEntry", bf)!.Invoke(sd, new object[] { s.SoDo.B.ByCode[lechCode] })!;
+    for (var i = 0; i < 300 && !tOpen.IsCompleted; i++) W(30);
+    W(1200);
+    var ev2 = main.PageHost.GetVisualDescendants().OfType<EntryView>().FirstOrDefault();
+    var g2 = ev2?.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    Console.WriteLine($"[L2] bấm ô {lechCode} → Nhập liệu dòng {(g2?.Row ?? -1) + 1}: vị trí “{(g2 is null ? "" : g2.Model.Get(g2.Row, 0))}”");
+    if (g2 is null || KhoLanh.Core.SoDo.SoDoCore.Parse(g2.Model.Get(g2.Row, 0))?.Code != lechCode) Fail("không mở đúng dòng ở Nhập liệu");
+    Snap(main, "25i-so-do-mo-dong-nhap-lieu");
+
+    // ---------- B2: Phiếu xuất nội địa › Chọn từ tồn
+    main.Navigate("m13"); W(1200);
+    var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    top.SelectedIndex = 2; W(500);
+    var cg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
+    var lg = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    lg.Select(0, 0); lg.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(800);
+    var cur = (KhoLanh.Core.PhieuKho.CargoRec)typeof(KhoLanh.App.Views.CargoView).GetField("_cur", bf)!.GetValue(cg)!;
+    cur.DayCap = Enumerable.Range(1, 20).ToDictionary(d => d.ToString(), _ => "63");   // KIỆN / DÃY 20 × 63
+    typeof(KhoLanh.App.Views.CargoView).GetMethod("ShowEditor", bf)!.Invoke(cg, null); W(400);
+    var task = (Task)typeof(KhoLanh.App.Views.CargoView).GetMethod("PickFromStock", bf)!.Invoke(cg, new object[] { cur, 0 })!;
+    W(900);
+    var pw = cg.PickerWindow;
+    if (pw is null) Fail("không mở được cửa sổ Chọn từ tồn");
+    var pg2 = pw!.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    Console.WriteLine($"[L2] Chọn từ tồn: {pg2.Model.RowCount} nhóm size + đặc tính; 3 nhóm đầu: " + string.Join(" | ", Enumerable.Range(0, Math.Min(3, pg2.Model.RowCount)).Select(r => string.Join(" · ", pg2.Model.Row(r).Take(8)))));
+    var okRows = Enumerable.Range(0, pg2.Model.RowCount).Where(r => pg2.Model.Get(r, 3).Length > 0).Take(2).ToList();
+    pg2.SetChecked(okRows, true); W(200);
+    double LeftOf(int r) => double.Parse(pg2.Model.Get(r, 7).Replace(",", ""), System.Globalization.CultureInfo.InvariantCulture);
+    var r3 = Enumerable.Range(0, pg2.Model.RowCount).Where(r => !okRows.Contains(r) && pg2.Model.Get(r, 3).Length > 0).OrderBy(LeftOf).First();
+    pg2.Model.SetCells(okRows.Select(r => (r, 8, "40")).ToList()); W(100);
+    pg2.Model.Set(r3, 8, (LeftOf(r3) + 20).ToString(System.Globalization.CultureInfo.InvariantCulture)); W(300);
+    Snap(pw, "31e-phieu-noi-dia-chon-tu-ton");
+    var add = pw.GetVisualDescendants().OfType<Button>().First(b => b.Content as string == "Thêm vào phiếu");
+    add.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(300);
+    for (var i = 0; i < 300 && !task.IsCompleted; i++) W(30);
+    W(800);
+    var b0 = cur.Blocks[0];
+    Console.WriteLine($"[L2] sau Thêm vào phiếu: mục 1 có {b0.Lines.Count} dòng; dòng cuối: Loại {b0.Lines[^1].Loai}, Sn {b0.Lines[^1].Sn}, KQ tay {b0.Lines[^1].KsTay}, Lô “{b0.Lines[^1].Lo}”, dãy {string.Join(",", b0.Lines[^1].Dai.Select(kv => kv.Key + ":" + kv.Value))}");
+    if (b0.Lines.Count < 3) Fail("chưa thêm dòng vào mục");
+    var blockGrid = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Model.ColCount > 40).First();
+    var sv = blockGrid.GetVisualAncestors().OfType<ScrollViewer>().First();
+    var y = blockGrid.TranslatePoint(new Point(0, 0), (Visual)sv.Content!)?.Y ?? 0;
+    sv.Offset = new Vector(0, Math.Max(0, y - 120)); W(400);
+    Snap(main, "31f-phieu-noi-dia-da-them-tu-ton");
+    s.Lan.Dispose(); Console.WriteLine("Xong (l2): " + outDir); return;
 }
 // Nhập liệu 1.62: SHOTS_ONLY=nl — mẫu Kiểm kê mới (dán mã → tự điền), tô màu ô, tab Mẫu, hộp Cột…
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "nl")

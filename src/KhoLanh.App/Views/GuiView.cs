@@ -202,15 +202,16 @@ public sealed class GuiView : UserControl, IPage
     {
         var path = await Ui.OpenFile(this, "Chọn file tồn kho gửi", "xlsx;xls;csv", "Excel");
         if (path is null) return;
+        if (!await Ui.ConfirmChangedFile(this, "gui", path)) return;   // 1.72: đúng file đã nạp, chưa đổi → hỏi trước
         GuiService.NapPreview? pv = null;
         _status.Text = "Đang đọc file…";
-        try { pv = await Task.Run(() => Svc.Preview(path)); }
+        try { var (done, r) = await Ui.Busy(this, $"Đang đọc file “{System.IO.Path.GetFileName(path)}”…", () => Svc.Preview(path), cancellable: true, op: "Đọc file Excel", detail: "Tồn kho gửi"); if (!done) { _status.Text = "Đã hủy đọc file."; return; } pv = r!; }
         catch (BusinessException e) { _status.Text = ""; await Ui.Message(this, e.Message, "Không đọc được file"); return; }
         catch (Exception e) { _status.Text = ""; await Ui.Message(this, "Không đọc được file. Vui lòng kiểm tra định dạng Excel (.xlsx, .xls, .csv).\n\n" + Ui.Describe(e), "Không đọc được file"); return; }
         _status.Text = "";
         if (!await ReviewDialog(pv)) return;
         _status.Text = "Đang nạp…";
-        try { await Task.Run(() => Svc.Commit(pv)); }
+        try { await Ui.Busy(this, $"Đang nạp {pv.FileName}…", () => Svc.Commit(pv), op: "Nạp file Excel", detail: "Tồn kho gửi"); }
         catch (BusinessException e) when (e.Message.StartsWith("Không lưu được bản hoàn tác"))
         {
             _status.Text = "";
@@ -218,6 +219,7 @@ public sealed class GuiView : UserControl, IPage
             if (!await Act(() => Svc.Commit(pv, keepUndo: false))) return;
         }
         catch (Exception e) { _status.Text = ""; await Ui.Message(this, e is BusinessException ? e.Message : Ui.Describe(e), "Không nạp được"); return; }
+        Ui.RememberFile("gui", path);
         _status.Text = $"Đã nạp {pv.FileName}: {N(D.Rows.Count)} dòng ({DateTime.Now:HH:mm:ss})";
         RenderAll();
     }
