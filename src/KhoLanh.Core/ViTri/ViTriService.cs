@@ -459,6 +459,62 @@ public sealed class ViTriService
     public FileData ReadFile(string path)
     {
         RequireEdit();
+        using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đọc file Excel", "Tồn theo vị trí (chi tiết)");
+        // 1.73 (N4): đọc nhanh thẳng gói xlsx; file lạ / lỗi → cách cũ (ClosedXML)
+        if (Path.GetExtension(path).ToLowerInvariant() is ".xlsx" or ".xlsm")
+        {
+            KhoLanh.Core.TonKho.SheetText.Book? book = null;
+            try { book = KhoLanh.Core.TonKho.SheetText.ReadXlsxFast(path, rawNumbers: true, fromA1: true); } catch { book = null; }
+            if (book is not null) return ReadFileFrom(book, path);
+        }
+        return ReadFileClosedXml(path);
+    }
+
+    /// <summary>Cùng luật với <see cref="ReadFileClosedXml"/> nhưng trên bảng chữ đã đọc (số gốc, bắt đầu từ A1).</summary>
+    public FileData ReadFileFrom(KhoLanh.Core.TonKho.SheetText.Book book, string path)
+    {
+        (string sheet, List<string[]> t, int r, Dictionary<string, int> map, int score)? best = null;
+        foreach (var name in book.SheetNames)
+        {
+            var t = book.Sheets[name]; if (t.Count == 0) continue;
+            var lastCol = t.Max(x => x.Length);
+            for (var r = 1; r <= Math.Min(t.Count, 30); r++)
+            {
+                var row = t[r - 1];
+                var keys = Enumerable.Range(1, lastCol).Select(c => HeaderKey(c - 1 < row.Length ? row[c - 1] : "")).ToList();
+                var map = new Dictionary<string, int>();
+                foreach (var (f, al) in Aliases) { var i = keys.FindIndex(k => al.Contains(k)); if (i >= 0) map[f] = i + 1; }
+                var score = Required.Count(x => map.ContainsKey(x.F));
+                if (best is null || score > best.Value.score) best = (name, t, r, map, score);
+                if (score == 4) break;
+            }
+            if (best?.score == 4) break;
+        }
+        if (best is not { score: 4 } b)
+        {
+            var miss = Required.Where(x => best is null || !best.Value.map.ContainsKey(x.F)).Select(x => x.Label);
+            throw new BusinessException($"File “{Path.GetFileName(path)}” không giống báo cáo “Tồn kho theo vị trí”.\n\nKhông tìm thấy cột: {string.Join(", ", miss)}.\nCần tối thiểu các cột: Mã hàng, Vị trí, SL Tồn, T.Lượng.");
+        }
+        var outp = new FileData { FileName = Path.GetFileName(path), Sheet = b.sheet, HeaderRow = b.r };
+        string Cell(int r, int c) => r - 1 < b.t.Count && c - 1 < b.t[r - 1].Length ? b.t[r - 1][c - 1] ?? "" : "";
+        string Txt(int r, string f) => b.map.TryGetValue(f, out var c) ? Cell(r, c).Trim() : "";
+        double NumAt(int r, string f)
+        {
+            if (!b.map.TryGetValue(f, out var c)) return 0; var s = Cell(r, c);
+            if (double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d)) return d;
+            return DcxEngine.ParseNum(s) ?? 0;
+        }
+        for (var r = b.r + 1; r <= b.t.Count; r++)
+        {
+            var ma = Txt(r, "maGoc"); if (ma.Length == 0) continue;
+            outp.Rows.Add(Build(ma, Txt(r, "ten"), Txt(r, "dvt"), Txt(r, "lo"), Txt(r, "vt"), NumAt(r, "sl"), NumAt(r, "tl")));
+        }
+        if (outp.Rows.Count == 0) throw new BusinessException($"File “{outp.FileName}” không có dòng dữ liệu nào (cột Mã hàng trống).");
+        return outp;
+    }
+
+    public FileData ReadFileClosedXml(string path)
+    {
         XLWorkbook wb;
         try { wb = new XLWorkbook(new MemoryStream(File.ReadAllBytes(path))); }
         catch (Exception e) { throw new BusinessException($"Không đọc được file vị trí (cần file Excel .xlsx).\n\n{e.Message}"); }
