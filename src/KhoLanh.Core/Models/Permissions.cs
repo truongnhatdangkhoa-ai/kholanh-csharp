@@ -15,7 +15,6 @@ public static class Perm
     public static readonly Item[] Items =
     {
         new("lx", "Tổng quan · Lịch xuất", "Tổng quan", new[] { View, Edit }, "Sửa = thêm / sửa / xóa / chuyển lịch xuất, việc cần làm, số cont"),
-        new("lxmail", "Duyệt email Lịch xuất", "Tổng quan", new[] { Edit }, "Kết nối Gmail, duyệt / bỏ qua / hoàn tác thư cập nhật lịch, người gửi tin cậy"),
         new("m6", "Nhập liệu", "Nhập liệu", new[] { View, Export, Edit }, "Sửa = tạo / sửa / xóa trang, lưu mẫu"),
         new("m1", "Tồn kho An An", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, Đặc tính, chuyển mã"),
         new("m2", "Tồn kho gửi", "Tồn kho gốc", new[] { View, Export, Edit }, "Sửa = nạp file, phiếu xuất, Đặc tính"),
@@ -66,7 +65,7 @@ public static class Perm
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         if (role == Roles.Staff)
         {
-            d["backup"] = None; d["audit"] = None; d["lxmail"] = None; d["phone"] = None;
+            d["backup"] = None; d["audit"] = None; d["phone"] = None;
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
             d["m3"] = Export; d["m3dm"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m7ck"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
