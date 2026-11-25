@@ -22,7 +22,8 @@ public static class GridTotals
     }
 
     /// <summary>Tổng từng cột (null = không cộng / không có số) trên các dòng <paramref name="rows"/>.</summary>
-    public static double?[] Sum(GridModel m, IReadOnlyList<int> rows, Func<int, bool> sumCol, Func<int, bool>? rowFilter = null)
+    /// <param name="keepRow">dòng trông như dòng tổng / nhóm nhưng vẫn cộng (vd ngày đang thu gọn chỉ còn dòng tổng ngày).</param>
+    public static double?[] Sum(GridModel m, IReadOnlyList<int> rows, Func<int, bool> sumCol, Func<int, bool>? rowFilter = null, Func<int, bool>? keepRow = null)
     {
         var res = new double?[m.ColCount];
         var cols = Enumerable.Range(0, m.ColCount).Where(sumCol).ToArray();
@@ -30,7 +31,7 @@ public static class GridTotals
         var vi = cols.ToDictionary(c => c, c => IsViFormat(rows.Where(r => r >= 0 && r < m.RowCount).Select(r => m.Get(r, c))));
         foreach (var r in rows)
         {
-            if (r < 0 || r >= m.RowCount || (rowFilter is not null && !rowFilter(r)) || IsSubtotalRow(m, r)) continue;
+            if (r < 0 || r >= m.RowCount || (rowFilter is not null && !rowFilter(r)) || (IsSubtotalRow(m, r) && keepRow?.Invoke(r) != true)) continue;
             foreach (var c in cols)
             {
                 var v = m.Get(r, c);

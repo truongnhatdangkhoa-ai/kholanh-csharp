@@ -31,6 +31,17 @@ public class GridTotalsTests
     }
 
     [Fact]
+    public void Nhom_dang_thu_gon_cong_so_cua_dong_tong_nhom()
+    {   // 1.92 Báo cáo rã đông: ngày mới mở (▾ + dòng chi tiết), ngày cũ thu chỉ còn dòng ▸ → Tổng vẫn = mọi ngày
+        var m = new GridModel();
+        m.Load(new[] { new GridColumn("d", "Ngày", 100), new GridColumn("sl", "Số lượng", 60, "number") },
+            new[] { new[] { "▾ 25/11/2026", "30" }, new[] { "25/11/2026", "10" }, new[] { "25/11/2026", "20" }, new[] { "▸ 24/11/2026", "7" } });
+        var rows = new[] { 0, 1, 2, 3 };
+        Assert.Equal(30, GridTotals.Sum(m, rows, c => c == 1)[1]);                                  // dòng ▸ bị bỏ như mọi dòng tổng
+        Assert.Equal(37, GridTotals.Sum(m, rows, c => c == 1, keepRow: r => m.Get(r, 0).StartsWith("▸"))[1]);
+    }
+
+    [Fact]
     public void Cot_so_kieu_Viet_da_dinh_dang()
     {
         var m = new GridModel();

@@ -76,11 +76,10 @@ void SnapSuggest(Window w, string name)
     var g = w.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
     for (var i = 0; i < 60 && typeof(EntryView).GetField("_sugs", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) is null; i++) { Thread.Sleep(50); Pump(); }
     var mc = Enumerable.Range(0, g.Model.ColCount).First(c => g.Model.Columns[c].Header == "Mã hàng");
-    g.Select(3, mc); g.BeginEdit("1620");   // 1.89: gợi ý chỉ từ Tồn kho An An, 4 số = đoạn Size for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
+    g.Select(3, mc); g.BeginEdit("1620");   // 1.92: gợi ý chỉ từ Tồn kho An An, 4 số = đoạn Size
+    for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
     var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
     var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!;
-    var kkSugs = typeof(EntryView).GetField("_sugsKk", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null) as System.Collections.IList;
-    Console.WriteLine($"  [GOIY] mã Tồn kho An An để gợi ý: {kkSugs?.Cast<KhoLanh.Core.Entry.MaGoiY.Sug>().Count(x => x.CoTon) ?? -1} / {kkSugs?.Count ?? -1}: {string.Join(" ", kkSugs?.Cast<KhoLanh.Core.Entry.MaGoiY.Sug>().Where(x => x.CoTon).Take(5).Select(x => x.Ma) ?? new string[0])}");
     if (pop.IsOpen && pop.Child is Control ch) SnapPopup(w, ch, ed, name); else { Console.WriteLine("  (không mở được gợi ý)"); Snap(w, name); }
     var esc = new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent };
     ed.RaiseEvent(esc); ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); Pump();
@@ -982,7 +981,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "ui")
         {
             _ = vv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
             var pw = vv.PickerWindow!; var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
-            g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
+            g.Model.SetCells(new[] { (0, 6, "6"), (1, 6, "x"), (2, 6, "10"), (4, 6, "4"), (6, 6, "3") });
             for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(pw, "ui-vi-tri-chon");
             pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } Snap(main, "ui-vi-tri-phieu");
         }
@@ -1273,7 +1272,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     var q = pw.GetVisualDescendants().OfType<TextBox>().First(t => t.Watermark?.StartsWith("Tìm: BTP") == true);
     q.Text = label; W(400);
     var r0 = Enumerable.Range(0, g.Model.RowCount).First(i => g.Model.Row(i)[0] == multi.Key);
-    g.Model.SetCells(new[] { (r0, 7, "x") }); W(300); g.Select(r0, 7);
+    g.Model.SetCells(new[] { (r0, 6, "x") }); W(300); g.Select(r0, 6);
     Console.WriteLine($"   tìm “{label}”: {g.Model.RowCount} dòng, các size: {string.Join(", ", Enumerable.Range(0, g.Model.RowCount).Select(i => g.Model.Row(i)[2]).Distinct())}");
     Snap(pw, "24b1-vi-tri-tim-dung-size");
     var pos = pw.GetVisualDescendants().OfType<CheckBox>().First(c => c.Content as string == "Lọc vị trí đang chọn");
@@ -1490,11 +1489,11 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
         _ = vtv.OpenPickerForTest(); for (var i = 0; i < 20; i++) { Thread.Sleep(30); Pump(); }
         var pw = vtv.PickerWindow!;
         var g = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 11);
-        g.Model.SetCells(new[] { (0, 7, "6"), (1, 7, "x"), (2, 7, "10"), (4, 7, "4"), (6, 7, "3") });
-        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 7); Snap(pw, "24b0-vi-tri-chon-hang");
+        g.Model.SetCells(new[] { (0, 6, "6"), (1, 6, "x"), (2, 6, "10"), (4, 6, "4"), (6, 6, "3") });
+        for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); } g.Select(2, 6); Snap(pw, "24b0-vi-tri-chon-hang");
         pw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
         var dg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
-        dg.Select(0, 7); Snap(main, "24-vi-tri");
+        dg.Select(0, 6); Snap(main, "24-vi-tri");
         tc.SelectedIndex = 1; Pump();
         var sg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
         sg.Select(0, 0); Snap(main, "24b-vi-tri-phieu");
@@ -2205,7 +2204,22 @@ void BtScene()
     main.Navigate("m4"); W(40);
     var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(); tc.SelectedIndex = 1; W(10);
     var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
-    var heads = Enumerable.Range(0, g.Model.RowCount).Where(r => g.Model.Get(r, 0).StartsWith("▾")).Take(2).ToList();
+    {   // 1.92: chỉ ngày mới nhất mở, các ngày cũ thu gọn; bấm dòng tổng ngày = mở / thu; dòng Tổng không đổi
+        bool Head(int r) => g.Model.Get(r, 0).StartsWith("▾") || g.Model.Get(r, 0).StartsWith("▸");
+        double? Tot() { g.InvalidateVisual(); W(4); return ((double?[])typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sumAll", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(g)!)[4]; }
+        var open0 = Enumerable.Range(0, g.Model.RowCount).Count(r => g.Model.Get(r, 0).StartsWith("▾"));
+        var n0 = g.Model.RowCount; var t0 = Tot();
+        Snap(main, "22e-ra-dong-thu-gon");
+        var h2 = Enumerable.Range(0, g.Model.RowCount).First(r => g.Model.Get(r, 0).StartsWith("▸"));
+        var oldTxt = g.Model.Get(h2, 0); g.RowClicked!(h2); W(10); var n1 = g.Model.RowCount; var t1 = Tot();
+        var h1 = Enumerable.Range(0, g.Model.RowCount).First(r => g.Model.Get(r, 0).StartsWith("▾"));
+        g.RowClicked!(h1); W(10); var n2 = g.Model.RowCount; var t2 = Tot();
+        Console.WriteLine($"[THUGON] ngày mở lúc đầu {open0}, dòng {n0} → mở 1 ngày cũ {n1} → thu ngày mới {n2}; Net tổng {t0} / {t1} / {t2}");
+        if (open0 != 1 || n1 <= n0 || n2 >= n1 || t0 is null || Math.Abs((t0 ?? 0) - (t1 ?? 0)) > 0.01 || Math.Abs((t1 ?? 0) - (t2 ?? 0)) > 0.01) { Console.WriteLine("[THUGON] LỖI"); s.Lan.Dispose(); Environment.Exit(1); }
+        var old = oldTxt[2..];   // trả về như lúc mở trang: ngày mới nhất mở, ngày cũ thu
+        g.RowClicked!(0); W(10); g.RowClicked!(Enumerable.Range(0, g.Model.RowCount).First(r => g.Model.Get(r, 0) == "▾ " + old)); W(10);
+    }
+    var heads = Enumerable.Range(0, g.Model.RowCount).Where(r => g.Model.Get(r, 0).StartsWith("▾") || g.Model.Get(r, 0).StartsWith("▸")).Take(2).ToList();
     g.SetChecked(heads, true); W(10); Snap(main, "22c-ra-dong-tich-ngay");
     _ = Call(main.PageHost.Content!, "DayImage"); var d = Dlg(); W(10);
     Console.WriteLine($"[BT] ảnh gộp: {d.Title} CanResize={d.CanResize} {d.Bounds.Width:0}x{d.Bounds.Height:0}");

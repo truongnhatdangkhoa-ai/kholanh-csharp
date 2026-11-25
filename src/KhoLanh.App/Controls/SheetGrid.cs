@@ -53,6 +53,8 @@ public sealed class SheetGrid : UserControl
     public Func<int, int, string?>? CellTip { get; set; }
     /// <summary>Dòng nào được cộng vào dòng Tổng cuối bảng (null = mọi dòng trừ dòng tổng có sẵn) — vd bảng có dòng nhóm + dòng chi tiết thì chỉ cộng dòng chi tiết.</summary>
     public Func<int, bool>? TotalsRowFilter { get; set; }
+    /// <summary>Dòng tổng / nhóm (▾ ▸ "Tổng …") vẫn được cộng vào dòng Tổng — vd nhóm đang thu gọn chỉ còn dòng tổng nhóm.</summary>
+    public Func<int, bool>? TotalsKeepRow { get; set; }
     public event Action? SelectionChanged;
     /// <summary>Bấm chuột trái (thả ra) vào một dòng dữ liệu — chỉ số dòng dữ liệu (model).</summary>
     public Action<int>? RowClicked { get; set; }
@@ -386,7 +388,7 @@ public sealed class SheetGrid : UserControl
         var g = new SheetGrid(Model)
         {
             SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, AutoNumberFormat = AutoNumberFormat, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol;
@@ -931,12 +933,12 @@ public sealed class SheetGrid : UserControl
         if (!_sumDirty && ver == _sumVer) return;
         _sumDirty = false; _sumVer = ver;
         var rows = ShownRows;
-        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter);
+        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter, TotalsKeepRow);
         _chkCount = 0;
         if (HasCheck)
         {
             _chkCount = rows.Count(IsChecked);
-            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false) : Array.Empty<double?>();
+            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false, TotalsKeepRow) : Array.Empty<double?>();
         }
         else _sumChk = Array.Empty<double?>();
     }

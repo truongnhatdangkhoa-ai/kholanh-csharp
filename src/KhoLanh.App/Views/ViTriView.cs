@@ -56,13 +56,14 @@ public sealed class ViTriView : UserControl, IPage
     private List<int> _rowIdx = new();          // dòng lưới → chỉ số dòng tồn
     private List<string[]> _snap = new();
     private Dictionary<int, double> _done = new();
-    private const int ColX = 7;                 // cột SL xuất
+    private const int ColX = 6;                 // cột SL xuất
     private static readonly GridColumn[] StockCols =
     {
         new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 190) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
-        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 100) { ReadOnly = true }, new("lo", "Lô", 90) { ReadOnly = true },
+        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 100) { ReadOnly = true },
         new("sl", "SL tồn", 70, "number") { ReadOnly = true }, new("x", "SL xuất ✎", 80, "number"), new("done", "Đã làm phiếu", 85, "number") { ReadOnly = true },
         new("tl", "T.Lượng", 65, "number") { ReadOnly = true }, new("net", "Net tồn (kg)", 90, "number") { ReadOnly = true },
+        new("lo", "Lô", 90) { ReadOnly = true },   // 1.92: Lô xuống cột cuối
     };
 
     // ---------- phiếu đang soạn
@@ -85,13 +86,14 @@ public sealed class ViTriView : UserControl, IPage
     private List<string[]> _dSnap = new();
     private bool _dLoading;
     private Control? _stockPanel;
-    private const int DColX = 7;                // cột SL xuất của bảng phiếu
+    private const int DColX = 6;                // cột SL xuất của bảng phiếu
     private static readonly GridColumn[] DraftCols =
     {
         new("vt", "Vị trí", 90) { ReadOnly = true }, new("ma", "Mã hàng", 200) { ReadOnly = true }, new("size", "Size", 60) { ReadOnly = true },
-        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 110) { ReadOnly = true }, new("lo", "Lô", 90) { ReadOnly = true },
+        new("dt", "Đặc tính", 110) { ReadOnly = true }, new("hd", "Hợp đồng", 110) { ReadOnly = true },
         new("sl", "SL tồn", 70, "number") { ReadOnly = true }, new("x", "SL xuất ✎", 85, "number"),
         new("tl", "T.Lượng", 65, "number") { ReadOnly = true }, new("net", "Net xuất (kg)", 95, "number") { ReadOnly = true },
+        new("lo", "Lô", 90) { ReadOnly = true },
     };
 
     // ---------- tab Phiếu xuất
@@ -395,7 +397,7 @@ public sealed class ViTriView : UserControl, IPage
             _dm.Load(DraftCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly }), _dRows.Select(i =>
             {
                 var r = Svc.Rows[i]; var x = _draft[i];
-                return new[] { r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, r.Lo, Raw(Avail(i)), Raw(x), Raw(r.Tl), Raw(Round(x * r.Tl)) };
+                return new[] { r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, Raw(Avail(i)), Raw(x), Raw(r.Tl), Raw(Round(x * r.Tl)), r.Lo };
             }).ToList());
             _dSnap = _dm.Snapshot();
         }
@@ -459,8 +461,8 @@ public sealed class ViTriView : UserControl, IPage
                 var r = Svc.Rows[i];
                 return new[]
                 {
-                    r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, r.Lo, Raw(r.Sl),
-                    _draft.TryGetValue(i, out var x) ? Raw(x) : "", _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(r.Tl), Raw(Round(r.Sl * r.Tl)),
+                    r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, Svc.SizeOf(r), r.Dt, r.Hd, Raw(r.Sl),
+                    _draft.TryGetValue(i, out var x) ? Raw(x) : "", _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(r.Tl), Raw(Round(r.Sl * r.Tl)), r.Lo,
                 };
             }).ToList();
             var cols = StockCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly || (c.Key == "x" && !_edit) }).ToList();
@@ -478,7 +480,7 @@ public sealed class ViTriView : UserControl, IPage
         if (r >= _rowIdx.Count) return null;
         var i = _rowIdx[r];
         if (_draft.TryGetValue(i, out var x)) return x > Avail(i) + 1e-9 ? OverBg : PickBg;
-        if (c == 8 && _done.ContainsKey(i)) return DoneBg;
+        if (c == ColX + 1 && _done.ContainsKey(i)) return DoneBg;
         if (Svc.Rows[i].Sl <= 1e-9) return ZeroBg;
         return null;
     }
