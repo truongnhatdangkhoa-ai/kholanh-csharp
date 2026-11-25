@@ -64,6 +64,7 @@ public sealed class ChungTuView : UserControl, IPage
         _edit = Svc.CanEdit; _export = Svc.CanExport;
         _gg = new SheetGrid(_gm) { SpareRows = 0, CellBackground = (r, _) => r < _groups.Count ? (_groups[r].Tach ? TachBg : _groups[r].IsMerged ? MergedBg : null) : null };
         _gg.SelectionChanged += ShowItems;
+        _gg.RowChecks = true; _gg.ChecksChanged += ShowItems;   // 1.93: ô tích chọn ngày in / gộp / xuất (ô tiêu đề = tích hết)
         _ig = new SheetGrid(_im) { SpareRows = 0 };
         _rg = new SheetGrid(_rm) { SpareRows = 0, CellBackground = (r, _) => r < _rows.Count && _rows[r].Tach ? TachBg : null };
         _sg = new SheetGrid(_sm) { SpareRows = 3 };
@@ -239,7 +240,7 @@ public sealed class ChungTuView : UserControl, IPage
         tools.Children.Add(ToolRow.Gap());
         if (_edit)
         {
-            tools.Children.Add(Btn("Gộp ngày chọn", async () => await DoMerge(), tip: "Chọn nhiều dòng liền nhau (kéo chuột / Shift+mũi tên) rồi bấm"));
+            tools.Children.Add(Btn("Gộp ngày chọn", async () => await DoMerge(), tip: "Tích ô đầu các ngày liền nhau (hoặc kéo chuột chọn) rồi bấm"));
             tools.Children.Add(ToolRow.More(Btn("Bỏ gộp phiếu chọn", async () => await DoUnmerge())));
             tools.Children.Add(ToolRow.More(Btn("Bỏ gộp tất cả", async () => { if (await Ui.Confirm(this, "Bỏ gộp tất cả các phiếu đã gộp?")) await Act(() => Svc.UnmergeAll(_mod)); })));
         }
@@ -256,7 +257,7 @@ public sealed class ChungTuView : UserControl, IPage
         var right = new DockPanel();
         _gInfo.FontWeight = FontWeight.SemiBold; _gInfo.Margin = new Thickness(0, 0, 0, 4); _gInfo.TextWrapping = TextWrapping.NoWrap; _gInfo.TextTrimming = TextTrimming.CharacterEllipsis;
         DockPanel.SetDock(_gInfo, Dock.Top); right.Children.Add(_gInfo); right.Children.Add(Framed(_ig));
-        var leftCap = new TextBlock { Text = "Phiếu theo ngày · chọn 1 phiếu → dòng bên phải", FontWeight = FontWeight.SemiBold, FontSize = 12.5, Margin = new Thickness(0, 0, 0, 4) };
+        var leftCap = new TextBlock { Text = "Phiếu theo ngày · tích ô đầu dòng để chọn ngày in (ô tiêu đề = tất cả) · bấm 1 phiếu → dòng bên phải", FontWeight = FontWeight.SemiBold, FontSize = 12.5, Margin = new Thickness(0, 0, 0, 4) };
         var left = new DockPanel(); DockPanel.SetDock(leftCap, Dock.Top); left.Children.Add(leftCap); left.Children.Add(Framed(_gg));
         var split = new Grid { ColumnDefinitions = new ColumnDefinitions("1*,8,1*") };
         Grid.SetColumn(left, 0); Grid.SetColumn(right, 2);
@@ -292,7 +293,14 @@ public sealed class ChungTuView : UserControl, IPage
         ShowItems();
     }
 
+    /// <summary>Phiếu cần in / gộp / xuất: các ngày đã TÍCH; chưa tích ngày nào thì dùng các dòng đang chọn (bôi đen).</summary>
     private IEnumerable<Group> Selected()
+    {
+        var t = _gg.CheckedRows.Where(r => r < _groups.Count).Select(r => _groups[r]).ToList();
+        return t.Count > 0 ? t : Cursor();
+    }
+
+    private IEnumerable<Group> Cursor()
     {
         var s = _gg.Selection;
         for (var r = Math.Max(0, s.R1); r <= s.R2 && r < _groups.Count; r++) yield return _groups[r];
@@ -300,17 +308,20 @@ public sealed class ChungTuView : UserControl, IPage
 
     private void ShowItems()
     {
-        var sel = Selected().ToList();
+        var sel = Cursor().ToList();
+        var tick = _gg.CheckedRows.Where(r => r < _groups.Count).Select(r => _groups[r]).ToList();
+        var tickTxt = tick.Count > 0 ? $"Đã tích {tick.Count} ngày · SL {Fmt(tick.Sum(x => x.SumSL))} · Net {FmtNet(tick.Sum(x => x.SumNet))} kg — In / Xuất / Gộp theo ngày đã tích · " : "";
         if (sel.Count == 0)
         {
-            _gInfo.Text = Svc.Rows[_mod].Count == 0 ? "Nạp file Excel xuất kho để bắt đầu." : "";
+            _gInfo.Text = tickTxt;
+            if (tickTxt.Length == 0) _gInfo.Text = Svc.Rows[_mod].Count == 0 ? "Nạp file Excel xuất kho để bắt đầu." : "";
             _im.Load(Array.Empty<GridColumn>(), Array.Empty<string[]>()); _ig.Refresh();
             return;
         }
         var g = sel[0];
-        _gInfo.Text = sel.Count > 1
+        _gInfo.Text = tickTxt + (sel.Count > 1
             ? $"Đã chọn {sel.Count} phiếu · {sel.Sum(x => x.Items.Count):#,0} mã · SL {Fmt(sel.Sum(x => x.SumSL))} · Net {FmtNet(sel.Sum(x => x.SumNet))} kg"
-            : $"Phiếu {g.SoPhieu} — {g.DateLine}" + (g.Tach ? " (phiếu tách riêng cùng ngày)" : "") + $" · {g.Items.Count:#,0} mã · SL {Fmt(g.SumSL)} · Net {FmtNet(g.SumNet)} kg";
+            : $"Phiếu {g.SoPhieu} — {g.DateLine}" + (g.Tach ? " (phiếu tách riêng cùng ngày)" : "") + $" · {g.Items.Count:#,0} mã · SL {Fmt(g.SumSL)} · Net {FmtNet(g.SumNet)} kg");
         _im.Load(new[]
         {
             new GridColumn("stt", "STT", 45, "number"), new GridColumn("ma", "Mã hàng", 190), new GridColumn("ten", "Tên hàng", 380), new GridColumn("size", "Size", 70),
@@ -323,7 +334,7 @@ public sealed class ChungTuView : UserControl, IPage
     private async Task DoMerge()
     {
         var sel = Selected().ToList();
-        if (sel.Count < 2) { await Ui.Message(this, "Chọn ít nhất 2 dòng (ngày) liền nhau trong danh sách để gộp thành 1 phiếu."); return; }
+        if (sel.Count < 2) { await Ui.Message(this, "Tích (hoặc chọn) ít nhất 2 ngày liền nhau trong danh sách để gộp thành 1 phiếu."); return; }
         await Act(() => Svc.Merge(_mod, sel), $"Đã gộp {sel.Count} ngày thành 1 phiếu");
     }
 

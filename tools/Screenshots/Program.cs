@@ -880,6 +880,39 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.93: SHOTS_ONLY=v193 — ô tích chọn dòng: In chứng từ tích ngày in (ô tiêu đề = tích hết), bảng sửa được có ô tích, bảng chỉ xem không. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v193")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    bool Tick(KhoLanh.App.Controls.SheetGrid g) => (bool)typeof(KhoLanh.App.Controls.SheetGrid).GetProperty("HasCheck", bf)!.GetValue(g)!;
+    var ok = true;
+    main.Navigate("m12"); P(40);
+    var gg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 0 && x.Model.Columns[0].Header == "Số phiếu");
+    var view = main.PageHost.Content!;
+    int Sel() => ((System.Collections.IEnumerable)view.GetType().GetMethod("Selected", bf)!.Invoke(view, null)!).Cast<object>().Count();
+    gg.SetChecked(new[] { 0, 2 }, true); P(5);
+    var info = main.PageHost.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text?.StartsWith("Đã tích") == true)?.Text ?? "";
+    Console.WriteLine($"[v193] In chứng từ: ô tích = {Tick(gg)}, {gg.Model.RowCount} ngày, tích 2 → in / gộp {Sel()} phiếu · “{info}”");
+    if (!Tick(gg) || Sel() != 2 || !info.Contains("Đã tích 2 ngày")) ok = false;
+    Snap(main, "29b-in-chung-tu-tich-ngay");
+    gg.SetChecked(Enumerable.Range(0, gg.Model.RowCount), true); P(3);
+    Console.WriteLine($"[v193] tích hết → {Sel()} / {gg.Model.RowCount}");
+    if (Sel() != gg.Model.RowCount) ok = false;
+    gg.SetChecked(gg.CheckedRows, false); P(3);
+    Console.WriteLine($"[v193] bỏ tích → theo dòng đang chọn: {Sel()}");
+    if (Sel() != 1) ok = false;
+    foreach (var (k, wantEdit) in new[] { ("m6", true), ("m4", true), ("m13", false) })
+    {
+        main.Navigate(k); P(40);
+        var grids = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Model.ColCount > 0).ToList();
+        var bad = grids.Where(x => Tick(x) == x.Model.ReadOnly && x.CheckCol < 0 && x.RowChecks is null).ToList();
+        Console.WriteLine($"[v193] {k}: {grids.Count} bảng · " + string.Join(" · ", grids.Select(x => $"{(x.Model.ReadOnly ? "chỉ xem" : "sửa được")} ô tích={Tick(x)}")));
+        if (bad.Count > 0 || (wantEdit && !grids.Any(x => !x.Model.ReadOnly && Tick(x)))) ok = false;
+        if (k == "m6") Snap(main, "20d-nhap-lieu-o-tich");
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v193) — ĐẠT: " : "Xong (v193) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.83: SHOTS_ONLY=v183 — header gọn: 1 thanh 44px + hàng tên trang 36px có tab cấp 1 (1366×768). Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v183")
 {
