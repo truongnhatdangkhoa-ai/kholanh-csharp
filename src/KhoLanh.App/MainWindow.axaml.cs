@@ -1,4 +1,8 @@
+using Avalonia;
+using Avalonia.LogicalTree;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -42,8 +46,12 @@ public partial class MainWindow : Window
         AppTheme.LoadFor(u.Username);
         Views.PhoneAutoSync.Start();
         // 1.83: trang lấp đầy cửa sổ, nội dung cần cao hơn (mỗi bảng ≥ 8 dòng) thì cuộn dọc
+        // (tab của trang nằm trên hàng tên trang; cuộn xuống thì dải tên trang che phần đã cuộn qua)
+        var pi = PageArea.Children.IndexOf(PageHost);
         PageArea.Children.Remove(PageHost);
-        PageArea.Children.Add(new Controls.FillScroll(PageHost));
+        var fs = new Controls.FillScroll(PageHost);
+        PageArea.Children.Insert(pi, fs);
+        fs.ScrollChanged += (_, _) => { var up = fs.Offset.Y > 0.5; PageBand.ZIndex = up ? 1 : 0; PageHead.ZIndex = up ? 2 : 0; };
         var root = (Control)Content!; Content = null;
         Content = _zoom = new LayoutTransformControl { Child = root };
         ApplyZoom();
@@ -63,8 +71,9 @@ public partial class MainWindow : Window
             if (FocusManager?.GetFocusedElement() is TextBox) { PageHost.Focusable = true; PageHost.Focus(); e.Handled = true; return; }   // rời ô chữ (vùng trang nhận tiêu điểm)
             e.Handled = GoBack();
         }, Avalonia.Interactivity.RoutingStrategies.Bubble);
-        VersionText.Text = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
-        WarehouseText.Text = s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho");
+        VersionItem.Header = $"Phiên bản {typeof(MainWindow).Assembly.GetName().Version?.ToString(3)}";
+        ToolTip.SetTip(LogoImage, "KHO LẠNH · " + s.Settings.Get(SettingsService.WarehouseName, "Quản lý kho"));
+        PageHost.LayoutUpdated += (_, _) => { if (_pageTabs is { } t && !t.IsAttachedToVisualTree() && !_alignQueued) QueueAlign(); };
 
         _menu = new()
         {
@@ -129,13 +138,10 @@ public partial class MainWindow : Window
         var initials = string.Concat((string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName).Split(' ', StringSplitOptions.RemoveEmptyEntries).TakeLast(2).Select(w => char.ToUpper(w[0])));
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
         {
-            new Border { Width = 28, Height = 28, CornerRadius = new Avalonia.CornerRadius(14), Background = AppTheme.Brush("#1F6FD6"),
+            new Border { Width = 26, Height = 26, CornerRadius = new Avalonia.CornerRadius(13), Background = AppTheme.Brush("#1F6FD6"),
                 Child = new TextBlock { Text = initials, FontSize = 11.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } },
-            new StackPanel { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, Children =
-            {
-                new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 12.5, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, MaxWidth = 160, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
-                new TextBlock { Text = u.RoleLabel, FontSize = 10.5, Foreground = AppTheme.Brush("#8FA0B6", "#7A8797") },
-            } },
+            // 1.83: 1 thanh 44px — chỉ tên (vai trò ở chú thích / menu tài khoản)
+            new TextBlock { Text = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName, FontSize = 13, FontWeight = Avalonia.Media.FontWeight.SemiBold, Foreground = Avalonia.Media.Brushes.White, MaxWidth = 150, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center },
             Controls.Icon.Make("chevron-down", 13),
         } };
         ToolTip.SetTip(UserButton, $"{u.FullName} · {u.RoleLabel}");
@@ -203,8 +209,8 @@ public partial class MainWindow : Window
     private void OnTroLyScanned(KhoLanh.Core.TroLy.TroLyService.ScanResult r) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
         TroLyButton.IsVisible = r.Do > 0;
-        TroLyButton.Content = Controls.Icon.Label($"Trợ lý: {r.Do}", "warn");
-        ToolTip.SetTip(TroLyButton, $"Lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
+        TroLyButton.Content = Controls.Icon.Label($"{r.Do}", "warn");
+        ToolTip.SetTip(TroLyButton, $"Trợ lý hệ thống · lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
     });
 
     private void OnTroLyClick(object? sender, RoutedEventArgs e) => Navigate("troly");
@@ -216,15 +222,15 @@ public partial class MainWindow : Window
         var made = msgs.Count(m => m.Contains("tạo List") || m.Contains("List TRỐNG") || m.Contains("tạo phiếu"));
         if (made == 0 && !msgs.Any(m => m.StartsWith("Chưa tự tạo"))) return;
         _autoN += made;
-        AutoButton.Content = Controls.Icon.Label(_autoN > 0 ? $"Tự tạo: {_autoN}" : "Lỗi tự tạo", "bolt");
-        ToolTip.SetTip(AutoButton, string.Join("\n", msgs.Take(12)) + "\n\nBấm để xem ở Phiếu xuất kho › Tự động đã tạo.");
+        AutoButton.Content = Controls.Icon.Label(_autoN > 0 ? $"{_autoN}" : "!", "bolt");
+        ToolTip.SetTip(AutoButton, "Lịch xuất tự tạo List / phiếu:\n" + string.Join("\n", msgs.Take(12)) + "\n\nBấm để xem ở Phiếu xuất kho › Tự động đã tạo.");
         AutoButton.IsVisible = true;
     });
     private void OnAutoClick(object? sender, RoutedEventArgs e) { AutoButton.IsVisible = false; _autoN = 0; Show("m13", new Views.PhieuKhoView(3)); }
 
     private void OnUpdateReady(Version v) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
-        UpdateButton.Content = Controls.Icon.Label($"Cập nhật {v}", "download");
+        UpdateButton.Content = Controls.Icon.Label("Cập nhật", "download");
         ToolTip.SetTip(UpdateButton, $"Đã tải xong bản {v}. Bấm để dùng ngay (app tự mở lại, dữ liệu giữ nguyên).");
         UpdateButton.IsVisible = true;
     });
@@ -277,12 +283,11 @@ public partial class MainWindow : Window
         {
             var visible = items.Where(Allowed).ToList();
             if (visible.Count == 0) continue;
-            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8 };
+            var row = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 5 };
             var cnt = CountBadge(out var cntText);
             if (visible.Count == 1)
             {
                 var item = visible[0];
-                row.Children.Add(Controls.Icon.Make(NavIcons.GetValueOrDefault(item.Key, "doc"), 16));
                 row.Children.Add(new TextBlock { Text = item.Label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
                 row.Children.Add(cnt);
                 var b = new Button { Classes = { "navtab" }, Content = row };
@@ -291,7 +296,6 @@ public partial class MainWindow : Window
                 NavPanel.Children.Add(b);
                 continue;
             }
-            row.Children.Add(Controls.Icon.Make(GroupIcons.GetValueOrDefault(group, "menu"), 16));
             row.Children.Add(new TextBlock { Text = GroupLabel(group), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center });
             row.Children.Add(cnt);
             row.Children.Add(Controls.Icon.Make("chevron-down", 12));
@@ -389,8 +393,7 @@ public partial class MainWindow : Window
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
         if (_buttons.TryGetValue(key, out var act)) act.Classes.Add("active");
         foreach (var (k, mi) in _menuItems) mi.Classes.Set("current", k == key);
-        var grp = _menu.First(m => m.items.Contains(item)).group;
-        PageGroup.Text = _navGroups.ContainsKey(key) ? GroupLabel(grp) + "  ›" : "";
+        QueueAlign();
         if (!_goingBack && _current.Length > 0 && _current != key)
         {
             _back.Remove(key);                       // mở lại màn hình đã có trong lịch sử → không lặp
@@ -429,6 +432,115 @@ public partial class MainWindow : Window
 
     public void SetSubtitle(string text) => PageSubtitle.Text = text;
 
+    // ------------------------------------------------------------------ 1.83: tab đầu trang chung hàng với tên trang
+    private TabControl? _pageTabs;
+    private bool _alignQueued;
+    private int _alignRetry;
+    // phần đầu trang (dòng trạng thái / nút chung) đã chuyển lên hàng tên trang — trả lại chỗ cũ khi đổi trang
+    private readonly List<(Panel Parent, int Index, Control Ctrl, Avalonia.Thickness Margin)> _lifted = new();
+    private readonly List<(TextBlock Tb, bool Vis, Avalonia.Media.TextWrapping Wrap, Avalonia.Media.TextTrimming Trim)> _liftedText = new();
+    private readonly List<string> _liftHints = new();
+
+    private void QueueAlign()
+    {
+        _alignQueued = true; _alignRetry = 0;
+        Avalonia.Threading.Dispatcher.UIThread.Post(AlignPageTabs, Avalonia.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void RestoreLifted()
+    {
+        if (_pageTabs is { } old) { old.Classes.Remove("pagetabs"); if (StripOf(old) is { } op) op.Margin = default; _pageTabs = null; }
+        foreach (var (tb, vis, wrap, trim) in _liftedText) { tb.IsVisible = vis; tb.TextWrapping = wrap; tb.TextTrimming = trim; }
+        _liftedText.Clear(); _liftHints.Clear();
+        if (PageExtra.Child is StackPanel sp0) sp0.Children.Clear();
+        PageExtra.Child = null; PageExtra.MaxWidth = 620;
+        foreach (var (par, idx, c, m) in _lifted) { c.Margin = m; par.Children.Insert(Math.Min(idx, par.Children.Count), c); }
+        _lifted.Clear();
+    }
+
+    private void TitleOnly()
+    {
+        PageSep.IsVisible = false;
+        PageHost.Margin = new Thickness(12, 42, 12, 8);
+        InvalidateVisual();
+    }
+
+    /// <summary>TabControl nằm ở đầu trang (tab cấp 1 của module) → dải tab lên hàng tên trang (36px), bắt đầu sau tên + vạch.
+    /// Phần nhỏ nằm trên tab (dòng trạng thái, nút "Tải lại"…) chuyển sang bên phải hàng đó; ghi chú dài vào nút ⓘ.
+    /// Không xếp được (đầu trang có thanh công cụ lớn, tab tràn xuống 2 dòng) → hàng tên trang chỉ có tên.</summary>
+    internal void AlignPageTabs()
+    {
+        _alignQueued = false;
+        RestoreLifted();
+        if (PageHost.Content is not Control root || !root.IsAttachedToVisualTree()) { TitleOnly(); return; }
+        var tc = root.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t => t.IsEffectivelyVisible && t.ItemCount > 0);
+        var pt = tc?.TranslatePoint(new Point(0, 0), root);
+        if (tc is null || pt is not { } p0 || p0.X >= 10 || p0.Y > 60)
+        {
+            TitleOnly();
+            if (tc is null && _alignRetry++ < 3)   // trang dựng nội dung sau (nạp ngầm) → thử lại
+                Avalonia.Threading.DispatcherTimer.RunOnce(() => { if (_pageTabs is null && !_alignQueued) { var r = _alignRetry; AlignPageTabs(); _alignRetry = r; } }, TimeSpan.FromMilliseconds(250));
+            return;
+        }
+        if (p0.Y >= 6)
+        {
+            // chỉ nhận dạng thường gặp: DockPanel { phần trên Dock=Top, TabControl } ở sát đầu trang
+            if (tc.GetVisualParent() is not DockPanel par || par.TranslatePoint(new Point(0, 0), root) is not { Y: < 6 }) { TitleOnly(); return; }
+            var others = par.Children.Where(c => c != tc && c.IsVisible).ToList();
+            if (others.Any(c => DockPanel.GetDock(c) != Dock.Top || c.Bounds.Height > 48)) { TitleOnly(); return; }
+            foreach (var c in par.Children.Where(c => c != tc).ToList())
+            {
+                _lifted.Add((par, par.Children.IndexOf(c), c, c.Margin));
+                par.Children.Remove(c);
+            }
+            var shown = new List<Control>();
+            foreach (var (_, _, c, _) in _lifted)
+            {
+                if (!c.IsVisible) continue;
+                c.Margin = default;
+                foreach (var tb in c.GetLogicalDescendants().OfType<TextBlock>().Prepend(c as TextBlock).OfType<TextBlock>())
+                {
+                    _liftedText.Add((tb, tb.IsVisible, tb.TextWrapping, tb.TextTrimming));
+                    var text = tb.Text ?? "";
+                    if (tb.Classes.Contains("muted") && text.Length >= 40 && tb.TextWrapping != Avalonia.Media.TextWrapping.NoWrap && tb.Parent is not Button)
+                    { tb.IsVisible = false; _liftHints.Add(text); continue; }   // ghi chú hướng dẫn → nút ⓘ
+                    tb.TextWrapping = Avalonia.Media.TextWrapping.NoWrap; tb.TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis;
+                }
+                shown.Add(c);
+            }
+            PageExtra.Child = shown.Count == 1 ? shown[0] : new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 10 }.Also(sp => { foreach (var c in shown) sp.Children.Add(c); });
+        }
+        _pageTabs = tc; tc.Classes.Add("pagetabs");
+        PageSep.IsVisible = true;
+        PageHost.Margin = new Thickness(12, 0, 12, 8);
+        PageTitle.Measure(Size.Infinity);
+        var left = PageTitle.DesiredSize.Width + 29;
+        if (StripOf(tc) is { } ip) ip.Margin = new Thickness(left, 0, 34, 0);
+        if (PageExtra.Child is not null)
+        {
+            // chỗ còn lại bên phải dải tab cho phần đầu trang đã chuyển lên (chữ dài tự cắt "…")
+            double tabsW = 0;
+            foreach (var it in tc.Items.OfType<TabItem>()) { it.Measure(Size.Infinity); tabsW += it.DesiredSize.Width + it.Margin.Left + it.Margin.Right; }
+            var room = PageHost.Bounds.Width + 24 - 12 - left - tabsW - 16 - 40;
+            if (room < 160) { RestoreLifted(); TitleOnly(); return; }
+            PageExtra.MaxWidth = Math.Min(room, 760);
+        }
+        // kiểm sau khi xếp: dải tab phải nằm gọn 1 hàng ở đầu trang
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (_pageTabs != tc) return;
+            var strip = StripOf(tc);
+            var y = tc.TranslatePoint(new Point(0, 0), PageHost)?.Y ?? 0;
+            if (strip is null || strip.Bounds.Height > 40) { RestoreLifted(); TitleOnly(); return; }
+            if (Math.Abs(y) > 0.5) PageHost.Margin = new Thickness(12, -y, 12, 8);
+            InvalidateVisual();
+        }, Avalonia.Threading.DispatcherPriority.Background);
+    }
+    private static Control? StripOf(TabControl tc) =>
+        tc.GetVisualDescendants().OfType<ItemsPresenter>().FirstOrDefault(p => p.Name == "PART_ItemsPresenter" && p.TemplatedParent == tc);
+    /// <summary>Công cụ chụp / kiểm tra: TabControl đang nằm chung hàng tên trang.</summary>
+    internal TabControl? PageTabs => _pageTabs;
+
     // ------------------------------------------------------------------ 1.72 (A3): giữ màn hình đã mở
     private const int CacheMax = 8;
     /// <summary>Tắt giữ màn hình (công cụ chụp ảnh cần màn hình mới mỗi lần mở).</summary>
@@ -457,6 +569,7 @@ public partial class MainWindow : Window
     internal Flyout ShowHelp()
     {
         var hints = PageHost.Content is Avalonia.Visual v ? Controls.HintTrim.Collect(v) : new List<string>();
+        hints.InsertRange(0, _liftHints);
         if (PageHost.Content is IPage { Subtitle: { Length: > 0 } sub }) hints.Insert(0, sub);
         var fl = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = Controls.HintTrim.Panel(hints) };
         fl.ShowAt(HelpButton);

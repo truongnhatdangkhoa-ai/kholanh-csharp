@@ -53,10 +53,10 @@
 
   <!-- Nút: thường (viền) · primary (xanh, 1 nút / màn hình) · ghost (không viền) · danger (viền đỏ) -->
   <Style Selector="Button">
-    <Setter Property="MinHeight" Value="32"/>
-    <Setter Property="Padding" Value="12,6"/>
+    <Setter Property="MinHeight" Value="30"/>
+    <Setter Property="Padding" Value="11,4"/>
     <Setter Property="CornerRadius" Value="8"/>
-    <Setter Property="FontSize" Value="13.5"/>
+    <Setter Property="FontSize" Value="13"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
     <Setter Property="Background" Value="{DynamicResource CardBg}"/>
@@ -117,36 +117,39 @@
     <Setter Property="Foreground" Value="{DynamicResource Danger}"/>
   </Style>
 
-  <!-- Menu ngang tầng 2 (1.54): tab nhóm gạch chân -->
+  <!-- Menu (1.83): nằm chung thanh tối 44px với logo / tài khoản — mục đang mở nền sáng hơn + gạch chân xanh nhạt -->
   <Style Selector="Button.navtab">
     <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
-    <Setter Property="Padding" Value="14,0"/>
+    <Setter Property="Foreground" Value="{DynamicResource NavFg}"/>
+    <Setter Property="Padding" Value="11,0"/>
     <Setter Property="Height" Value="44"/>
+    <Setter Property="MinHeight" Value="44"/>
     <Setter Property="CornerRadius" Value="0"/>
     <Setter Property="BorderThickness" Value="0,0,0,3"/>
     <Setter Property="BorderBrush" Value="Transparent"/>
-    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="FontSize" Value="13.5"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
   <Style Selector="Button.navtab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource Surface2}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderStrong}"/>
-    <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <Setter Property="Background" Value="{DynamicResource NavHover}"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+    <Setter Property="Foreground" Value="White"/>
   </Style>
   <Style Selector="Button.navtab:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+    <Setter Property="Background" Value="{DynamicResource NavHover}"/>
   </Style>
   <Style Selector="Button.navtab.active">
-    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Background" Value="{DynamicResource NavHover}"/>
+    <Setter Property="BorderBrush" Value="#5AA2FF"/>
   </Style>
   <Style Selector="Button.navtab.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
-    <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="BorderBrush" Value="#5AA2FF"/>
   </Style>
   <Style Selector="Button.navtab TextBlock"><Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}"/></Style>
+  <Style Selector="Button.navtab Path"><Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}"/></Style>
   <Style Selector="Button.navtab Border.navbadge TextBlock"><Setter Property="Foreground" Value="White"/></Style>
   <Style Selector="Border.navbadge">
     <Setter Property="CornerRadius" Value="9"/>
@@ -202,7 +205,7 @@
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderBrush" Value="Transparent"/>
     <Setter Property="Foreground" Value="{DynamicResource NavFg}"/>
-    <Setter Property="Padding" Value="10,7"/>
+    <Setter Property="Padding" Value="8,4"/>
     <Setter Property="CornerRadius" Value="7"/>
     <Setter Property="FontSize" Value="13.5"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
@@ -227,13 +230,13 @@
 
   <!-- Ô nhập -->
   <Style Selector="TextBox">
-    <Setter Property="MinHeight" Value="32"/>
+    <Setter Property="MinHeight" Value="30"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="FontSize" Value="13"/>
     <Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
   <Style Selector="ComboBox, CalendarDatePicker, NumericUpDown, AutoCompleteBox">
-    <Setter Property="MinHeight" Value="32"/>
+    <Setter Property="MinHeight" Value="30"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="FontSize" Value="13"/>
   </Style>
@@ -259,6 +262,28 @@
   </Style>
   <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
     <Setter Property="Background" Value="Transparent"/>
+  </Style>
+  <!-- 1.83: tab cấp 1 của trang nằm chung hàng tên trang (36px, MainWindow.AlignPageTabs) -->
+  <Style Selector="TabControl.pagetabs > TabItem">
+    <Setter Property="MinHeight" Value="36"/>
+    <Setter Property="Height" Value="36"/>
+    <Setter Property="FontSize" Value="13"/>
+    <Setter Property="Padding" Value="2,0"/>
+    <Setter Property="Margin" Value="0,0,18,0"/>
+  </Style>
+  <Style Selector="TabControl.pagetabs /template/ ContentPresenter#PART_SelectedContentHost">
+    <Setter Property="Margin" Value="0,8,0,0"/>
+  </Style>
+  <Style Selector="TabControl.pagetabs > TabItem:selected /template/ Border#PART_SelectedPipe">
+    <Setter Property="Margin" Value="0"/>
+  </Style>
+  <!-- tab cấp 2 (TabControl nằm trong TabControl): gọn hơn -->
+  <Style Selector="TabControl TabControl > TabItem">
+    <Setter Property="MinHeight" Value="28"/>
+    <Setter Property="Height" Value="30"/>
+    <Setter Property="FontSize" Value="12.5"/>
+    <Setter Property="Padding" Value="2,0"/>
+    <Setter Property="Margin" Value="0,0,16,0"/>
   </Style>
 
   <!-- Nhãn trạng thái: nền nhạt + chữ đậm (Border.pill.ok / .warn / .bad / .info / .accent, chữ bên trong tự đổi màu) -->
