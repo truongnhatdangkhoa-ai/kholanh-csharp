@@ -20,6 +20,8 @@ public static class TroLyQueue
     public const string NoteNguon = "Lỗi từ file nguồn — cần sửa ở phần mềm kho / file Excel gốc, không phải lỗi của app";
     private const int HistMax = 12, Max = 600;
     private static readonly TimeSpan KeepClosed = TimeSpan.FromDays(60), KeepGone = TimeSpan.FromDays(90);
+    /// <summary>1.102: mục "Đã sửa" chỉ được kết luận sau ≥ 24 giờ không thấy lại; lỗi phần mềm (log 7 ngày còn dòng cũ) sau 48 giờ không có lần mới.</summary>
+    public static readonly TimeSpan RecheckAfter = TimeSpan.FromHours(24), ErrRecheckAfter = TimeSpan.FromHours(48);
 
     public sealed class Hist { public string St { get; set; } = ""; public DateTime At { get; set; } public string Ver { get; set; } = ""; }
 
@@ -83,6 +85,15 @@ public static class TroLyQueue
                 r.Nguon = true; r.St = "loiNguon"; r.Note = NoteNguon; r.ClosedAt = null; r.Hidden = false; Push(r, "loiNguon", now, ver); Seen(r, f); continue;
             }
             if (r is null) { r = o[f.Id] = new Item { St = "moi", FirstAt = now }; Push(r, "moi", now, ver); moi++; }
+            else if (r.St == "daSua" && f.Cat == "loi-app" && f.LastAt is { } la && r.FixedAt is { } fa && la <= fa)
+            {   // 1.102: log vẫn còn dòng lỗi CŨ (trước lúc bấm Đã sửa) → chưa phải tái phát; 48 giờ không có lần mới → đóng
+                if (now - fa >= ErrRecheckAfter)
+                {
+                    r.Verified = true; r.St = "dong"; r.ClosedAt = now; Push(r, "dong", now, ver);
+                    r.Note = $"Đã xác nhận: {ErrRecheckAfter.TotalHours:0} giờ sau khi sửa không xuất hiện lại"; dong++;
+                }
+                Seen(r, f); continue;
+            }
             else if (r.St is "dong" or "daSua")
             {
                 r.Recur++;
@@ -98,6 +109,7 @@ public static class TroLyQueue
             if (cur.Contains(id) || r.St is "dong" or "boQua") continue;
             if (!safeClose || r.Cat == "loi-app") continue;
             if (!deep && !r.LightSeen) continue; // chỉ thấy khi Quét sâu → chỉ Quét sâu mới được kết luận hết
+            if (r.St == "daSua" && r.FixedAt is { } fx && now - fx < RecheckAfter) continue;   // 1.102: chờ đủ 24 giờ rồi mới kết luận
             r.Verified = r.St == "daSua"; r.St = "dong"; r.ClosedAt = now; Push(r, "dong", now, ver);
             r.Note = r.Verified ? "Đã xác nhận hết lỗi sau khi sửa" : "Lần quét sau không còn thấy"; dong++;
         }

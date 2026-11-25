@@ -29,6 +29,13 @@ public sealed class Finding
     public string Go { get; set; } = "";
     /// <summary>Tên nút đi tới trang sửa (vd "Cài đặt máy").</summary>
     public string GoLabel { get; set; } = "";
+    /// <summary>1.102: thao tác "Sửa nhanh" (khóa xử lý ở giao diện — <see cref="TroLyFix"/>) và tên nút. Rỗng = không có.</summary>
+    public string Fix { get; set; } = "";
+    public string FixLabel { get; set; } = "";
+    /// <summary>1.102: lần xuất hiện cuối (lỗi phần mềm — từ logs/loi.log) để kiểm lại mục "Đã sửa" theo thời điểm thật.</summary>
+    public DateTime? LastAt { get; set; }
+    /// <summary>1.102: lần đầu vào hàng đợi (gắn khi hiển thị) — nút "Quay lại bản trước" cho lỗi mới sau cập nhật.</summary>
+    public DateTime? QFirstAt { get; set; }
 
     // gắn từ hàng đợi khi hiển thị
     public string Q { get; set; } = "";
@@ -524,6 +531,7 @@ public static class TroLyChecks
         var f = Mk("loi-app", e.Count >= 5 ? "do" : "vang", e.Mod, "Lỗi phần mềm: " + Short(e.Msg, 90),
             $"Xuất hiện {e.Count} lần trong 7 ngày" + (places.Count > 1 ? $" ở {places.Count} nơi" : "") + $", lần cuối {e.Last:dd/MM/yyyy HH:mm}" + (e.Type.Length > 0 ? " · " + e.Type : ""),
             ev, Hash("loi-app|" + e.Type + "|" + NormMsg(e.Msg)));
+        f.LastAt = e.Last;
         return f;
     }).ToList();
 

@@ -142,6 +142,7 @@ public sealed class TroLyService
 
         var st = LoadState();
         var fin = Sort(f);
+        TroLyFix.Assign(fin);   // 1.102: nút "Sửa nhanh" cho lỗi đã biết
         var (items, ch) = TroLyQueue.Update(st.Items, fin, now, deep, !stepFailed, Version);
         st.Items = items; st.LastScanAt = now;
         try { SaveState(st); } catch { /* không lưu được trạng thái: vẫn trả kết quả */ }
@@ -164,8 +165,8 @@ public sealed class TroLyService
     {
         foreach (var x in fin)
         {
-            if (st.Items.TryGetValue(x.Id, out var q)) { x.Q = q.St; x.Recur = q.Recur; x.QNote = q.Note; }
-            else { x.Q = ""; x.Recur = 0; x.QNote = ""; }
+            if (st.Items.TryGetValue(x.Id, out var q)) { x.Q = q.St; x.Recur = q.Recur; x.QNote = q.Note; x.QFirstAt = q.FirstAt; }
+            else { x.Q = ""; x.Recur = 0; x.QNote = ""; x.QFirstAt = null; }
         }
     }
 

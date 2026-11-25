@@ -32,7 +32,7 @@ public sealed partial class TroLyView
 
         var actions = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         actions.Children.Add(Btn("📋 Sao chép báo cáo cho Claude", () => _ = CopyReport(), "Các cảnh báo đã tick → báo cáo dán thẳng vào Claude; cảnh báo chuyển sang «Đã gửi Claude»"));
-        actions.Children.Add(Btn("✔ Đã sửa (chờ kiểm tra)", () => _ = Mark("daSua"), "Lần quét sau còn thấy → Tái phát; hết → Đã đóng"));
+        actions.Children.Add(Btn("✔ Đã sửa (chờ kiểm tra)", () => _ = Mark("daSua"), "App tự kiểm lại: 24 giờ không thấy lại (lỗi phần mềm: 48 giờ không có lỗi mới) → Đã đóng; còn → Tái phát"));
         actions.Children.Add(Btn("Bỏ qua", () => _ = Mark("boQua")));
         actions.Children.Add(Btn("Lỗi từ nguồn", () => _ = Mark("loiNguon"), "Do file Excel / phần mềm kho gốc — chỉ nhắc 1 lần, không đếm tái phát"));
         actions.Children.Add(Btn("Mở lại (Mới)", () => _ = Mark("moi")));
@@ -187,6 +187,14 @@ public sealed partial class TroLyView
             go.Classes.Add("primary");
             acts.Children.Add(go);
         }
+        if (f.Fix.Length > 0 && f.Sev != "xanh")
+        {
+            var qf = Btn("⚡ Sửa nhanh: " + f.FixLabel, () => _ = QuickFix(f), "App tự làm thao tác này rồi quét lại để kiểm tra");
+            if (f.Go.Length == 0) qf.Classes.Add("primary");
+            acts.Children.Add(qf);
+        }
+        if (RollbackFor(f))
+            acts.Children.Add(Btn("↶ Quay lại bản trước", () => _ = Rollback(), "Lỗi này mới xuất hiện sau lần cập nhật gần nhất — đổi về bản app trước rồi mở lại (dữ liệu giữ nguyên)"));
         if (f.Fixes is { Count: > 0 } fx)
         {
             var ok = fx.Count(x => x.Near.Length == 0);
@@ -198,7 +206,7 @@ public sealed partial class TroLyView
         {
             var one = new List<string> { f.Id };
             acts.Children.Add(Btn("📋 Sao chép báo cáo", () => _ = CopyReport(one), "Chỉ cảnh báo này → báo cáo dán vào Claude"));
-            acts.Children.Add(Btn("✔ Đã sửa", () => _ = Mark("daSua", one), "Lần quét sau còn thấy → Tái phát; hết → Đã đóng"));
+            acts.Children.Add(Btn("✔ Đã sửa", () => _ = Mark("daSua", one), "App tự kiểm lại: 24 giờ không thấy lại (lỗi phần mềm: 48 giờ không có lỗi mới) → Đã đóng; còn → Tái phát"));
             acts.Children.Add(Btn("Bỏ qua", () => _ = Mark("boQua", one)));
             acts.Children.Add(Btn("Lỗi từ nguồn", () => _ = Mark("loiNguon", one), "Do file Excel / phần mềm kho gốc — chỉ nhắc 1 lần, không đếm tái phát"));
             if (f.Q is "boQua" or "loiNguon" or "daSua" or "dong") acts.Children.Add(Btn("Mở lại (Mới)", () => _ = Mark("moi", one)));
@@ -223,6 +231,53 @@ public sealed partial class TroLyView
             foreach (var x in f.Files) _detail.Children.Add(new SelectableTextBlock { Text = "• " + x, FontSize = 11.5, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, Tag = "keep" });
         }
         _detailScroll.Offset = default;
+    }
+
+    /// <summary>1.102: chạy thao tác "Sửa nhanh" rồi quét nhanh lại.</summary>
+    private async Task QuickFix(Finding f)
+    {
+        var sv = App.Services; string? msg = null;
+        var ok = await Ui.Run(this, () =>
+        {
+            msg = f.Fix switch
+            {
+                TroLyFix.SaoLuuNgay => sv.Backup.DailyAutoBackup() is { } p ? "Đã sao lưu: " + System.IO.Path.GetFileName(p) : "Hôm nay đã có bản sao lưu.",
+                TroLyFix.DongBoDrive => sv.Drive.SyncNow(),
+                TroLyFix.DonBoNho => FreeMemory(),
+                _ => null,
+            };
+        });
+        if (ok && f.Fix == TroLyFix.KiemTraGmail)
+        {
+            try { msg = await sv.LichXuat.CheckMailAsync(); } catch (Exception e) { msg = "Chưa kết nối được: " + e.Message; }
+        }
+        if (!ok) return;
+        Ui.Notify(this, "Sửa nhanh: " + f.FixLabel, (msg ?? "Đã chạy.") + "\nĐang quét lại để kiểm tra…", Avalonia.Controls.Notifications.NotificationType.Information);
+        await Scan(false);
+    }
+
+    private string FreeMemory()
+    {
+        var before = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+        MainWindow.Of(this)?.ClearPageCache();
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        var after = System.Diagnostics.Process.GetCurrentProcess().WorkingSet64;
+        return $"Đã dọn màn hình đang giữ sẵn: {before / 1048576:#,0} MB → {after / 1048576:#,0} MB.";
+    }
+
+    /// <summary>"Quay lại bản trước": lỗi phần mềm / chậm hơn sau cập nhật, xuất hiện lần đầu sau lần cập nhật gần nhất, còn bản trước trên máy.</summary>
+    private static bool RollbackFor(Finding f)
+    {
+        if (f.Sev == "xanh" || !AppUpdater.HasPrevious || f.QFirstAt is not { } first) return false;
+        if (f.Cat != "loi-app" && !f.Title.StartsWith("Chậm hơn sau cập nhật")) return false;
+        return App.UpdatedAt() is { } upd && first >= upd;
+    }
+
+    private async Task Rollback()
+    {
+        if (!await Ui.Confirm(this, "App sẽ đóng, đổi về bản đã dùng trước lần cập nhật gần nhất rồi tự mở lại. Dữ liệu giữ nguyên.\n\nNhớ bấm «Sao chép báo cáo» gửi Claude để sửa lỗi ở bản sau. Tiếp tục?", "Quay lại bản trước", "Quay lại")) return;
+        try { if (AppUpdater.RollbackAndRestart()) AppUpdater.ExitForUpdate(); else await Ui.Message(this, "Không có bản trước trên máy này."); }
+        catch (Exception e) { await Ui.Message(this, e.Message); }
     }
 
     private static TextBlock Section(string t) => new() { Text = t, FontWeight = FontWeight.SemiBold, FontSize = 12.5, Foreground = Dark, Margin = new Thickness(0, 8, 0, 0) };
