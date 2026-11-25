@@ -445,7 +445,7 @@ public sealed class ViTriService
 
     // ------------------------------------------------------------------ nạp file vị trí
 
-    public sealed class FileData { public string FileName = "", Sheet = ""; public int HeaderRow; public List<Row> Rows = new(); }
+    public sealed class FileData { public string FileName = "", Sheet = ""; public int HeaderRow; public List<Row> Rows = new(); public List<string> Headers = new(); public string Sha = ""; }   // Headers / Sha: 1.73 (mẫu file, MauFile)
     private static string HeaderKey(string? h) => Regex.Replace(TongHopService.NormSearch(h), "[^a-z0-9]", "");
     private static readonly (string F, string[] Alias)[] Aliases =
     {
@@ -542,6 +542,7 @@ public sealed class ViTriService
                 throw new BusinessException($"File “{Path.GetFileName(path)}” không giống báo cáo “Tồn kho theo vị trí”.\n\nKhông tìm thấy cột: {string.Join(", ", miss)}.\nCần tối thiểu các cột: Mã hàng, Vị trí, SL Tồn, T.Lượng.");
             }
             var outp = new FileData { FileName = Path.GetFileName(path), Sheet = b.ws.Name, HeaderRow = b.r };
+            outp.Headers = b.ws.Row(b.r).CellsUsed().Select(c => c.GetFormattedString().Trim()).ToList();   // 1.73: mẫu file (MauFile)
             string Txt(int r, string f) => b.map.TryGetValue(f, out var c) ? b.ws.Cell(r, c).GetFormattedString().Trim() : "";
             double NumAt(int r, string f)
             {
@@ -579,6 +580,7 @@ public sealed class ViTriService
         }
         LastRecon = recon;
         Persist(meta: true);
+        KhoLanh.Core.TonKho.MauFile.Luu(_src(), Db, KhoLanh.Core.TonKho.MauFile.Of(f, UserName));   // 1.73: nhớ mẫu file
         Log("nạp file", $"{f.FileName}: {f.Rows.Count} dòng" + (keepN > 0 ? $", trừ lại {keepN} phiếu hôm nay" : ""));
         return new ImportResult(f.Rows.Count, keepN, keepMiss, _keepSkipped, recon);
     }

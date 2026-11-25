@@ -919,14 +919,14 @@ public sealed class ViTriView : UserControl, IPage
         if (!await Ui.ConfirmChangedFile(this, "vitri", path)) return;   // 1.72: đúng file đã nạp, chưa đổi → hỏi trước
         FileData? f = null;
         _status.Text = "Đang đọc file…";
-        try { var (done, rd) = await Ui.Busy(this, $"Đang đọc file “{System.IO.Path.GetFileName(path)}”…", () => Svc.ReadFile(path), cancellable: true, op: "Đọc file Excel", detail: "Tồn theo vị trí", rows: x => x.Rows.Count); if (!done) { _status.Text = "Đã hủy đọc file."; return; } f = rd; }
+        try { var (done, rd) = await Ui.Busy(this, $"Đang đọc file “{System.IO.Path.GetFileName(path)}”…", () => { var x = Svc.ReadFile(path); x.Sha = KhoLanh.Core.TonKho.NapExcel.Sha256(System.IO.File.ReadAllBytes(path)); return x; }, cancellable: true, op: "Đọc file Excel", detail: "Tồn theo vị trí", rows: x => x.Rows.Count); if (!done) { _status.Text = "Đã hủy đọc file."; return; } f = rd; }
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex), "Không đọc được file"); return; }
         _status.Text = "";
         var today = Svc.Slips.Count(s => s.Deducted && IsToday(s));
         var text = $"Nạp {f!.Rows.Count:#,0} dòng từ “{f.FileName}” (sheet {f.Sheet}) thay cho số liệu hiện tại?" +
                    (today > 0 ? $"\n\n{today} phiếu HÔM NAY đang trừ sẽ được trừ lại vào file mới (ô file đã giảm đúng thì bỏ qua)." : "") +
                    (_editing is not null || _draft.Count > 0 ? "\n\nPhiếu đang soạn / đang sửa sẽ bị bỏ." : "");
-        if (!await Ui.Confirm(this, text, "Nạp file vị trí", "Nạp")) return;
+        if (!await ConfirmImport(f, text)) return;
         ImportResult? r = null;
         _editing = null; _draft.Clear();
         try { var (_, rr) = await Ui.Busy(this, $"Đang nạp {f.Rows.Count:#,0} dòng…", () => Svc.Import(f), op: "Nạp file Excel", detail: "Tồn theo vị trí"); r = rr; }
@@ -939,6 +939,29 @@ public sealed class ViTriView : UserControl, IPage
         if (r.Recon is { } rc) msg += $"\n\nĐối chiếu phiếu với file mới: {rc.Khop} khớp · {rc.ChuaGiam} chưa giảm · {rc.Khac} lệch khác" + (rc.Moves.Count > 0 ? $" · {rc.Moves.Count} mã đổi vị trí" : "") + " — xem bảng bên dưới.";
         if (Svc.Info.DataDate.Length == 0) msg += "\n\nKhông đoán được ngày dữ liệu từ tên file — bấm “Sửa ngày dữ liệu…” để nhập.";
         await Ui.Message(this, msg, "Nạp file xong");
+    }
+
+    /// <summary>1.73 (N3): hộp xác nhận nạp + so cấu trúc file với mẫu lần nạp trước; lỗi đỏ → nút "Vẫn nạp" và hỏi lại.</summary>
+    private async Task<bool> ConfirmImport(FileData f, string text)
+    {
+        var (truoc, mau) = MauFileBox.So(ViTriService.Db, KhoLanh.Core.TonKho.MauFile.Of(f), KhoLanh.Core.TonKho.MauFile.BatBuocViTri, Svc.Info.DataDate);
+        var loi = KhoLanh.Core.TonKho.MauFile.CoLoi(mau);
+        var body = new StackPanel { Spacing = 10 };
+        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, FontSize = 13.5 });
+        if (MauFileBox.Build(truoc, mau) is { } mb) body.Children.Add(mb);
+        var ok = false;
+        var cancel = new Button { Content = "Đóng", IsCancel = true };
+        var go = new Button { Content = loi ? "Vẫn nạp" : "Nạp", Classes = { "primary" }, IsDefault = !loi };
+        body.Children.Add(Ui.Buttons(cancel, go));
+        var w = Ui.Dialog("Nạp file vị trí", new ScrollViewer { Content = body, MaxHeight = 600 }, 600);
+        cancel.Click += (_, _) => w.Close();
+        go.Click += async (_, _) =>
+        {
+            if (loi && !await Ui.Confirm(w, MauFileBox.ConfirmText(mau), "File khác mẫu lần trước", "Vẫn nạp")) return;
+            ok = true; w.Close();
+        };
+        await Ui.Show(this, w);
+        return ok;
     }
 
     private Control ReconView(Recon rc)

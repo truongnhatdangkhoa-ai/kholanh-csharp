@@ -281,6 +281,10 @@ public sealed class AnAnView : UserControl, IPage
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(Label($"{pv.FileName} · {(pv.Size / 1048576.0 < 0.1 ? Math.Max(1, Math.Round(pv.Size / 1024.0)) + " KB" : Math.Round(pv.Size / 104857.6) / 10 + " MB")} · {pv.Book.SheetNames.Count} sheet (đang nạp “{pv.Sheet}”)"
             + (pv.DataDate.Length > 0 ? $" · ngày số liệu {pv.DataDate}" : " · chưa có ngày số liệu"), bold: true));
+        // 1.73 (N3): so cấu trúc file với mẫu lần nạp trước
+        var (mauTruoc, mau) = MauFileBox.So(AnAnStore.Db, MauFile.Of(pv), MauFile.BatBuocAnAn, D.DataDate, pv.Warns);
+        var mauLoi = MauFile.CoLoi(mau);
+        if (MauFileBox.Build(mauTruoc, mau) is { } mb) body.Children.Add(mb);
         var pills = new WrapPanel { ItemSpacing = 8 };
         Border Pill(string n, string l, IBrush bg) => new() { Background = bg, CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 4), Child = new StackPanel { Children = { Label(n, true, 16), Muted(l) } } };
         pills.Children.Add(Pill(N(C.Ok), "Dòng hợp lệ", ManualBg)); pills.Children.Add(Pill(N(C.Warn), "Dòng cần kiểm tra", LowBg)); pills.Children.Add(Pill(N(C.Err), "Dòng lỗi", OutBg));
@@ -307,12 +311,16 @@ public sealed class AnAnView : UserControl, IPage
         body.Children.Add(ack);
         body.Children.Add(Muted($"Dữ liệu cũ được chụp lại trước khi nạp — hoàn tác được trong {Svc.KeepDays} ngày (nút “Lịch sử nạp”), trên máy này."));
         var cancel = new Button { Content = "Hủy — giữ dữ liệu cũ", IsCancel = true };
-        var go = new Button { Content = pv.Blocking ? "Không nạp được" : C.Err > 0 || pv.Warns.Count > 0 || C.Warn > 0 ? "Vẫn nạp" : "Nạp dữ liệu", Classes = { "primary" }, IsEnabled = !pv.Blocking && C.Err == 0 };
+        var go = new Button { Content = pv.Blocking ? "Không nạp được" : C.Err > 0 || pv.Warns.Count > 0 || C.Warn > 0 || mauLoi ? "Vẫn nạp" : "Nạp dữ liệu", Classes = { "primary" }, IsEnabled = !pv.Blocking && C.Err == 0 };
         ack.IsCheckedChanged += (_, _) => go.IsEnabled = !pv.Blocking && ack.IsChecked == true;
         body.Children.Add(Ui.Buttons(cancel, go));
         var w = Ui.Dialog("Xem trước khi nạp · Tồn kho An An", new ScrollViewer { Content = body, MaxHeight = 640 }, 720);
         cancel.Click += (_, _) => w.Close();
-        go.Click += (_, _) => { ok = true; w.Close(); };
+        go.Click += async (_, _) =>
+        {
+            if (mauLoi && !await Ui.Confirm(w, MauFileBox.ConfirmText(mau), "File khác mẫu lần trước", "Vẫn nạp")) return;
+            ok = true; w.Close();
+        };
         await Ui.Show(this, w);
         return ok;
     }
