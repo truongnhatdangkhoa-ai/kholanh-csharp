@@ -791,6 +791,32 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.83: SHOTS_ONLY=v183 — header gọn: 1 thanh 44px + hàng tên trang 36px có tab cấp 1 (1366×768). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v183")
+{
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    var ok = true;
+    var navSv = hw.NavPanel.Parent as Control;
+    Console.WriteLine($"[v183] menu rộng {hw.NavPanel.Bounds.Width:0} / chỗ {navSv?.Bounds.Width:0}");
+    if (navSv is not null && hw.NavPanel.Bounds.Width > navSv.Bounds.Width + 1) ok = false;
+    foreach (var (k, n, tabs) in new[] { ("m4", "v183-ra-dong", true), ("m13", "v183-phieu-xuat", true), ("m1", "v183-an-an", true), ("m2", "v183-gui", true),
+        ("m7", "v183-vi-tri", false), ("m8", "v183-so-do", false), ("lx", "v183-tong-quan", false), ("m6", "v183-nhap-lieu", false), ("m9", "v183-kiem-ke", false), ("m10", "v183-khang-sinh", false), ("users", "v183-tai-khoan", false), ("m3sk", "v183-nxt", false) })
+    {
+        hw.Navigate(k); P(40);
+        var tc = hw.PageTabs;
+        var y = tc is null ? -1 : tc.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y ?? -1;
+        var content = hw.PageHost.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y ?? -1;
+        Console.WriteLine($"[v183] {k}: tab chung hàng = {(tc is null ? "không" : $"có ({tc.ItemCount} tab, y={y:0})")} · nội dung từ y={content:0}");
+        if (tc is not null) Console.WriteLine("        tab: " + string.Join(" ", tc.Items.OfType<TabItem>().Select(t => $"{t.Bounds.Height:0}@{t.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y:0}")) + $" · cls={string.Join(",", tc.Classes)} · host margin={hw.PageHost.Margin}");
+        if (tabs && (tc is null || y > 45)) ok = false;
+        if (tc is not null && tc.Items.OfType<TabItem>().Any(t => t.IsVisible && (t.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y ?? 99) > 46)) { Console.WriteLine("        HỎNG: tab không nằm trên hàng tên trang"); ok = false; }
+        P(20); hw.InvalidateMeasure(); hw.InvalidateVisual(); P(10);
+        Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick(3); P(5);
+        Snap(hw, n);
+    }
+    hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v183) — ĐẠT: " : "Xong (v183) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
