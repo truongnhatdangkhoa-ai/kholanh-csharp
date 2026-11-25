@@ -34,6 +34,13 @@ public class AuthService
         return u;
     }
 
+    /// <summary>Máy này có tài khoản tên này không (kể cả đang khóa).</summary>
+    public bool Exists(string username)
+    {
+        using var c = _db.Open();
+        return c.ExecuteScalar<long>("SELECT COUNT(*) FROM users WHERE username=@username", new { username = username.Trim() }) > 0;
+    }
+
     /// <summary>Kiểm tra mật khẩu của 1 tài khoản (không đăng nhập, không ghi nhật ký) — dùng khi bật tự đăng nhập.</summary>
     public bool CheckPassword(string username, string password)
     {

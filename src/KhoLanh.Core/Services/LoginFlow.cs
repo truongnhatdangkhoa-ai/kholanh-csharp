@@ -30,9 +30,39 @@ public static class LoginFlow
             try { await pull; } catch { /* báo ở Note, dùng bản lưu */ }
         }
         var note = pull is { IsCompleted: true } ? NoteOf(pull) : "";
-        var u = auth.Login(user, pass);
+        User u;
+        try { u = auth.Login(user, pass); }
+        catch (BusinessException ex) when (ex.Message.StartsWith("Sai tên đăng nhập") && user.Trim().Length > 0 && pass.Length > 0)
+        {
+            // 1.107: máy khác báo "sai mật khẩu" dù tài khoản đúng — vì máy này chưa nối Google Sheet chung, hoặc tài khoản chưa lên Sheet.
+            if (!acc.Enabled)
+            {
+                // Máy đang dùng tài khoản riêng: hỏi Google Sheet chung (lệnh pcDangNhap) — đúng mật khẩu thì máy tự kết nối luôn.
+                try { await acc.JoinByPasswordAsync(user, pass, allowExisting: true); }
+                catch (JoinException je) when (je.Kind is JoinException.OldScript or JoinException.NotEnabled or JoinException.Other)
+                {
+                    throw new BusinessException(LocalWrong(auth, user) + " Cũng chưa kiểm được trên Google Sheet chung: " + je.Message);
+                }
+                catch (JoinException) { throw; }
+                catch (BusinessException be)
+                {
+                    throw new BusinessException(LocalWrong(auth, user) + " Cũng chưa kiểm được trên Google Sheet chung: " + be.Message);
+                }
+                u = auth.Login(user, pass);
+                return new Result(u, null, "Máy này đã tự kết nối Google Sheet chung — dùng chung tài khoản với các máy khác.", u.PasswordHash);
+            }
+            if (pull is { IsFaulted: true })
+                throw new BusinessException(LocalWrong(auth, user) + " Không lấy được danh sách mới từ Google Sheet chung ("
+                    + pull.Exception!.GetBaseException().Message.TrimEnd('.') + ") — kiểm tra Internet rồi thử lại.");
+            if (pull is { IsCompleted: true } && !auth.Exists(user))
+                throw new BusinessException(AccountSyncService.NotOnSheetMsg(user.Trim()));
+            throw;
+        }
         return new Result(u, pull is { IsCompleted: false } ? pull : null, note, u.PasswordHash);
     }
+
+    private static string LocalWrong(AuthService auth, string user) =>
+        auth.Exists(user) ? "Sai mật khẩu trên máy này." : $"Máy này chưa có tài khoản \"{user.Trim()}\".";
 
     /// <summary>Câu báo lỗi tải danh sách (rỗng nếu tải được).</summary>
     public static string NoteOf(Task t)
