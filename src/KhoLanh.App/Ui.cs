@@ -171,6 +171,29 @@ public static class Ui
         return result;
     }
 
+    /// <summary>Hỏi với nhiều lựa chọn (mỗi lựa chọn 1 nút xếp dọc, nút đầu là đề xuất). Trả chỉ số đã chọn, -1 = Đóng.</summary>
+    public static async Task<int> Pick(Visual v, string text, string title, IList<string> options, double width = 520)
+    {
+        var result = -1;
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+        Window? w = null;
+        for (var i = 0; i < options.Count; i++)
+        {
+            var k = i;
+            var b = new Button { Content = new TextBlock { Text = options[i], TextWrapping = TextWrapping.Wrap }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left };
+            if (i == 0) b.Classes.Add("primary");
+            b.Click += (_, _) => { result = k; w?.Close(); };
+            body.Children.Add(b);
+        }
+        var n = new Button { Content = "Đóng", IsCancel = true };
+        body.Children.Add(Buttons(n));
+        w = Dialog(title, body, width);
+        n.Click += (_, _) => w.Close();
+        await Show(v, w);
+        return result;
+    }
+
     public static async Task<string?> Prompt(Visual v, string text, string title, string initial = "", bool password = false)
     {
         string? result = null;

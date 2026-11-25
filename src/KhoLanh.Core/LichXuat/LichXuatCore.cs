@@ -79,7 +79,7 @@ public sealed record PnxState(bool List, bool Phieu, string Cont, string Xe)
 /// </summary>
 public static class LichXuatCore
 {
-    public const string Db = "lichxuat", Sheet = "LichXuatCont", SheetTk = "TongKetThang", SheetPend = "LX_ViecChuaLich", SheetTrust = "LX_TuDong", SheetEmail = "LX_EmailXuLy";
+    public const string Db = "lichxuat", Sheet = "LichXuatCont", SheetTk = "TongKetThang", SheetPend = "LX_ViecChuaLich", SheetTrust = "LX_TuDong", SheetEmail = "LX_EmailXuLy", SheetDupOk = "LX_TrungHopLe";
 
     public static readonly Dictionary<string, string> StLabel = new() { ["ok"] = "Đã xuất", ["run"] = "Đang đóng hàng", ["plan"] = "Dự kiến", ["wait"] = "Chờ xác nhận" };
     public static readonly string[] DropLoaiLich = { "xuat_thuan_phuoc", "xuat_gia_cong", "xuat_gui_kho", "xuat_khac" };
@@ -237,6 +237,49 @@ public static class LichXuatCore
     {
         var k = Sq(lsx); if (k.Length == 0) return null;
         return rows.FirstOrDefault(x => x.Id != exceptId && !x.IsNhap && x.Ngay == ngay && Sq(x.Lsx) == k);
+    }
+
+    // ------------------------------------------------------------------ 1.90: LSX đã có lịch ngày khác / LSX trùng lịch
+
+    /// <summary>Lịch xuất có chung ít nhất 1 số LSX với <paramref name="lsx"/> (cont ghép "A + B" cũng khớp A).</summary>
+    public static bool SharesLsx(Lich x, IReadOnlyCollection<string> keys) => !x.IsNhap && keys.Count > 0 && Keys(x.Lsx).Any(keys.Contains);
+
+    /// <summary>
+    /// Lịch CHƯA XUẤT (khác "Đã xuất") của cùng LSX ở NGÀY KHÁC — thêm lịch / nhập nhanh / email cho LSX này thì có thể là kế hoạch đổi ngày
+    /// (người dùng đã sửa tay ngày / giờ của lịch cũ) → hỏi chuyển lịch cũ thay vì tạo thêm lịch trùng.
+    /// </summary>
+    public static List<Lich> OpenOther(IEnumerable<Lich> rows, string lsx, string ngay, string? exceptId = null)
+    {
+        var k = Keys(lsx);
+        return rows.Where(x => x.Id != exceptId && x.TrangThai != "ok" && x.Ngay != ngay && SharesLsx(x, k))
+            .OrderBy(x => x.Ngay, StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>Một nhóm lịch chưa xuất cùng số LSX. <see cref="Sig"/> = LSX + mã các lịch (đánh dấu "trùng hợp lệ" theo đúng bộ lịch này).</summary>
+    public sealed record DupGroup(string Lsx, List<Lich> Rows)
+    {
+        public string Sig => Lsx + "|" + string.Join(",", Rows.Select(r => r.Id).OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// LSX đang có từ 2 lịch CHƯA XUẤT trở lên (thường do lịch sửa tay rồi email / nhập nhanh tạo thêm). Bỏ nhóm đã đánh dấu hợp lệ
+    /// (<paramref name="okSigs"/> — vd cùng LSX nhiều cont, nhiều ngày). Nhóm có cùng bộ lịch (cont ghép A + B) chỉ báo 1 lần.
+    /// </summary>
+    public static List<DupGroup> DupLsx(IEnumerable<Lich> rows, ISet<string>? okSigs = null)
+    {
+        var open = rows.Where(x => !x.IsNhap && x.TrangThai != "ok").ToList();
+        var seen = new HashSet<string>(); var o = new List<DupGroup>();
+        foreach (var g in open.SelectMany(x => Keys(x.Lsx).Select(k => (k, x))).GroupBy(p => p.k).OrderBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var list = g.Select(p => p.x).DistinctBy(x => x.Id).OrderBy(x => x.Ngay, StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal).ToList();
+            if (list.Count < 2) continue;
+            var ids = string.Join(",", list.Select(x => x.Id).OrderBy(x => x, StringComparer.Ordinal));
+            if (!seen.Add(ids)) continue;
+            var d = new DupGroup(g.Key, list);
+            if (okSigs is not null && okSigs.Contains(d.Sig)) continue;
+            o.Add(d);
+        }
+        return o;
     }
 
     /// <summary>Số → chữ hệ 36 (như Number.toString(36) của app cũ, để mã lịch cùng dạng).</summary>

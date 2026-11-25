@@ -204,12 +204,46 @@ public static class LichXuatEmail
         if (!LichXuatCore.IsIso(r.Ngay)) return "thư không ghi rõ ngày";
         if (string.CompareOrdinal(r.Ngay, t) < 0 || string.CompareOrdinal(r.Ngay, lim) > 0) return "ngày ngoài khoảng hôm nay → 60 ngày tới";
         var codes = CodesOf(r.Lsx); if (codes.Count == 0) return "không đọc được LSX";
-        foreach (var c in codes)
+        if (r.HanhDong == "huy")
         {
-            var mine = rows.Where(x => !x.IsNhap && LichXuatCore.Sq(c) == LichXuatCore.Sq(x.Lsx) && (r.HanhDong == "huy" || x.TrangThai != "ok")).ToList();
-            if (r.HanhDong == "doi" && mine.Count != 1) return "LSX " + c + (mine.Count > 0 ? " có nhiều lịch" : " chưa có lịch");
-            if (r.HanhDong == "huy" && !mine.Any(x => x.Ngay == r.Ngay)) return "LSX " + c + " không có lịch ngày " + LichXuatCore.Vn(r.Ngay);
+            foreach (var c in codes)
+                if (!rows.Any(x => LichXuatCore.SharesLsx(x, new[] { LichXuatCore.Sq(c) }) && x.Ngay == r.Ngay)) return "LSX " + c + " không có lịch ngày " + LichXuatCore.Vn(r.Ngay);
+            return "";
+        }
+        foreach (var p in Plan(r, r.Ngay, rows))
+        {
+            if (p.Kind == PlanKind.Choose) return "LSX " + p.Code + " đã có lịch ngày " + string.Join(", ", p.Cands.Select(x => LichXuatCore.Vn(x.Ngay))) +
+                " (có thể đã sửa tay, hoặc nhiều cont) — duyệt tay để chọn chuyển lịch cũ hay giữ cả hai";
+            if (r.HanhDong == "doi" && p.Kind == PlanKind.Add) return "LSX " + p.Code + " chưa có lịch";
         }
         return "";
+    }
+
+    /// <summary>Cách áp 1 số LSX của thư tạo / đổi lịch: Add = thêm lịch mới · SameDay = đã có lịch đúng ngày (chỉ cập nhật giờ) ·
+    /// Move = chuyển lịch cũ (<see cref="PlanItem.Target"/>) sang ngày thư · Choose = không chắc → người dùng chọn (chuyển lịch nào / giữ cả hai / bỏ qua).</summary>
+    public enum PlanKind { Add, SameDay, Move, Choose }
+    public sealed record PlanItem(string Code, PlanKind Kind, Lich? Target, List<Lich> Cands);
+
+    /// <summary>
+    /// 1.90 — khớp thư với lịch đang có THEO SỐ LSX (kể cả lịch người dùng đã sửa tay ngày / giờ, cont ghép "A + B"), không theo ngày:
+    /// • đã có lịch đúng ngày thư → giữ (cập nhật giờ) · • chưa có lịch nào → thêm
+    /// • thư ĐỔI lịch, LSX có đúng 1 lịch chưa xuất ở ngày khác → chuyển lịch đó (giữ giờ / ghi chú / việc / số cont đã sửa tay)
+    /// • còn lại (thư TẠO lịch mà LSX đã có lịch ngày khác; nhiều lịch chưa xuất; chỉ còn lịch đã xuất) → không tự làm, hỏi người dùng.
+    /// </summary>
+    public static List<PlanItem> Plan(Row r, string ngay, IEnumerable<Lich> rows)
+    {
+        var all = rows.Where(x => !x.IsNhap).ToList(); var o = new List<PlanItem>();
+        foreach (var c in CodesOf(r.Lsx))
+        {
+            var k = new[] { LichXuatCore.Sq(c) };
+            var mine = all.Where(x => LichXuatCore.SharesLsx(x, k)).ToList();
+            if (mine.FirstOrDefault(x => x.Ngay == ngay) is { } same) { o.Add(new(c, PlanKind.SameDay, same, new())); continue; }
+            var open = mine.Where(x => x.TrangThai != "ok").OrderBy(x => x.Ngay, StringComparer.Ordinal).ToList();
+            var cands = open.Count > 0 ? open : mine.OrderByDescending(x => x.Ngay, StringComparer.Ordinal).Take(3).ToList();
+            if (cands.Count == 0) o.Add(new(c, PlanKind.Add, null, new()));
+            else if (r.HanhDong == "doi" && open.Count == 1) o.Add(new(c, PlanKind.Move, open[0], cands));
+            else o.Add(new(c, PlanKind.Choose, null, cands));
+        }
+        return o;
     }
 }

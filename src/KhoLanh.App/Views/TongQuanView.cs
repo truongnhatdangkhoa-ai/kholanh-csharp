@@ -356,10 +356,19 @@ public sealed partial class TongQuanView : UserControl, IPage
             .GroupBy(x => string.Join(",", x.Ids)).Select(g => g.First())
             .Select(x => (x, thieu: new[] { x.HasList ? "" : "List", x.HasPhieu ? "" : "Phiếu xuất kho", x.Cont.Length > 0 && !x.Cont.StartsWith("ghép") ? "" : "Số cont" }.Where(s => s.Length > 0).ToList()))
             .Where(x => x.thieu.Count > 0).ToList();
-        var nTodo = hot.Count + prep.Count + Svc.Pending.Select(p => Sq(p.Lsx)).Distinct().Count();
+        // 1.90: LSX có từ 2 lịch chưa xuất (thường do sửa tay rồi email / nhập nhanh tạo thêm) — xử lý tay: gộp hoặc đánh dấu hợp lệ
+        List<DupGroup> dups = new();
+        try { dups = Svc.DupGroups(); } catch { }
+        var nTodo = hot.Count + prep.Count + dups.Count + Svc.Pending.Select(p => Sq(p.Lsx)).Distinct().Count();
         _todoTab.Header = nTodo > 0 ? $"Việc cần làm ({nTodo})" : "Việc cần làm";
-        if (hot.Count == 0 && prep.Count == 0 && Svc.Pending.Count == 0)
+        if (hot.Count == 0 && prep.Count == 0 && dups.Count == 0 && Svc.Pending.Count == 0)
             _todo.Children.Add(new TextBlock { Text = "✓ Không có việc đến hạn.", Foreground = B("#1E7B34"), FontSize = 12.5 });
+        foreach (var g in dups)
+        {
+            var b = TodoRow("⚠", "#9A5B00", $"LSX {g.Lsx} trùng lịch · {g.Rows.Count} lịch chưa xuất", "Ngày " + string.Join(", ", g.Rows.Select(x => Dm(x.Ngay) + (x.Gio.Length > 0 ? " " + GioVn(x.Gio) : ""))) + " — bấm để giữ 1 lịch hoặc đánh dấu hợp lệ (nhiều cont)");
+            var gg = g; b.PointerPressed += async (_, _) => await DupDialog(gg);
+            _todo.Children.Add(b);
+        }
         foreach (var (r, s) in hot)
         {
             var b = TodoRow(s.Level == "red" ? "⚠" : "⏰", s.Level == "red" ? "#B42318" : "#8A5A00", $"{Label(r.Lsx)} · xuất {Dm(r.Ngay)}", string.Join("; ", s.Open.Select(v => v.T)));
