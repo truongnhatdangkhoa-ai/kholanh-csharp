@@ -54,6 +54,8 @@ public sealed class SheetGrid : UserControl
     /// <summary>Dòng nào được cộng vào dòng Tổng cuối bảng (null = mọi dòng trừ dòng tổng có sẵn) — vd bảng có dòng nhóm + dòng chi tiết thì chỉ cộng dòng chi tiết.</summary>
     public Func<int, bool>? TotalsRowFilter { get; set; }
     public event Action? SelectionChanged;
+    /// <summary>Bấm chuột trái (thả ra) vào một dòng dữ liệu — chỉ số dòng dữ liệu (model).</summary>
+    public Action<int>? RowClicked { get; set; }
     /// <summary>Đổi bộ lọc cột (dòng tìm kiếm / danh sách lọc).</summary>
     public event Action? FilterChanged;
     /// <summary>Có dòng tìm kiếm theo cột + nút lọc ▾ ở tiêu đề (mặc định bật cho mọi bảng; tắt cho bảng tóm tắt vài dòng).</summary>
@@ -1290,6 +1292,11 @@ public sealed class SheetGrid : UserControl
             base.OnPointerReleased(e);
             var sortCol = _drag == Drag.Cols && !_headMoved && _headDown >= 0 && e.InitialPressMouseButton == MouseButton.Left ? _headDown : -1;
             _headDown = -1;
+            if (_drag is Drag.Cells && e.InitialPressMouseButton == MouseButton.Left && _g.RowClicked is { } rc)
+            {   // 1.82: bấm chuột trái vào 1 dòng dữ liệu (dòng nhóm tháng ở danh sách phiếu xuất → mở / thu)
+                var p = e.GetPosition(this); var (hr, _) = _g.HitCell(p);
+                if (p.Y >= _g.TopH && hr >= 0 && hr < _g.VCount && hr == _g.VR) rc(_g.ToModel(hr));
+            }
             if (_drag is Drag.Cells or Drag.Rows or Drag.Cols) _g.SelectionChanged?.Invoke();
             if (sortCol >= 0) { _drag = Drag.None; e.Pointer.Capture(null); _g.ToggleSort(sortCol); return; }
             _drag = Drag.None;
