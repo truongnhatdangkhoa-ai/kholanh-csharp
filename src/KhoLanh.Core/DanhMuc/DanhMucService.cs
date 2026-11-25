@@ -130,9 +130,72 @@ public sealed class DanhMucService
         var meta = new JsonArray(new JsonObject { ["data"] = "__JSON__" + new JsonObject { ["savedAt"] = DateTimeOffset.Now.ToUnixTimeMilliseconds(), ["version"] = 2 }.ToJsonString() });
         _src().Write(TongHopService.Db, new Dictionary<string, JsonArray?> { [Sheet] = data, ["M8_Meta"] = meta });
         // Tổng hợp giữ danh sách trong bộ nhớ và ghi lại toàn bộ khi lưu → cập nhật theo để không ghi đè thay đổi vừa làm.
-        if (_th() is { } th) th.Results = Rows.Select((r, i) => new TongHopService.Result { Stt = i + 1, Code = r.Code, Note = r.Note, Complete = r.Code.Length == Len }).ToList();
+        if (_th() is { } th) th.AcceptResults(Rows.Select((r, i) => new TongHopService.Result { Stt = i + 1, Code = r.Code, Note = r.Note, Complete = r.Code.Length == Len }).ToList());
         Recheck();
         _audit.Log(_session.Username, "Danh mục mã hàng", $"{moTa} ({n} dòng)");
+    }
+
+    // ------------------------------------------------------------------ 1.95: công cụ chuyển từ Tổng hợp › Danh sách mã hàng (gộp 2 màn hình cùng dữ liệu)
+    private void NeedEdit() { if (!CanEdit) throw new BusinessException("Tài khoản không có quyền sửa Danh mục mã hàng."); }
+
+    /// <summary>Nhập mã (+ diễn giải) từ Excel: thêm mã chưa có (diễn giải trống thì tự dựng); mã đã có giữ nguyên.</summary>
+    public (int Added, int Dup) ImportCodes(IEnumerable<(string Code, string Note)> rows)
+    {
+        NeedEdit();
+        var have = new HashSet<string>(Rows.Select(r => r.Code)); int add = 0, dup = 0;
+        foreach (var (c0, note) in rows)
+        {
+            var c = NormCode(c0); if (c.Length == 0) continue;
+            if (!have.Add(c)) { dup++; continue; }
+            Rows.Add(new Row { Id = NewId(), Code = c, Note = note.Trim().Length > 0 ? note.Trim() : NoteOf(Seg, c) }); add++;
+        }
+        if (add > 0) Write($"Nhập Excel: thêm {add} mã", add);
+        return (add, dup);
+    }
+
+    /// <summary>Điền diễn giải cho dòng đang trống (ghép từ Mã hóa sản phẩm).</summary>
+    public int FillNotes()
+    {
+        NeedEdit(); var n = 0;
+        foreach (var r in Rows) if (r.Note.Trim().Length == 0 && NoteOf(Seg, r.Code) is { Length: > 0 } nt) { r.Note = nt; n++; }
+        if (n > 0) Write("Điền diễn giải còn trống", n);
+        return n;
+    }
+
+    /// <summary>Làm gọn diễn giải (dấu phẩy / khoảng trắng thừa). dry = chỉ đếm.</summary>
+    public int CleanNotes(bool dry)
+    {
+        if (!dry) NeedEdit();
+        var list = Rows.Where(r => r.Note.Length > 0 && TongHopService.CleanNote(r.Note) != r.Note).ToList();
+        if (dry || list.Count == 0) return list.Count;
+        foreach (var r in list) r.Note = TongHopService.CleanNote(r.Note);
+        Write("Làm gọn diễn giải", list.Count);
+        return list.Count;
+    }
+
+    /// <summary>Xóa dòng trùng mã (giữ dòng đầu). dry = chỉ đếm.</summary>
+    public int RemoveDups(bool dry)
+    {
+        if (!dry) NeedEdit();
+        var seen = new HashSet<string>(); var drop = Rows.Where(r => r.Code.Length > 0 && !seen.Add(r.Code)).Select(r => r.Id).ToHashSet();
+        if (dry || drop.Count == 0) return drop.Count;
+        Rows = Rows.Where(r => !drop.Contains(r.Id)).ToList();
+        Write("Xóa mã trùng", drop.Count);
+        return drop.Count;
+    }
+
+    /// <summary>Thêm các mã còn thiếu từ danh sách mặc định (mã đang có giữ nguyên).</summary>
+    public int AddDefaults()
+    {
+        NeedEdit();
+        var have = new HashSet<string>(Rows.Select(r => r.Code)); var n = 0;
+        foreach (var (c0, note) in TongHopService.DefaultCodes().Rows)
+        {
+            var c = NormCode(c0); if (c.Length == 0 || !have.Add(c)) continue;
+            Rows.Add(new Row { Id = NewId(), Code = c, Note = note.Length > 0 ? note : NoteOf(Seg, c) }); n++;
+        }
+        if (n > 0) Write("Nạp danh sách mặc định", n);
+        return n;
     }
 
     public static readonly string[] ExportHead = { "STT", "Mã hàng", "Diễn giải", "Size (đoạn 8)", "Trọng lượng (đoạn 9)", "Đang dùng ở", "Kiểm tra" };

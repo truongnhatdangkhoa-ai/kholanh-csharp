@@ -147,13 +147,20 @@ public sealed class TongHopView : UserControl, IPage
     private Control BuildCatalogTab()
     {
         var items = TongHopService.Segs.Select(s => $"{s.Seg}. {s.Name}  ({s.Length} ký tự)").ToList();
-        items.Add("★ Danh sách mã hàng");
+        items.Add("★ Danh sách mã hàng ↗");   // 1.95: gộp — danh sách mã hàng sửa ở Chức năng › Danh mục mã hàng
         _segList.ItemsSource = items;
         _segList.SelectionChanged += (_, _) =>
         {
             var i = _segList.SelectedIndex;
             if (i < 0) return;
-            ShowSegment(i < TongHopService.Segs.Length ? i + 1 : 0);
+            if (i >= TongHopService.Segs.Length)
+            {   // 1.95: cùng dữ liệu với Danh mục mã hàng (tong-hop/MaDaTao) → mở thẳng Danh mục, không còn 2 nơi sửa
+                _segList.SelectedIndex = Math.Max(0, _seg - 1);
+                if (_dirty) _ = SaveAsync();
+                MainWindow.Of(this)?.Navigate("m3dm");
+                return;
+            }
+            ShowSegment(i + 1);
         };
         var left = new Border { Classes = { "card" }, Padding = new Thickness(6), Child = _segList, Width = 250 };
         _find.KeyDown += (_, e) => { if (e.Key == Key.Enter) { FindNext(); e.Handled = true; } };

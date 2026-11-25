@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using KhoLanh.App.Controls;
 using KhoLanh.Core.DanhMuc;
 using KhoLanh.Core.Grid;
+using KhoLanh.Core.TongHop;
 
 namespace KhoLanh.App.Views;
 
@@ -57,6 +58,27 @@ public sealed class DanhMucMaView : UserControl, IPage
         if (Svc.CanEdit) bar.Children.Add(Btn("Xóa dòng đã chọn", DeleteSel, "Xóa hẳn các mã đang chọn khỏi danh mục (không xóa mã trong tồn kho / phiếu)"));
         bar.Children.Add(Btn("⟳ Nạp lại", () => Reload(), "Đọc lại danh mục, Mã hóa sản phẩm và nơi đang dùng mã"));
         if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", Export));
+        if (Svc.CanEdit)
+        {   // 1.95: công cụ chuyển từ Tổng hợp › Danh sách mã hàng (cùng dữ liệu, nay chỉ sửa ở đây)
+            bar.Children.Add(ToolRow.More(Btn("Nhập Excel…", ImportExcel, "Thêm mã từ file Excel (cột Mã hàng, cột Diễn giải nếu có); mã đã có giữ nguyên")));
+            bar.Children.Add(ToolRow.More(Btn("Ghép mã theo tổ hợp…", ComboDialog, "Chọn 10 tổ hợp của Mã hóa sản phẩm để ghép mã 21 ký tự rồi thêm vào danh mục")));
+            bar.Children.Add(ToolRow.More(Btn("Điền diễn giải còn trống", () => Tool(() => { var n = Svc.FillNotes(); return n > 0 ? $"Đã điền diễn giải {n} dòng." : "Không có dòng nào cần điền (mã chưa đủ / đoạn chưa khai báo thì không ghép được)."; }))));
+            bar.Children.Add(ToolRow.More(Btn("Làm gọn diễn giải", async () =>
+            {
+                var n = Svc.CleanNotes(true); if (n == 0) { await Ui.Message(this, "Diễn giải đã gọn — không có dòng nào cần sửa."); return; }
+                if (await Ui.Confirm(this, $"Có {n} diễn giải có dấu phẩy / khoảng trắng thừa. Làm gọn ngay?", "Làm gọn diễn giải", "Làm gọn")) await Tool(() => $"Đã làm gọn {Svc.CleanNotes(false)} diễn giải.");
+            })));
+            bar.Children.Add(ToolRow.More(Btn("Xóa mã trùng", async () =>
+            {
+                var n = Svc.RemoveDups(true); if (n == 0) { await Ui.Message(this, "Không có mã trùng."); return; }
+                if (await Ui.Confirm(this, $"Xóa {n} dòng mã trùng (giữ dòng xuất hiện đầu tiên)?", "Xóa mã trùng", "Xóa")) await Tool(() => $"Đã xóa {Svc.RemoveDups(false)} dòng mã trùng.");
+            })));
+            bar.Children.Add(ToolRow.More(Btn("Nạp danh sách mặc định", async () =>
+            {
+                if (await Ui.Confirm(this, $"Thêm các mã còn thiếu từ danh sách mặc định ({TongHopService.DefaultCodes().Rows.Count:#,0} mã)? Mã đang có (và diễn giải đã sửa) giữ nguyên.", "Danh sách mặc định", "Thêm"))
+                    await Tool(() => { var n = Svc.AddDefaults(); return n > 0 ? $"Đã thêm {n:#,0} mã còn thiếu." : "Danh mục đã có đủ các mã mặc định."; });
+            })));
+        }
         bar.Children.Add(_cnt); bar.Children.Add(_st);
         var help = new TextBlock
         {
@@ -84,6 +106,71 @@ public sealed class DanhMucMaView : UserControl, IPage
     }
     private static Button Btn(string t, Action click, string? tip = null, bool primary = false) => Btn(t, () => { click(); return Task.CompletedTask; }, tip, primary);
     private void Pill(string t, string color) { _st.Text = t; _st.Foreground = AppTheme.Brush(color); }
+
+    /// <summary>1.95: chạy 1 công cụ sửa danh mục (lưu phần đang gõ trước), vẽ lại, báo kết quả.</summary>
+    private async Task Tool(Func<string> act)
+    {
+        if (_save.IsEnabled) { _save.Stop(); Save(); }
+        string msg = "";
+        if (!await Ui.Run(this, () => msg = act())) return;
+        Draw(); PaintXl(); MainWindow.DmChanged(this);
+        await Ui.Message(this, msg);
+    }
+
+    private async Task ImportExcel()
+    {
+        var path = await Ui.OpenFile(this, "Chọn file Excel danh sách mã hàng", "xlsx", "Excel");
+        if (path is null) return;
+        List<List<string>>? rows = null;
+        if (!await Ui.RunAsync(this, () => Task.Run(() => { var (_, data, _) = KhoLanh.Core.Entry.EntryService.ReadExcel(path, null, firstRowHeader: false); rows = data.Select(r => r.ToList()).ToList(); }))) return;
+        if (rows is null || rows.Count == 0) return;
+        var head = rows[0].Select(TongHopService.NormSearch).ToList();   // dòng đầu có chữ "mã hàng" → tiêu đề
+        int ci = head.FindIndex(h => h.Contains("ma hang") || h == "ma" || h == "code"), ni = head.FindIndex(h => h.Contains("dien giai") || h.Contains("ghi chu") || h.Contains("ten hang"));
+        var start = ci >= 0 ? 1 : 0;
+        if (ci < 0) { ci = 0; ni = rows[0].Count > 1 ? 1 : -1; }
+        var list = rows.Skip(start).Select(r => (r.ElementAtOrDefault(ci) ?? "", ni >= 0 ? r.ElementAtOrDefault(ni) ?? "" : "")).ToList();
+        await Tool(() => { var (a, d) = Svc.ImportCodes(list); return $"Đã thêm {a} mã mới" + (d > 0 ? $", bỏ qua {d} mã đã có." : "."); });
+    }
+
+    private async Task ComboDialog()
+    {
+        var th = App.Services.TongHop;
+        try { if (th.SegmentData.Values.All(l => l.Count == 0)) th.Load(); } catch { /* không đọc được Mã hóa sản phẩm */ }
+        var boxes = new List<AutoCompleteBox>();
+        var preview = new TextBlock { FontFamily = new FontFamily("Consolas,Menlo,monospace"), FontSize = 15, FontWeight = FontWeight.SemiBold };
+        var note = new TextBlock { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        string Code(int i) { var t = (boxes[i].Text ?? "").Trim(); var k = t.IndexOf(" — ", StringComparison.Ordinal); return k >= 0 ? t[..k] : t; }
+        void Update()
+        {
+            var code = string.Concat(TongHopService.Segs.Select((d, i) => { var c = Code(i); return c.Length == d.Length ? c : new string('·', d.Length); }));
+            preview.Text = code; note.Text = code.Contains('·') ? "Chọn đủ 10 tổ hợp (gõ mã hoặc tên để tìm)." : Svc.NoteFor(code);
+        }
+        var wrap = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        foreach (var d in TongHopService.Segs)
+        {
+            var box = new AutoCompleteBox
+            {
+                Watermark = $"{d.Seg}. {d.Name}", Width = d.Seg is 1 or 6 or 8 or 9 ? 220 : 170, FilterMode = AutoCompleteFilterMode.ContainsOrdinal, MinimumPrefixLength = 0, FontSize = 12,
+                ItemsSource = (th.SegmentData.TryGetValue(d.Seg, out var l) ? l : new()).Where(e => e.Code.Length == d.Length).Select(e => $"{e.Code} — {e.Name}").ToList(),
+            };
+            box.TextChanged += (_, _) => Update(); boxes.Add(box); wrap.Children.Add(box);
+        }
+        Update();
+        var ok = new Button { Content = "Thêm vào danh mục", Classes = { "primary" } }; var close = new Button { Content = "Đóng", IsCancel = true };
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(wrap); body.Children.Add(preview); body.Children.Add(note); body.Children.Add(Ui.Buttons(close, ok));
+        var w = Ui.Dialog("Ghép mã theo tổ hợp", body, 980); string? pick = null;
+        ok.Click += async (_, _) =>
+        {
+            Update(); var c = preview.Text ?? "";
+            if (c.Contains('·')) { await Ui.Message(w, "Chưa chọn đủ 10 tổ hợp."); return; }
+            if (Svc.Rows.Any(r => r.Code == DanhMucMa.NormCode(c))) { await Ui.Message(w, $"Mã {c} đã có trong danh mục."); return; }
+            pick = c; w.Close();
+        };
+        close.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        if (pick is not null) await Tool(() => Svc.ImportCodes(new[] { (pick, "") }).Added > 0 ? $"Đã thêm mã {pick}." : $"Mã {pick} đã có.");
+    }
 
     private async Task Reload()
     {

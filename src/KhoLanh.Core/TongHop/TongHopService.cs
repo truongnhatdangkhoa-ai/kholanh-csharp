@@ -48,6 +48,12 @@ public sealed class TongHopService
 
     public Dictionary<int, List<Entry>> SegmentData { get; private set; } = Segs.ToDictionary(s => s.Seg, _ => new List<Entry>());
     public List<Result> Results { get; set; } = new();
+    // 1.95: danh sách mã hàng (MaDaTao) nay sửa ở Danh mục mã hàng — Tổng hợp chỉ ghi MaDaTao khi chính nó đổi danh sách
+    // (trước luôn ghi lại bản trong bộ nhớ → lưu Mã hóa sản phẩm có thể xóa mất mã vừa thêm ở Danh mục / máy khác).
+    private string _resSig = "";
+    private static string SigOf(List<Result> rs) => string.Join("\n", rs.Select(r => r.Code + "\t" + r.Note));
+    /// <summary>Danh mục mã hàng vừa ghi MaDaTao → nhận bản mới làm bản đã lưu (không ghi lại).</summary>
+    public void AcceptResults(List<Result> rs) { Results = rs; _resSig = SigOf(rs); }
     public Table Tab2 { get; set; } = new();
     public AnhXa AnhXa { get; set; } = AnhXa.Defaults();
 
@@ -93,6 +99,7 @@ public sealed class TongHopService
             Stt = int.TryParse(S(r["STT"]), out var st) ? st : i + 1, Code = S(r["Mã"]), Note = S(r["Ghi chú"]),
             Complete = S(r["Đủ mã"]) is "1" or "true",
         }).ToList();
+        _resSig = SigOf(Results);
         var thMeta = MetaRow(Read("TongHop_Meta")) ?? new JsonObject();
         var t = new Table
         {
@@ -137,8 +144,9 @@ public sealed class TongHopService
         var sheets = new Dictionary<string, JsonArray?>
         {
             ["M8_Meta"] = MakeMeta(new JsonObject { ["savedAt"] = DateTimeOffset.Now.ToUnixTimeMilliseconds(), ["version"] = 2 }),
-            ["MaHoa"] = maHoa, ["MaDaTao"] = maDaTao,
+            ["MaHoa"] = maHoa,
         };
+        if (SigOf(Results) != _resSig) { sheets["MaDaTao"] = maDaTao; _resSig = SigOf(Results); }
         foreach (var (k, v) in EncodeTab2()) sheets[k] = v;
         foreach (var (k, v) in AnhXa.ToSheets()) sheets[k] = v;
         _src().Write(Db, sheets);
