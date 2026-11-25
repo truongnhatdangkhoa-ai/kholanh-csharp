@@ -76,6 +76,7 @@ public class DocExcelNhanhTests : IDisposable
         var oldF = s.ViTri.ReadFileClosedXml(p);
         var newF = s.ViTri.ReadFile(p);
         Assert.Equal(oldF.HeaderRow, newF.HeaderRow); Assert.Equal(oldF.Sheet, newF.Sheet);
+        Assert.Equal(oldF.Headers, newF.Headers);
         Assert.Equal(oldF.Rows.Count, newF.Rows.Count);
         for (var i = 0; i < oldF.Rows.Count; i++)
         {

@@ -496,6 +496,7 @@ public sealed class ViTriService
             throw new BusinessException($"File “{Path.GetFileName(path)}” không giống báo cáo “Tồn kho theo vị trí”.\n\nKhông tìm thấy cột: {string.Join(", ", miss)}.\nCần tối thiểu các cột: Mã hàng, Vị trí, SL Tồn, T.Lượng.");
         }
         var outp = new FileData { FileName = Path.GetFileName(path), Sheet = b.sheet, HeaderRow = b.r };
+        outp.Headers = b.t[b.r - 1].Where(x => !string.IsNullOrEmpty(x)).Select(x => x.Trim()).ToList();   // 1.73: mẫu file (MauFile), như CellsUsed
         string Cell(int r, int c) => r - 1 < b.t.Count && c - 1 < b.t[r - 1].Length ? b.t[r - 1][c - 1] ?? "" : "";
         string Txt(int r, string f) => b.map.TryGetValue(f, out var c) ? Cell(r, c).Trim() : "";
         double NumAt(int r, string f)
