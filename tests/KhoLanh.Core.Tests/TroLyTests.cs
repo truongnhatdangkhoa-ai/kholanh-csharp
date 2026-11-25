@@ -243,12 +243,15 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         var (items, ch) = TroLyQueue.Update(new(), new[] { f1 }, Today, false, true, "1.0");
         Assert.Equal(1, ch.Moi); Assert.Equal("moi", items[f1.Id].St);
         (items, _) = TroLyQueue.Mark(items, new[] { f1.Id }, "daSua", Today, "1.0");
+        // 1.102: hết thấy nhưng chưa đủ 24 giờ → vẫn chờ kiểm tra; đủ 24 giờ không tái hiện → đóng
         (items, ch) = TroLyQueue.Update(items, Array.Empty<Finding>(), Today.AddHours(1), false, true, "1.1");
+        Assert.Equal("daSua", items[f1.Id].St); Assert.Equal(0, ch.Dong);
+        (items, ch) = TroLyQueue.Update(items, Array.Empty<Finding>(), Today.AddHours(25), false, true, "1.1");
         Assert.Equal("dong", items[f1.Id].St); Assert.True(items[f1.Id].Verified); Assert.Equal(1, ch.Dong);
-        (items, ch) = TroLyQueue.Update(items, new[] { f1 }, Today.AddHours(2), false, true, "1.1");
+        (items, ch) = TroLyQueue.Update(items, new[] { f1 }, Today.AddHours(26), false, true, "1.1");
         Assert.Equal("taiPhat", items[f1.Id].St); Assert.Equal(1, items[f1.Id].Recur); Assert.Equal(1, ch.TaiPhat);
         // bước quét lỗi → không tự đóng
-        var (i2, _) = TroLyQueue.Update(items, Array.Empty<Finding>(), Today.AddHours(3), false, false, "1.1");
+        var (i2, _) = TroLyQueue.Update(items, Array.Empty<Finding>(), Today.AddHours(60), false, false, "1.1");
         Assert.Equal("taiPhat", i2[f1.Id].St);
         // lỗi từ nguồn: lần đầu Mới, lần sau chuyển Lỗi từ nguồn và không tính tái phát
         var src = Mk("ma-hang", "do", "Tên hàng", "Lỗi font", "x"); src.Nguon = true;
@@ -257,6 +260,38 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         Assert.Equal("loiNguon", i3[src.Id].St); Assert.Equal(0, i3[src.Id].Recur);
         // xóa lịch sử: chỉ mục đã đóng / bỏ qua
         Assert.Equal(0, TroLyQueue.Purge(items, new[] { f1.Id }).N);
+    }
+
+    [Fact]
+    public void Loi_phan_mem_da_sua_tu_kiem_sau_48_gio_va_sua_nhanh()
+    {
+        // lỗi phần mềm: log vẫn còn dòng lỗi CŨ (trước lúc bấm Đã sửa) → không tính tái phát; 48 giờ không có lỗi mới → đóng
+        var e = Mk("loi-app", "do", "SoDoView", "NullReference ở SoDoView", "x"); e.LastAt = Today.AddHours(-1);
+        var (items, _) = TroLyQueue.Update(new(), new[] { e }, Today, false, true, "1.0");
+        (items, _) = TroLyQueue.Mark(items, new[] { e.Id }, "daSua", Today, "1.0");
+        (items, _) = TroLyQueue.Update(items, new[] { e }, Today.AddHours(10), false, true, "1.0");
+        Assert.Equal("daSua", items[e.Id].St);
+        (items, var ch) = TroLyQueue.Update(items, new[] { e }, Today.AddHours(49), false, true, "1.0");
+        Assert.Equal("dong", items[e.Id].St); Assert.True(items[e.Id].Verified); Assert.Equal(1, ch.Dong);
+        // có lỗi MỚI sau lúc bấm Đã sửa → tái phát
+        var (j, _) = TroLyQueue.Update(new(), new[] { e }, Today, false, true, "1.0");
+        (j, _) = TroLyQueue.Mark(j, new[] { e.Id }, "daSua", Today, "1.0");
+        var e2 = Mk("loi-app", "do", "SoDoView", "NullReference ở SoDoView", "x"); e2.LastAt = Today.AddHours(3);
+        (j, _) = TroLyQueue.Update(j, new[] { e2 }, Today.AddHours(5), false, true, "1.0");
+        Assert.Equal("taiPhat", j[e.Id].St);
+
+        // Sửa nhanh: gán theo loại cảnh báo đã biết
+        var list = new List<Finding>
+        {
+            Mk("sao-luu", "vang", "Sao lưu", "Bản sao lưu cũ", "x"),
+            Mk("dong-bo", "vang", "Google Drive", "Đồng bộ Google Drive báo lỗi", "x"),
+            Mk("ket-noi", "vang", "Email lịch xuất", "Gmail lịch xuất mất kết nối", "x"),
+            Mk(PerfChecks.Cat, "vang", PerfChecks.Mod, "KhoLanh đang giữ 1,900 MB RAM", "x"),
+            Mk("csdl", "do", "M", "Lỗi khác", "x"),
+            Mk("sao-luu", "xanh", "Sao lưu", "Bản sao lưu cũ", "x"),
+        };
+        TroLyFix.Assign(list);
+        Assert.Equal(new[] { TroLyFix.SaoLuuNgay, TroLyFix.DongBoDrive, TroLyFix.KiemTraGmail, TroLyFix.DonBoNho, "", "" }, list.Select(f => f.Fix));
     }
 
     [Fact]

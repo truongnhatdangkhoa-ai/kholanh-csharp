@@ -368,6 +368,18 @@ public static class Ui
     public static void Exported(Visual? v, string path)
     {
         LastExported = path;
+        var dir = Directory.Exists(path);
+        Notify(v, dir ? "Đã xuất vào thư mục" : "Đã lưu file", (dir ? path : Path.GetFileName(path)) + "\nBấm vào đây để mở thư mục chứa file.",
+            Avalonia.Controls.Notifications.NotificationType.Success, () => ShowInFolder(path));
+    }
+
+    /// <summary>Lần thông báo gần nhất (công cụ chụp / test kiểm).</summary>
+    public static string LastNotify { get; private set; } = "";
+
+    /// <summary>1.102: thông báo góc phải dưới (không chặn thao tác), bấm vào → <paramref name="onClick"/>.</summary>
+    public static void Notify(Visual? v, string title, string msg, Avalonia.Controls.Notifications.NotificationType type, Action? onClick = null, int seconds = 10)
+    {
+        LastNotify = title + " | " + msg;
         try
         {
             var top = (v is null ? null : TopLevel.GetTopLevel(v)) is { } t && t.IsVisible ? t
@@ -375,16 +387,12 @@ public static class Ui
             if (top is null) return;
             var fresh = false;
             var mgr = Notifs.GetValue(top, x => { fresh = true; return new Avalonia.Controls.Notifications.WindowNotificationManager(x) { Position = Avalonia.Controls.Notifications.NotificationPosition.BottomRight, MaxItems = 3 }; });
-            var dir = Directory.Exists(path);
-            var note = new Avalonia.Controls.Notifications.Notification(
-                dir ? "Đã xuất vào thư mục" : "Đã lưu file",
-                (dir ? path : Path.GetFileName(path)) + "\nBấm vào đây để mở thư mục chứa file.",
-                Avalonia.Controls.Notifications.NotificationType.Success, TimeSpan.FromSeconds(10), () => ShowInFolder(path));
+            var note = new Avalonia.Controls.Notifications.Notification(title, msg, type, TimeSpan.FromSeconds(seconds), onClick);
             // khung thông báo vừa tạo chưa dựng xong (chưa có template) thì Show bỏ qua → chờ dựng xong mới hiện
             if (fresh) mgr.TemplateApplied += (_, _) => mgr.Show(note);
             else mgr.Show(note);
         }
-        catch { /* thông báo lỗi thì thôi — file đã lưu */ }
+        catch { /* thông báo lỗi thì thôi */ }
     }
 
     /// <summary>Mở thư mục chứa file (Windows: chọn sẵn file); là thư mục thì mở chính nó.</summary>

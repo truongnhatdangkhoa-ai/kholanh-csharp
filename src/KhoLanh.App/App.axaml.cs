@@ -102,6 +102,35 @@ public partial class App : Application
     }
 
     /// <summary>Mở CSDL trong thư mục dữ liệu (dùng cả cho công cụ chụp màn hình).</summary>
+    /// <summary>
+    /// 1.102: thời điểm app chạy bản MỚI lần đầu (settings "app_upd_at"), đổi khi phiên bản khác "app_last_ver". Trả true nếu lần mở này là lần đầu
+    /// sau cập nhật (Trợ lý quét sớm). Máy mới (chưa có "app_last_ver") không tính là cập nhật.
+    /// </summary>
+    public static bool NoteVersion()
+    {
+        try
+        {
+            var st = Services.Settings; var cur = KhoLanh.Core.Services.UpdateService.Current.ToString(3);
+            var last = st.Get("app_last_ver");
+            if (last == cur) return false;
+            st.Set("app_last_ver", cur);
+            if (last.Length == 0) return false;
+            st.Set("app_upd_at", DateTime.Now.ToString("o", System.Globalization.CultureInfo.InvariantCulture));
+            return true;
+        }
+        catch { return false; }
+    }
+
+    public static DateTime? UpdatedAt()
+    {
+        try
+        {
+            return DateTime.TryParse(Services.Settings.Get("app_upd_at"), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.RoundtripKind, out var d) ? d : null;
+        }
+        catch { return null; }
+    }
+
     public static void InitServices(string dataFolder)
     {
         DataFolder = dataFolder;

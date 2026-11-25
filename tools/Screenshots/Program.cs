@@ -881,6 +881,49 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.102: SHOTS_ONLY=v202 — Trợ lý giai đoạn 4: nút "Sửa nhanh" ở khung chi tiết (sao lưu ngay → quét lại hết cảnh báo), thông báo góc màn hình cho cảnh báo Nặng mới. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v202")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    var sl = Path.Combine(KhoLanh.App.App.DataFolder, "SaoLuu"); Directory.CreateDirectory(sl); foreach (var f in Directory.GetFiles(sl)) File.Delete(f);
+    var r0 = s.TroLy.Scan(false);
+    var fx = r0.Findings.Where(f => f.Fix.Length > 0).ToList();
+    Console.WriteLine("[v202] có Sửa nhanh: " + string.Join(" · ", fx.Select(f => f.Title + " → " + f.FixLabel)));
+    main.Navigate("troly"); P(40);
+    var tv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TroLyView>().First();
+    var row = tv.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == "Chưa có bản sao lưu");
+    var hit = row?.GetVisualAncestors().OfType<Border>().FirstOrDefault(b => b.Cursor is not null) as Control ?? row;
+    if (hit is not null)
+    {
+        var pt = hit.TranslatePoint(new Avalonia.Point(hit.Bounds.Width - 20, hit.Bounds.Height / 2), main)!.Value;
+        main.MouseMove(pt, Avalonia.Input.RawInputModifiers.None); main.MouseDown(pt, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); main.MouseUp(pt, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); P(20);
+    }
+    var btn = tv.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => KhoLanh.App.Controls.Icon.TextOf(b.Content)?.StartsWith("⚡ Sửa nhanh") == true || (KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").Contains("Sửa nhanh"));
+    Console.WriteLine($"[v202] dòng Chưa có bản sao lưu: {row is not null} · nút: {(btn is null ? "(không)" : KhoLanh.App.Controls.Icon.TextOf(btn.Content))}");
+    Snap(main, "v202-sua-nhanh");
+    if (btn is null) ok = false;
+    else
+    {
+        btn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(120);
+        var still = s.TroLy.Last!.Findings.Any(f => f.Title == "Chưa có bản sao lưu");
+        var n = Directory.GetFiles(Path.Combine(KhoLanh.App.App.DataFolder, "SaoLuu")).Length;
+        Console.WriteLine($"[v202] sau Sửa nhanh: {n} bản sao lưu · còn cảnh báo: {still} · thông báo: {KhoLanh.App.Ui.LastNotify}");
+        if (n == 0 || still) ok = false;
+        Snap(main, "v202-sau-sua-nhanh");
+    }
+    // thông báo cảnh báo Nặng mới
+    var res = new KhoLanh.Core.TroLy.TroLyService.ScanResult { At = DateTime.Now, Do = 1 };
+    var hot = KhoLanh.Core.TroLy.TroLyChecks.Mk("csdl", "do", "CSDL", "Kiểm tra toàn vẹn database THẤT BẠI", "x"); hot.Q = "moi";
+    res.Findings.Add(hot);
+    typeof(MainWindow).GetMethod("NotifyFindings", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(main, new object[] { res }); P(30);
+    var cards = main.GetVisualDescendants().OfType<Avalonia.Controls.Notifications.NotificationCard>().Where(c => c.IsVisible).ToList();
+    var txt = string.Join(" | ", cards.SelectMany(c => c.GetVisualDescendants().OfType<TextBlock>()).Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t)));
+    Console.WriteLine($"[v202] thông báo Nặng: {cards.Count} · {txt}");
+    if (!txt.Contains("Kiểm tra toàn vẹn database")) ok = false;
+    Snap(main, "v202-thong-bao-nang");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v202) — ĐẠT: " : "Xong (v202) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v200")
 {
     void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }

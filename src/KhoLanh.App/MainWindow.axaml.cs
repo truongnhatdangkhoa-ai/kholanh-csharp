@@ -189,7 +189,9 @@ public partial class MainWindow : Window
         {
             s.TroLy.Scanned += OnTroLyScanned;
             Closed += (_, _) => { s.TroLy.Scanned -= OnTroLyScanned; s.TroLy.StopAuto(); };
-            s.TroLy.StartAuto(TimeSpan.FromSeconds(90), TimeSpan.FromHours(6));
+            // 1.102: lần mở đầu sau cập nhật → quét sớm (20 giây) để báo ngay lỗi do bản mới
+            _justUpdated = App.NoteVersion();
+            s.TroLy.StartAuto(TimeSpan.FromSeconds(_justUpdated ? 20 : 90), TimeSpan.FromHours(6));
             if (s.TroLy.Last is { } last) OnTroLyScanned(last);
         }
         // Số "Cần xử lý" của Danh mục mã hàng trên thanh menu: tính ngầm 30 giây sau khi mở app (như app cũ), rồi tự tính lại khi
@@ -223,12 +225,58 @@ public partial class MainWindow : Window
 
     private static bool _autoStarted;
 
+    private bool _justUpdated;
+    private static HashSet<string>? _notified;
+    /// <summary>Mã cảnh báo đã báo (lưu settings "troly_notified", ≤ 300) — không báo lại cùng cảnh báo mỗi lần mở app; tái phát thì mã gồm số lần.</summary>
+    private static HashSet<string> Notified()
+    {
+        if (_notified is not null) return _notified;
+        try { _notified = new(App.Services.Settings.Get("troly_notified").Split('|', StringSplitOptions.RemoveEmptyEntries)); } catch { _notified = new(); }
+        return _notified;
+    }
+    private static void SaveNotified()
+    {
+        try { App.Services.Settings.Set("troly_notified", string.Join("|", Notified().TakeLast(300))); } catch { }
+    }
+
     private void OnTroLyScanned(KhoLanh.Core.TroLy.TroLyService.ScanResult r) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
     {
         TroLyButton.IsVisible = r.Do > 0;
         TroLyButton.Content = Controls.Icon.Label($"{r.Do}", "warn");
         ToolTip.SetTip(TroLyButton, $"Trợ lý hệ thống · lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
+        NotifyFindings(r);
     });
+
+    /// <summary>
+    /// 1.102: cảnh báo Nặng MỚI (Mới / Tái phát, chưa báo trong phiên này) → thông báo góc màn hình, bấm mở Trợ lý. Lượt quét đầu sau cập nhật
+    /// có lỗi phần mềm mới → nhắc có thể Quay lại bản trước.
+    /// </summary>
+    private void NotifyFindings(KhoLanh.Core.TroLy.TroLyService.ScanResult r)
+    {
+        var seen = Notified(); var n0 = seen.Count;
+        string Key(KhoLanh.Core.TroLy.Finding f) => f.Id + "#" + f.Recur;
+        var hot = r.Findings.Where(f => f.Sev == "do" && f.Q is "moi" or "taiPhat" && seen.Add(Key(f))).ToList();
+        if (_justUpdated)
+        {
+            _justUpdated = false;
+            var upd = App.UpdatedAt();
+            var news = r.Findings.Where(f => f.Sev != "xanh" && f.Q is "moi" or "taiPhat" && f.QFirstAt >= upd
+                && (f.Cat == "loi-app" || f.Title.StartsWith("Chậm hơn sau cập nhật"))).ToList();
+            if (news.Count > 0 && AppUpdater.HasPrevious)
+            {
+                foreach (var f in news) seen.Add(Key(f));
+                Ui.Notify(this, $"Bản {KhoLanh.Core.Services.UpdateService.Current.ToString(3)} có {news.Count} lỗi mới",
+                    news[0].Title + "\nBấm để xem — có nút «Quay lại bản trước» nếu bản mới lỗi.",
+                    Avalonia.Controls.Notifications.NotificationType.Warning, () => Navigate("troly"), 20);
+                hot.RemoveAll(f => news.Contains(f));
+            }
+        }
+        if (seen.Count != n0) SaveNotified();
+        if (hot.Count == 0) return;
+        Ui.Notify(this, hot.Count == 1 ? "Trợ lý: 1 cảnh báo nặng" : $"Trợ lý: {hot.Count} cảnh báo nặng",
+            string.Join("\n", hot.Take(3).Select(f => "• " + f.Title)) + (hot.Count > 3 ? $"\n… và {hot.Count - 3} cảnh báo nữa" : "") + "\nBấm để mở Trợ lý hệ thống.",
+            Avalonia.Controls.Notifications.NotificationType.Error, () => Navigate("troly"), 15);
+    }
 
     private void OnTroLyClick(object? sender, RoutedEventArgs e) => Navigate("troly");
 
