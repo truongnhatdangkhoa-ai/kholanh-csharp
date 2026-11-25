@@ -79,6 +79,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
     public event Action? Changed;
 
     public record Node(string Id, string Name, string Role, List<string> Addrs);
+    /// <summary>1.100: "IP:cổng" của máy chủ đang nối (máy con) — để đo độ trễ LAN; null khi chính máy này làm chủ / chưa nối.</summary>
+    public string? ServerAddress => _server?.Addrs.FirstOrDefault();
     public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending, string User = "");
 
     public LanService(Database db, ModuleStore store, SettingsService settings, Session session, AuditService audit)

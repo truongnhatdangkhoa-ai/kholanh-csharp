@@ -33,6 +33,7 @@ public static class Perf
             if (_done) return; _done = true;
             _sw.Stop();
             Record(_op, Detail, _sw.ElapsedMilliseconds, Rows);
+            PerfMonitor.MarkOp(_op, _sw.ElapsedMilliseconds);   // 1.100: mọi lượt đồng bộ (kể cả nhanh) vào biểu đồ Hiệu năng
         }
     }
 
