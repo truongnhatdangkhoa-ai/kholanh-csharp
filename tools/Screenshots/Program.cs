@@ -880,6 +880,59 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.94: SHOTS_ONLY=v194 — bấm chuột thật ở Nhập liệu: tiêu đề cột = bôi đen cả cột (không sắp xếp), số dòng = bôi đen cả dòng, Ctrl+C chép cả dòng; bảng Nhập liệu không ô tích. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v194")
+{
+    void P(int n = 10) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    var T = typeof(KhoLanh.App.Controls.SheetGrid);
+    var ok = true;
+    main.Navigate("m6"); P(40);
+    var g = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.RowCount > 3);
+    var tick = (bool)T.GetProperty("HasCheck", bf)!.GetValue(g)!;
+    double topH = (double)T.GetProperty("TopH", bf)!.GetValue(g)!, rowH = (double)T.GetProperty("RowH", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+    double numW = (double)T.GetProperty("NumW", bf)!.GetValue(g)!;
+    var surf = g.GetVisualDescendants().OfType<Control>().First(x => x.GetType().Name == "GridSurface");
+    Avalonia.Point At(double x, double y) => surf.TranslatePoint(new Avalonia.Point(x, y), main)!.Value;
+    void Click(Avalonia.Point p) { main.MouseMove(p, Avalonia.Input.RawInputModifiers.None); main.MouseDown(p, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); main.MouseUp(p, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); P(5); }
+    // 1) tiêu đề cột 2 (Mã hàng)
+    var c1 = g.Model.Columns[0].Width; var before0 = g.Model.Get(0, 1);
+    Click(At(numW + c1 + 30, 12));
+    var sel = g.Selection; var sortCol = (int)T.GetProperty("SortCol", bf)!.GetValue(g)!;
+    Console.WriteLine($"[v194] ô tích ở Nhập liệu: {tick} · bấm tiêu đề cột 2 → chọn dòng {sel.R1}..{sel.R2} cột {sel.C1}..{sel.C2} / {g.Model.RowCount} dòng · sắp xếp cột {sortCol}");
+    if (tick || sel.C1 != 1 || sel.C2 != 1 || sel.R1 != 0 || sel.R2 < g.Model.RowCount - 1 || sortCol >= 0) ok = false;
+    Snap(main, "20f-nhap-lieu-chon-cot");
+    // 2) số dòng 3
+    Click(At(10, topH + rowH * 2.5));
+    sel = g.Selection;
+    Console.WriteLine($"[v194] bấm số dòng 3 → chọn dòng {sel.R1}..{sel.R2} cột {sel.C1}..{sel.C2} / {g.Model.ColCount} cột");
+    if (sel.R1 != 2 || sel.R2 != 2 || sel.C1 != 0 || sel.C2 != g.Model.ColCount - 1) ok = false;
+    var txt = (string)T.GetMethod("CopyTextOf", bf)!.Invoke(g, new object[] { T.GetProperty("VSel", bf)!.GetValue(g)! })!;
+    Console.WriteLine($"[v194] chép: “{txt.TrimEnd()}”");
+    if (!txt.Contains(g.Model.Get(2, 0)) || !txt.Contains(g.Model.Get(2, 1)) || txt.Split('\t').Length < 3) ok = false;
+    Snap(main, "20g-nhap-lieu-chon-dong");
+    // 4) bấm đúp viền phải tiêu đề cột → vừa dữ liệu (Mã hàng đang cắt chữ → rộng ra; Ghi chú thừa chỗ → hẹp lại)
+    void DblBorder(int col)
+    {
+        double x = numW; for (var i = 0; i <= col; i++) x += g.Model.Columns[i].Width;
+        var p = At(x, 12); main.MouseMove(p, Avalonia.Input.RawInputModifiers.None);
+        for (var k = 0; k < 2; k++) { main.MouseDown(p, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); main.MouseUp(p, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); }
+        P(5);
+    }
+    int ColOf(string h) => Enumerable.Range(0, g.Model.ColCount).First(i => g.Model.Columns[i].Header == h);
+    int cMa = ColOf("Mã hàng"), cGc = ColOf("Ghi chú");
+    double ma0 = g.Model.Columns[cMa].Width, gc0 = g.Model.Columns[cGc].Width;
+    DblBorder(cMa); DblBorder(cGc);
+    double ma1 = g.Model.Columns[cMa].Width, gc1 = g.Model.Columns[cGc].Width;
+    Console.WriteLine($"[v194] bấm đúp viền cột: Mã hàng {ma0:0} → {ma1:0} px · Ghi chú {gc0:0} → {gc1:0} px");
+    if (ma1 <= ma0 || gc1 >= gc0) ok = false;
+    g.Select(0, 0); Snap(main, "20h-nhap-lieu-co-gian-cot");
+    // 3) sắp xếp vẫn được qua SetSort (nút ▾ / chuột phải)
+    g.SetSort(1, true); P(3);
+    Console.WriteLine($"[v194] sắp xếp Z→A cột Mã hàng: dòng đầu đang hiện = {g.Model.Get((int)T.GetMethod("ToModel", bf)!.Invoke(g, new object[] { 0 })!, 1)}");
+    g.ClearSort();
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v194) — ĐẠT: " : "Xong (v194) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.93: SHOTS_ONLY=v193 — ô tích chọn dòng: In chứng từ tích ngày in (ô tiêu đề = tích hết), bảng sửa được có ô tích, bảng chỉ xem không. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v193")
 {
@@ -902,7 +955,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v193")
     gg.SetChecked(gg.CheckedRows, false); P(3);
     Console.WriteLine($"[v193] bỏ tích → theo dòng đang chọn: {Sel()}");
     if (Sel() != 1) ok = false;
-    foreach (var (k, wantEdit) in new[] { ("m6", true), ("m4", true), ("m13", false) })
+    foreach (var (k, wantEdit) in new[] { ("m6", false), ("m4", true), ("m13", false) })   // 1.94: Nhập liệu tắt ô tích (RowChecks = false)
     {
         main.Navigate(k); P(40);
         var grids = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Model.ColCount > 0).ToList();

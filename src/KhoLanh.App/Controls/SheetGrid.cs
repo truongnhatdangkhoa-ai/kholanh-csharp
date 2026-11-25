@@ -183,6 +183,39 @@ public sealed class SheetGrid : UserControl
         ApplyFilter();
     }
     public void ClearSort() { if (_sortKey is null) return; _sortKey = null; _sortDesc = false; ApplyFilter(); }
+    /// <summary>1.94: co giãn cột vừa dữ liệu (bấm đúp viền phải tiêu đề cột, như Excel): rộng = chữ dài nhất của tiêu đề / các dòng đang hiện.</summary>
+    public void AutoFitColumn(int c)
+    {
+        if (c < 0 || c >= Model.ColCount || Model.Columns[c].Width < 4) return;   // cột ẩn (rộng 0) giữ nguyên
+        if (_editing) Commit(0, 0);
+        var col = Model.Columns[c];
+        var face = new Typeface(FontFamily.Default);
+        var head = new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);
+        double W(string t, Typeface tf) => new FormattedText(t, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, tf, 13, null).Width;
+        var hdr = col.Header + (SortCol == c ? " ▼" : "");
+        var w = W(hdr, head) + 14 + (Filterable ? GridSurface.DropW : 0);
+        // chỉ đo các chữ dài nhất (theo số ký tự) — bảng hàng chục nghìn dòng vẫn tức thì
+        var texts = new HashSet<string>();
+        foreach (var m in ShownRows)
+        {
+            var t = CellText(m, c);
+            var nl = t.IndexOfAny(new[] { '\r', '\n' }); if (nl >= 0) t = t[..nl] + " …";
+            if (t.Length > 0) texts.Add(t);
+        }
+        foreach (var t in texts.OrderByDescending(t => t.Length).Take(300)) w = Math.Max(w, W(t, face) + 14);
+        col.Width = Math.Clamp(Math.Ceiling(w), 36, 720);
+        _sumDirty = true; UpdateScroll(); Redraw();
+    }
+
+    /// <summary>1.94: sắp xếp theo cột (false = A→Z, true = Z→A, null = bỏ sắp xếp) — từ nút ▾ của cột / chuột phải.</summary>
+    public void SetSort(int c, bool? desc)
+    {
+        if (!Sortable || c < 0 || c >= Model.ColCount) return;
+        if (_editing) Commit(0, 0);
+        if (desc is null) { ClearSort(); return; }
+        _sortKey = FKey(Model.Columns[c], c); _sortDesc = desc.Value;
+        ApplyFilter();
+    }
     private bool _filterOn;
     public bool IsFiltered => _filterOn;
     /// <summary>Các dòng dữ liệu đang hiện (khi không lọc: mọi dòng).</summary>
@@ -351,7 +384,8 @@ public sealed class SheetGrid : UserControl
             HorizontalOffset = Math.Max(0, ColX(c)), VerticalOffset = HeadH,
         };
         fl.Content = FilterMenu.Build(col.Header, tree, cur?.Allowed, (allowed, set) => { fl.Hide(); if (set) SetFilter(c, null, allowed, true); },
-            () => { fl.Hide(); SetFilter(c, "", null, true); }, () => fl.Hide());
+            () => { fl.Hide(); SetFilter(c, "", null, true); }, () => fl.Hide(),
+            Sortable ? d => { fl.Hide(); SetSort(c, d); } : null, SortCol == c ? _sortDesc : null);
         fl.ShowAt(_surface);
     }
 
@@ -904,6 +938,12 @@ public sealed class SheetGrid : UserControl
         var sepBig = new Separator(); var sepFilter = new Separator(); var sepSum = new Separator();
         menu.Items.Insert(0, big); menu.Items.Insert(1, sepBig);
         menu.Items.Add(new Separator()); menu.Items.Add(selAll);
+        var sepSort = new Separator();
+        var sAz = Item("Sắp xếp A → Z", () => SetSort(Col, false));
+        var sZa = Item("Sắp xếp Z → A", () => SetSort(Col, true));
+        var sNo = Item("Bỏ sắp xếp", ClearSort);
+        var fit = Item("Co giãn cột vừa dữ liệu", () => { var v = VSel; for (var c = v.C1; c <= v.C2; c++) AutoFitColumn(c); });
+        menu.Items.Add(sepSort); menu.Items.Add(sAz); menu.Items.Add(sZa); menu.Items.Add(sNo); menu.Items.Add(fit);
         // 1.93: thao tác với dòng đã tích (ô tích chọn dòng)
         var sepTick = new Separator();
         var tDel = Item("Xóa dòng đã tích", () => { var rows = CheckedRows.OrderByDescending(m => m).ToList(); SetChecked(rows, false); foreach (var m in rows) Model.DeleteRows(m, m); });
@@ -923,6 +963,7 @@ public sealed class SheetGrid : UserControl
         menu.Opening += (_, _) =>
         {
             big.IsVisible = sepBig.IsVisible = CanEnlarge;
+            sepSort.IsVisible = sAz.IsVisible = sZa.IsVisible = Sortable && Col >= 0 && Col < Model.ColCount; sNo.IsVisible = Sortable && _sortKey is not null;
             var nt = TickMode ? CheckedRows.Count : 0;
             sepTick.IsVisible = tCopy.IsVisible = tClear.IsVisible = nt > 0; tDel.IsVisible = nt > 0 && !Model.ReadOnly;
             tCopy.Header = $"Chép {nt:N0} dòng đã tích"; tDel.Header = $"Xóa {nt:N0} dòng đã tích";
@@ -1078,8 +1119,8 @@ public sealed class SheetGrid : UserControl
     {
         private readonly SheetGrid _g;
         private static readonly IBrush HeadBg = AppTheme.Brush("#EDF1F6");
-        private static readonly IBrush HeadSelBg = AppTheme.Brush("#E6F0FC");
-        private static readonly IBrush SelBg = AppTheme.Brush("#E6F0FC");
+        private static readonly IBrush HeadSelBg = AppTheme.Brush("#C3D8F5");   // 1.94: đậm hơn (người dùng: "không tô đen được")
+        private static readonly IBrush SelBg = AppTheme.Brush("#CFE0F8");
         private static readonly IPen Line = new Pen(AppTheme.Brush("#DDE3EA"), 1);
         private static readonly IPen HeadLine = new Pen(AppTheme.Brush("#B9C3D0"), 1);
         private static readonly IPen SelPen = new Pen(AppTheme.Brush("#1F6FD6"), 2);
@@ -1316,6 +1357,7 @@ public sealed class SheetGrid : UserControl
             }
             if (!props.IsLeftButtonPressed) return;
             var rc = ResizeHit(p);
+            if (rc >= 0 && e.ClickCount == 2) { _drag = Drag.None; e.Pointer.Capture(null); _g.AutoFitColumn(rc); e.Handled = true; return; }   // 1.94: bấm đúp viền cột = vừa dữ liệu
             if (rc >= 0) { _drag = Drag.Resize; _resizeCol = rc; _resizeStartX = p.X; _resizeStartW = _g.Model.Columns[rc].Width; e.Pointer.Capture(this); return; }
             var (r, c) = _g.HitCell(p);
             if (_g.ShowFilterRow && p.Y >= SheetGrid.HeadH && p.Y < _g.TopH)
@@ -1394,15 +1436,13 @@ public sealed class SheetGrid : UserControl
         protected override void OnPointerReleased(PointerReleasedEventArgs e)
         {
             base.OnPointerReleased(e);
-            var sortCol = _drag == Drag.Cols && !_headMoved && _headDown >= 0 && e.InitialPressMouseButton == MouseButton.Left ? _headDown : -1;
-            _headDown = -1;
+            _headDown = -1;   // 1.94: bấm tiêu đề = bôi đen cả cột (không sắp xếp — sắp xếp ở nút ▾ / chuột phải)
             if (_drag is Drag.Cells && e.InitialPressMouseButton == MouseButton.Left && _g.RowClicked is { } rc)
             {   // 1.82: bấm chuột trái vào 1 dòng dữ liệu (dòng nhóm tháng ở danh sách phiếu xuất → mở / thu)
                 var p = e.GetPosition(this); var (hr, _) = _g.HitCell(p);
                 if (p.Y >= _g.TopH && hr >= 0 && hr < _g.VCount && hr == _g.VR) rc(_g.ToModel(hr));
             }
             if (_drag is Drag.Cells or Drag.Rows or Drag.Cols) _g.SelectionChanged?.Invoke();
-            if (sortCol >= 0) { _drag = Drag.None; e.Pointer.Capture(null); _g.ToggleSort(sortCol); return; }
             _drag = Drag.None;
             e.Pointer.Capture(null);
         }
