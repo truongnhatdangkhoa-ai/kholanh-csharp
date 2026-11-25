@@ -138,6 +138,7 @@ public sealed class TroLyService
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));
         StepRun("Cấu hình kết nối", () => f.AddRange(CheckConfig(CollectConfig())));
         StepRun("Thao tác chậm", () => f.AddRange(CheckSlow(Perf.Read(_dataDir, now))));
+        StepRun("Hiệu năng", () => f.AddRange(CheckPerf(now)));   // 1.101: CPU / RAM cao kéo dài, ổ sắp đầy, chậm dần sau cập nhật
 
         var st = LoadState();
         var fin = Sort(f);
@@ -460,6 +461,24 @@ public sealed class TroLyService
             if (dr.LastOk != default) info.DriveOkAgeMin = (now - dr.LastOk).TotalMinutes;
         }
         return info;
+    }
+
+    /// <summary>1.101: cảnh báo hiệu năng từ hieu-nang.db (bộ đo ngầm) + logs/cham.log 30 ngày. Chưa có số liệu thì không cảnh báo.</summary>
+    /// <summary>Khóa "trang sửa" đặc biệt: chuyển sang tab Hiệu năng của chính Trợ lý (không phải khóa menu).</summary>
+    public const string GoHieuNang = "#hieunang";
+    internal List<Finding> CheckPerf(DateTime now)
+    {
+        var res = new List<Finding>();
+        var path = Path.Combine(_dataDir, PerfStore.FileName);
+        var st = PerfMonitor.Current?.Store ?? (File.Exists(path) ? new PerfStore(path) : null);
+        if (st is not null)
+        {
+            res.AddRange(PerfChecks.CheckMachine(st.Range(now.AddHours(-1), now, 120), st.Latest(), now));
+            res.AddRange(PerfChecks.CheckStartupTrend(st.Marks(null, now.AddDays(-30)), now));
+        }
+        res.AddRange(PerfChecks.CheckSlowAfterUpdate(Perf.Read(_dataDir, now, 30)));
+        foreach (var x in res) if (x.Go.Length == 0) { x.Go = GoHieuNang; x.GoLabel = "tab Hiệu năng"; }
+        return res;
     }
 
     /// <summary>Cấu hình kết nối của máy: Tài khoản dùng chung, Web App điện thoại, Gmail lịch xuất, thư mục Drive dùng chung (CHỈ ĐỌC).</summary>

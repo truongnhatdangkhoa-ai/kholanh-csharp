@@ -44,7 +44,13 @@ public sealed partial class TroLyView
         foreach (var c in filters.Children) c.VerticalAlignment = VerticalAlignment.Center;
 
         var findTop = new StackPanel { Spacing = 8, Margin = new Thickness(0, 0, 0, 8) };
-        findTop.Children.Add(_kpi); findTop.Children.Add(filters); findTop.Children.Add(actions);
+        var kpiRow = new DockPanel();   // 1.101: thẻ số + dòng trạng thái quét
+        var scan = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        scan.Children.Add(_quick); scan.Children.Add(_deep);
+        DockPanel.SetDock(scan, Dock.Right); kpiRow.Children.Add(scan);
+        DockPanel.SetDock(_kpi, Dock.Left); kpiRow.Children.Add(_kpi);
+        _status.Margin = new Thickness(14, 0, 0, 0); _status.Tag = "keep"; kpiRow.Children.Add(_status);
+        findTop.Children.Add(kpiRow); findTop.Children.Add(filters); findTop.Children.Add(actions);
 
         // danh sách | chi tiết — danh sách hẹp hơn, chi tiết đủ chỗ đọc bằng chứng (màn hình 1366 px: ~520 | ~780)
         var left = new Border
@@ -177,7 +183,7 @@ public sealed partial class TroLyView
         var acts = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 6, 0, 2) };
         if (f.Go.Length > 0)
         {
-            var go = Btn("Mở trang sửa → " + f.GoLabel, () => MainWindow.Of(this)?.Navigate(f.Go), "Mở trang cài đặt liên quan để sửa cấu hình");
+            var go = Btn("Mở trang sửa → " + f.GoLabel, () => GoFix(f.Go), "Mở trang cài đặt liên quan để sửa cấu hình");
             go.Classes.Add("primary");
             acts.Children.Add(go);
         }
@@ -220,4 +226,17 @@ public sealed partial class TroLyView
     }
 
     private static TextBlock Section(string t) => new() { Text = t, FontWeight = FontWeight.SemiBold, FontSize = 12.5, Foreground = Dark, Margin = new Thickness(0, 8, 0, 0) };
+
+    /// <summary>1.101: "Mở trang sửa" — khóa menu thì chuyển trang; "#hieunang" thì sang tab Hiệu năng của Trợ lý.</summary>
+    private void GoFix(string go)
+    {
+        if (go == KhoLanh.Core.TroLy.TroLyService.GoHieuNang)
+        {
+            var tc = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(this).OfType<TabControl>()
+                .FirstOrDefault(t => t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Hiệu năng"));
+            if (tc is not null) tc.SelectedItem = tc.Items.OfType<TabItem>().First(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Hiệu năng");
+            return;
+        }
+        MainWindow.Of(this)?.Navigate(go);
+    }
 }

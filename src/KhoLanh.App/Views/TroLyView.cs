@@ -49,11 +49,8 @@ public sealed partial class TroLyView : UserControl, IPage
         _filter.SelectionChanged += (_, _) => Render();
         _showSkipped.IsCheckedChanged += (_, _) => Render();
 
-        var top = new DockPanel();
-        var scanBtns = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        scanBtns.Children.Add(_quick); scanBtns.Children.Add(_deep);
-        DockPanel.SetDock(scanBtns, Dock.Left); top.Children.Add(scanBtns);
-        _status.Margin = new Thickness(10, 0, 0, 0); top.Children.Add(_status);
+        // 1.101: nút Quét nhanh / Quét sâu + dòng trạng thái quét nằm ở hàng thẻ số của tab Cảnh báo (trước đặt trên hàng tên trang →
+        // ở 1366×768 không vừa nên bị ẩn mất)
 
         var chuYBox = Card("Việc cần chú ý hôm nay", _chuY, Btn("⟳", () => LoadChuY(), "Đọc lại"));
 
@@ -76,10 +73,8 @@ public sealed partial class TroLyView : UserControl, IPage
         tabs.Items.Add(new TabItem { Header = "Hiệu năng", Content = new HieuNangView() });   // 1.100: CPU / RAM / ổ đĩa / mạng, thao tác chậm, dung lượng dữ liệu
         tabs.SelectionChanged += (_, e) => { if (e.Source == tabs && tabs.SelectedItem == qTab) LoadQueue(); };
 
-        var head = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 0, 8) };
-        head.Children.Add(top);   // thẻ số Nặng / Cần xem / Ổn nằm đầu tab Cảnh báo (1 hàng ở đây được kéo lên ngang tên trang)
         var body = new DockPanel();
-        DockPanel.SetDock(head, Dock.Top); body.Children.Add(head); body.Children.Add(tabs);
+        body.Children.Add(tabs);
         Content = body;
 
         Svc.Scanned += OnScanned;
