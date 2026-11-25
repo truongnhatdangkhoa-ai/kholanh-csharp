@@ -115,6 +115,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         if (keepRow >= 0) _g.Select(Math.Min(keepRow, Math.Max(_m.RowCount - 1, 0)), keepCol);
         _cnt.Text = $"{total:#,0} mã" + (list.Count < total ? $" · đang hiện {list.Count:#,0}" + (list.Count >= Cap ? $" (tối đa {Cap:#,0} — gõ ô Tìm để thu hẹp)" : "") : "");
         _xlTab.Header = _xl.Count > 0 ? $"Cần xử lý ({_xl.Count})" : "Cần xử lý";
+        MainWindow.Of(this)?.SetBadge(DanhMucService.PermKey, _xl.Count);   // 1.72: số trên thanh menu theo đúng màn hình đang xem
     }
 
     private string Show(int r, int c, string raw)
@@ -235,6 +236,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         _mg.Refresh(); _dg.Refresh(); _ng.Refresh();
         XlHead(0, "Chưa có trong danh mục", _xl.Missing.Count); XlHead(1, "Mã trùng", _xl.Dups.Count); XlHead(2, "Nghi gõ sai", _xl.Near.Count);
         _xlTab.Header = _xl.Count > 0 ? $"Cần xử lý ({_xl.Count})" : "Cần xử lý";
+        MainWindow.Of(this)?.SetBadge(DanhMucService.PermKey, _xl.Count);   // 1.72: số trên thanh menu theo đúng màn hình đang xem
     }
 
     private async Task AddMissing(List<string> codes)

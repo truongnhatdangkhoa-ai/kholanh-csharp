@@ -61,6 +61,18 @@ public sealed class DanhMucService
     public string NoteFor(string code) => NoteOf(Seg, code);
     public Status? StatusFor(string code) => StatusOf(Seg, Chk, code);
     public string UseOf(string code) => UseText(UseMap, code);
+    /// <summary>Các bảng ảnh hưởng số "Cần xử lý": danh mục, Mã hóa sản phẩm, các nguồn đang dùng mã.</summary>
+    public static IEnumerable<(string Db, string Sheet)> WatchedSheets =>
+        new[] { (TongHopService.Db, Sheet), (TongHopService.Db, "MaHoa") }.Concat(UseSources.Select(u => (u.Db, u.Sheet)));
+    /// <summary>Dấu phiên bản của <see cref="WatchedSheets"/> (từ danh sách db / sheet / phiên bản) — đổi thì cần tính lại số "Cần xử lý".</summary>
+    public static string Fingerprint(IEnumerable<(string DbKey, string Sheet, long Version)> versions)
+    {
+        var w = WatchedSheets.Select(x => x.Db + "/" + x.Sheet).ToHashSet();
+        return string.Join(";", versions.Where(v => w.Contains(v.DbKey + "/" + v.Sheet)).Select(v => v.DbKey + "/" + v.Sheet + "=" + v.Version).OrderBy(x => x, StringComparer.Ordinal));
+    }
+    /// <summary>Số "Cần xử lý" (mã chưa có trong danh mục + mã trùng + nghi gõ sai) — tính ngầm cho thanh menu.</summary>
+    public int XlCount() { Load(); return XlNow().Count; }
+
     public Xl XlNow() => XlData(Seg, Chk, UseMap, Rows.Select(r => r.Code).ToList());
     public bool HasMissingSeg(string code) => code.Length == Len && Decode(Seg, code).Any(x => !x.Ok);
 

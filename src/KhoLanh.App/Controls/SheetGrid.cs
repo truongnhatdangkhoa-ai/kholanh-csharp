@@ -770,12 +770,18 @@ public sealed class SheetGrid : UserControl
         SelectRangeV(new CellRange(s.R1, s.C1, Math.Min(VCount - 1, s.R1 + Math.Max(data.Count, s.Rows) - 1), Math.Min(Model.ColCount - 1, s.C1 + Math.Max(data.Max(x => x.Count), s.Cols) - 1)));
     }
 
+    /// <summary>Menu chuột phải sắp mở (sau khi bảng đã chọn ô dưới chuột): View ẩn / hiện / đổi chữ các mục riêng đã gắn bằng <see cref="AddMenuItems"/>.</summary>
+    public event Action? MenuOpening;
+
     /// <summary>Thêm mục vào menu chuột phải của bảng (sau một vạch ngăn, cuối menu).</summary>
-    public void AddMenuItems(params Control[] items)
+    /// <returns>Vạch ngăn đứng trước các mục (View ẩn cùng khi ẩn hết các mục).</returns>
+    public Separator? AddMenuItems(params Control[] items)
     {
-        if (_surface.ContextMenu is not ContextMenu menu || items.Length == 0) return;
-        menu.Items.Add(new Separator());
+        if (_surface.ContextMenu is not ContextMenu menu || items.Length == 0) return null;
+        var sep = new Separator();
+        menu.Items.Add(sep);
         foreach (var i in items) menu.Items.Add(i);
+        return sep;
     }
 
     private void BuildContextMenu()
@@ -827,6 +833,7 @@ public sealed class SheetGrid : UserControl
             var okc = ShowTotals && Col >= 0 && Col < Model.ColCount;
             sumItem.IsVisible = sepSum.IsVisible = okc;
             if (okc) { sumItem.Header = $"Cộng cột “{Model.Columns[Col].Header}” ở dòng Tổng"; sumItem.IsChecked = SumCol(Col); }
+            try { MenuOpening?.Invoke(); } catch { /* mục riêng của View lỗi thì vẫn mở menu chung */ }
         };
         _surface.ContextMenu = menu;
     }

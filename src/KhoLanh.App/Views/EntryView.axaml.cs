@@ -47,6 +47,7 @@ public partial class EntryView : UserControl, IPage
         _grid.CellBackground = CellBg;
         _model.Derive = DeriveCells;
         _grid.AddMenuItems(ColorMenu());
+        BuildExtraMenu();
         ColorButton.Flyout = new Flyout { Content = ColorPalette(), Placement = PlacementMode.BottomEdgeAlignedLeft };
         BuildMauTab();
         AttachedToVisualTree += (_, _) => LoadSuggestions();
@@ -526,6 +527,104 @@ public partial class EntryView : UserControl, IPage
         m.Items.Add(new Separator());
         var clr = new MenuItem { Header = "Bỏ màu" }; clr.Click += (_, _) => PaintSelection(""); m.Items.Add(clr);
         return m;
+    }
+
+    // ------------------------------------------------------------------ 1.72: chuột phải — thêm mã lạ vào Danh mục · xem vị trí trên Sơ đồ kho
+
+    private readonly MenuItem _miDm = new() { Header = "Thêm vào danh mục mã hàng" };
+    private readonly MenuItem _miMap = new() { Header = "Xem kết quả trên sơ đồ kho" };
+    private Separator? _miSep;
+
+    private void BuildExtraMenu()
+    {
+        _miDm.Click += async (_, _) => await AddToDanhMuc();
+        _miMap.Click += async (_, _) => await ShowOnMap();
+        _miSep = _grid.AddMenuItems(_miDm, _miMap);
+        _grid.MenuOpening += () =>
+        {
+            var codes = UnknownCodes();
+            _miDm.IsVisible = codes.Count > 0 && CanEditDm;
+            // chữ mục menu giữ ngắn (Avalonia không nới cột chữ của menu khi đổi chữ lúc mở) — mã cụ thể ở chú thích
+            if (_miDm.IsVisible)
+            {
+                _miDm.Header = codes.Count == 1 ? "Thêm vào danh mục mã hàng" : $"Thêm {codes.Count} mã vào danh mục";
+                ToolTip.SetTip(_miDm, "Mã lạ (nền vàng) sẽ thêm vào Danh mục mã hàng, diễn giải tự dựng từ Mã hóa sản phẩm:\n" + string.Join("\n", codes.Take(15)) + (codes.Count > 15 ? "\n…" : ""));
+            }
+            var code = CurPos();
+            _miMap.IsVisible = IsKk && _page is { Deleted: false } && App.Services.SoDo.CanView && ColBy("vi tri") >= 0;
+            if (_miMap.IsVisible)
+            {
+                _miMap.Header = code.Length > 0 ? "Xem vị trí trên sơ đồ kho" : "Xem kết quả trên sơ đồ kho";
+                ToolTip.SetTip(_miMap, (code.Length > 0 ? $"Mở Sơ đồ kho, chọn ô {code}" : "Mở Sơ đồ kho") + " — tô từng ô theo kết quả kiểm kê của trang này (khớp / lệch / thiếu / thừa / chưa đếm).");
+            }
+            if (_miSep is not null) _miSep.IsVisible = _miDm.IsVisible || _miMap.IsVisible;
+        };
+    }
+
+    private static bool CanEditDm => App.Services.Session.Can(KhoLanh.Core.DanhMuc.DanhMucService.PermKey, KhoLanh.Core.Models.Perm.Edit);
+
+    /// <summary>Mã hàng (21 ký tự) nền vàng — không có trong tồn lẫn danh mục — ở các dòng đang chọn.</summary>
+    private List<string> UnknownCodes()
+    {
+        if (_page is null || Sugs is null) return new();
+        var sel = _grid.Selection; var o = new List<string>(); var seen = new HashSet<string>();
+        var r2 = Math.Min(sel.R2, _model.RowCount - 1);
+        for (var r = Math.Max(0, sel.R1); r <= r2; r++)
+            for (var c = 0; c < _model.ColCount; c++)
+            {
+                if (!IsCodeCol(_model.Columns[c])) continue;
+                var k = KhoLanh.Core.TimNhanh.Gs.MaKey(_model.Get(r, c));
+                if (k.Length == KhoLanh.Core.DanhMuc.DanhMucMa.Len && !Known.Contains(k) && seen.Add(k)) o.Add(k);
+            }
+        return o;
+    }
+
+    private async Task AddToDanhMuc()
+    {
+        var codes = UnknownCodes(); if (codes.Count == 0) return;
+        var s = App.Services; var n = 0;
+        if (!await Ui.RunAsync(this, () => Task.Run(() =>
+        {
+            var dm = new KhoLanh.Core.DanhMuc.DanhMucService(() => s.Lan, s.Session, s.Audit, () => s.TongHop);
+            dm.Load(); n = dm.AddMissing(codes);
+        }))) return;
+        // ô hết vàng ngay; gợi ý mã nạp lại (có diễn giải từ danh mục) ở lần gõ tới
+        foreach (var c in codes) { _known.Add(c); _knownKk.Add(c); }
+        _sugAt = DateTime.MinValue; LoadSuggestions();
+        _grid.Refresh();
+        MainWindow.DmChanged(this);
+        SaveState.Text = n > 0 ? $"Đã thêm {n} mã vào Danh mục" : "Mã đã có trong Danh mục";
+    }
+
+    /// <summary>Vị trí (mã chuẩn Kho.Khu.Dãy.Tầng.Khoang) của dòng đang chọn; "" nếu không đọc được.</summary>
+    private string CurPos()
+    {
+        var c = ColBy("vi tri"); var r = _grid.Row;
+        if (c < 0 || r < 0 || r >= _model.RowCount) return "";
+        return KhoLanh.Core.SoDo.SoDoCore.Parse(_model.Get(r, c)) is { Z: false } p ? p.Code : "";
+    }
+
+    private async Task ShowOnMap()
+    {
+        if (_page is null) return;
+        if (_dirty && !await SaveAsync(quiet: true)) return;
+        var code = CurPos();
+        MainWindow.Of(this)?.Show("m8", new SoDoView(_page.Id, code.Length > 0 ? code : null));
+    }
+
+    /// <summary>Mở trang <paramref name="pageId"/> và chọn dòng <paramref name="row"/> (cột Vị trí nếu có) — Sơ đồ kho › kết quả kiểm kê gọi.</summary>
+    public void OpenAt(string pageId, int row)
+    {
+        if (TrashToggle.IsChecked == true) TrashToggle.IsChecked = false;
+        if (_page?.Id != pageId)
+        {
+            ReloadList(pageId);
+            if (_page?.Id != pageId && _items.FirstOrDefault(i => i.Page.Id == pageId) is { } it) Open(it.Page);
+        }
+        if (_page?.Id != pageId) return;
+        Tabs.SelectedIndex = 0;
+        var c = Math.Max(0, ColBy("vi tri"));
+        Dispatcher.UIThread.Post(() => { _grid.Select(Math.Max(0, row), c); _grid.Focus(); });
     }
 
     // ------------------------------------------------------------------ hiển thị

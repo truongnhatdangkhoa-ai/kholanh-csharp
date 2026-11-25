@@ -17,7 +17,7 @@ namespace KhoLanh.App.Views;
 /// Tồn lấy từ Tồn kho theo vị trí (chỉ đọc); cấu hình kho, quy cách, khóa kiểm kê lưu ở database so-do-vi-tri.
 /// Giao diện mới: sơ đồ trực quan từng dãy (tầng × khoang), bấm ô xem chi tiết; phiếu in vị trí sửa thẳng trên bảng.
 /// </summary>
-public sealed class SoDoView : UserControl, IPage
+public sealed partial class SoDoView : UserControl, IPage
 {
     public string Title => "Sơ đồ kho";
     public string Subtitle => "Sơ đồ từng dãy (tầng × khoang) theo tồn vị trí; pallet theo tầng, quy cách, phiếu in vị trí, kiểm kê và khóa kiểm kê — dùng chung dữ liệu với app cũ.";
@@ -109,7 +109,9 @@ public sealed class SoDoView : UserControl, IPage
         _bMoveAll = Btn("Chuyển tất cả đề xuất", KkMoveAll);
         _bUndo = Btn("↶ Hoàn tác", KkUndo);
         _map.Picked += p => Pick(p, fromMap: true);
-        _map.CellText = CellText;
+        _map.CellText = p => KkCellText(p) ?? CellText(p);
+        _map.Fill = KkFill;                                           // 1.72: chế độ "Kết quả kiểm kê" tô theo trạng thái ô
+        _map.DoubleTapped += (_, _) => { if (_kkMap is not null && _sel is not null) _ = KkOpenEntry(_sel); };
         _map.TangInfo = key => Svc.B.Tang.TryGetValue(key, out var m) ? (m.Nk > 0 ? (int)Math.Round(m.Used * 100.0 / m.Nk) : 0, Lv(m), m.Used, m.Nk) : (0, "", 0, 0);
         _map.IsOverPos = p => IsOver(p, Svc.B);
 
@@ -199,6 +201,7 @@ public sealed class SoDoView : UserControl, IPage
         if (_khu != "ALL" && !Svc.KhuList(_kho).Contains(_khu)) _khu = "ALL";
         _sel = _sel is null ? null : Svc.B.ByCode.GetValueOrDefault(_sel.Code);
         _k = null;
+        KkAfterLoad();
         RenderAll();
     }
 
@@ -327,6 +330,7 @@ public sealed class SoDoView : UserControl, IPage
     private void RenderKpi()
     {
         _kpi.Children.Clear();
+        if (KkRenderKpi()) return;
         var list = ScopeList(); var c = CountsOf(list, Svc.B);
         var pal = Svc.B.Tang.Where(t => t.Value.Pos[0].Kho == _kho && (_khu == "ALL" || t.Value.Pos[0].Khu == _khu)).Select(t => t.Value).ToList();
         int used = pal.Sum(t => t.Used), cap = pal.Sum(t => t.Nk);
@@ -377,6 +381,7 @@ public sealed class SoDoView : UserControl, IPage
         chips.Children.Add(Pill(StatusLabel(st), st == "e" ? WarehouseMap.EmptyBg : st == "u" ? WarehouseMap.OneBg : WarehouseMap.ManyBg));
         if (Svc.PosLock(p) is { } lk) chips.Children.Add(Pill("🔒 khóa kiểm kê " + lk.Ts.Replace('T', ' '), GrayBg));
         host.Children.Add(chips);
+        KkDetail(host, p);
 
         if (!p.Z && Svc.B.Tang.TryGetValue(p.TangKey, out var m))
         {
@@ -475,12 +480,16 @@ public sealed class SoDoView : UserControl, IPage
         bar.Children.Add(_mq);
         _mq.TextChanged += (_, _) => { if (!_loading) RenderMap(); };
         void Legend(string text, IBrush bg) { var s = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 }; s.Children.Add(new Border { Width = 16, Height = 12, Background = bg, BorderBrush = Line, BorderThickness = new Thickness(1), VerticalAlignment = VerticalAlignment.Center }); s.Children.Add(Label(text, size: 12)); bar.Children.Add(s); }
+        bar.Children.Add(KkBar());
+        bar.Children.Add(_legendKk);
+        var std = bar; bar = _legendStd; std.Children.Add(_legendStd);
         Legend("Trống", WarehouseMap.EmptyBg); Legend("Có hàng", WarehouseMap.OneBg); Legend("Nhiều mã", WarehouseMap.ManyBg); Legend("Tầng vượt mức", WarehouseMap.OverBg);
         Legend("Cột mức đầy tầng: xanh còn chỗ · vàng gần đầy · cam đầy · đỏ vượt", new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0, RelativeUnit.Relative),
             GradientStops = { new GradientStop(AppTheme.Color("#4CAF50"), 0), new GradientStop(AppTheme.Color("#F1C40F"), 0.4), new GradientStop(AppTheme.Color("#E67E22"), 0.7), new GradientStop(AppTheme.Color("#C0392B"), 1) },
         });
+        bar = std;
         bar.Children.Add(_mapInfo);
         var sv = new ScrollViewer { Content = _map, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
         var left = new DockPanel();

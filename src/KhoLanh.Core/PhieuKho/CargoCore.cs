@@ -207,6 +207,8 @@ public static class CargoCore
         var rec = ix.Map.GetValueOrDefault(lo.Date + "|" + lo.Batch) ?? (lo.Alt.Length > 0 ? ix.Map.GetValueOrDefault(lo.Alt + "|" + lo.Batch) : null);
         return rec is null ? null : KsOfRecord(rec);
     }
+    /// <summary>Kết quả kháng sinh theo số thứ tự 1–83 (bảng mặc định) — dùng khi biết sẵn đặc tính từ mã hàng tồn kho.</summary>
+    public static KsInfo? KsRule(int stt) => stt > 0 && RuleOf(stt) is { } r ? new KsInfo(stt, r.Ky, r.Dat, MarketFromDat(r.Dat), false, true) : null;
     public static string KsLabel(KsInfo? k) => k is null ? "" : (k.KyHieu.Length > 0 ? k.KyHieu : k.Stt.ToString()) + (k.Lan2 ? " - L2" : "");
 
     // ------------------------------------------------------------------ danh mục loại hàng / quy cách
