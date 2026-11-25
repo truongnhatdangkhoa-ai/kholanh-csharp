@@ -432,12 +432,26 @@ public class AccountSyncService
     {
         if (!allowExisting && HasAnyUser()) throw new BusinessException("Máy này đã có tài khoản riêng — kết nối ở Hệ thống › Kết nối.");
         if (user.Trim().Length == 0 || pass.Length == 0) throw new BusinessException("Nhập tên đăng nhập và mật khẩu.");
+        // 1.111 (ảnh người dùng: Google đã chạy Code.gs PC-1.110 mà máy kia vẫn báo "Code.gs chưa cập nhật"): máy còn lưu đường dẫn Web App KHÁC
+        // (Sheet cũ / link tạm) → hỏi đường dẫn đang lưu; không có lệnh pcDangNhap / không gọi được thì hỏi tiếp đường dẫn chuẩn cài sẵn trong app.
         var url = PhoneUrl;
-        var r = await PostRawAsync(url, new JsonObject { ["action"] = "pcDangNhap", ["ten"] = user.Trim(), ["matKhau"] = pass }, ct);
+        JsonObject r;
+        bool Old(JsonObject x) => LooksLikePhoneScript(x) || (x["error"]?.ToString() ?? "").Contains("Không có chức năng");
+        var body = new JsonObject { ["action"] = "pcDangNhap", ["ten"] = user.Trim(), ["matKhau"] = pass };
+        try { r = await PostRawAsync(url, (JsonObject)body.DeepClone(), ct); }
+        catch (BusinessException) when (url != PhoneWebApp.DefaultUrl) { r = new JsonObject { ["ok"] = false, ["error"] = "Không có chức năng" }; }
+        // Trả lời không phải của lệnh pcDangNhap (Code.gs cũ / Sheet tài khoản riêng "Sai mã kết nối" / lỗi khác) → thử đường dẫn chuẩn.
+        bool Answered(JsonObject x) => x["chuaBat"] is not null || x["chuaCo"] is not null || x["khoa"] is not null
+            || (x["error"]?.ToString() ?? "").StartsWith("Sai tên đăng nhập");
+        if (r["ok"]?.GetValue<bool>() != true && !Answered(r) && url != PhoneWebApp.DefaultUrl)
+        {
+            url = PhoneWebApp.DefaultUrl;
+            r = await PostRawAsync(url, (JsonObject)body.DeepClone(), ct);
+        }
         if (r["ok"]?.GetValue<bool>() != true)
         {
             var err = r["error"]?.ToString() ?? "";
-            if (LooksLikePhoneScript(r) || err.Contains("Không có chức năng")) throw new JoinException(JoinException.OldScript, OldJoinScriptMsg);
+            if (Old(r)) throw new JoinException(JoinException.OldScript, OldJoinScriptMsg + $" (máy này hỏi Web App …{url.TrimEnd('/').Replace("/exec", "")[^6..]})");
             if (r["chuaBat"]?.GetValue<bool>() == true) throw new JoinException(JoinException.NotEnabled, NotEnabledMsg);
             if (r["chuaCo"]?.GetValue<bool>() == true) throw new JoinException(JoinException.NoAccount, NotOnSheetMsg(user.Trim()));
             if (r["khoa"]?.GetValue<bool>() == true) throw new JoinException(JoinException.Locked, "Google Sheet chung: " + err);
