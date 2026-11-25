@@ -74,7 +74,13 @@ public class AccountSyncService
     /// <summary>Đã bật dùng chung tài khoản qua Google Sheet.</summary>
     public bool Enabled => Url.Length > 0 && Token.Length > 0;
     /// <summary>Máy này được sửa tài khoản (có mã quản trị).</summary>
-    public bool CanWrite => Enabled && AdminKey.Length > 0;
+    /// <summary>
+    /// 1.110 (người dùng: "tài khoản quản trị đăng nhập máy nào thì máy đó là quản trị, chỉ phân quyền theo tài khoản không theo máy"):
+    /// + "tài khoản được phân quyền tạo tài khoản là đồng bộ lên Sheet được": sửa được tài khoản dùng chung = đang đăng nhập bằng Quản trị hoặc
+    /// tài khoản có quyền "Tạo / sửa tài khoản" (máy nào cũng vậy). Code.gs ≥ 1.110 (Sheet điện thoại) chỉ cần mã đọc hoặc PC_TOKEN để ghi;
+    /// mã quản trị cũ (nếu máy còn giữ) vẫn gửi kèm để Code.gs bản cũ nhận. Sheet tài khoản riêng kiểu cũ (TaiKhoan.gs) vẫn cần mã quản trị.
+    /// </summary>
+    public bool CanWrite => Enabled && (AdminKey.Length > 0 || (OnPhoneSheet && _session.CanManageAccounts));
     public string LastPull => _settings.Get(KeyLast);
     public bool HasPendingScript => Secret.Unprotect(_settings.Get(KeyPendToken)).Length > 0;
 
@@ -810,7 +816,12 @@ public class AccountSyncService
         var url = Url; var token = Token; var admin = AdminKey;
         var row = ToRow(u);
         try { Task.Run(() => CallAsync(url, token, admin, "save", new JsonObject { ["user"] = row })).GetAwaiter().GetResult(); }
-        catch (BusinessException ex) { throw new BusinessException("Chưa lưu được lên Google Sheet nên chưa đổi gì: " + ex.Message); }
+        catch (BusinessException ex)
+        {
+            var more = ex.Message.Contains("không có mã quản trị")
+                ? " (Code.gs trên Google còn bản cũ, ghi phải có mã quản trị — dán Code.gs mới vào Apps Script rồi Triển khai › Phiên bản mới.)" : "";
+            throw new BusinessException("Chưa lưu được lên Google Sheet nên chưa đổi gì: " + ex.Message + more);
+        }
     }
 
     // ---------------- dòng Sheet <-> User ----------------
@@ -897,6 +908,8 @@ public class AccountSyncService
         var body = payload ?? new JsonObject();
         body["token"] = token; body["action"] = action;
         if (admin.Length > 0) body["adminKey"] = admin;
+        // 1.110: Sheet điện thoại — gửi kèm PC_TOKEN (Code.gs ≥ 1.110 nhận thay mã đọc) → máy giữ mã đọc cũ (mã trên Sheet vừa đặt lại) vẫn đọc / ghi được.
+        if (Phone is { Token.Length: > 0 } ph && string.Equals(url.Trim(), PhoneUrl.Trim(), StringComparison.Ordinal)) body["pcToken"] = ph.Token;
         // Dùng chung 1 HttpClient (giữ sẵn kết nối TLS tới Google giữa các lần gọi — lần tải ngầm lúc mở cửa sổ làm "nóng" cho lần sau).
         using var own = _handler is null ? null : new HttpClient(_handler, false) { Timeout = TimeSpan.FromSeconds(60) };
         var h = own ?? Shared;

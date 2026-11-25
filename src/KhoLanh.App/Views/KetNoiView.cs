@@ -168,7 +168,6 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
             items.Add(("Kiểm tra kết nối", CheckNow, false));
             if (a.Enabled) items.Add(("Đồng bộ tài khoản ngay", PullAccounts, false));
             if (a.Enabled) items.Add(("Chép mã kết nối máy (dự phòng)", () => CopyCode(false), false));
-            if (a.Enabled) items.Add(("Chép mã cho máy quản trị…", () => CopyCode(true), false));
             if (a.Enabled) items.Add(("Tạo bộ cài cho máy mới…", Bundle, false));
             items.Add(("Mã điện thoại (PC_TOKEN) / đường dẫn…", () => PhoneConnect.ShowAsync(this), false));
             if (a.Enabled && !a.OnPhoneSheet && a.CanWrite) items.Add(("Cập nhật mã Apps Script (Sheet tài khoản riêng)", UpgradeScript, false));

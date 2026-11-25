@@ -39,6 +39,8 @@ public static class Perm
         new("m19", "Lưu trữ cá nhân", "Công cụ", new[] { Edit }, "Ghi chú, liên kết, ảnh, tệp riêng từng tài khoản; đăng nhập Google cá nhân để sao lưu Drive"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
+        // 1.110 (người dùng: "tài khoản được phân quyền tạo tài khoản là đồng bộ tài khoản lên Sheet được, app cũ làm được"): quyền theo tài khoản, máy nào cũng vậy.
+        new("taikhoan", "Tạo / sửa tài khoản", "Hệ thống", new[] { Edit }, "Tạo, sửa, khóa, đặt lại mật khẩu tài khoản Nhân viên / Quản lý (tự đồng bộ lên Google Sheet chung). Không tạo / sửa được tài khoản Quản trị"),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
         new("drivepush", "Gửi dữ liệu từ máy xem từ xa (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy xem từ xa (ngoài công ty) chỉ xem, không sửa được"),
         new("landuphong", "Máy dự phòng LAN", "Hệ thống", new[] { Edit }, "Máy đăng nhập bằng tài khoản này làm máy dự phòng (giữ bản sao dữ liệu, tự làm máy chủ khi máy chủ chính tắt) nếu chưa có máy dự phòng. Không tích = máy con"),
@@ -65,6 +67,7 @@ public static class Perm
         var d = new Dictionary<string, string>();
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         d["landuphong"] = None;   // 1.106: máy dự phòng LAN chỉ khi Quản trị tích riêng
+        d["taikhoan"] = None;     // 1.110: tạo / sửa tài khoản chỉ khi Quản trị tích riêng (Quản trị luôn có)
         if (role == Roles.Staff)
         {
             d["backup"] = None; d["audit"] = None; d["phone"] = None;

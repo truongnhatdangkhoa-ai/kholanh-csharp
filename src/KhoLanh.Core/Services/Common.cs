@@ -31,6 +31,15 @@ public class Session
 
     public bool Can(string key, string level = Perm.View) => Perm.Has(CurrentUser, key, level);
 
+    /// <summary>1.110: được tạo / sửa tài khoản = Quản trị, hoặc tài khoản được tích quyền "Tạo / sửa tài khoản" (đăng nhập ở máy nào cũng vậy).</summary>
+    public bool CanManageAccounts => CurrentUser is { IsActive: true } u && (Roles.IsAdmin(u.Role) || Perm.Has(u, "taikhoan", Perm.Edit));
+
+    public void RequireAccountManager()
+    {
+        RequireLogin();
+        if (!CanManageAccounts) throw new BusinessException("Tài khoản này chưa được cấp quyền \"Tạo / sửa tài khoản\". Nhờ Quản trị cấp ở Hệ thống › Tài khoản.");
+    }
+
     public void Require(string key, string level = Perm.Edit)
     {
         RequireLogin();

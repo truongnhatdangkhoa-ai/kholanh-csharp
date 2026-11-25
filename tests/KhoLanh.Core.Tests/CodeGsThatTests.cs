@@ -102,5 +102,44 @@ public class CodeGsThatTests : IDisposable
         a.Auth.Logout();
         var la = await LoginFlow.LoginAsync(a.Auth, a.Accounts, "nv2", "nv2pass1");
         Assert.Equal("nv2", la.User.Username);
+        a.Auth.Logout();
+
+        // 8. Quyền sửa đi theo TÀI KHOẢN Quản trị, không theo máy: máy mới tinh E, đăng nhập thẳng bằng admin → tạo / đổi tài khoản được;
+        //    máy B (đang dùng tài khoản nhân viên) đăng nhập admin → cũng sửa được; nhân viên thì không.
+        var (m, mp) = May("E", "");
+        var le = await LoginFlow.LoginAsync(m.Auth, m.Accounts, "admin", "matkhau1");
+        Assert.Equal(Roles.Admin, le.User.Role);
+        await m.Accounts.PublishTask;
+        Assert.True(m.Accounts.CanWrite);
+        m.Auth.CreateUser("tu_may_e", "Tạo ở máy E", "emay1234", Roles.Staff);
+        b.Auth.Logout();
+        var lb = await LoginFlow.LoginAsync(b.Auth, b.Accounts, "admin", "matkhau1");
+        Assert.True(b.Accounts.CanWrite);
+        b.Auth.CreateUser("tu_may_b", "Tạo ở máy B", "bmay1234", Roles.Staff);
+        b.Auth.Logout();
+        await LoginFlow.LoginAsync(b.Auth, b.Accounts, "khoa", "moi12345");
+        Assert.False(b.Accounts.CanWrite);
+        Assert.ThrowsAny<Exception>(() => b.Auth.CreateUser("khong_duoc", "x", "x1234567", Roles.Staff));
+        // 9. Quyền theo TÀI KHOẢN: Quản lý được tích "Tạo / sửa tài khoản" đăng nhập máy mới G → tạo tài khoản lên Sheet được; không tạo được Quản trị.
+        m.Auth.CreateUser("ql1", "Quản lý 1", "ql123456", Roles.Manager, Perm.Serialize(new Dictionary<string, string> { ["taikhoan"] = Perm.Edit }));
+        var (g, _) = May("G", "");
+        await LoginFlow.LoginAsync(g.Auth, g.Accounts, "ql1", "ql123456");
+        Assert.True(g.Session.CanManageAccounts && g.Accounts.CanWrite);
+        g.Auth.CreateUser("tu_ql1", "Do ql1 tạo", "tql12345", Roles.Staff);
+        Assert.Throws<BusinessException>(() => g.Auth.CreateUser("admin2", "x", "x1234567", Roles.Admin));
+        var admin = g.Auth.ListUsers().Single(u => u.Username == "admin");
+        Assert.Throws<BusinessException>(() => g.Auth.ResetPassword(admin.Id, "chiem1234"));
+        // nv2 (Quản lý, không được tích) thì không.
+        g.Auth.Logout();
+        await LoginFlow.LoginAsync(g.Auth, g.Accounts, "nv2", "nv2pass1");
+        Assert.False(g.Session.CanManageAccounts);
+        Assert.Throws<BusinessException>(() => g.Auth.CreateUser("khong", "x", "x1234567", Roles.Staff));
+
+        // Máy khác thấy cả các tài khoản vừa tạo.
+        var (f, _) = May("F", "");
+        Assert.Equal("tu_may_e", (await LoginFlow.LoginAsync(f.Auth, f.Accounts, "tu_may_e", "emay1234")).User.Username);
+        f.Auth.Logout(); f.Auth.Login("admin", "matkhau1");
+        Assert.Contains(f.Auth.ListUsers(), u => u.Username == "tu_may_b");
+        Assert.Contains(f.Auth.ListUsers(), u => u.Username == "tu_ql1");
     }
 }

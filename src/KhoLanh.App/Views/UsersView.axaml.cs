@@ -30,6 +30,8 @@ public partial class UsersView : UserControl, IPage
             };
         }
         BuildPermGrid();
+        // 1.110: tài khoản có quyền "Tạo / sửa tài khoản" (không phải Quản trị) không chọn được vai trò Quản trị.
+        if (!Roles.IsAdmin(App.Services.Session.Role) && RoleBox.Items[2] is ComboBoxItem adminItem) adminItem.IsEnabled = false;
         Tabs.Items.Add(BuildPhoneTab());   // 1.76: quyền điện thoại riêng
         Load();
         Edit(new User());
