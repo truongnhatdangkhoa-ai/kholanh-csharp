@@ -302,6 +302,15 @@ public sealed partial class TongQuanView
         var waitBox = new StackPanel { Spacing = 6 }; var histBox = new StackPanel { Spacing = 4 };
         var status = new TextBlock { FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Foreground = Muted };
         var scan = new Button { Content = "⟳ Quét hộp thư ngay", Classes = { "primary" } };
+        // 1.77: trạng thái kết nối Gmail luôn hiện (✓ đã kết nối … / ✖ lỗi …) — trước đây không biết đã kết nối được chưa
+        var conn = new TextBlock { FontSize = 12.5, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, Tag = "keep" };
+        void PaintConn()
+        {
+            var st = Svc.MailStatus;
+            conn.Text = "Kết nối Gmail: " + (!Svc.MailCfg().Ready ? "chưa khai báo (tab Cài đặt Gmail)" : st.Length > 0 ? st : "chưa kiểm tra — bấm «Lưu & kiểm tra kết nối» ở tab Cài đặt Gmail");
+            conn.Foreground = st.StartsWith("✓") ? B("#1E7B4A") : st.StartsWith("✖") || !Svc.MailCfg().Ready ? B("#B42318") : Muted;
+        }
+        void Prog(string m) => Avalonia.Threading.Dispatcher.UIThread.Post(() => status.Text = m);
         Window? w = null;
         void Paint()
         {
@@ -359,13 +368,14 @@ public sealed partial class TongQuanView
         {
             scan.IsEnabled = false; status.Text = "Đang đọc hộp thư…";
             LichXuatService.ScanResult? r = null;
-            try { r = await Svc.ScanEmailAsync(); status.Text = $"✓ {r.New} thư mới · tự xử lý {r.Auto} · số cont {r.ContSet} lịch · thông tin xe {r.XeFilled} phiếu · {r.Waiting} thư chờ duyệt." + (r.Notes.Count > 0 ? "\n" + string.Join("\n", r.Notes) : ""); }
+            try { r = await Svc.ScanEmailAsync(default, Prog); status.Text = $"✓ {r.New} thư mới · tự xử lý {r.Auto} · số cont {r.ContSet} lịch · thông tin xe {r.XeFilled} phiếu · {r.Waiting} thư chờ duyệt." + (r.Notes.Count > 0 ? "\n" + string.Join("\n", r.Notes) : ""); }
             catch (Exception e) { status.Text = "✖ " + (e is KhoLanh.Core.Services.BusinessException ? e.Message : e.Message); }
-            scan.IsEnabled = true; var keep = status.Text; Paint(); status.Text = keep;
+            scan.IsEnabled = true; var keep = status.Text; Paint(); status.Text = keep; PaintConn();
         };
 
         // cài đặt
         var cfg = Svc.MailCfg(); var (tr, onlyT) = Svc.TrustCfg();
+        var checkRes = new TextBlock { TextWrapping = TextWrapping.Wrap, FontSize = 12.5, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 0, 0, 6), Tag = "keep" };
         var email = new TextBox { Text = cfg.Email, Watermark = "ten@gmail.com" };
         var pass = new TextBox { PasswordChar = '•', Watermark = cfg.PassEnc.Length > 0 ? "(đã lưu — để trống nếu không đổi)" : "Mật khẩu ứng dụng 16 ký tự" };
         var kw = new TextBox { Text = cfg.Keywords, Watermark = string.Join(", ", LichXuatEmail.DefaultKeywords) };
@@ -381,9 +391,16 @@ public sealed partial class TongQuanView
             var c = Svc.MailCfg(); c.Email = email.Text ?? ""; c.Keywords = kw.Text ?? ""; c.Allow = allow.Text ?? ""; c.Auto = auto.IsChecked == true;
             c.IntervalMin = (int)(every.Value ?? 10); c.Days = (int)(days.Value ?? 7); c.Folder = folder.Text ?? "INBOX";
             if (await Ui.Run(w!, () => { Svc.SaveMailCfg(c, pass.Text); Svc.SaveTrust(trust.Text ?? "", onlyTr.IsChecked == true); }))
-            { pass.Text = ""; Svc.StartAutoEmail(); status.Text = "✓ Đã lưu cài đặt."; Paint(); }
+            {
+                pass.Text = ""; Svc.StartAutoEmail(); status.Text = "✓ Đã lưu cài đặt. Đang kiểm tra kết nối…"; Paint(); status.Text = "Đang kiểm tra kết nối…";
+                try { checkRes.Text = await Svc.CheckMailAsync(default, Prog); checkRes.Foreground = B("#1E7B4A"); }
+                catch (Exception e) { checkRes.Text = "✖ " + e.Message; checkRes.Foreground = B("#B42318"); }
+                status.Text = checkRes.Text; PaintConn();
+            }
         }, primary: true);
+        saveCfg.Content = "💾 Lưu & kiểm tra kết nối";
         var set = new StackPanel { Spacing = 2 };
+        set.Children.Add(checkRes);
         set.Children.Add(new TextBlock { Text = "Kết nối Gmail bằng IMAP (chỉ ĐỌC thư, không gửi / xóa). Cần bật Xác minh 2 bước rồi tạo «Mật khẩu ứng dụng» ở tài khoản Google — KHÔNG dùng mật khẩu Gmail. Mật khẩu được mã hóa trên máy này.", TextWrapping = TextWrapping.Wrap, FontSize = 12.5 });
         set.Children.Add(Lb("Địa chỉ Gmail")); set.Children.Add(email); set.Children.Add(Lb("Mật khẩu ứng dụng")); set.Children.Add(pass);
         set.Children.Add(Lb("Thư mục (Gmail: [Gmail]/All Mail để thấy cả thư đã gửi trong chuỗi)")); set.Children.Add(folder);
@@ -416,7 +433,7 @@ public sealed partial class TongQuanView
         var root = new DockPanel();
         var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         var tb = new WrapPanel { ItemSpacing = 8 }; tb.Children.Add(scan); tb.Children.Add(new TextBlock { Text = "Thư gốc có LSX trên tiêu đề = tạo lịch (ngày ETD) · thư trả lời = đổi / hủy lịch · thư «Thông tin xe» tự ghi số cont, không cần duyệt.", FontSize = 12, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxWidth = 620 });
-        top.Children.Add(tb); top.Children.Add(status);
+        top.Children.Add(tb); top.Children.Add(conn); top.Children.Add(status); PaintConn();
         DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(tabs);
         w = Win("✉ Email cập nhật lịch xuất", root, 900, 720);
         EmailWindow = w;
