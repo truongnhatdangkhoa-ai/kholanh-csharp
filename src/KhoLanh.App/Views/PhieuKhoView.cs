@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using KhoLanh.App.Controls;
 using KhoLanh.Core.Grid;
 using KhoLanh.Core.PhieuKho;
@@ -30,28 +32,37 @@ public sealed class PhieuKhoView : UserControl, IPage
     private bool _loading, _dirty;
     private Phieu? _cur;
     private List<Phieu> _shown = new();
-    // 1.61: danh sách phiếu và nhập liệu phiếu là 2 tab con riêng (không chung 1 màn hình).
+    // 1.82: danh sách nhóm theo tháng; mở phiếu → khung soạn phiếu chiếm cả trang (phương án B), "← Danh sách" / ESC để về.
     private readonly GridModel _lm = new() { ReadOnly = true };
     private readonly SheetGrid _lg;
+    private readonly MonthGroups _groups = new("xk");
     private readonly TextBlock _listInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _curTitle = new() { FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
-    private readonly TabControl _inner;
-    private readonly TabItem _editTab;
-    private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _err = new() { FontSize = 12.5, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly TextBlock _totals = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
-    private readonly StackPanel _editor = new() { Spacing = 8 };
-    private readonly TextBox _mail = new() { IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("Consolas, Cascadia Mono, monospace"), FontSize = 12.5, TextWrapping = TextWrapping.NoWrap };
-    private readonly TabControl _tabs;
+    private readonly TextBlock _curTitle = new() { FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Dark };
+    private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _savedText = new();
+    private readonly Border _savedPill;
+    private readonly TextBlock _errText = new();
+    private readonly Border _errPill;
+    private readonly TextBlock _err = new() { FontSize = 12, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _totals = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
+    private readonly StackPanel _side = new() { Spacing = 0 };
+    private readonly Border _main = new();
+    private int _openBlock;
     private TextBox? _soBox, _o40Box;
     private readonly List<(MatHang M, GridModel Gm)> _blocks = new();
-    private readonly Button _save, _del, _exp, _copy;
+    private readonly Button _save, _exp, _copy;
 
     private string? _openId;
     private readonly ListSxView _lsxView;
     private readonly PnxAutoView _autoView;
     private readonly TabItem _autoTab = new() { Header = "⚡ Tự động đã tạo" };
     private readonly TabControl _outer;
+    private readonly Border _full = new() { IsVisible = false };
+    private readonly Control _editPage;
+
+    /// <summary>Đang mở khung soạn phiếu (xuất khẩu hoặc nội địa) chiếm cả trang.</summary>
+    internal bool EditorOpen => _full.IsVisible;
+    internal Control? FullContent => _full.Child;
 
     /// <summary>Mở module: <paramref name="tab"/> 0 = Phiếu xuất khẩu · 1 = List sản xuất · 2 = Cargo list; <paramref name="openPhieuId"/> / <paramref name="openListLsx"/> = mở thẳng phiếu / List đó.</summary>
     public PhieuKhoView(int tab = 0, string? openPhieuId = null, string? openListLsx = null)
@@ -61,62 +72,66 @@ public sealed class PhieuKhoView : UserControl, IPage
         _lg = new SheetGrid(_lm) { SpareRows = 0 };
         _lg.DoubleTapped += async (_, _) => await OpenSelected();
         _lg.AddHandler(KeyDownEvent, async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; await OpenSelected(); } }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        _groups.Attach(_lg, () => RenderList());
+        _savedPill = PhieuShell.Pill(_savedText, "ok");
+        _errPill = PhieuShell.Pill(_errText, "bad");
 
-        _save = Btn("💾 Lưu phiếu", async () => await DoSave(), primary: true); _save.IsEnabled = _edit;
-        _del = Btn("Xóa phiếu", async () => await DoDelete(), danger: true); _del.IsEnabled = _edit;
-        _exp = Btn("📤 Xuất Excel (.xlsm)", async () => await DoExport()); _exp.IsEnabled = _export;
-        _copy = Btn("📋 Copy email", async () => await CopyMail());
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 4 };
-        bar.Children.Add(_save); bar.Children.Add(_exp); bar.Children.Add(_copy); bar.Children.Add(_del);
-        bar.Children.Add(Btn("📩 Dán email thông tin xe…", async () => await PasteXe()));
-        if (_edit) bar.Children.Add(Btn("📄 Nạp List sản xuất…", async () => await ListDialog()));
+        _save = PhieuShell.Btn("Lưu phiếu", async () => await DoSave(), primary: true); _save.IsEnabled = _edit;
+        _exp = PhieuShell.Btn("Xuất Excel", async () => await DoExport()); _exp.IsEnabled = _export; ToolTip.SetTip(_exp, "Xuất Excel (.xlsm) điền vào file mẫu");
+        _copy = PhieuShell.Btn("Copy email", async () => await CopyMail());
+        var moreItems = new List<(string, Func<Task>, bool)> { ("Dán email thông tin xe…", PasteXe, false) };
+        if (_edit) moreItems.Add(("Nạp List sản xuất…", ListDialog, false));
+        moreItems.Add(("Xem nội dung email…", ShowMail, false));
+        if (_edit) { moreItems.Add(("-", () => Task.CompletedTask, false)); moreItems.Add(("Xóa phiếu", DoDelete, true)); }
 
-        _tabs = new TabControl
-        {
-            Items =
-            {
-                new TabItem { Header = "Soạn phiếu", Content = new ScrollViewer { Content = new Border { Padding = new Thickness(0, 6, 12, 12), Child = _editor }, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled } },
-                new TabItem { Header = "Nội dung email", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = _mail } },
-            },
-        };
-        _tabs.SelectionChanged += (_, _) => RefreshMail();
-
-        // Tab con 1: bảng danh sách phiếu xuất khẩu (lọc / tìm theo từng cột của lưới), bấm đúp / Enter / "Mở phiếu" → tab nhập liệu.
+        // Danh sách phiếu xuất khẩu nhóm theo tháng (lọc / tìm theo từng cột của lưới), bấm đúp / Enter / "Mở phiếu" → khung soạn phiếu.
         var listTools = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 0, 0, 6) };
         if (_edit) listTools.Children.Add(Btn("➕ Phiếu xuất khẩu mới", async () => await NewPhieu(), primary: true));
         listTools.Children.Add(Btn("Mở phiếu đang chọn", async () => await OpenSelected()));
         if (_export) listTools.Children.Add(Btn("📊 Thống kê xuất khẩu theo tháng…", async () => await DoThongKe()));
+        foreach (var b in _groups.ToolButtons(() => RenderList())) listTools.Children.Add(b);
         listTools.Children.Add(_listInfo);
-        var listPage = new DockPanel();
+        var listPage = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
         DockPanel.SetDock(listTools, Dock.Top); listPage.Children.Add(listTools); listPage.Children.Add(Framed(_lg));
 
-        // Tab con 2: nhập liệu phiếu đang mở.
-        var head = new StackPanel { Spacing = 4 };
-        head.Children.Add(_curTitle); head.Children.Add(bar); head.Children.Add(_err); head.Children.Add(_totals); head.Children.Add(_status);
-        var editPage = new DockPanel();
-        DockPanel.SetDock(head, Dock.Top); editPage.Children.Add(head); editPage.Children.Add(_tabs);
-        _inner = Ui.SubTabs(("Danh sách phiếu xuất khẩu", listPage), ("Nhập liệu phiếu", editPage));
-        _editTab = (TabItem)_inner.Items[1]!;
-        var root = _inner;
-        // 2 phần của module: phiếu xuất khẩu theo LSX (List sản xuất) và Cargo list (hàng tạm: Thuận Phước · Gia công · Gửi kho)
+        // Khung soạn phiếu: thanh trên · bên trái mặt hàng (mặt hàng đang sửa mở to) · bên phải thông tin phiếu / xe / cuối phiếu.
+        var status = new StackPanel { Orientation = Orientation.Horizontal, ClipToBounds = true };
+        status.Children.Add(_savedPill); status.Children.Add(_errPill); status.Children.Add(_status);
+        var bar = PhieuShell.TopBar(CloseEditor, _curTitle, status, new Control[] { _save, _exp, _copy, PhieuShell.More(moreItems.ToArray()), PhieuShell.CloseButton(CloseEditor) });
+        var page = new DockPanel();
+        DockPanel.SetDock(bar, Dock.Top); page.Children.Add(bar);
+        page.Children.Add(PhieuShell.Body(_main, "Thông tin phiếu", _side, "xk"));
+        PhieuShell.HandleEsc(page, CloseEditor);
+        _editPage = page;
+
         _lsxView = new ListSxView(openListLsx, OpenFromList);
         _autoView = new PnxAutoView(OpenFromList, lsx => { _outer!.SelectedIndex = 1; _lsxView.SelectLsx(lsx); });
         _autoView.UnseenChanged += n => _autoTab.Header = n > 0 ? $"⚡ Tự động đã tạo ({n} mới)" : "⚡ Tự động đã tạo";
         _autoTab.Content = _autoView;
+        var cargo = new CargoView { FullHost = ShowFull };
         _outer = new TabControl
         {
             Items =
             {
-                new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = root },
+                new TabItem { Header = "Phiếu xuất khẩu (theo LSX)", Content = listPage },
                 new TabItem { Header = "List sản xuất", Content = _lsxView },
-                new TabItem { Header = "Phiếu xuất nội địa", Content = new CargoView() },
+                new TabItem { Header = "Phiếu xuất nội địa", Content = cargo },
                 _autoTab,
             },
             SelectedIndex = Math.Clamp(tab, 0, 3),
         };
-        Content = _outer;
+        var root = new Panel(); root.Children.Add(_outer); root.Children.Add(_full);
+        Content = root;
         ShowEditor();
         AttachedToVisualTree += async (_, _) => await LoadAsync();
+    }
+
+    /// <summary>Hiện khung soạn phiếu chiếm cả trang (null = về các tab danh sách).</summary>
+    private void ShowFull(Control? c)
+    {
+        _full.Child = c; _full.IsVisible = c is not null; _outer.IsVisible = c is null;
+        if (c is not null) Dispatcher.UIThread.Post(() => c.Focus());
+        else Dispatcher.UIThread.Post(() => (_outer.SelectedIndex == 0 ? _lg : (Control?)null)?.Focus());
     }
 
     // ------------------------------------------------------------------ chung
@@ -130,13 +145,6 @@ public sealed class PhieuKhoView : UserControl, IPage
         return b;
     }
     private static Border Framed(Control c) => new() { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = c };
-    private static StackPanel Labeled(string label, Control c)
-    {
-        var s = new StackPanel { Spacing = 1 };
-        s.Children.Add(new TextBlock { Text = label, Classes = { "muted" }, FontSize = 11.5 });
-        s.Children.Add(c);
-        return s;
-    }
     private void Dirty() { if (_loading) return; _dirty = true; RefreshAll(); }
 
     private TextBox Tb(string value, Action<string> set, double w = 150, string? watermark = null)
@@ -162,7 +170,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
         _status.Text = "";
         RenderList();
-        if (_openId is not null && _shown.Find(p => p.Id == _openId) is { } op) { _openId = null; await OpenPhieu(op); }
+        if (_openId is not null && Svc.List.FirstOrDefault(p => p.Id == _openId) is { } op) { _openId = null; await OpenPhieu(op); }
     }
 
     /// <summary>List sản xuất → phiếu vừa tạo / phiếu đã có: chuyển sang tab phiếu và mở phiếu đó.</summary>
@@ -175,45 +183,57 @@ public sealed class PhieuKhoView : UserControl, IPage
 
     private void RenderList(string? keepId = null)
     {
-        keepId ??= _cur?.Id;
+        var force = keepId ?? _cur?.Id;   // phiếu vừa lưu / đang mở → mở tháng của nó
+        keepId = force ?? (_groups.ItemAt(_lg.Row) is var ki && ki >= 0 && ki < _shown.Count ? _shown[ki].Id : null);
         _shown = Svc.List.Where(p => p.Loai == "xuat_khau").ToList();
-        _lm.Load(new[]
-        {
-            new GridColumn("so", "Số phiếu", 120), new GridColumn("ngay", "Ngày xuất", 95), new GridColumn("lsx", "LSX", 110), new GridColumn("khach", "Khách hàng", 190),
-            new GridColumn("cont", "Số cont", 130), new GridColumn("kien", "Tổng kiện", 90, "number"), new GridColumn("kg", "Tổng kg", 110, "number"),
-            new GridColumn("tt", "Trạng thái", 170),
-        }, _shown.Select(p =>
+        if (force is { Length: > 0 } && _shown.Find(p => p.Id == force) is { } kp) _groups.Open(MonthGroups.KeyOf(kp.Ngay));
+        var rows = _groups.Build(_shown, p => p.Ngay, p =>
         {
             var t = TotalsOf(p);
             var tt = string.Join(" · ", new[] { PhieuKhoService.TagOf(p) is null ? "" : Svc.IsNew(p) ? "⚡ Tự động (mới)" : "⚡ Tự động", p.XuatLuc.Length > 0 ? "✓ Đã xuất Excel" : "" }.Where(x => x.Length > 0));
-            return new[] { p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)", p.Ngay.Length >= 10 ? $"{p.Ngay[8..10]}/{p.Ngay[5..7]}/{p.Ngay[..4]}" : p.Ngay, p.Lsx, p.Khach, p.Xe.Cont, Fmt(t.Kien), Fmt(t.Kg), tt };
-        }));
+            return new[] { "   " + (p.SoPhieu.Length > 0 ? p.SoPhieu : "(chưa có số)"), p.Ngay.Length >= 10 ? $"{p.Ngay[8..10]}/{p.Ngay[5..7]}/{p.Ngay[..4]}" : p.Ngay, p.Lsx, p.Khach, p.Xe.Cont, Fmt(t.Kien), Fmt(t.Kg), tt };
+        }, (key, list, open) =>
+        {
+            double k = 0, kg = 0; foreach (var p in list) { var t = TotalsOf(p); k += t.Kien; kg += t.Kg; }
+            return new[] { (open ? "▾ " : "▸ ") + MonthGroups.Label(key), $"{list.Count:#,0} phiếu", "", "", "", Fmt(k), Fmt(kg), "" };
+        });
+        _lm.Load(new[]
+        {
+            new GridColumn("so", "Số phiếu", 140), new GridColumn("ngay", "Ngày xuất", 95), new GridColumn("lsx", "LSX", 110), new GridColumn("khach", "Khách hàng", 190),
+            new GridColumn("cont", "Số cont", 130), new GridColumn("kien", "Tổng kiện", 90, "number"), new GridColumn("kg", "Tổng kg", 110, "number"),
+            new GridColumn("tt", "Trạng thái", 170),
+        }, rows);
         _lg.Refresh();
         var i = keepId is null ? -1 : _shown.FindIndex(p => p.Id == keepId);
-        if (i >= 0) _lg.Select(i, 0);
-        _listInfo.Text = $"{_shown.Count:#,0} phiếu · bấm đúp (hoặc Enter) để mở phiếu sang tab Nhập liệu";
+        var r = i >= 0 ? _groups.RowOf(i) : -1;
+        if (r >= 0) _lg.Select(r, 0);
+        var months = _groups.RowKey.Distinct().Count();
+        _listInfo.Text = $"{_shown.Count:#,0} phiếu · {months} tháng · bấm dòng tháng để mở / thu · bấm đúp phiếu để mở";
     }
     private static string StripLower(string s) => KhoLanh.Core.ChungTu.ChungTuService.StripAccents(s);
 
     private async Task OpenSelected()
     {
-        var i = _lg.Row;
+        var r = _lg.Row;
+        if (_groups.IsHeader(r)) { _groups.Toggle(_groups.RowKey[r]); RenderList(); return; }
+        var i = _groups.ItemAt(r);
         if (i < 0 || i >= _shown.Count) return;
         await OpenPhieu(_shown[i]);
     }
 
-    /// <summary>Mở phiếu sang tab Nhập liệu (phiếu đang mở có thay đổi chưa lưu thì hỏi trước).</summary>
+    /// <summary>Mở phiếu trong khung soạn phiếu (phiếu đang mở có thay đổi chưa lưu thì hỏi trước).</summary>
     private async Task OpenPhieu(Phieu p)
     {
-        if (_dirty && _cur is not null && _cur.Id == p.Id) { _inner.SelectedIndex = 1; return; }   // đang soạn đúng phiếu này → giữ thay đổi
+        if (_dirty && _cur is not null && _cur.Id == p.Id) { ShowFull(_editPage); return; }   // đang soạn đúng phiếu này → giữ thay đổi
         if (_dirty && _cur is not null && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và mở phiếu khác?", "Chưa lưu", "Bỏ thay đổi")) return;
-        _cur = Clone(p); _dirty = false;
+        _cur = Clone(p); _dirty = false; _openBlock = 0;
         ShowEditor();
-        _inner.SelectedIndex = 1;
+        ShowFull(_editPage);
         if (PhieuKhoService.TagOf(p) is { } tag)
         {
             var ng = tag.NgayLich.Length >= 10 ? $" từ lịch xuất ngày {tag.NgayLich[8..10]}/{tag.NgayLich[5..7]}/{tag.NgayLich[..4]}" : "";
             _status.Text = "⚡ Phiếu do hệ thống tự tạo" + ng + " — kiểm tra lại Tên hàng, Mã hàng, số kiện, Theo hợp đồng… rồi mới xuất Excel.";
+            ToolTip.SetTip(_status, _status.Text);
             if (Svc.IsNew(p)) { var id = p.Id; _ = Task.Run(() => { try { Svc.MarkSeen('p', id); } catch { } }); }
         }
     }
@@ -221,113 +241,143 @@ public sealed class PhieuKhoView : UserControl, IPage
     private async Task NewPhieu()
     {
         if (_dirty && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và tạo phiếu mới?", "Chưa lưu", "Bỏ thay đổi")) return;
-        _cur = Svc.NewPhieu(); _dirty = true;
+        _cur = Svc.NewPhieu(); _dirty = true; _openBlock = 0;
         ShowEditor();
-        _inner.SelectedIndex = 1;
+        ShowFull(_editPage);
     }
 
-    // ------------------------------------------------------------------ form soạn phiếu
+    /// <summary>"← Danh sách" / "✕ Đóng phiếu" / ESC: chưa lưu thì hỏi Lưu rồi đóng · Bỏ thay đổi · Ở lại.</summary>
+    private async Task CloseEditor()
+    {
+        if (_dirty && _cur is not null && _edit)
+        {
+            var a = await PhieuShell.AskClose(this, "Phiếu " + (_cur.SoPhieu.Trim().Length > 0 ? _cur.SoPhieu.Trim() : "mới"));
+            if (a == 2) return;
+            if (a == 0) { await DoSave(); if (_dirty) return; }
+        }
+        var keep = _cur?.Id;
+        _cur = null; _dirty = false;
+        ShowEditor(); ShowFull(null);
+        RenderList(keep is { Length: > 0 } ? keep : null);
+    }
+
+    // ------------------------------------------------------------------ form soạn phiếu (phương án B)
 
     private void ShowEditor()
     {
-        _editor.Children.Clear(); _blocks.Clear(); _soBox = null; _o40Box = null;
-        _del.IsEnabled = _edit && _cur is { Id.Length: > 0 };
-        if (_cur is null)
-        {
-            _editor.Children.Add(new TextBlock { Text = _edit ? "Chưa mở phiếu nào. Bấm đúp một phiếu ở tab “Danh sách phiếu xuất khẩu”, hoặc bấm “Phiếu xuất khẩu mới” ở đó." : "Chưa mở phiếu nào. Bấm đúp một phiếu ở tab “Danh sách phiếu xuất khẩu”.", Classes = { "muted" } });
-            RefreshAll(); return;
-        }
+        _side.Children.Clear(); _blocks.Clear(); _soBox = null; _o40Box = null; _main.Child = null;
+        if (_cur is null) { RefreshAll(); return; }
         _loading = true;
         var p = _cur;
-        // --- thông tin chung
-        var g1 = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        var date = new CalendarDatePicker { Width = 140, SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy", IsEnabled = _edit };
+        _openBlock = Math.Clamp(_openBlock, 0, Math.Max(0, p.Mh.Count - 1));
+        var F = PhieuShell.Field; var P = PhieuShell.Pair;
+        // --- khung phải: thông tin phiếu
+        var date = new CalendarDatePicker { SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy", IsEnabled = _edit };
         if (DateTime.TryParse(p.Ngay, out var dt)) date.SelectedDate = dt;
         date.SelectedDateChanged += (_, _) => { if (_loading || date.SelectedDate is not { } d || d.ToString("yyyy-MM-dd") == p.Ngay) return; p.Ngay = d.ToString("yyyy-MM-dd"); AutoNumber(); Dirty(); };
-        g1.Children.Add(Labeled("Ngày xuất", date));
-        _soBox = Tb(p.SoPhieu, v => p.SoPhieu = v, 150);
-        var so = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Bottom };
-        so.Children.Add(_soBox);
-        if (_edit) { var re = new Button { Content = "↻", Padding = new Thickness(8, 3) }; ToolTip.SetTip(re, "Cấp lại số phiếu tự động theo tháng / hàng"); re.Click += (_, _) => { p.SoPhieuTuCap = ""; p.SoPhieu = NextNumbers(Svc.List, p).SoPhieu; _soBox.Text = p.SoPhieu; Dirty(); }; so.Children.Add(re); }
-        g1.Children.Add(Labeled("Số phiếu", so));
-        g1.Children.Add(Labeled("Kho xuất", Cb(new[] { "An An", "Thuận Phước" }, p.Kho, v => p.Kho = v, 130)));
-        g1.Children.Add(Labeled("LSX (nhiều LSX: cách bằng dấu +)", Tb(p.Lsx, v => { p.Lsx = v; }, 230)));
-        g1.Children.Add(Labeled("Khách hàng", Tb(p.Khach, v => p.Khach = v, 170)));
-        g1.Children.Add(Labeled("Theo hợp đồng số", Tb(p.HopDong, v => p.HopDong = v, 170)));
-        g1.Children.Add(Labeled("Kiểu xuất", Tb(p.KieuXuat, v => p.KieuXuat = v, 160)));
-        g1.Children.Add(Labeled("Loại cont", Cb(new[] { "40RF", "20RF", "Xe" }, p.LoaiCont, v => p.LoaiCont = v, 90)));
-        _o40Box = Tb(p.O40, v => p.O40 = v, 120);
-        g1.Children.Add(Labeled("Mã sau nhãn 40RF", _o40Box));
-        g1.Children.Add(Labeled("Đơn vị", Cb(new[] { "kiện", "bdl" }, p.DonVi, v => p.DonVi = v, 80)));
-        _editor.Children.Add(Section("Thông tin phiếu", g1));
-        var ly = new WrapPanel { ItemSpacing = 8 };
-        var lyBox = Tb(LyDoOf(p), v => { if (p.LyDoTay) p.LyDo = v; }, 520);
-        lyBox.IsEnabled = _edit && p.LyDoTay;
-        var lyTay = new CheckBox { Content = "Gõ tay lý do", IsChecked = p.LyDoTay, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Bottom, IsEnabled = _edit };
+        _soBox = Tb(p.SoPhieu, v => p.SoPhieu = v);
+        var so = new DockPanel();
+        if (_edit) { var re = new Button { Content = "↻", Padding = new Thickness(7, 3), Margin = new Thickness(4, 0, 0, 0) }; ToolTip.SetTip(re, "Cấp lại số phiếu tự động theo tháng / hàng"); re.Click += (_, _) => { p.SoPhieuTuCap = ""; p.SoPhieu = NextNumbers(Svc.List, p).SoPhieu; _soBox.Text = p.SoPhieu; Dirty(); }; DockPanel.SetDock(re, Dock.Right); so.Children.Add(re); }
+        _soBox.Width = double.NaN; so.Children.Add(_soBox);
+        _side.Children.Add(P(F("Ngày xuất", date), F("Số phiếu", so)));
+        _side.Children.Add(P(F("Kho xuất", Cb(new[] { "An An", "Thuận Phước" }, p.Kho, v => p.Kho = v)), F("LSX (nhiều: cách bằng +)", Tb(p.Lsx, v => { p.Lsx = v; }))));
+        _side.Children.Add(F("Khách hàng", Tb(p.Khach, v => p.Khach = v)));
+        _side.Children.Add(P(F("Theo hợp đồng số", Tb(p.HopDong, v => p.HopDong = v)), F("Kiểu xuất", Tb(p.KieuXuat, v => p.KieuXuat = v))));
+        _o40Box = Tb(p.O40, v => p.O40 = v);
+        _side.Children.Add(P(F("Loại cont", Cb(new[] { "40RF", "20RF", "Xe" }, p.LoaiCont, v => p.LoaiCont = v)), F("Mã sau nhãn 40RF", _o40Box)));
+        _side.Children.Add(P(F("Đơn vị", Cb(new[] { "kiện", "bdl" }, p.DonVi, v => p.DonVi = v)), null));
+        var lyBox = Tb(LyDoOf(p), v => { if (p.LyDoTay) p.LyDo = v; });
+        lyBox.IsEnabled = _edit && p.LyDoTay; lyBox.TextWrapping = TextWrapping.Wrap;
+        var lyTay = new CheckBox { Content = "Gõ tay lý do", IsChecked = p.LyDoTay, FontSize = 12, IsEnabled = _edit, Margin = new Thickness(0, -2, 0, 4) };
         lyTay.IsCheckedChanged += (_, _) => { if (_loading) return; p.LyDoTay = lyTay.IsChecked == true; if (p.LyDoTay && p.LyDo.Length == 0) p.LyDo = LyDoAuto(p); lyBox.IsEnabled = _edit && p.LyDoTay; _loading = true; lyBox.Text = LyDoOf(p); _loading = false; Dirty(); };
-        ly.Children.Add(Labeled("Lý do xuất (tự ghép từ LSX + khách; tích “Gõ tay” để sửa)", lyBox)); ly.Children.Add(lyTay);
-        _editor.Children.Add(ly);
+        _side.Children.Add(F("Lý do xuất (tự ghép từ LSX + khách)", lyBox)); _side.Children.Add(lyTay);
         // --- thông tin xe
-        var gx = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (var (k, _, _, lab) in XeFields) gx.Children.Add(Labeled(lab, Tb(p.Xe.Get(k), v => p.Xe.Set(k, v), k is "taiXe" ? 170 : 140)));
-        _editor.Children.Add(Section("Thông tin xe (có thể dán nguyên email ở nút “Dán email thông tin xe”)", gx));
-        // --- mặt hàng
-        for (var i = 0; i < p.Mh.Count; i++) _editor.Children.Add(BuildBlock(p, i));
-        if (_edit && p.Mh.Count < XuatKhauLayout.NB)
+        _side.Children.Add(SideHead("Thông tin xe"));
+        var xe = XeFields.ToList();
+        for (var i = 0; i < xe.Count; i += 2)
         {
-            var add = Btn("➕ Thêm mặt hàng", async () => { p.Mh.Add(new MatHang()); _dirty = true; ShowEditor(); await Task.CompletedTask; });
-            _editor.Children.Add(add);
+            var (k1, _, _, l1) = xe[i];
+            var a = F(l1, Tb(p.Xe.Get(k1), v => p.Xe.Set(k1, v)));
+            Control? b = null;
+            if (i + 1 < xe.Count) { var (k2, _, _, l2) = xe[i + 1]; b = F(l2, Tb(p.Xe.Get(k2), v => p.Xe.Set(k2, v))); }
+            _side.Children.Add(P(a, b));
         }
         // --- cuối phiếu
         var gc = p.Gc;
-        var g3 = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        g3.Children.Add(Labeled("Kiểm tra hình ảnh", Tb(gc.HinhAnh, v => gc.HinhAnh = v, 330)));
-        g3.Children.Add(Labeled("Nhiệt độ bắt đầu xuất", Tb(gc.NdBatDau, v => gc.NdBatDau = v, 110)));
-        g3.Children.Add(Labeled("Nhiệt độ khi rời nhà máy", Tb(gc.NdRoi, v => gc.NdRoi = v, 110)));
-        g3.Children.Add(Labeled("Đóng sole", Cb(new[] { "", "co", "khong" }, gc.Sole, v => gc.Sole = v, 90)));
-        g3.Children.Add(Labeled("Nhiệt kế", Cb(new[] { "", "co", "khong" }, gc.NhietKe, v => gc.NhietKe = v, 90)));
-        g3.Children.Add(Labeled("Mã số nhiệt kế", Tb(gc.MaNhietKe, v => gc.MaNhietKe = v, 120)));
-        g3.Children.Add(Labeled("Cont đến", Tb(gc.ContDen, v => gc.ContDen = v, 120)));
-        g3.Children.Add(Labeled("Cont đi", Tb(gc.ContDi, v => gc.ContDi = v, 120)));
-        g3.Children.Add(Labeled("Cửa XH", Tb(gc.CuaXH, v => gc.CuaXH = v, 110)));
-        g3.Children.Add(Labeled("Người báo", Tb(gc.NguoiBao, v => gc.NguoiBao = v, 140)));
-        _editor.Children.Add(Section("Cuối phiếu (nhiệt độ, sole, nhiệt kế, người báo)", g3));
+        _side.Children.Add(SideHead("Cuối phiếu"));
+        _side.Children.Add(F("Kiểm tra hình ảnh", Tb(gc.HinhAnh, v => gc.HinhAnh = v)));
+        _side.Children.Add(P(F("Nhiệt độ bắt đầu xuất", Tb(gc.NdBatDau, v => gc.NdBatDau = v)), F("Nhiệt độ rời nhà máy", Tb(gc.NdRoi, v => gc.NdRoi = v))));
+        _side.Children.Add(P(F("Đóng sole", Cb(new[] { "", "co", "khong" }, gc.Sole, v => gc.Sole = v)), F("Nhiệt kế", Cb(new[] { "", "co", "khong" }, gc.NhietKe, v => gc.NhietKe = v))));
+        _side.Children.Add(P(F("Mã số nhiệt kế", Tb(gc.MaNhietKe, v => gc.MaNhietKe = v)), F("Cửa XH", Tb(gc.CuaXH, v => gc.CuaXH = v))));
+        _side.Children.Add(P(F("Cont đến", Tb(gc.ContDen, v => gc.ContDen = v)), F("Cont đi", Tb(gc.ContDi, v => gc.ContDi = v))));
+        _side.Children.Add(F("Người báo", Tb(gc.NguoiBao, v => gc.NguoiBao = v)));
+        // --- tổng + lỗi
+        _side.Children.Add(SideHead("Tổng"));
+        _side.Children.Add(_totals);
+        _err.Margin = new Thickness(0, 6, 0, 0); _side.Children.Add(_err);
+        // --- bên trái: mặt hàng xếp dọc, mặt hàng đang mở giãn hết chiều cao
+        Control? footer = null;
+        if (_edit && p.Mh.Count < XuatKhauLayout.NB)
+            footer = Btn("➕ Thêm mặt hàng", async () => { p.Mh.Add(new MatHang()); _openBlock = p.Mh.Count - 1; _dirty = true; ShowEditor(); await Task.CompletedTask; });
+        _main.Child = PhieuShell.Stack(null, p.Mh.Count, _openBlock, (i, open) => BuildBlock(p, i, open), footer);
         _loading = false;
         RefreshAll();
     }
 
-    private static Border Section(string title, Control body)
-    {
-        var s = new StackPanel { Spacing = 6 };
-        s.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, FontSize = 13, Foreground = Dark });
-        s.Children.Add(body);
-        return new Border { Background = CardBg, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 8), Child = s };
-    }
+    private static TextBlock SideHead(string t) => new() { Text = t, FontWeight = FontWeight.Bold, FontSize = 13, Foreground = Dark, Margin = new Thickness(0, 8, 0, 4) };
 
-    private Control BuildBlock(Phieu p, int bi)
+    private void OpenBlock(int i) { if (i == _openBlock) return; _openBlock = i; ShowEditor(); }
+
+    private Control BuildBlock(Phieu p, int bi, bool open)
     {
         var m = p.Mh[bi];
-        var head = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
-        head.Children.Add(Labeled("Tên hàng", Tb(m.Ten, v => m.Ten = v, 300)));
-        head.Children.Add(Labeled("Mã hàng (1 mã cho cả mặt hàng)", Tb(m.Ma, v => m.Ma = v, 220)));
-        head.Children.Add(Labeled("Mã số lô", Tb(m.Lo, v => m.Lo = v, 120)));
-        head.Children.Add(Labeled("LSX của mặt hàng", Tb(m.Lsx, v => m.Lsx = v, 120)));
-        head.Children.Add(Labeled("Sản xuất", Cb(new[] { "Tự theo mã", "AA", "TP" }, m.Sx is "AA" or "TP" ? m.Sx : "Tự theo mã", v => m.Sx = v == "Tự theo mã" ? "" : v, 120)));
+        Button? rm = null;
         if (_edit)
         {
-            var rm = new Button { Content = "🗑 Xóa mặt hàng", Padding = new Thickness(8, 3), VerticalAlignment = VerticalAlignment.Bottom }; rm.Classes.Add("danger");
-            rm.Click += (_, _) => { p.Mh.Remove(m); if (p.Mh.Count == 0) p.Mh.Add(new MatHang()); _dirty = true; ShowEditor(); };
-            head.Children.Add(rm);
+            rm = new Button { Content = "Xóa", Padding = new Thickness(8, 3) }; rm.Classes.Add("danger");
+            ToolTip.SetTip(rm, "Xóa mặt hàng " + (bi + 1));
+            rm.Click += async (_, _) =>
+            {
+                if (UsedBlock(m) && !await Ui.Confirm(this, $"Xóa mặt hàng {bi + 1}" + (m.Ten.Length > 0 ? $" ({m.Ten})" : "") + "?", "Xóa mặt hàng", "Xóa")) return;
+                p.Mh.Remove(m); if (p.Mh.Count == 0) p.Mh.Add(new MatHang()); if (_openBlock >= bi && _openBlock > 0) _openBlock--; _dirty = true; ShowEditor();
+            };
         }
+        var tog = PhieuShell.Toggle($"Mặt hàng {bi + 1}", open, () => OpenBlock(bi));
+        if (!open)
+        {
+            var sum = m.DongList.Where(UsedRow).ToList();
+            var k = sum.Sum(d => N0(d.Kien)); var kg = sum.Sum(d => RowNet(d) is { } n ? n * N0(d.Kien) : 0);
+            var info = new TextBlock
+            {
+                Text = (m.Ten.Length > 0 ? m.Ten : "(chưa có tên hàng)") + (m.Ma.Length > 0 ? " · " + m.Ma : "") + $"  —  {sum.Count} dòng · {Fmt(k)} kiện · {Fmt(kg)} kg",
+                Classes = { "muted" }, FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            var cells = new List<(Control, string)> { (tog, "Auto"), (info, "*") };
+            if (rm is not null) cells.Add((rm, "Auto"));
+            var row = PhieuShell.Row(cells.ToArray());
+            var card = PhieuShell.Card(row, new Thickness(8, 4));
+            card.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+            card.PointerPressed += (_, e) => { if (e.Source is not Button && !(e.Source as Visual)?.GetVisualAncestors().OfType<Button>().Any() == true) OpenBlock(bi); };
+            return card;
+        }
+        var ten = Tb(m.Ten, v => m.Ten = v, watermark: "Tên hàng"); ToolTip.SetTip(ten, "Tên hàng");
+        var ma = Tb(m.Ma, v => m.Ma = v, watermark: "Mã hàng (1 mã cả mặt hàng)"); ToolTip.SetTip(ma, "Mã hàng (1 mã cho cả mặt hàng; nhiều mã thì điền “Mã riêng” từng dòng)");
+        var lo = Tb(m.Lo, v => m.Lo = v, watermark: "Mã số lô"); ToolTip.SetTip(lo, "Mã số lô");
+        var lsx = Tb(m.Lsx, v => m.Lsx = v, watermark: "LSX mặt hàng"); ToolTip.SetTip(lsx, "LSX của mặt hàng");
+        var sx = Cb(new[] { "Tự theo mã", "AA", "TP" }, m.Sx is "AA" or "TP" ? m.Sx : "Tự theo mã", v => m.Sx = v == "Tự theo mã" ? "" : v); ToolTip.SetTip(sx, "Sản xuất");
+        var headCells = new List<(Control, string)> { (tog, "Auto"), (ten, "*"), (ma, "1.1*"), (lo, "0.55*"), (lsx, "0.6*"), (sx, "0.65*") };
+        if (rm is not null) headCells.Add((rm, "Auto"));
+        var head = PhieuShell.Row(headCells.ToArray());
 
         var gm = new GridModel { ReadOnly = !_edit };
         gm.Load(new[]
         {
-            new GridColumn("date", "DATE (dd.mm.yyyy)", 118), new GridColumn("size", "Size", 70), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 120),
-            new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 150), new GridColumn("kien", "Số kiện", 75, "number"), new GridColumn("mks", "MKS (x / số)", 90),
-            new GridColumn("nettay", "NET sửa tay", 85, "number"), new GridColumn("net", "NET / kiện", 85, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 130, "number") { ReadOnly = true },
+            new GridColumn("date", "DATE (dd.mm.yyyy)", 118), new GridColumn("size", "Size", 70), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 150),
+            new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 160), new GridColumn("kien", "Số kiện", 80, "number"), new GridColumn("mks", "MKS (x / số)", 95),
+            new GridColumn("nettay", "NET sửa tay", 90, "number"), new GridColumn("net", "NET / kiện", 90, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 120, "number") { ReadOnly = true },
         }, m.DongList.Select(d => new[] { d.Date, d.Size, d.Ma, d.Packing, d.Kien, d.Mks, d.NetTay, "", "" }));
-        var grid = new SheetGrid(gm) { SpareRows = 2 };
+        var grid = new SheetGrid(gm) { SpareRows = 20 };
+        ToolTip.SetTip(grid, null);
         grid.Display = (r, c, raw) =>
         {
             if (c is not (7 or 8)) return raw;
@@ -337,19 +387,17 @@ public sealed class PhieuKhoView : UserControl, IPage
             if (n is null) return c == 7 ? "?" : "";
             return c == 7 ? Fmt(n.Value) : Fmt(n.Value * N0(d.Kien));
         };
-        void FixHeight() => grid.Height = Math.Min(520, 24 * (Math.Max(gm.RowCount, 1) + grid.SpareRows) + 34);
-        FixHeight();
         gm.Changed += () =>
         {
             if (_loading) return;
-            SyncRows(m, gm); FixHeight(); Dirty();
+            SyncRows(m, gm); Dirty();
         };
         _blocks.Add((m, gm));
-        var total = new TextBlock { FontSize = 12, Classes = { "muted" } };
-        total.Text = "Mã hàng: nhập 1 mã ở trên cho cả mặt hàng, hoặc điền “Mã riêng” từng dòng khi mặt hàng có nhiều mã. Dán nhiều dòng từ Excel được (Ctrl+V).";
-        var body = new StackPanel { Spacing = 6 };
-        body.Children.Add(head); body.Children.Add(Framed(grid)); body.Children.Add(total);
-        return Section($"Mặt hàng {bi + 1}", body);
+        var body = new DockPanel();
+        head.Margin = new Thickness(0, 0, 0, 6);
+        DockPanel.SetDock(head, Dock.Top); body.Children.Add(head);
+        body.Children.Add(Framed(grid));
+        return PhieuShell.Card(body, new Thickness(8, 6, 8, 8));
     }
 
     private static string Fmt(double d) => d.ToString("#,0.###", Ui.Vi);
@@ -383,26 +431,42 @@ public sealed class PhieuKhoView : UserControl, IPage
     private void RefreshTitle()
     {
         var so = _cur is null ? "" : _cur.SoPhieu.Trim().Length > 0 ? _cur.SoPhieu.Trim() : "(chưa có số)";
-        _curTitle.Text = _cur is null ? "" : (_cur.Id.Length == 0 ? "Phiếu xuất khẩu mới · " : "Phiếu xuất khẩu · ") + so + (_cur.Lsx.Length > 0 ? " · LSX " + _cur.Lsx : "") + (_dirty ? " ●" : "");
-        _curTitle.IsVisible = _cur is not null;
-        _editTab.Header = _cur is null ? "Nhập liệu phiếu" : "Nhập liệu phiếu · " + so + (_dirty ? " ●" : "");
+        _curTitle.Text = _cur is null ? "" : (_cur.Id.Length == 0 ? "Phiếu xuất khẩu mới · " : "Phiếu xuất khẩu · ") + so + (_cur.Lsx.Length > 0 ? " · LSX " + _cur.Lsx : "");
     }
 
     private void RefreshAll()
     {
         RefreshTitle();
-        if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _mail.Text = ""; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
+        if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _errPill.IsVisible = false; _savedPill.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export; _copy.IsEnabled = true;
         var t = TotalsOf(_cur); var unit = _cur.DonVi == "bdl" ? "bdl" : "kiện";
-        _totals.Text = $"Tổng: {t.Kien:#,0.##} {unit} (An An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}) · {t.Kg:#,0.00} kg" + (t.Kien > 0 ? "  —  " + DocSo(t.Kien) + " " + unit : "");
+        _totals.Text = $"{t.Kien:#,0.##} {unit} · {t.Kg:#,0.00} kg\nAn An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}" + (t.Kien > 0 ? "\n" + DocSo(t.Kien) + " " + unit : "");
         var errs = Validate(Clone(_cur));
         _err.IsVisible = errs.Count > 0;
-        _err.Text = errs.Count == 0 ? "" : "Cần sửa trước khi xuất file: " + string.Join(" ", errs.Take(3)) + (errs.Count > 3 ? $" (+{errs.Count - 3} lỗi nữa)" : "");
-        _status.Text = _dirty ? "● Có thay đổi chưa lưu" : (_cur.Id.Length > 0 ? "Đã lưu" : "");
-        RefreshMail();
+        _err.Text = errs.Count == 0 ? "" : "Cần sửa trước khi xuất file:\n• " + string.Join("\n• ", errs.Take(8)) + (errs.Count > 8 ? $"\n(+{errs.Count - 8} lỗi nữa)" : "");
+        _errPill.IsVisible = errs.Count > 0;
+        _errText.Text = $"⚠ {errs.Count} lỗi cần sửa";
+        ToolTip.SetTip(_errPill, _err.Text);
+        _savedPill.IsVisible = true;
+        if (_dirty) { _savedText.Text = "● Chưa lưu"; PhieuShell.SetPill(_savedPill, "warn"); }
+        else if (_cur.Id.Length > 0) { _savedText.Text = "Đã lưu"; PhieuShell.SetPill(_savedPill, "ok"); }
+        else { _savedText.Text = "Phiếu mới"; PhieuShell.SetPill(_savedPill, "info"); }
+        if (_dirty && _status.Text?.StartsWith("Đã ") == true) _status.Text = "";
     }
 
-    private void RefreshMail() { if (_tabs?.SelectedIndex == 1 && _cur is not null) _mail.Text = EmailText(_cur); }
+    private async Task ShowMail()
+    {
+        if (_cur is null) return;
+        var box = new TextBox { Text = EmailText(_cur), IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("Consolas, Cascadia Mono, monospace"), FontSize = 12.5, TextWrapping = TextWrapping.NoWrap, Height = 420 };
+        var copy = new Button { Content = "Copy email", Classes = { "primary" } };
+        var close = new Button { Content = "Đóng", IsCancel = true };
+        var body = new StackPanel(); body.Children.Add(box); body.Children.Add(Ui.Buttons(close, copy));
+        var w = Ui.Dialog("Nội dung email", body, 760);
+        copy.Click += async (_, _) => { await CopyMail(); w.Close(); };
+        close.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+    }
+
 
     // ------------------------------------------------------------------ thao tác
 
@@ -432,7 +496,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null || _cur.Id.Length == 0) return;
         if (!await Ui.Confirm(this, $"Xóa phiếu {_cur.SoPhieu}? Không khôi phục được.", "Xóa phiếu", "Xóa")) return;
         var id = _cur.Id;
-        if (await Ui.Run(this, () => Svc.Delete(id))) { _cur = null; _dirty = false; RenderList(""); ShowEditor(); _status.Text = "Đã xóa phiếu"; }
+        if (await Ui.Run(this, () => Svc.Delete(id))) { _cur = null; _dirty = false; RenderList(""); ShowEditor(); ShowFull(null); _listInfo.Text = "Đã xóa phiếu · " + _listInfo.Text; }
     }
 
     private async Task DoExport()

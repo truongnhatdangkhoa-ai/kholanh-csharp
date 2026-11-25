@@ -457,7 +457,13 @@ var vtDemo = new List<(string Vt, string Ma, string Ten, string Lo, int Sl, doub
     var other = KhoLanh.Core.PhieuKho.PhieuKhoCore.Clone(mk); other.Id = "pxdemo0"; other.SoPhieu = $"02.{DateTime.Today:MM} XKTP 01"; other.Ngay = DateTime.Today.AddDays(-5).ToString("yyyy-MM-dd"); other.Lsx = "26.08.071"; other.Khach = "SYSCO"; other.XuatLuc = "2026-11-18T01:00:00.000Z";
     mk.CapNhat = "2026-11-22T01:00:00.000Z"; other.CapNhat = "2026-11-18T01:00:00.000Z";
     var rowsPk = new System.Text.Json.Nodes.JsonArray();
-    foreach (var q in new[] { mk, other })
+    var olds = Enumerable.Range(1, 3).Select(k =>   // 1.82: thêm phiếu các tháng trước để thấy danh sách nhóm theo tháng
+    {
+        var o = KhoLanh.Core.PhieuKho.PhieuKhoCore.Clone(other); var d = DateTime.Today.AddMonths(-k).AddDays(-k);
+        o.Id = "pxdemo-old" + k; o.Ngay = d.ToString("yyyy-MM-dd"); o.SoPhieu = $"{10 + k:00}.{d:MM} XKAA {20 + k}"; o.Khach = new[] { "UMIOS FOOD UK", "PACIFIC AMERICAN", "TOYO REIZO" }[k - 1]; o.Lsx = $"26.{d:MM}.0{40 + k}";
+        return o;
+    }).ToArray();
+    foreach (var q in new[] { mk, other }.Concat(olds))
         rowsPk.Add(new System.Text.Json.Nodes.JsonObject { ["id"] = q.Id, ["loai"] = q.Loai, ["ngay"] = q.Ngay, ["soPhieu"] = q.SoPhieu, ["lsx"] = q.Lsx, ["khach"] = q.Khach, ["capNhat"] = q.CapNhat, ["data"] = "__JSON__" + KhoLanh.Core.PhieuKho.PhieuKhoCore.ToJson(q) });
     s.Modules.WriteSheets("phieu-nhap-xuat", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["PNX_Phieu"] = rowsPk });
 }
@@ -906,7 +912,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "l2")
     top.SelectedIndex = 2; W(500);
     var cg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
     var lg = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
-    lg.Select(0, 0); lg.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(800);
+    lg.Select(1, 0); lg.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(800);   // dòng 0 = dòng nhóm tháng (1.82)
     var cur = (KhoLanh.Core.PhieuKho.CargoRec)typeof(KhoLanh.App.Views.CargoView).GetField("_cur", bf)!.GetValue(cg)!;
     cur.DayCap = Enumerable.Range(1, 20).ToDictionary(d => d.ToString(), _ => "63");   // KIỆN / DÃY 20 × 63
     typeof(KhoLanh.App.Views.CargoView).GetMethod("ShowEditor", bf)!.Invoke(cg, null); W(400);
@@ -930,10 +936,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "l2")
     var b0 = cur.Blocks[0];
     Console.WriteLine($"[L2] sau Thêm vào phiếu: mục 1 có {b0.Lines.Count} dòng; dòng cuối: Loại {b0.Lines[^1].Loai}, Sn {b0.Lines[^1].Sn}, KQ tay {b0.Lines[^1].KsTay}, Lô “{b0.Lines[^1].Lo}”, dãy {string.Join(",", b0.Lines[^1].Dai.Select(kv => kv.Key + ":" + kv.Value))}");
     if (b0.Lines.Count < 3) Fail("chưa thêm dòng vào mục");
-    var blockGrid = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Model.ColCount > 40).First();
-    var sv = blockGrid.GetVisualAncestors().OfType<ScrollViewer>().First();
-    var y = blockGrid.TranslatePoint(new Point(0, 0), (Visual)sv.Content!)?.Y ?? 0;
-    sv.Offset = new Vector(0, Math.Max(0, y - 120)); W(400);
+    var blockGrid = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible && x.Model.ColCount > 40).First();
+    W(400);
     Snap(main, "31f-phieu-noi-dia-da-them-tu-ton");
     s.Lan.Dispose(); Console.WriteLine("Xong (l2): " + outDir); return;
 }
@@ -1803,47 +1807,69 @@ Console.WriteLine("Xong: " + outDir);
 void PxScene()
 {
     void W(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var bfx = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+    var pkv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.PhieuKhoView>().First();
     var top = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
     TabControl Sub() => main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top);
     KhoLanh.App.Controls.SheetGrid Grid() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
-    // Phiếu xuất khẩu: tab Danh sách → bấm đúp phiếu → tab Nhập liệu (Soạn phiếu / Nội dung email)
+    void Fail(string m) { Console.WriteLine("[PX] LỖI: " + m); Environment.Exit(1); }
+    double ow = main.Width, oh = main.Height; main.Width = 1366; main.Height = 768; W(10);   // màn hình nhỏ như máy người dùng
+    // 1.82: danh sách nhóm theo tháng (dòng 0 = dòng tháng) → bấm đúp phiếu → khung soạn phiếu chiếm cả trang (phương án B)
     top.SelectedIndex = 0; W(10);
-    var sub = Sub(); sub.SelectedIndex = 0; W(8);
-    var g = Grid(); g.Select(0, 0); W(4); Snap(main, "30-phieu-xuat-khau-danh-sach");
-    g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(12);
-    Console.WriteLine($"[PX] xuất khẩu: tab con sau bấm đúp = {sub.SelectedIndex}");
+    var g = Grid(); W(4);
+    Console.WriteLine($"[PX] danh sách xuất khẩu: dòng 0 = “{g.Model.Get(0, 0)}” · {g.Model.Get(0, 1)}");
+    if (!g.Model.Get(0, 0).Contains("Tháng")) Fail("dòng đầu không phải dòng nhóm tháng");
+    g.Select(1, 0); W(4); Snap(main, "30-phieu-xuat-khau-danh-sach");
+    var rows0 = g.Model.RowCount; g.RowClicked!(0); W(6);
+    Console.WriteLine($"[PX] bấm dòng tháng: {rows0} → {g.Model.RowCount} dòng (thu lại)");
+    if (g.Model.RowCount >= rows0) Fail("bấm dòng tháng không thu lại");
+    Snap(main, "30a-phieu-xuat-khau-thu-thang");
+    g.RowClicked!(0); W(6);
+    if (g.Model.RowCount != rows0) Fail("bấm dòng tháng lần 2 không mở lại");
+    g.Select(1, 0); g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
+    if (!pkv.EditorOpen) Fail("bấm đúp phiếu không mở khung soạn phiếu");
+    var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
+    Console.WriteLine($"[PX] soạn phiếu xuất khẩu: lưới mặt hàng cao {eg.Bounds.Height:0} px, rộng {eg.Bounds.Width:0} px (cửa sổ {main.Bounds.Width:0}×{main.Bounds.Height:0})");
+    if (eg.Bounds.Height < 0.38 * main.Bounds.Height) Fail("lưới mặt hàng còn thấp");
     Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
-    var em = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub);
-    em.SelectedIndex = 1; W(4); Snap(main, "30c-phieu-xuat-khau-email"); em.SelectedIndex = 0; W(2);
-    // Phiếu xuất nội địa: tab Danh sách cont → bấm đúp → Nhập liệu (Nhập Cargo / Phiếu xem trước) · Danh mục
+    var closeX = (Func<Task>)Delegate.CreateDelegate(typeof(Func<Task>), pkv, pkv.GetType().GetMethod("CloseEditor", bfx)!);
+    _ = closeX(); W(10);
+    if (pkv.EditorOpen) Fail("← Danh sách không đóng phiếu");
+    Console.WriteLine("[PX] ← Danh sách: đã về danh sách");
+    // Phiếu xuất nội địa
     top.SelectedIndex = 2; W(14);
     var sub2 = Sub(); sub2.SelectedIndex = 0; W(8);
-    var g2 = Grid(); g2.Select(0, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");
+    var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
+    var g2 = Grid(); g2.Select(1, 0); W(4); Snap(main, "31-phieu-noi-dia-danh-sach");
     g2.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
-    Console.WriteLine($"[PX] nội địa: tab con sau bấm đúp = {sub2.SelectedIndex}");
+    if (!pkv.EditorOpen) Fail("bấm đúp cont không mở khung soạn phiếu");
     Snap(main, "31b-phieu-noi-dia-nhap-lieu");
-    {   // 1.67: lưới mục hàng Cargo hiện ≥ 10 dòng, gõ vào dòng trống thì thêm dòng (vẫn còn ≥ 3 dòng trống, lưới cao thêm)
-        var cgv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
-        var cgg = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12 && x.Model.Columns[0].Header != "");
-        int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Height;
-        var rowsFit = (int)((cgg.Bounds.Height - KhoLanh.App.Controls.SheetGrid.HeadH) / KhoLanh.App.Controls.SheetGrid.RowH);
+    {   // lưới mục hàng Cargo luôn có dòng trống; gõ dòng trống cuối thì thêm dòng · KIỆN / DÃY + gõ Tổng đổ đầy
+        var cgg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 12 && x.Model.Columns[0].Header != "");
+        int n0 = cgg.Model.RowCount, t0 = cgg.TotalRows; var h0 = cgg.Bounds.Height;
+        Console.WriteLine($"[CARGO] lưới mục hàng cao {h0:0} px (cửa sổ {main.Bounds.Height:0})");
+        if (h0 < 0.3 * main.Bounds.Height) Fail("lưới mục hàng còn thấp");
         cgg.Model.Set(t0 - 1, 2, "01.08 L9"); W(4);   // gõ vào dòng trống cuối cùng
-        Console.WriteLine($"[CARGO] dòng: {n0} có số liệu, hiện {t0} (vừa khung ~{rowsFit}); gõ dòng {t0} → {cgg.Model.RowCount} dòng, hiện {cgg.TotalRows}, cao {h0:0} → {cgg.Height:0}");
-        if (t0 < KhoLanh.App.Views.CargoView.MinRows || cgg.TotalRows < cgg.Model.RowCount + KhoLanh.App.Views.CargoView.MinSpare) { Console.WriteLine("[CARGO] LỖI: thiếu dòng trống"); Environment.Exit(1); }
+        Console.WriteLine($"[CARGO] dòng: {n0} có số liệu, hiện {t0}; gõ dòng {t0} → {cgg.Model.RowCount} dòng, hiện {cgg.TotalRows}");
+        if (t0 < KhoLanh.App.Views.CargoView.MinRows || cgg.TotalRows < cgg.Model.RowCount + KhoLanh.App.Views.CargoView.MinSpare) Fail("thiếu dòng trống");
         Snap(main, "31b2-phieu-noi-dia-them-dong");
         cgg.Model.Undo(); W(2);
-        // 1.71: hàng KIỆN / DÃY (20 dãy × 63) + gõ Tổng 150 ở dòng 1 → tự đổ đầy 63 · 63 · 24
-        var cap = cgv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.Columns[0].Header == "" && x.Model.ColCount > 12);
+        var cap = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.Columns[0].Header == "" && x.Model.ColCount > 12);
         cap.Model.SetCells(Enumerable.Range(1, 20).Select(d => (0, 1 + d, "63")).ToList()); W(3);
         cgg.Model.Set(0, 9, "150"); W(4);
         Console.WriteLine($"[CARGO] KIỆN/DÃY 20×63, gõ Tổng 150 → dãy 1–4: {string.Join(", ", Enumerable.Range(10, 4).Select(c => cgg.Model.Get(0, c)))}");
         Snap(main, "31b3-phieu-noi-dia-kien-day");
         cgg.Model.Undo(); cap.Model.Undo(); W(2);
     }
-    var pv = main.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible && x != top && x != sub2);
-    pv.SelectedIndex = 1; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pv.SelectedIndex = 0; W(2);
-    sub2.SelectedIndex = 2; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");
-    top.SelectedIndex = 0; Pump();
+    var pvb = main.PageHost.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(x => x.IsEffectivelyVisible && x.Content as string == "Xem trước");
+    pvb.IsChecked = true; W(6); Snap(main, "31c-phieu-noi-dia-xem-truoc"); pvb.IsChecked = false; W(2);
+    typeof(KhoLanh.App.Views.CargoView).GetField("_dirty", bfx)!.SetValue(cgv, false);
+    var closeC = (Func<Task>)Delegate.CreateDelegate(typeof(Func<Task>), cgv, typeof(KhoLanh.App.Views.CargoView).GetMethod("CloseEditor", bfx)!);
+    _ = closeC(); W(10);
+    if (pkv.EditorOpen) Fail("← Danh sách không đóng cont");
+    sub2 = Sub(); sub2.SelectedIndex = 1; W(6); Snap(main, "31d-phieu-noi-dia-danh-muc");
+    sub2.SelectedIndex = 0; top.SelectedIndex = 0; Pump();
+    main.Width = ow; main.Height = oh; W(6);
 }
 
 void DmScene()
