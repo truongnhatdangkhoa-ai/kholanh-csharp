@@ -33,7 +33,7 @@ public class GopSheetDienThoaiTests : IDisposable
     private sealed class Router(GopSheetDienThoaiTests t) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage req, CancellationToken ct) =>
-            new HttpMessageInvoker(req.RequestUri!.AbsolutePath.Contains("PHONE") ? t._phone : t._old, false).SendAsync(req, ct);
+            new HttpMessageInvoker(req.RequestUri!.AbsolutePath.Contains("PHONE") || req.RequestUri.AbsoluteUri == PhoneWebApp.DefaultUrl ? t._phone : t._old, false).SendAsync(req, ct);   // đường dẫn cài sẵn = Sheet điện thoại
     }
 
     /// <summary>Code.gs điện thoại: pc.* cần PC_TOKEN; list / save / replaceAll = phần tài khoản (giống TaiKhoan.gs, mã ở Thuộc tính tập lệnh).</summary>
@@ -204,7 +204,16 @@ public class GopSheetDienThoaiTests : IDisposable
         var (d, _) = Machine("D", phoneLinked: false);
         d.Settings.Set(PhoneWebApp.KeyUrl, PhoneUrl);
         e = await Assert.ThrowsAnyAsync<BusinessException>(() => d.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
-        Assert.Equal(AccountSyncService.OldJoinScriptMsg, e.Message);
+        Assert.StartsWith(AccountSyncService.OldJoinScriptMsg, e.Message);
+        _phone.OldScript = false;
+
+        // 1.111: máy còn lưu đường dẫn Web App CŨ (Sheet khác, Code.gs cũ) → tự hỏi đường dẫn chuẩn cài sẵn, đúng thì chuyển máy sang đường dẫn đó.
+        var (g, gPhone) = Machine("G", phoneLinked: false);
+        g.Settings.Set(PhoneWebApp.KeyUrl, OldUrl);           // Sheet tài khoản cũ: không có lệnh pcDangNhap
+        Assert.Equal(2, await g.Accounts.JoinByPasswordAsync("nv1", "matkhau2"));
+        Assert.Equal(PhoneWebApp.DefaultUrl, gPhone.Url);
+        Assert.Equal(PcToken, gPhone.Token);
+        Assert.Equal(PhoneWebApp.DefaultUrl, g.Accounts.Url);
     }
 
     /// <summary>
