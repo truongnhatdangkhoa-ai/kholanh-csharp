@@ -116,9 +116,14 @@ public sealed class DriveCaNhanService
 
     // ------------------------------------------------------------------ đăng nhập Gmail
 
+    /// <summary>1.112: lấy Client ID / secret OAuth dùng chung từ Google Sheet chung khi máy này còn thiếu (gắn ở AppServices).</summary>
+    public Func<CancellationToken, Task>? EnsureClient { get; set; }
+
     public async Task<string> SignInAsync(Action<string> openBrowser, CancellationToken ct)
     {
         RequirePerm();
+        if ((!Client.Ok || Client.Secret.Trim().Length == 0) && EnsureClient is { } ensure) { try { await ensure(ct); } catch { /* báo ở dưới */ } }
+        if (Client.Ok && Client.Secret.Trim().Length == 0) throw new BusinessException("Máy này chưa có Client secret Google (mã OAuth dùng chung cho Gmail sao lưu / Lưu trữ cá nhân / Đăng nhập Google). Ở máy đã nhập Client secret, mở app (đăng nhập bất kỳ) để app tự chia sẻ lên Google Sheet chung rồi thử lại ở máy này — hoặc nhập Client secret ngay trên máy này.");
         if (!Client.Ok) throw new BusinessException("Máy này chưa có Client ID Google — Quản trị nhập 1 lần (dùng chung với Lưu trữ cá nhân).");
         var c = Config;
         var res = await Google.SignInAsync(Client, openBrowser, ct, c.Email.Length > 0 ? c.Email : null);

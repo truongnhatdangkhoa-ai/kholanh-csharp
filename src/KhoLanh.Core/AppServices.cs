@@ -112,6 +112,9 @@ public class AppServices
         Vtb = new KhoLanh.Core.SoKho.VtbService(() => Lan, Session, Audit);
         Phone = new PhoneWebApp(Settings);
         Accounts.Phone = Phone;   // 1.105: mã kết nối máy mang theo PC_TOKEN
+        // 1.112: Client OAuth Google dùng chung qua Sheet chung — máy thiếu secret tự lấy về trước khi đăng nhập Gmail.
+        DriveCaNhan.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
+        LuuTru.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
