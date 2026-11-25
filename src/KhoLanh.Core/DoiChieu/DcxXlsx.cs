@@ -796,6 +796,39 @@ public static class DcxXlsx
 
     // ------------------------------------------------------------------ thêm cột SIZE vào file kho (để in chứng từ)
 
+    /// <summary>1.95: cập nhật tên hàng ở dòng chi tiết theo mã (chỉ ô Tên hàng, giữ kiểu ô / công thức khác).</summary>
+    public sealed class NameReport { public string Sheet = "", Col = ""; public int Rows, Same, NoName; public List<(int Row, string Ma, string Cu, string Moi, string Src)> Changes = new(); }
+    /// <summary>Đổi ô Tên hàng của dòng chi tiết thành tên tra theo mã (nameOf → null = không tra được, giữ nguyên). only = các số dòng được đổi (null = mọi dòng khác tên).</summary>
+    public static (byte[]? Bytes, NameReport Report) UpdateNames(byte[] bytes, string sheetName, Func<string, (string Ten, string Src)?> nameOf, ISet<int>? only = null, bool dry = false)
+    {
+        var book = OpenBook(bytes, sheetName); var info = FindCols(book); Classify(book, info);
+        if (info["ten"] is not { } col) throw new BusinessException("File Kho không có cột Tên hàng — không có gì để cập nhật.");
+        var rep = new NameReport { Sheet = book.SheetName, Col = col };
+        foreach (var row in book.Rows)
+        {
+            if (row.R <= info.Header || row.Kind != "det") continue;
+            var ma = TextOf(book, CellOf(row, info["ma"])).Trim(); if (ma.Length == 0) continue;
+            rep.Rows++;
+            var cell = CellOf(row, col); var cu = cell is null ? "" : TextOf(book, cell).Trim();
+            (string Ten, string Src)? hit = null; try { hit = nameOf(ma); } catch { hit = null; }
+            if (hit is not { } h || h.Ten.Trim().Length == 0) { rep.NoName++; continue; }
+            var moi = h.Ten.Trim();
+            if (string.Equals(cu, moi, StringComparison.Ordinal)) { rep.Same++; continue; }
+            rep.Changes.Add((row.R, ma, cu, moi, h.Src));
+            if (dry || (only is not null && !only.Contains(row.R))) continue;
+            var isx = "<is><t xml:space=\"preserve\">" + Xesc(moi) + "</t></is>";
+            if (cell is not null) { cell.T = "inlineStr"; cell.Is = isx; cell.V = null; cell.F = null; }
+            else
+            {
+                string? st = null; foreach (var k in new[] { info["ma"], info["ngay"] }) { var c0 = k is null ? null : CellOf(row, k); if (c0?.S is not null) { st = c0.S; break; } }
+                row.Cells.Add(new XCell { Col = col, S = st, T = "inlineStr", Is = isx }); row.Attrs = Regex.Replace(row.Attrs, @"\sspans=""[^""]*""", "");
+            }
+        }
+        if (dry || rep.Changes.Count == 0 || (only is not null && !rep.Changes.Any(c => only.Contains(c.Row)))) return (null, rep);
+        book.Zip.Set(book.Path, book.Head + string.Concat(book.Rows.Select(r => SerRow(r, r.R))) + "</sheetData>" + book.Tail);
+        return (book.Zip.Save(), rep);
+    }
+
     public sealed class SizeReport
     {
         public string Sheet = "", Col = "", Mode = ""; public int Header, Rows, Filled, Empty, Width; public List<string> NoSize = new();

@@ -55,6 +55,8 @@ public sealed class SheetGrid : UserControl
     public Func<int, bool>? TotalsRowFilter { get; set; }
     /// <summary>Dòng tổng / nhóm (▾ ▸ "Tổng …") vẫn được cộng vào dòng Tổng — vd nhóm đang thu gọn chỉ còn dòng tổng nhóm.</summary>
     public Func<int, bool>? TotalsKeepRow { get; set; }
+    /// <summary>1.95: dòng chữ đậm (vd dòng tổng ngày ở Đối chiếu hàng ngày).</summary>
+    public Func<int, bool>? RowBold { get; set; }
     public event Action? SelectionChanged;
     /// <summary>Bấm chuột trái (thả ra) vào một dòng dữ liệu — chỉ số dòng dữ liệu (model).</summary>
     public Action<int>? RowClicked { get; set; }
@@ -455,7 +457,7 @@ public sealed class SheetGrid : UserControl
         var g = new SheetGrid(Model)
         {
             SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, AutoNumberFormat = AutoNumberFormat, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow, RowBold = RowBold,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol; g.RowChecks = RowChecks; g._ticks = _ticks; g._tickVer = _tickVer;   // cửa sổ lớn dùng chung dòng đã tích
@@ -1182,7 +1184,7 @@ public sealed class SheetGrid : UserControl
                         if (shown.Length == 0) continue;
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
-                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 13, _g.CellForeground?.Invoke(mr, c) ?? Text);
+                        var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _g.RowBold?.Invoke(mr) == true ? HeadFace : Face, 13, _g.CellForeground?.Invoke(mr, c) ?? Text);
                         var num = m.Columns[c].Type == "number" || (m.Columns[c].Type == "text" && LooksNumber(raw));
                         var tx = num ? cx + cw - ft.Width - 6 : cx + 6;
                         using (dc.PushClip(rect.Deflate(new Thickness(2, 0))))
