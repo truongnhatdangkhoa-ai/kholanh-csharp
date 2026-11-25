@@ -761,6 +761,30 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v180")
     var ok = cg.Bounds.Height >= 250 && sv is not null;
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v180) — ĐẠT: " : "Xong (v180) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.81: SHOTS_ONLY=v181 — phím ESC quay lại màn hình trước (tối đa 3), hết thì về Tổng quan; đang gõ ô chữ thì ESC đầu chỉ rời ô. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v181")
+{
+    void P(int n = 15) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    void Esc() { main.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Escape, null); main.KeyRelease(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Escape, null); P(); }
+    var ok = true;
+    foreach (var k in new[] { "lx", "m1", "m2", "m7", "m8" }) { main.Navigate(k); P(25); }
+    Console.WriteLine($"[ESC] đang {main.CurrentKey} · lịch sử {string.Join(" > ", main.BackHistory)}");
+    var seen = new List<string>();
+    for (var i = 0; i < 5; i++) { main.PageHost.Focus(); P(3); Esc(); seen.Add(main.CurrentKey); }
+    Console.WriteLine($"[ESC] 5 lần ESC → {string.Join(" > ", seen)}");
+    if (string.Join(",", seen) != "m7,m2,m1,lx,lx") ok = false;
+    main.Navigate("m1"); P(25);
+    var tb = main.PageHost.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.IsEffectivelyVisible);
+    if (tb is not null)
+    {
+        tb.Focus(); P(3); Esc();
+        Console.WriteLine($"[ESC] đang gõ ô chữ → ESC đầu: vẫn ở {main.CurrentKey}");
+        if (main.CurrentKey != "m1") ok = false;
+        Esc(); Console.WriteLine($"[ESC] ESC lần 2 → {main.CurrentKey}");
+        if (main.CurrentKey != "lx") ok = false;
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v181) — ĐẠT: " : "Xong (v181) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
