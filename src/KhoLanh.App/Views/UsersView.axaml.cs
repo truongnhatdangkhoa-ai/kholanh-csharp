@@ -16,6 +16,7 @@ public partial class UsersView : UserControl, IPage
     {
         InitializeComponent();
         BuildPermGrid();
+        Tabs.Items.Add(BuildPhoneTab());   // 1.76: quyền điện thoại riêng
         Load();
         Edit(new User());
         if (App.Services.Accounts.Enabled) _ = Refresh();

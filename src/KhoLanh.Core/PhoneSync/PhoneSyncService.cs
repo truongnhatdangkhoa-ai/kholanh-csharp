@@ -495,12 +495,32 @@ public sealed partial class PhoneSyncService
             }
             catch (Exception e) { meta["pxPcLoi"] = e.Message.Length > 300 ? e.Message[..300] : e.Message; }
         }
+        // 1.76: tài khoản PC dùng trên điện thoại — lỗi không làm hỏng lần đẩy tồn
+        try { var pa = await PushAccountsAsync(ct); res.Errors.AddRange(pa.Warnings.Select(w => "Tài khoản điện thoại: " + w)); }
+        catch (Exception e) { res.Errors.Add("Tài khoản điện thoại: " + e.Message); }
         var stamps = SyncTables.Select(t => meta.GetValueOrDefault("lastPushAt_" + t) is { } v ? S(v) : "").Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).ToList();
         meta["lastPushAt"] = stamps.Count == SyncTables.Length ? stamps[0] : oldLast;
         await WriteMetaAsync(meta, ct);
         Status = status;
         _s.Audit.Log(_s.Session.Username, "Đồng bộ điện thoại: Đẩy lên", string.Join(", ", res.Rows.Select(kv => $"{kv.Key} {kv.Value} dòng")) + (res.Errors.Count > 0 ? " · lỗi: " + string.Join("; ", res.Errors) : ""));
         return res;
+    }
+
+    /// <summary>
+    /// Đẩy tài khoản PC + quyền điện thoại lên tab PhanQuyen (1.76) — gộp với tài khoản tạo trên điện thoại; không đổi thì không ghi.
+    /// Gọi trong mỗi lần đẩy và từ Hệ thống › Tài khoản › Điện thoại.
+    /// </summary>
+    public async Task<PhoneAccounts.Plan> PushAccountsAsync(CancellationToken ct = default)
+    {
+        await W.EnsureTabsAsync(new Dictionary<string, string[]?> { [PhoneAccounts.PqTab] = PhoneAccounts.PqCols }, ct);
+        var cur = (await W.ReadTableAsync(PhoneAccounts.PqTab, ct)).Rows.Select(r => (IDictionary<string, JsonNode?>)r).ToList();
+        var plan = PhoneAccounts.BuildPlan(cur, _s.Auth.UsersForPhone(), _s.PhoneAccounts.List(), Now());
+        if (!PhoneAccounts.SameTable(cur, plan.Rows.Select(r => (IDictionary<string, JsonNode?>)r).ToList()))
+        {
+            await W.WriteTableAsync(PhoneAccounts.PqTab, PhoneAccounts.PqCols, plan.Rows.Select(r => (IDictionary<string, JsonNode?>)r), ct);
+            _s.Audit.Log(_s.Session.Username, "Điện thoại: cập nhật tài khoản", $"{plan.Info.Count(i => i.FromPc)} tài khoản PC, {plan.Info.Count(i => !i.FromPc)} tài khoản riêng điện thoại");
+        }
+        return plan;
     }
 
     private async Task<Dictionary<string, JsonNode?>> ReadMetaAsync(CancellationToken ct)

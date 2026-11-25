@@ -55,6 +55,7 @@ public class AuthService
         _session.CurrentUser = u;
         _audit.Log(u.Username, "Đăng nhập", "");
         Sync?.AfterLogin(u, password);
+        Seen(u.Username, password);
         return u;
     }
 
@@ -101,6 +102,20 @@ public class AuthService
         Sync?.AfterLogout();
     }
 
+    /// <summary>
+    /// Gọi khi biết mật khẩu thật của 1 tài khoản (đăng nhập đúng / tạo / đặt / đổi mật khẩu) — (tên đăng nhập, mật khẩu).
+    /// Dùng để ghi mã điện thoại (1.76, <see cref="KhoLanh.Core.PhoneSync.PhoneAccounts"/>). Lỗi trong đây không làm hỏng việc đang làm.
+    /// </summary>
+    public Action<string, string>? PasswordSeen { get; set; }
+    private void Seen(string username, string password) { try { PasswordSeen?.Invoke(username, password); } catch { /* ghi mã điện thoại lỗi: bỏ qua */ } }
+
+    /// <summary>Danh sách tài khoản cho đồng bộ điện thoại (không cần đăng nhập Quản trị; bỏ mã băm / muối mật khẩu PC).</summary>
+    public List<User> UsersForPhone()
+    {
+        using var c = _db.Open();
+        return c.Query<User>("SELECT * FROM users ORDER BY username").Select(u => { u.PasswordHash = ""; u.Salt = ""; return u; }).ToList();
+    }
+
     public List<User> ListUsers()
     {
         _session.RequireAdmin();
@@ -114,6 +129,7 @@ public class AuthService
         var clean = string.IsNullOrWhiteSpace(permissions) || role == Roles.Admin ? "" : Perm.Serialize(Perm.Parse(permissions));
         var u = Insert(username, fullName, password, role, clean);
         if (role == Roles.Admin) Sync?.Reseal(u.Username, password);
+        Seen(u.Username, password);
         _audit.Log(_session.Username, "Tạo tài khoản", $"{u.Username} ({Roles.Label(role)})");
         return u;
     }
@@ -184,6 +200,7 @@ public class AuthService
         Sync?.BeforeSave(u);
         c.Execute("UPDATE users SET password_hash=@hash, salt=@salt WHERE id=@id", new { id, hash, salt });
         if (u.Role == Roles.Admin) Sync?.Reseal(u.Username, password);   // khóa ghi Sheet mã hóa bằng mật khẩu Quản trị → ghi lại theo mật khẩu mới
+        Seen(u.Username, password);
     }
 
     private User Insert(string username, string fullName, string password, string role, string permissions = "")

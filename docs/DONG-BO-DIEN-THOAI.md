@@ -79,3 +79,5 @@ mỗi nguồn 200 phiếu mới nhất, tối đa 12.000 dòng hàng.
 | Lưu trữ phiếu cũ | `pc.archive { days: 90 }` | tối đa 1 lần / ngày (settings `phone_archive_day`), phiếu đã xong > 90 ngày sang `PhieuXuat_LuuTru` / `PhieuXuatItems_LuuTru` |
 
 Không đẩy `M08_RaDong`, `M08_SizeLabel` (app cũ cũng bỏ từ PC 1.38). Tài khoản / phân quyền điện thoại (`pq.*`) nằm trong Code.gs, không cần PC.
+
+**Tài khoản PC trên điện thoại (PC 1.76):** PC ghi đè tab `PhanQuyen` (cột `PQ_COLS` của Code.gs) bằng `pc.writeTable` — Code.gs tự sao lưu bản cũ (`PhanQuyen_BanLuu_…`). Dòng có `ten` trùng tài khoản PC do PC quyết định: `tokenHash` = sha256 hex mật khẩu PC (PC ghi khi người đó đăng nhập / đổi mật khẩu), `quyen` / `kho` / `trangThai` theo Hệ thống › Tài khoản › Điện thoại, `maTruyCap` rỗng (không lưu mật khẩu dạng chữ), `pcModules` giữ nguyên. Dòng tạo riêng trên điện thoại (tên không trùng tài khoản PC) giữ nguyên. Không đổi gì thì không ghi. Hai dòng đang bật cùng mật khẩu → Code.gs `resolveUser_` chỉ nhận dòng đầu, nên PC cảnh báo.
