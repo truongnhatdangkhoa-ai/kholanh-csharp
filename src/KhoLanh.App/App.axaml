@@ -14,7 +14,7 @@
     <SolidColorBrush x:Key="InColor">#1E8E3E</SolidColorBrush>
     <SolidColorBrush x:Key="OutColor">#C2410C</SolidColorBrush>
     <SolidColorBrush x:Key="Danger">#B42318</SolidColorBrush>
-    <SolidColorBrush x:Key="NavBg">#0B2A45</SolidColorBrush>
+    <SolidColorBrush x:Key="NavBg">#FFFFFF</SolidColorBrush>
     <SolidColorBrush x:Key="GridLine">#E8EEF3</SolidColorBrush>
     <SolidColorBrush x:Key="GridHead">#EAF2F8</SolidColorBrush>
   </Application.Resources>

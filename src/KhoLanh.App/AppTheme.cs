@@ -124,7 +124,7 @@ public static class AppTheme
         ("InColor", "#1E7B4A", null), ("OutColor", "#C2410C", null), ("Danger", "#B42318", null),
         ("OkSoft", "#E3F4EA", null), ("Ok", "#1E7B4A", null), ("WarnSoft", "#FFF2D6", null), ("Warn", "#9A5B00", null), ("BadSoft", "#FDE8E6", null), ("Bad", "#B42318", null),
         ("InfoSoft", "#EEEBFC", null), ("Info", "#5B4BC4", null),
-        ("NavBg", "#10243D", null), ("NavFg", "#DCE5F0", "#C2CCD8"), ("NavHover", "#1B3452", "#1A212B"), ("NavMuted", "#8FA0B6", "#7A8797"),
+        ("NavBg", "#FFFFFF", null), ("NavFg", "#2B3A4C", "#C2CCD8"), ("NavHover", "#EEF2F7", "#252D38"), ("NavMuted", "#5D6B78", "#7A8797"),
         ("GridLine", "#E3E8EF", null), ("GridHead", "#F1F4F8", null),
     };
 
