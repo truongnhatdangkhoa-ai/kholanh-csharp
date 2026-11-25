@@ -22,15 +22,17 @@ public static class Perf
     public sealed class Scope : IDisposable
     {
         private readonly Stopwatch _sw = Stopwatch.StartNew();
-        private readonly string _op, _detail; private bool _done;
+        private readonly string _op; private bool _done;
         public int Rows { get; set; }
-        internal Scope(string op, string detail) { _op = op; _detail = detail; }
+        /// <summary>Chi tiết (đổi được trước khi kết thúc, vd ghi rõ phần nào tốn thời gian).</summary>
+        public string Detail { get; set; }
+        internal Scope(string op, string detail) { _op = op; Detail = detail; }
         public long ElapsedMs => _sw.ElapsedMilliseconds;
         public void Dispose()
         {
             if (_done) return; _done = true;
             _sw.Stop();
-            Record(_op, _detail, _sw.ElapsedMilliseconds, Rows);
+            Record(_op, Detail, _sw.ElapsedMilliseconds, Rows);
         }
     }
 
