@@ -36,7 +36,7 @@ internal static class FilterMenu
 
     /// <param name="apply">(giá trị được giữ — null = mọi giá trị, có đặt lọc danh sách không)</param>
     public static Control Build(string header, List<FilterNode> tree, HashSet<string>? allowed,
-        Action<HashSet<string>?, bool> apply, Action clearColumn, Action cancel)
+        Action<HashSet<string>?, bool> apply, Action clearColumn, Action cancel, Action<bool?>? sort = null, bool? sortNow = null)
     {
         Node Wrap(FilterNode f, Node? parent)
         {
@@ -145,6 +145,19 @@ internal static class FilterMenu
 
         var root = new StackPanel { Spacing = 6, Width = 360 };
         root.Children.Add(new TextBlock { Text = "Lọc: " + (string.IsNullOrWhiteSpace(header) ? "cột" : header), FontWeight = FontWeight.Bold, FontSize = 14 });
+        if (sort is not null)
+        {   // 1.94: sắp xếp nằm ở đây (bấm tiêu đề cột = bôi đen cả cột như Excel)
+            Button S(string t, bool? d)
+            {
+                var b = new Button { Content = t, Padding = new Thickness(8, 3) };
+                if (sortNow == d && d is not null) b.Classes.Add("primary"); else b.Classes.Add("ghost");
+                b.Click += (_, _) => sort(d); return b;
+            }
+            var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            sp.Children.Add(S("↑ Sắp xếp A → Z", false)); sp.Children.Add(S("↓ Z → A", true));
+            if (sortNow is not null) sp.Children.Add(S("Bỏ sắp xếp", null));
+            root.Children.Add(sp);
+        }
         root.Children.Add(search);
         root.Children.Add(allBox);
         root.Children.Add(list);

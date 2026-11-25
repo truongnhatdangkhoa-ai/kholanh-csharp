@@ -40,7 +40,7 @@ public partial class EntryView : UserControl, IPage
     public EntryView()
     {
         InitializeComponent();
-        _grid = new SheetGrid(_model) { IsVisible = false };
+        _grid = new SheetGrid(_model) { IsVisible = false, RowChecks = false };   // 1.94: bảng Nhập liệu không cần ô tích
         _grid.Display = FormatCell;
         _grid.Suggest = SuggestFor;
         _grid.SuggestionPicked += OnSuggestionPicked;
@@ -693,7 +693,7 @@ internal static class ColumnTable
 
     public static SheetGrid Grid(GridModel m)
     {
-        var g = new SheetGrid(m) { SpareRows = 10, ShowTotals = false, Filterable = false, CanEnlarge = false };
+        var g = new SheetGrid(m) { SpareRows = 10, ShowTotals = false, Filterable = false, CanEnlarge = false, RowChecks = false };
         g.Suggest = (col, text) =>
         {
             var q = KhoLanh.Core.Grid.GridFilter.Fold(text ?? "").Trim();
