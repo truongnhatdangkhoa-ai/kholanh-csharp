@@ -45,6 +45,13 @@ public partial class MainWindow : Window
         var u = s.Session.CurrentUser!;
         AppTheme.LoadFor(u.Username);
         Views.PhoneAutoSync.Start();
+        // 1.85: trang lấp đầy cửa sổ, nội dung cần cao hơn (mỗi bảng ≥ 8 dòng) thì cuộn dọc
+        // (tab của trang nằm trên hàng tên trang; cuộn xuống thì dải tên trang che phần đã cuộn qua)
+        var pi = PageArea.Children.IndexOf(PageHost);
+        PageArea.Children.Remove(PageHost);
+        var fs = new Controls.FillScroll(PageHost);
+        PageArea.Children.Insert(pi, fs);
+        fs.ScrollChanged += (_, _) => { var up = fs.Offset.Y > 0.5; PageBand.ZIndex = up ? 1 : 0; PageHead.ZIndex = up ? 2 : 0; };
         var root = (Control)Content!; Content = null;
         Content = _zoom = new LayoutTransformControl { Child = root };
         ApplyZoom();

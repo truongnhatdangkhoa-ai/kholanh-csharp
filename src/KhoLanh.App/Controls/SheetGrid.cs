@@ -416,7 +416,7 @@ public sealed class SheetGrid : UserControl
         Redraw();
     }
 
-    internal void Redraw() { _totals.Update(); _surface.InvalidateVisual(); if (_editing) PlaceEditor(); if (_fEditor.IsVisible) PlaceFilterEditor(); }
+    internal void Redraw() { _totals.Update(); UpdateMinHeight(); _surface.InvalidateVisual(); if (_editing) PlaceEditor(); if (_fEditor.IsVisible) PlaceFilterEditor(); }
 
     /// <summary>Gọi sau khi đổi cột / nạp dữ liệu.</summary>
     public void Refresh()
@@ -424,6 +424,28 @@ public sealed class SheetGrid : UserControl
         VR = Math.Clamp(VR, 0, Math.Max(0, TotalRows - 1)); Col = Math.Clamp(Col, 0, Math.Max(0, Model.ColCount - 1));
         VA = VR; AnchorCol = Col;
         UpdateScroll(); Redraw();
+    }
+
+    /// <summary>1.85: mỗi bảng luôn thấy tối thiểu ngần này dòng (bảng chỉ đọc ít dòng hơn thì đủ số dòng của nó, ít nhất 3; bảng sửa được luôn đủ 8, phần dưới là dòng trống để gõ) — không đủ chỗ thì
+    /// trang cuộn dọc (<see cref="FillScroll"/> ở MainWindow) thay vì ép bảng còn 2–3 dòng. 0 = không đặt.</summary>
+    public int MinRows { get => _minRows; set { _minRows = Math.Max(0, value); UpdateMinHeight(); } }
+    private int _minRows = 8;
+    /// <summary>Số dòng tối thiểu thật sự áp cho bảng này (xem <see cref="MinRows"/>).</summary>
+    internal int MinRowsEffective => _minRows <= 0 ? 0 : Model.ReadOnly ? Math.Min(_minRows, Math.Max(3, TotalRows)) : _minRows;
+    /// <summary>Chiều cao tối thiểu để thấy <paramref name="rows"/> dòng: tiêu đề + dòng tìm kiếm (từ 6 dòng) + dòng Tổng + thanh cuộn ngang + viền.</summary>
+    internal double MinHeightFor(int rows)
+    {
+        if (rows <= 0) return 0;
+        var h = HeadH + RowH * rows + 2;
+        if (_filterable && rows >= 6) h += FilterH;
+        if (_totals.IsVisible && !double.IsNaN(_totals.Height)) h += _totals.Height;
+        if (_hbar.IsVisible) h += Math.Max(12, _hbar.DesiredSize.Height);
+        return Math.Ceiling(h);
+    }
+    private void UpdateMinHeight()
+    {
+        var h = MinHeightFor(MinRowsEffective);
+        if (Math.Abs(MinHeight - h) > 0.5) MinHeight = h;
     }
 
     internal int TotalRows => VCount + (Model.ReadOnly || _filterOn ? 0 : SpareRows);
@@ -445,6 +467,7 @@ public sealed class SheetGrid : UserControl
         OffsetX = Math.Clamp(OffsetX, 0, _hbar.Maximum);
         _hbar.Value = OffsetX;
         _hbar.IsVisible = _hbar.Maximum > 0;
+        UpdateMinHeight();
     }
 
     internal double ColX(int c)
@@ -1315,13 +1338,15 @@ public sealed class SheetGrid : UserControl
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
         {
             base.OnPointerWheelChanged(e);
+            var (top0, off0) = (_g.TopRow, _g.OffsetX);
             if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) || Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y))
                 _g.OffsetX = Math.Max(0, _g.OffsetX - (e.Delta.X != 0 ? e.Delta.X : e.Delta.Y) * 60);
             else
                 _g.TopRow = Math.Clamp(_g.TopRow - (int)Math.Round(e.Delta.Y * 3), 0, Math.Max(0, _g.TotalRows - _g.VisibleRows + 1));
             _g.UpdateScrollPublic();
             _g.Redraw();
-            e.Handled = true;
+            // 1.85: bảng đã cuộn thì giữ sự kiện; hết chỗ cuộn (đầu / cuối bảng) thì để trang (FillScroll) cuộn tiếp
+            if (_g.TopRow != top0 || Math.Abs(_g.OffsetX - off0) > 0.5) e.Handled = true;
         }
 
         protected override void OnKeyDown(KeyEventArgs e) { base.OnKeyDown(e); if (!e.Handled) _g.OnKey(e); }

@@ -38,12 +38,12 @@
       </Grid>
     </Border>
 
-    <Panel>
+    <Panel x:Name="PageArea">
       <!-- nền hàng tên trang (tab đầu trang nằm đè lên dải này) -->
       <Border x:Name="PageBand" Height="36" VerticalAlignment="Top" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource Border}" BorderThickness="0,0,0,1"/>
       <ContentControl x:Name="PageHost" Margin="12,42,12,8"/>
       <!-- tên trang · vạch · (tab của trang nằm bên dưới lớp này) · ⓘ — lớp không nền nên bấm xuyên xuống tab -->
-      <Grid Height="36" VerticalAlignment="Top" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,6,0">
+      <Grid x:Name="PageHead" Height="36" VerticalAlignment="Top" ColumnDefinitions="Auto,Auto,*,Auto" Margin="12,0,6,0">
         <TextBlock x:Name="PageTitle" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
         <Rectangle Grid.Column="1" x:Name="PageSep" Width="1" Height="18" Fill="{DynamicResource BorderStrong}" Margin="14,0,0,0" VerticalAlignment="Center"/>
         <TextBlock Grid.Column="2" x:Name="PageSubtitle" Classes="muted" VerticalAlignment="Center" Margin="14,0,12,0" TextTrimming="CharacterEllipsis" IsHitTestVisible="False"/>
