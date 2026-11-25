@@ -817,6 +817,56 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v183")
     }
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v183) — ĐẠT: " : "Xong (v183) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.84: SHOTS_ONLY=v184 — mẫu chuẩn module (thanh công cụ 1 hàng, tab con = nút gạt kéo vào thanh, bảng ≥ 8 dòng) ở 1366×768.
+// V184_KEYS=m4,m12 để chụp riêng. In số dòng bảng lớn nhất thấy được; dưới 8 dòng → thoát mã 1.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v184")
+{
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    var ok = true;
+    var only = (Environment.GetEnvironmentVariable("V184_KEYS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+    var scenes = new List<(string Key, string Name, int[] Path)>
+    {
+        ("m4", "v184-ra-dong", new int[0]), ("m4", "v184-ra-dong-da-luu", new[] { 1 }),
+        ("m12", "v184-chung-tu", new int[0]), ("m12", "v184-chung-tu-bang", new[] { -1, 1 }),
+        ("m9", "v184-kiem-ke", new[] { 1 }), ("m9", "v184-kiem-ke-ke-toan", new[] { 3 }),
+        ("m1", "v184-an-an", new int[0]), ("m1", "v184-an-an-bao-cao", new[] { 1 }), ("m1", "v184-an-an-tong-hop", new[] { 5 }),
+        ("m2", "v184-gui", new int[0]), ("m2", "v184-gui-phieu", new[] { 2 }), ("m2", "v184-gui-dac-tinh", new[] { 4 }),
+        ("m7", "v184-vi-tri", new int[0]), ("m3sk", "v184-nxt", new int[0]), ("m3sk", "v184-nxt-so-cai", new[] { 6 }),
+        ("m8", "v184-so-do", new int[0]), ("m8", "v184-so-do-phieu-in", new[] { 4 }),
+        ("m5", "v184-doi-chieu", new int[0]), ("m7ck", "v184-cuoi-ky", new int[0]), ("m3", "v184-tong-hop", new[] { 1 }), ("m3", "v184-tong-hop-anh-xa", new[] { 2 }),
+        ("m3dm", "v184-danh-muc", new int[0]), ("m10", "v184-khang-sinh", new int[0]), ("m10", "v184-khang-sinh-excel", new[] { 3 }),
+        ("m11", "v184-pxht", new int[0]), ("m1vtb", "v184-vtb", new int[0]), ("m6", "v184-nhap-lieu", new int[0]), ("m13", "v184-phieu-xuat", new int[0]),
+        ("m14", "v184-c3d", new int[0]), ("m22", "v184-so-sanh", new int[0]), ("audit", "v184-nhat-ky", new int[0]), ("dulieu", "v184-du-lieu", new int[0]),
+    };
+    foreach (var (k, n, path) in scenes)
+    {
+        if (only.Count > 0 && !only.Contains(k)) continue;
+        hw.Navigate(k); P(40);
+        // path: chỉ số tab cấp 1, rồi cấp 2… (-1 = giữ nguyên cấp đó)
+        var level = 0; Control scope = hw.PageHost;
+        foreach (var idx in path)
+        {
+            var tcs = scope.GetVisualDescendants().OfType<TabControl>().Where(t => t.IsEffectivelyVisible).ToList();
+            var tc = tcs.FirstOrDefault();
+            if (tc is null) break;
+            if (idx >= 0 && idx < tc.ItemCount) { tc.SelectedIndex = idx; P(30); }
+            scope = tc.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().FirstOrDefault(p => p.Name == "PART_SelectedContentHost" && p.TemplatedParent == tc) ?? (Control)tc;
+            level++;
+        }
+        P(20); hw.InvalidateMeasure(); hw.InvalidateVisual(); P(10);
+        Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick(3); P(5);
+        var grids = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(g => g.IsEffectivelyVisible && g.Bounds.Height > 0).ToList();
+        var big = grids.OrderByDescending(g => g.Bounds.Height * g.Bounds.Width).FirstOrDefault();
+        var rows = big is null ? -1 : (int)((big.Bounds.Height - KhoLanh.App.Controls.SheetGrid.HeadH - 26 - 30) / KhoLanh.App.Controls.SheetGrid.RowH);
+        var gy = big?.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y ?? -1;
+        var trs = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.ToolRow>().Where(t => t.IsEffectivelyVisible).Select(t => $"{t.Bounds.Height:0}@{t.TranslatePoint(new Avalonia.Point(0, 0), hw)?.Y:0}").ToList();
+        Console.WriteLine($"[v184] {n}: bảng lớn y={gy:0} cao={big?.Bounds.Height:0} ≈ {rows} dòng · thanh công cụ: {string.Join(" ", trs)}");
+        if (big is not null && rows < 8 && big.Model.RowCount > rows) { Console.WriteLine("        HỎNG: bảng dưới 8 dòng"); ok = false; }
+        Snap(hw, n);
+    }
+    hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v184) — ĐẠT: " : "Xong (v184) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)

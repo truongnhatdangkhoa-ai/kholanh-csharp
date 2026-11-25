@@ -79,7 +79,7 @@ public sealed class GuiView : UserControl, IPage
     private static TextBlock Label(string t, bool bold = false, double size = 12.5) => new() { Text = t, FontSize = size, FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private static Border Framed(Control c) => new() { BorderBrush = Line, BorderThickness = new Thickness(1), Child = c };
-    private static WrapPanel Bar() => new() { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+    private static ToolRow Bar() => new() { Margin = new Thickness(0, 0, 0, 6) };   // 1.84: thanh công cụ 1 hàng (⋯ Thêm khi hết chỗ)
     private static string N(double v, int min = 0, int max = 2) => JsText.En(v, min, max);
     private static string Kg(double v) => JsText.En(v, 2, 2);
     private static string Raw(double v) => JsText.JsStr(Math.Round(v, 6));

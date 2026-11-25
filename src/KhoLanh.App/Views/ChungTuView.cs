@@ -33,7 +33,9 @@ public sealed class ChungTuView : UserControl, IPage
     private readonly bool _edit, _export;
     private bool _loading;
     private string _mod = "tbb";
-    private readonly StackPanel _kindBar = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+    private readonly TabControl _kinds = new();       // 1.84: Xuất TBB / Xả / Kiểm = tab cạnh tên trang
+    private readonly DockPanel _body = new();
+    private InfoLine _info = null!;
     private readonly TextBlock _file = new() { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _warn = new() { FontSize = 12.5, Foreground = Warn, TextWrapping = TextWrapping.Wrap, IsVisible = false };
@@ -67,7 +69,7 @@ public sealed class ChungTuView : UserControl, IPage
         _sg = new SheetGrid(_sm) { SpareRows = 3 };
         _sm.Changed += () => { if (!_loading) _signDirty = true; };
 
-        var form = new WrapPanel { ItemSpacing = 8, LineSpacing = 4 };
+        var form = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, MaxWidth = 860 };
         (string Key, string Label, double W)[] fields =
         {
             ("fSoPhieu", "Số phiếu (nhãn)", 130), ("fNgayLap", "Ngày lập (yyyy-mm-dd)", 150), ("fKho", "Bộ phận", 190), ("fLoaiChungTu", "Loại chứng từ", 200),
@@ -81,12 +83,21 @@ public sealed class ChungTuView : UserControl, IPage
             var st = new StackPanel(); st.Children.Add(new TextBlock { Text = label, Classes = { "muted" }, FontSize = 11.5 }); st.Children.Add(tb);
             form.Children.Add(st);
         }
-        foreach (var k in Kinds)
+        // 1.84 (mẫu chuẩn kiểu 3): 7 ô thông tin + Người ký thu thành 1 dòng tóm tắt, bấm "Sửa thông tin" mới mở
+        var editor = new StackPanel { Spacing = 10, Width = 860 };
+        editor.Children.Add(form);
+        editor.Children.Add(BuildSigners());
+        _info = new InfoLine("Thông tin phiếu", InfoItems, editor);
+        _info.Closed += () => { if (!_loading) SaveForm(); };
+
+        foreach (var k in Kinds) _kinds.Items.Add(new TabItem { Header = k.Label, Tag = k.Key });
+        _kinds.SelectionChanged += (_, e) =>
         {
-            var b = new ToggleButton { Content = k.Label, Padding = new Thickness(14, 5), FontSize = 13, Tag = k.Key };
-            b.Click += (_, _) => { if (!_loading) { SaveForm(); _mod = k.Key; Svc.Mod = k.Key; RenderAll(); SaveForm(); } };
-            _kindBar.Children.Add(b);
-        }
+            if (!ReferenceEquals(e.Source, _kinds)) return;
+            PlaceBody();
+            if (_loading || _kinds.SelectedItem is not TabItem { Tag: string key } || key == _mod) return;
+            SaveForm(); _mod = key; Svc.Mod = key; RenderAll(); SaveForm();
+        };
 
         _tabs = new TabControl
         {
@@ -94,19 +105,43 @@ public sealed class ChungTuView : UserControl, IPage
             {
                 new TabItem { Header = "Phiếu theo ngày", Content = BuildGroups() },
                 new TabItem { Header = "Bảng dữ liệu", Content = BuildRows() },
-                new TabItem { Header = "Người ký (Thông tin phiếu)", Content = BuildSigners() },
             },
         };
-        var fileRow = new WrapPanel { ItemSpacing = 6, LineSpacing = 4 };
-        if (_edit) fileRow.Children.Add(Btn("📂 Nạp file Excel…", async () => await ImportFile(), primary: true));
-        fileRow.Children.Add(_file);
-        if (_edit) fileRow.Children.Add(Btn("Xóa dữ liệu", async () => await ClearData(), danger: true));
-        fileRow.Children.Add(Btn("⟳ Tải lại", async () => await LoadAsync()));
-        var top = new StackPanel { Spacing = 6 };
-        top.Children.Add(_kindBar); top.Children.Add(fileRow); top.Children.Add(_warn); top.Children.Add(form); top.Children.Add(_status);
-        var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(_tabs);
+        _tabs.SelectionChanged += (_, e) => e.Handled = true;
+        _warn.Margin = new Thickness(0, 0, 0, 6);
+        DockPanel.SetDock(_warn, Dock.Top);
+        _body.Children.Add(_warn); _body.Children.Add(_tabs);
+        // file đang dùng + trạng thái: nhãn nhỏ bên phải hàng tên trang (MainWindow.AlignPageTabs kéo lên)
+        var chip = new Border { Classes = { "chip" }, Child = _file };
+        _file.TextWrapping = TextWrapping.NoWrap; _file.FontSize = 12;
+        var top = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        top.Children.Add(_status); top.Children.Add(chip);
+        _status.TextWrapping = TextWrapping.NoWrap;
+        var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(_kinds);
         Content = root;
+        PlaceBody();
         AttachedToVisualTree += async (_, _) => await LoadAsync();
+    }
+
+    /// <summary>Nội dung (2 tab con) dùng chung cho 3 loại chứng từ: gắn vào tab loại đang chọn.</summary>
+    private void PlaceBody()
+    {
+        foreach (var it in _kinds.Items.OfType<TabItem>()) if (!ReferenceEquals(it, _kinds.SelectedItem) && ReferenceEquals(it.Content, _body)) it.Content = null;
+        if (_kinds.SelectedItem is TabItem sel && !ReferenceEquals(sel.Content, _body)) sel.Content = _body;
+        else if (_kinds.SelectedItem is null && _kinds.ItemCount > 0) _kinds.SelectedIndex = 0;
+    }
+
+    private IEnumerable<(string, string)> InfoItems()
+    {
+        string F(string k) => _form.TryGetValue(k, out var tb) ? (tb.Text ?? "").Trim() : "";
+        yield return ("Số phiếu", F("fSoPhieu"));
+        yield return ("Ngày lập", F("fNgayLap"));
+        yield return ("Bộ phận", F("fKho"));
+        yield return ("Mẫu", F("fMaBieuMau"));
+        yield return ("Bản/ngày", F("fSoBanMoiNgay"));
+        var signer = _sm.RowCount > 0 ? string.Join(", ", Enumerable.Range(0, _sm.ColCount).Select(c => _sm.Get(0, c)).Where(x => !string.IsNullOrWhiteSpace(x))) : "";
+        yield return ("Người ký", signer);
+        if (F("fGhiChu") is { Length: > 0 } gc) yield return ("Ghi chú", gc);
     }
 
     // ------------------------------------------------------------------ chung
@@ -162,12 +197,13 @@ public sealed class ChungTuView : UserControl, IPage
     private void RenderAll()
     {
         _loading = true;
-        foreach (var b in _kindBar.Children.OfType<ToggleButton>()) b.IsChecked = (string?)b.Tag == _mod;
+        _kinds.SelectedIndex = Math.Max(0, Array.FindIndex(Kinds, k => k.Key == _mod)); PlaceBody();
         foreach (var (k, tb) in _form) tb.Text = Svc.Form.GetValueOrDefault(k, "");
         var f = Svc.Files[_mod];
         _file.Text = f.Length > 0 ? $"📄 {f} — {Svc.Rows[_mod].Count:#,0} dòng" : "Chưa nạp dữ liệu cho " + K(_mod).Label + ".";
         _loading = false;
         RenderGroups(); RenderRows(); RenderSigners();
+        _info.Refresh();
     }
 
     // ------------------------------------------------------------------ nạp / xóa
@@ -198,25 +234,45 @@ public sealed class ChungTuView : UserControl, IPage
 
     private Control BuildGroups()
     {
-        var tools = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 8, 0, 4) };
+        var tools = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
+        AddFileButtons(tools);
+        tools.Children.Add(ToolRow.Gap());
         if (_edit)
         {
-            tools.Children.Add(Btn("Gộp các ngày chọn", async () => await DoMerge(), tip: "Chọn nhiều dòng liền nhau (kéo chuột / Shift+mũi tên) rồi bấm"));
-            tools.Children.Add(Btn("Bỏ gộp phiếu chọn", async () => await DoUnmerge()));
-            tools.Children.Add(Btn("Bỏ gộp tất cả", async () => { if (await Ui.Confirm(this, "Bỏ gộp tất cả các phiếu đã gộp?")) await Act(() => Svc.UnmergeAll(_mod)); }));
+            tools.Children.Add(Btn("Gộp ngày chọn", async () => await DoMerge(), tip: "Chọn nhiều dòng liền nhau (kéo chuột / Shift+mũi tên) rồi bấm"));
+            tools.Children.Add(ToolRow.More(Btn("Bỏ gộp phiếu chọn", async () => await DoUnmerge())));
+            tools.Children.Add(ToolRow.More(Btn("Bỏ gộp tất cả", async () => { if (await Ui.Confirm(this, "Bỏ gộp tất cả các phiếu đã gộp?")) await Act(() => Svc.UnmergeAll(_mod)); })));
         }
         if (_export)
         {
-            tools.Children.Add(Btn("🖨 In phiếu chọn…", async () => await PrintSel(false), primary: true, tip: "Mở trang in trong trình duyệt: In hoặc chọn \"Lưu dưới dạng PDF\""));
-            tools.Children.Add(Btn("🖨 In tất cả các ngày…", async () => await PrintSel(true)));
             tools.Children.Add(Btn("Xuất Excel phiếu chọn", async () => await ExcelSel(false)));
-            tools.Children.Add(Btn("Xuất Excel tất cả", async () => await ExcelSel(true)));
+            tools.Children.Add(ToolRow.More(Btn("Xuất Excel tất cả", async () => await ExcelSel(true))));
+            tools.Children.Add(ToolRow.More(Btn("🖨 In tất cả các ngày…", async () => await PrintSel(true))));
         }
-        // 1.57: danh sách phiếu / dòng của phiếu thành 2 tab con (bấm đúp phiếu → mở chi tiết).
-        var g = Ui.MasterDetail("Danh sách phiếu", Framed(_gg), _gg, "Dòng của phiếu đang chọn", Framed(_ig), _gInfo);
+        if (_edit) tools.Children.Add(ToolRow.More(Btn("Xóa dữ liệu", async () => await ClearData(), danger: true)));
+        if (_export)
+            tools.Children.Add(Btn("🖨 In phiếu chọn…", async () => await PrintSel(false), primary: true, tip: "Mở trang in trong trình duyệt: In hoặc chọn \"Lưu dưới dạng PDF\""));
+        // 1.84: danh sách phiếu và dòng của phiếu cạnh nhau (bỏ tầng tab thứ 3), cùng cao hết trang
+        var right = new DockPanel();
+        _gInfo.FontWeight = FontWeight.SemiBold; _gInfo.Margin = new Thickness(0, 0, 0, 4); _gInfo.TextWrapping = TextWrapping.NoWrap; _gInfo.TextTrimming = TextTrimming.CharacterEllipsis;
+        DockPanel.SetDock(_gInfo, Dock.Top); right.Children.Add(_gInfo); right.Children.Add(Framed(_ig));
+        var leftCap = new TextBlock { Text = "Phiếu theo ngày · chọn 1 phiếu → dòng bên phải", FontWeight = FontWeight.SemiBold, FontSize = 12.5, Margin = new Thickness(0, 0, 0, 4) };
+        var left = new DockPanel(); DockPanel.SetDock(leftCap, Dock.Top); left.Children.Add(leftCap); left.Children.Add(Framed(_gg));
+        var split = new Grid { ColumnDefinitions = new ColumnDefinitions("1*,8,1*") };
+        Grid.SetColumn(left, 0); Grid.SetColumn(right, 2);
+        split.Children.Add(left); split.Children.Add(right);
         var all = new DockPanel();
-        DockPanel.SetDock(tools, Dock.Top); all.Children.Add(tools); all.Children.Add(g);
+        DockPanel.SetDock(tools, Dock.Top); DockPanel.SetDock(_info, Dock.Top);
+        all.Children.Add(tools); all.Children.Add(_info); all.Children.Add(split);
         return all;
+    }
+
+    /// <summary>Nạp file / tải lại — đầu thanh công cụ của cả 2 tab con.</summary>
+    private void AddFileButtons(ToolRow tools)
+    {
+        if (_edit) tools.Children.Add(Btn("⬆ Nạp file Excel…", async () => await ImportFile()));
+        var re = Btn("⟳", async () => await LoadAsync(), tip: "Tải lại");
+        tools.Children.Add(re);
     }
 
     private void RenderGroups()
@@ -310,21 +366,21 @@ public sealed class ChungTuView : UserControl, IPage
 
     private Control BuildRows()
     {
-        var tools = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 8, 0, 4) };
+        var tools = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         _q.TextChanged += (_, _) => { if (!_loading) RenderRows(); };
+        AddFileButtons(tools);
         tools.Children.Add(_q);
+        tools.Children.Add(ToolRow.Gap());
         if (_edit)
         {
             tools.Children.Add(Btn("✂ Tách dòng chọn sang phiếu riêng", async () => await DoTach(true), tip: "Dòng được tách thành phiếu riêng cùng ngày (nền vàng) — nhãn chỉ hiện trong app, không in"));
-            tools.Children.Add(Btn("Gộp lại về phiếu thường", async () => await DoTach(false)));
-            tools.Children.Add(Btn("✂ Tách các dòng có ghi chú gợi ý", async () => await TachHints(), tip: "Ghi chú trong file (VD markfood) chỉ để gợi ý, không in ra phiếu"));
+            tools.Children.Add(ToolRow.More(Btn("Gộp lại về phiếu thường", async () => await DoTach(false))));
+            tools.Children.Add(ToolRow.More(Btn("✂ Tách các dòng có ghi chú gợi ý", async () => await TachHints(), tip: "Ghi chú trong file (VD markfood) chỉ để gợi ý, không in ra phiếu")));
             tools.Children.Add(Btn("Bổ sung tên hàng…", async () => await NamesDialog(), tip: "Ghép lại tên đầy đủ từ mã 21 ký tự theo Mã hóa sản phẩm (tên trong file gốc hay bị cắt ~100 ký tự)"));
         }
         var dock = new DockPanel();
         DockPanel.SetDock(tools, Dock.Top); dock.Children.Add(tools);
-        _rInfo.Margin = new Thickness(0, 4, 0, 0);
-        DockPanel.SetDock(_rInfo, Dock.Bottom); dock.Children.Add(_rInfo);
-        dock.Children.Add(Framed(_rg));
+        dock.Children.Add(Framed(_rg));   // 1.84: số dòng / SL / Net ở dòng Tổng của bảng
         return dock;
     }
 
@@ -340,7 +396,7 @@ public sealed class ChungTuView : UserControl, IPage
             new GridColumn("net", "Net (kg)", 95, "number"), new GridColumn("tach", "Tách", 60), new GridColumn("gy", "Gợi ý (không in)", 130),
         }, _rows.Select((r, i) => new[] { (i + 1).ToString(), r.MaHang, r.TenHang, r.SizeText, Fmt(r.SoLuong), r.NgayChungTu, Fmt(r.TrongLuong), FmtNet(r.Net), r.Tach ? "✂" : "", r.GoiY }));
         _rg.Refresh();
-        _rInfo.Text = $"{_rows.Count:#,0}" + (_rows.Count != all.Count ? $" / {all.Count:#,0}" : "") + $" dòng · SL {Fmt(_rows.Sum(r => r.SoLuong))} · Net {FmtNet(_rows.Sum(r => r.Net))} kg"
+        _rg.Status = _rInfo.Text = $"{_rows.Count:#,0}" + (_rows.Count != all.Count ? $" / {all.Count:#,0}" : "") + $" dòng · SL {Fmt(_rows.Sum(r => r.SoLuong))} · Net {FmtNet(_rows.Sum(r => r.Net))} kg"
             + (all.Count(r => r.GoiY.Length > 0 && !r.Tach) is var h and > 0 ? $" · {h} dòng có ghi chú gợi ý trong file" : "");
     }
 
@@ -411,19 +467,20 @@ public sealed class ChungTuView : UserControl, IPage
 
     private Control BuildSigners()
     {
-        var info = new TextBlock { Text = "Người ký in trên phiếu = DÒNG ĐẦU của bảng. Gõ trực tiếp vào ô; dòng sau dùng để lưu sẵn tên thay thế (chép lên dòng đầu khi cần).", Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 4) };
+        var info = new TextBlock { Text = "Người ký (in trên phiếu = DÒNG ĐẦU của bảng; dòng sau lưu sẵn tên thay thế).", FontWeight = FontWeight.SemiBold, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4), Tag = "keep" };
         var save = Btn("Lưu người ký", async () =>
         {
             var rows = new List<Dictionary<string, string>>();
             var k = K(_mod);
             for (var r = 0; r < _sm.RowCount; r++) rows.Add(k.SignCols.Select((c, i) => (c, v: _sm.Get(r, i))).ToDictionary(x => x.c, x => x.v));
-            if (await Act(() => Svc.SaveSigners(_mod, rows), "Đã lưu người ký")) _signDirty = false;
-        }, primary: true);
+            if (await Act(() => Svc.SaveSigners(_mod, rows), "Đã lưu người ký")) { _signDirty = false; _info.Refresh(); }
+        });
         save.IsEnabled = _edit;
         var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Thickness(0, 0, 0, 4) };
         tools.Children.Add(save);
         var dock = new DockPanel();
         DockPanel.SetDock(info, Dock.Top); DockPanel.SetDock(tools, Dock.Top);
+        _sg.Height = 170;
         dock.Children.Add(info); dock.Children.Add(tools); dock.Children.Add(Framed(_sg));
         return dock;
     }

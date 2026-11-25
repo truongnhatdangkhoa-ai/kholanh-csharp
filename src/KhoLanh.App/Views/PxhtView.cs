@@ -76,7 +76,7 @@ public sealed class PxhtView : UserControl, IPage
         _open = Btn("Mở module →", OpenModule);
         _copy = Btn("Sao chép mã phiếu", async () => { if (_cur is not null && TopLevel.GetTopLevel(this)?.Clipboard is { } cb) { await cb.SetTextAsync(_cur.MaPhieu); _status.Text = "Đã sao chép mã phiếu " + _cur.MaPhieu; } });
 
-        var filters = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        var filters = new ToolRow { };
         filters.Children.Add(Label("Từ ngày")); filters.Children.Add(_from);
         filters.Children.Add(Label("Đến")); filters.Children.Add(_to);
         filters.Children.Add(_src); filters.Children.Add(_nguon); filters.Children.Add(_nguoi);

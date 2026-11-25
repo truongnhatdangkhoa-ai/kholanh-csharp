@@ -454,7 +454,7 @@ public sealed class TongHopView : UserControl, IPage
 
     private Control BuildTab2()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 8) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 8) };
         if (_edit)
         {
             bar.Children.Add(Btn("Nạp file Excel…", async () => await ImportTab2(), primary: true));

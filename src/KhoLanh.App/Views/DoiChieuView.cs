@@ -169,7 +169,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
 
     private Control BuildCompare()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_p1); bar.Children.Add(_p2);
         _p1.IsCheckedChanged += (_, _) => { if (_p1.IsChecked == true && _pid != 1) { _pid = 1; RenderCompare(); } };
         _p2.IsCheckedChanged += (_, _) => { if (_p2.IsChecked == true && _pid != 2) { _pid = 2; RenderCompare(); } };
@@ -183,7 +183,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         _q.TextChanged += (_, _) => { if (!_loading) RenderGrid(); };
         _hideZero.IsCheckedChanged += (_, _) => { if (_loading) return; Svc.St.HideZero = _hideZero.IsChecked == true; try { Svc.Persist(); } catch { } RenderGrid(); };
 
-        var act = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
+        var act = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         if (_edit)
         {
             act.Children.Add(Btn("⇄ Chuyển sang file kia", async () => await MoveSelected(), primary: true,
@@ -586,7 +586,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
                 }
             }
         }
-        var bar = new WrapPanel { ItemSpacing = 6 };
+        var bar = new ToolRow { };
         bar.Children.Add(Btn(lk is null ? "Chọn file…" : "Đổi file…", async () => await PickLink(slot), primary: lk is null));
         if (lk is not null)
         {

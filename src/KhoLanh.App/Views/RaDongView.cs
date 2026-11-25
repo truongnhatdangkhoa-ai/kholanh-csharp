@@ -168,33 +168,37 @@ public sealed class RaDongView : UserControl, IPage
 
     private Control BuildBang2()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         if (_edit)
         {
-            bar.Children.Add(Btn("Nạp file Excel…", async () => await ImportFile(update: false), primary: true));
-            bar.Children.Add(Btn("Xóa dữ liệu đã nhập", async () =>
+            bar.Children.Add(Btn("⬆ Nạp file Excel…", async () => await ImportFile(update: false)));
+            bar.Children.Add(ToolRow.More(Btn("Xóa dữ liệu đã nhập", async () =>
             {
                 if (Svc.Bang1.Rows.Count == 0) return;
                 if (!await Ui.Confirm(this, "Xóa toàn bộ dữ liệu đã nạp và bảng gộp? (Số liệu đã lưu theo ngày KHÔNG bị xóa.) Có thể bấm \"Hoàn tác\".", "Xóa dữ liệu", "Xóa")) return;
                 await Act(Svc.ClearBang1, b2: true);
-            }));
+            })));
         }
-        bar.Children.Add(Btn("Làm mới ánh xạ", async () => { await Act(Svc.LoadMapping, b2: true); _status.Text = "Đã đọc lại Mã hóa sản phẩm + Ánh xạ tên hàng."; }));
-        bar.Children.Add(new Border { Width = 10 });
-        bar.Children.Add(new TextBlock { Text = "Ngày:", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 });
+        bar.Children.Add(ToolRow.More(Btn("Làm mới ánh xạ", async () => { await Act(Svc.LoadMapping, b2: true); _status.Text = "Đã đọc lại Mã hóa sản phẩm + Ánh xạ tên hàng."; })));
+        bar.Children.Add(new TextBlock { Text = "Ngày", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5, Margin = new Thickness(6, 0, 0, 0) });
         bar.Children.Add(_dayFilter);
         _dayFilter.SelectionChanged += (_, _) => { if (!_loading) RenderGroups(); };
-        bar.Children.Add(_rawToggle);
-        _rawToggle.IsCheckedChanged += (_, _) => ShowBang2();
+        // "Bảng chưa gộp (dòng gốc)" bật / tắt → nút gạt Đã gộp | Dòng gốc
+        var rawSeg = new Seg("Đã gộp", "Dòng gốc");
+        ToolTip.SetTip(rawSeg, "Đã gộp: bảng gộp theo ngày (sửa tên / size / số). Dòng gốc: sửa / xóa từng dòng của file đã nạp.");
+        rawSeg.Changed += i => _rawToggle.IsChecked = i == 1;
+        bar.Children.Add(rawSeg);
+        _rawToggle.IsCheckedChanged += (_, _) => { rawSeg.Selected = _rawToggle.IsChecked == true ? 1 : 0; ShowBang2(); };
+        bar.Children.Add(ToolRow.Gap());
         if (_edit)
         {
             bar.Children.Add(Btn("🗑 Xóa dòng đã chọn", async () => await DeleteSelected(), danger: true));
-            bar.Children.Add(Btn("↺ Hoàn lại số gốc", async () =>
+            bar.Children.Add(ToolRow.More(Btn("↺ Hoàn lại số gốc", async () =>
             {
                 var keys = SelectedGroupKeys();
                 if (keys.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) các dòng nhóm có ô vàng (đã sửa tay) rồi bấm lại."); return; }
                 await Act(() => Svc.RevertGroups(keys), b2: true);
-            }));
+            })));
             bar.Children.Add(_undoBtn);
             bar.Children.Add(Btn("Lưu vào Số liệu đã lưu…", async () => await SaveToBang3(), primary: true));
         }
@@ -222,7 +226,10 @@ public sealed class RaDongView : UserControl, IPage
         var b = Svc.Bang1;
         _b2Info.Text = b.Rows.Count == 0
             ? "Chưa có dữ liệu. Bấm \"Nạp file Excel…\" và chọn file báo cáo kho (Nhập xuất trong ngày). App tự tìm dòng tiêu đề có cột \"Mã hàng\" và bỏ tiền tố \"TPC-\"."
-            : $"{(b.FileName.Length > 0 ? b.FileName + " · " : "")}{b.Rows.Count:#,0} dòng gốc · {_groups.Order.Count:#,0} nhóm" + (b.Edits.Count > 0 ? $" · {b.Edits.Count} nhóm sửa tay" : "");
+            : "";
+        _b2Info.IsVisible = b.Rows.Count == 0;
+        _gGrid.Status = _rGrid.Status = b.Rows.Count == 0 ? "" :
+            $"{(b.FileName.Length > 0 ? b.FileName + " · " : "")}{b.Rows.Count:#,0} dòng gốc · {_groups.Order.Count:#,0} nhóm" + (b.Edits.Count > 0 ? $" · {b.Edits.Count} nhóm sửa tay" : "");
         _undoBtn.IsEnabled = Svc.UndoLabel is not null;
         // bộ lọc ngày (mới nhất trước)
         _loading = true;
@@ -499,7 +506,7 @@ public sealed class RaDongView : UserControl, IPage
 
     private Control BuildBang3()
     {
-        var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6, Margin = new Thickness(0, 8, 0, 6) };
+        var bar = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
         bar.Children.Add(new TextBlock { Text = "Năm", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 });
         bar.Children.Add(_year);
         bar.Children.Add(new TextBlock { Text = "Tháng", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 });
@@ -508,19 +515,21 @@ public sealed class RaDongView : UserControl, IPage
         _year.SelectionChanged += (_, _) => { if (!_loading && _year.SelectedItem is string y) { _selYear = y; ShowBang3(); } };
         _month.SelectionChanged += (_, _) => { if (!_loading) { _selMonth = Math.Max(0, _month.SelectedIndex).ToString(); ShowBang3(); } };
         _q.TextChanged += (_, _) => { if (!_loading) ShowBang3(); };
-        bar.Children.Add(Btn("Tải lại", async () => await LoadAsync()));
+        var reload = Btn("⟳", async () => await LoadAsync()); ToolTip.SetTip(reload, "Tải lại");
+        bar.Children.Add(reload);
+        bar.Children.Add(ToolRow.Gap());
         if (_edit)
         {
-            bar.Children.Add(Btn("⬆ Nạp file cập nhật…", async () => await ImportFile(update: true)));
             bar.Children.Add(Btn("⤓ Lấy từ Đối chiếu hàng ngày", async () => await FromDoiChieu()));
-            bar.Children.Add(_undoUpd);
             bar.Children.Add(Btn("＋ Thêm dòng", () => { _addBox.IsVisible = !_addBox.IsVisible; if (_addBox.IsVisible && string.IsNullOrEmpty(_addDate.Text)) _addDate.Text = DateTime.Today.ToString("dd/MM/yyyy"); }));
-            bar.Children.Add(Btn("Xóa dòng đã chọn", async () => await DeleteSavedRows()));
-            bar.Children.Add(Btn("Xóa ngày đã chọn", async () => await DeleteSavedDays()));
-            bar.Children.Add(_delMonth);
+            bar.Children.Add(ToolRow.More(Btn("⬆ Nạp file cập nhật…", async () => await ImportFile(update: true))));
+            bar.Children.Add(ToolRow.More(_undoUpd));
+            bar.Children.Add(ToolRow.More(Btn("Xóa dòng đã chọn", async () => await DeleteSavedRows())));
+            bar.Children.Add(ToolRow.More(Btn("Xóa ngày đã chọn", async () => await DeleteSavedDays())));
+            bar.Children.Add(ToolRow.More(_delMonth));
         }
-        bar.Children.Add(Btn("Kiểm ngày thiếu", async () => await CheckMissingDays()));
-        bar.Children.Add(_imgBtn); bar.Children.Add(_imgClear);
+        bar.Children.Add(ToolRow.More(Btn("Kiểm ngày thiếu", async () => await CheckMissingDays())));
+        bar.Children.Add(_imgBtn); bar.Children.Add(ToolRow.More(_imgClear));
         if (Svc.CanExport) bar.Children.Add(_exportYear);
 
         var add = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
@@ -539,7 +548,7 @@ public sealed class RaDongView : UserControl, IPage
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
         var head = new StackPanel();
-        head.Children.Add(bar); head.Children.Add(_sInfo); head.Children.Add(hint); head.Children.Add(_addBox);
+        head.Children.Add(bar); head.Children.Add(hint); head.Children.Add(_addBox);
         var root = new DockPanel();
         DockPanel.SetDock(head, Dock.Top);
         root.Children.Add(head);
@@ -572,7 +581,7 @@ public sealed class RaDongView : UserControl, IPage
         var list = Svc.SavedRows.Where(r => r.Date.StartsWith(_selYear) && (_selMonth == "0" || int.Parse(r.Date.Substring(5, 2)) == int.Parse(_selMonth))).ToList();
         if (q.Length > 0) list = list.Where(r => TongHopService.NormSearch($"{RaDongService.Dmy(r.Date)} {r.Ma} {r.Size}").Contains(q)).ToList();
         var days = list.GroupBy(r => r.Date).OrderByDescending(g => g.Key, StringComparer.Ordinal).ToList();
-        _sInfo.Text = $"{days.Count} ngày · {list.Count:#,0} dòng · {list.Sum(r => r.Net).ToString("#,0.00", Ui.Vi)} kg";
+        _sGrid.Status = _sInfo.Text = $"{days.Count} ngày · {list.Count:#,0} dòng · {list.Sum(r => r.Net).ToString("#,0.00", Ui.Vi)} kg";
         var cols = new List<GridColumn>
         {
             new("d", "Ngày", 130) { ReadOnly = true }, new("m", "Mã hàng", 220) { ReadOnly = !_edit }, new("s", "Size", 100) { ReadOnly = !_edit },
