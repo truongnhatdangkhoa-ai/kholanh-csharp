@@ -86,7 +86,9 @@ public sealed partial class LanService : ISheetSource, IDisposable
     /// <summary>1.100: "IP:cổng" của máy chủ đang nối (máy con) — để đo độ trễ LAN; null khi chính máy này làm chủ / chưa nối.</summary>
     /// <summary>Địa chỉ đang dùng để nối máy chủ (địa chỉ gọi được gần nhất; qua đường hầm thì là https://…).</summary>
     public string? ServerAddress => _server is { } sv ? (_goodEp.TryGetValue(string.Join(";", sv.Addrs), out var g) ? g : sv.Addrs.FirstOrDefault()) : null;
-    public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending, string User = "");
+    /// <summary>Máy vừa gọi tới. <paramref name="ViaNet"/> = nối qua Internet (đường hầm Cloudflare, 1.118) — <paramref name="NetIp"/> là IP công khai
+    /// của nó (có thể trống); false = nối trong mạng LAN.</summary>
+    public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending, string User = "", bool ViaNet = false, string NetIp = "");
 
     public LanService(Database db, ModuleStore store, SettingsService settings, Session session, AuditService audit)
     {
@@ -391,7 +393,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private void ListenHttp()
     {
         if (_http is not null || _cts is null) return;
-        try { _http = new LanHttpServer(HttpPort, () => _key, (req, remote) => Handle(req, remote)); HttpError = ""; }
+        try { _http = new LanHttpServer(HttpPort, () => _key, (req, ip) => Handle(req, "", netIp: ip ?? "")); HttpError = ""; }
         catch (SocketException e) { HttpError = $"Không mở được cổng {HttpPort} cho đường hầm: {e.Message}"; }
     }
 
@@ -535,7 +537,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private static JsonObject Err(string msg) => new() { ["ok"] = false, ["error"] = msg };
 
     /// <summary>Xử lý một yêu cầu (công khai để kiểm thử).</summary>
-    public JsonObject Handle(JsonObject req, string remote = "")
+    /// <param name="netIp">Khác null = yêu cầu đến qua đường hầm Internet (giá trị = IP công khai của máy con, có thể trống).</param>
+    public JsonObject Handle(JsonObject req, string remote = "", string? netIp = null)
     {
         if (req["k"]?.ToString() != _key) return Err("Sai mã LAN.");
         var op = req["op"]?.ToString() ?? "";
@@ -552,7 +555,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
             var prev = _seen.GetValueOrDefault(from);
             _seen[from] = new Seen(from, req["mn"]?.ToString() ?? "", fromRole, string.Join(";", addrs), DateTime.Now,
                 op == "beat" ? req["down"]?.GetValue<bool>() ?? false : prev?.ServerDown ?? false,
-                req["pend"]?.GetValue<int>() ?? prev?.Pending ?? 0, req["u"]?.ToString() ?? "");
+                req["pend"]?.GetValue<int>() ?? prev?.Pending ?? 0, req["u"]?.ToString() ?? "", netIp is not null, netIp ?? "");
         }
         if (op == "hello") return Hello();
         if (op == "beat") return new JsonObject { ["ok"] = true };
@@ -1346,7 +1349,13 @@ public sealed partial class LanService : ISheetSource, IDisposable
     // Trạng thái hiển thị
     // =====================================================================================
 
-    public List<Seen> Machines() => _seen.Values.Where(s => DateTime.Now - s.At < TimeSpan.FromMinutes(5)).OrderBy(s => s.Name).ToList();
+    public List<Seen> Machines() => _seen.Values.Where(s => s.Id != MachineId && DateTime.Now - s.At < TimeSpan.FromMinutes(5)).OrderBy(s => s.Name).ToList();   // 1.118: bỏ chính máy này (Kiểm tra nối từ xa tự gọi qua đường hầm)
+    /// <summary>1.118: máy đang nối chia 2 loại — trong mạng LAN / qua Internet (đường hầm).</summary>
+    public (List<Seen> Lan, List<Seen> Net) MachinesByWay()
+    {
+        var all = Machines();
+        return (all.Where(m => !m.ViaNet).ToList(), all.Where(m => m.ViaNet).ToList());
+    }
 
     public string ServerName => Serving ? MachineName : _server?.Name ?? "";
 
@@ -1357,7 +1366,12 @@ public sealed partial class LanService : ISheetSource, IDisposable
         {
             if (!Enabled) return "";
             if (Role == RoleRemote) { var pe = PendingCount(); return "Drive: " + (RemoteStatus.Length > 0 ? RemoteStatus : "chưa đồng bộ") + (pe > 0 ? $" · {pe} chờ gửi" : ""); }
-            if (Serving) return _frozen ? "LAN: đang chuyển máy chủ…" : $"LAN: máy chủ · {Machines().Count} máy đang nối";
+            if (Serving)
+            {
+                if (_frozen) return "LAN: đang chuyển máy chủ…";
+                var (l, n) = MachinesByWay();
+                return $"LAN: máy chủ · {l.Count} máy đang nối" + (n.Count > 0 ? $" · {n.Count} máy qua Internet" : "");
+            }
             var pend = PendingCount();
             if (Online) return $"LAN: nối {ServerName}" + (pend > 0 ? $" · {pend} chờ gửi" : "");
             return $"LAN: mất máy chủ — làm riêng" + (pend > 0 ? $" · {pend} chờ gộp" : "");

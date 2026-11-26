@@ -114,6 +114,18 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void May_noi_trong_mang_LAN_nam_o_danh_sach_LAN()
+    {
+        // 1.118: máy con nối thẳng (TCP trong mạng LAN) → nhóm "trong mạng LAN", không phải "qua Internet"; có tên tài khoản
+        var (srv, cli, _, _) = Pair();
+        Until(() => srv.Lan.MachinesByWay().Lan.Any(m => m.Id == cli.Lan.MachineId), "máy chủ thấy máy con");
+        var (lan, net) = srv.Lan.MachinesByWay();
+        Assert.False(lan.Single(m => m.Id == cli.Lan.MachineId).ViaNet);
+        Assert.Empty(net);
+        Assert.DoesNotContain("qua Internet", srv.Lan.Short);
+    }
+
+    [Fact]
     public async Task Plain_old_clients_work_unless_encryption_is_required()
     {
         var ms = Setup("chu", LanService.RoleServer, null);
@@ -159,6 +171,12 @@ public class LanTests : IDisposable
         Assert.Equal("x", Names(cli.Lan.Read(Db, "T")));
         Assert.True(srv.Lan.TunnelLastOk > DateTime.Now.AddMinutes(-1));
         Assert.Contains("đang làm máy chủ", await srv.Lan.TestPublicAsync());
+        // 1.118: máy chủ chia máy đang nối 2 loại — máy này nối qua đường hầm → nằm ở "qua Internet"; chính máy chủ (tự kiểm tra) không hiện
+        var (lan, net) = srv.Lan.MachinesByWay();
+        Assert.Contains(net, m => m.Id == cli.Lan.MachineId && m.ViaNet);
+        Assert.DoesNotContain(lan, m => m.Id == cli.Lan.MachineId);
+        Assert.DoesNotContain(lan.Concat(net), m => m.Id == srv.Lan.MachineId);
+        Assert.Contains("máy qua Internet", srv.Lan.Short);
     }
 
     [Fact]

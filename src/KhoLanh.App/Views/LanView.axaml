@@ -14,18 +14,32 @@
       <TabItem Header="Máy đang nối &amp; trùng sửa">
         <!-- 1.80: cuộn được + bảng Trùng sửa cao tối thiểu 260 (trước dòng "*" trong 2 lớp tab ở màn 1366×768 gần như 0 → bị cắt, không cuộn được) -->
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <Grid RowDefinitions="Auto,180,Auto,Auto" RowSpacing="8" Margin="0,8,0,8">
-          <TextBlock Text="Các máy đang nối (5 phút gần nhất)" Classes="section"/>
-          <DataGrid Grid.Row="1" x:Name="MachinesGrid" IsReadOnly="True">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8" Margin="0,8,0,8">
+          <!-- 1.118: máy đang nối chia 2 loại — trong mạng LAN / qua Internet (đường hầm Cloudflare) -->
+          <TextBlock x:Name="LanMachinesTitle" Text="Máy nối trong mạng LAN (5 phút gần nhất)" Classes="section"/>
+          <DataGrid Grid.Row="1" x:Name="MachinesGrid" IsReadOnly="True" MinHeight="120" MaxHeight="240">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="Máy" Binding="{Binding Name}" Width="180"/>
-              <DataGridTextColumn Header="Vai" Binding="{Binding RoleLabel}" Width="150"/>
+              <DataGridTextColumn Header="Máy" Binding="{Binding Name}" Width="170"/>
+              <DataGridTextColumn Header="Tài khoản" Binding="{Binding User}" Width="120"/>
+              <DataGridTextColumn Header="Vai" Binding="{Binding RoleLabel}" Width="140"/>
               <DataGridTextColumn Header="Địa chỉ" Binding="{Binding Addr}" Width="*"/>
-              <DataGridTextColumn Header="Lần cuối" Binding="{Binding At, StringFormat='HH:mm:ss'}" Width="100"/>
-              <DataGridTextColumn Header="Sổ chờ" Binding="{Binding Pending}" Width="90"/>
+              <DataGridTextColumn Header="Lần cuối" Binding="{Binding At, StringFormat='HH:mm:ss'}" Width="105"/>
+              <DataGridTextColumn Header="Sổ chờ" Binding="{Binding Pending}" Width="95"/>
             </DataGrid.Columns>
           </DataGrid>
-          <DockPanel Grid.Row="2" Margin="0,8,0,0">
+          <TextBlock Grid.Row="2" x:Name="NetMachinesTitle" Text="Máy nối qua Internet (5 phút gần nhất)" Classes="section" Margin="0,8,0,0"
+                     ToolTip.Tip="Máy ở xa nối máy chủ qua đường hầm Cloudflare (Máy chủ từ xa). IP = địa chỉ Internet của nơi máy đó đang dùng mạng."/>
+          <DataGrid Grid.Row="3" x:Name="NetMachinesGrid" IsReadOnly="True" MinHeight="120" MaxHeight="240">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Máy" Binding="{Binding Name}" Width="170"/>
+              <DataGridTextColumn Header="Tài khoản" Binding="{Binding User}" Width="120"/>
+              <DataGridTextColumn Header="Vai" Binding="{Binding RoleLabel}" Width="140"/>
+              <DataGridTextColumn Header="IP Internet" Binding="{Binding Addr}" Width="*"/>
+              <DataGridTextColumn Header="Lần cuối" Binding="{Binding At, StringFormat='HH:mm:ss'}" Width="105"/>
+              <DataGridTextColumn Header="Sổ chờ" Binding="{Binding Pending}" Width="95"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <DockPanel Grid.Row="4" Margin="0,8,0,0">
             <TextBlock Text="Trùng sửa / tự gộp cần xem" Classes="section" VerticalAlignment="Center"
                        ToolTip.Tip="Khi mất máy chủ, mỗi máy làm tiếp và ghi sổ chờ. Có máy chủ lại: chỉ một bên sửa → lấy luôn; sửa khác dòng → tự gộp; cùng sửa một dòng / nạp lại cả bảng → giữ bản máy chủ, bản máy con nằm ở đây để Quản trị chọn."/>
             <CheckBox x:Name="AllBox" Content="Hiện cả mục đã xử lý" Margin="16,0,0,0" IsCheckedChanged="OnAllChanged"/>
@@ -36,7 +50,7 @@
               <Button x:Name="SeenButton" Content="Đã xem" Click="OnSeen"/>
             </WrapPanel>
           </DockPanel>
-          <DataGrid Grid.Row="3" x:Name="ConflictsGrid" IsReadOnly="True" SelectionChanged="OnSelection" MinHeight="260" MaxHeight="560">
+          <DataGrid Grid.Row="5" x:Name="ConflictsGrid" IsReadOnly="True" SelectionChanged="OnSelection" MinHeight="260" MaxHeight="560">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Lúc" Binding="{Binding At}" Width="150"/>
               <DataGridTextColumn Header="Máy" Binding="{Binding Machine}" Width="120"/>
