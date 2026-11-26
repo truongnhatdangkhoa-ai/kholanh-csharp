@@ -824,10 +824,9 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v180")
 {
     void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
     var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P(20);
-    w.Navigate("dulieu"); P(40);
-    var lv = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().First();
-    var sub = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.Items.OfType<TabItem>().Any(i => i.Content == lv || (i.Content as Control)?.GetVisualDescendants().Contains(lv) == true));
-    sub.SelectedItem = sub.Items.OfType<TabItem>().First(i => i.Content == lv || (i.Content as Control)?.GetVisualDescendants().Contains(lv) == true); P(30);
+    // 1.121: LanView không còn nằm trong Đồng bộ & sao lưu (tab Máy chủ = MayChuView; LanView mở bằng «Mở danh sách đầy đủ») → hiện thẳng
+    var lv = new KhoLanh.App.Views.LanView();
+    w.Show("lan", lv); P(40);
     var cg = lv.FindControl<DataGrid>("ConflictsGrid")!;
     var sv = cg.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
     Console.WriteLine($"[LAN] bảng Trùng sửa cao {cg.Bounds.Height:0} px · trong vùng cuộn: {sv is not null} · vùng cuộn {sv?.Extent.Height:0}/{sv?.Viewport.Height:0}");
@@ -974,6 +973,97 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.121: SHOTS_ONLY=v213 — Đồng bộ & sao lưu: 3 tab Máy chủ · Điện thoại · Sao lưu; tab Máy chủ ở các tình huống dựng được: máy chủ có máy nối
+// trong kho + qua Internet + 1 mục trùng sửa, lọc Qua Internet; máy con mất máy chủ có thay đổi chờ gửi; máy đơn dùng bản Drive; máy đơn chưa bật LAN.
+// Khóa cũ lan / drive / dulieu / phone / saoluu / dcn mở đúng tab. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v213")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    void Bad(string m) { Console.WriteLine("        HỎNG: " + m); ok = false; }
+    var code = s.Lan.ConnectionCode();
+    System.Text.Json.Nodes.JsonObject Beat(string id, string name, string user, int pend) => new()
+    { ["k"] = KhoLanh.Core.Lan.LanService.ParseCode(code).Item2, ["op"] = "beat", ["m"] = id, ["mn"] = name, ["r"] = KhoLanh.Core.Lan.LanService.RoleClient, ["u"] = user, ["pend"] = pend,
+      ["a"] = new System.Text.Json.Nodes.JsonArray(id == "m-kho1" ? "192.168.1.20:47820" : "192.168.1.21:47820") };
+    s.Lan.Handle(Beat("m-kho1", "MAY-KHO-1", "thang", 0));
+    s.Lan.Handle(Beat("m-kho2", "MAY-KETOAN", "lan", 2));
+    s.Lan.Handle(Beat("m-nha", "LAPTOP-NHA", "khoa", 0), "", netIp: "113.161.40.12");
+    // giả lập đã nối Google Sheet chung + kế hoạch LAN (máy dự phòng) — không gọi mạng khi chỉ mở trang
+    var sec = (Func<string, string>)KhoLanh.Core.Services.Secret.Protect;
+    s.Settings.Set("acct_url", "https://script.google.com/macros/s/DEMO/exec"); s.Settings.Set("acct_token", sec("demo-token"));
+    var lp = new KhoLanh.Core.Lan.LanPlan { On = true, Key = "demo", Port = s.Lan.Port };
+    lp.Chu = new KhoLanh.Core.Lan.LanPlan.Slot(s.Lan.MachineId, "MAY-CHU-KHO", new() { "192.168.1.10:47820", "https://kho.kcenter.xyz" }, "", "admin");
+    lp.DuPhong = new KhoLanh.Core.Lan.LanPlan.Slot("x", "MAY-VAN-PHONG", new() { "192.168.1.11:47820" }, "", "quanly");
+    s.Settings.Set("lan_plan", lp.ToJson());
+    KhoLanh.Core.Lan.LanService.SetPublicUrl(s.Settings, "kho.kcenter.xyz");
+    KhoLanh.App.Views.MayChuView? Mc() => (main.PageHost.Content as DongBoView)?.MayChu;
+
+    // --- a) máy chủ
+    main.Navigate("audit"); P(5); main.Navigate("dongbo"); P(40);
+    if (main.PageHost.Content is not DongBoView dv) { Bad("dongbo không mở DongBoView"); s.Lan.Dispose(); Environment.Exit(1); return; }
+    var heads = string.Join("|", dv.Tabs.Items.OfType<TabItem>().Select(t => KhoLanh.App.Controls.Icon.TextOf(t.Header)));
+    var mc = dv.MayChu;
+    Console.WriteLine($"[v213] tab: {heads} · tình huống: {mc.State} · máy đang nối {mc.MachineRows} · trùng sửa {mc.ConflictRows}");
+    if (heads != "Máy chủ|Điện thoại|Sao lưu") Bad("cần đúng 3 tab Máy chủ · Điện thoại · Sao lưu");
+    if (mc.State != "may-chu") Bad("máy chủ phải hiện tình huống may-chu");
+    if (mc.MachineRows != 3) Bad("bảng Máy đang nối cần 3 máy (2 trong kho + 1 Internet)");
+    if (mc.ConflictRows < 1) Bad("cần khung Trùng sửa cần xem (có 1 mục chờ)");
+    var allTxt = string.Join("\n", mc.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Inlines is { Count: > 0 } il ? string.Concat(il.OfType<Avalonia.Controls.Documents.Run>().Select(r => r.Text)) : t.Text ?? ""));
+    if (System.Text.RegularExpressions.Regex.IsMatch(allTxt, @"47\d\d\d|Cổng|cổng|mã LAN")) Bad("tab Máy chủ không được hiện cổng / mã LAN");
+    if (!allTxt.Contains("MAY-VAN-PHONG")) Bad("thiếu dòng Máy dự phòng");
+    CheckUnderNav(main, "v213-may-chu"); Snap(main, "v213-may-chu");
+    mc.MachineFilter.Selected = 2; mc.Render(); P(10);
+    Console.WriteLine($"[v213] lọc Qua Internet: {mc.MachineRows} máy");
+    if (mc.MachineRows != 1) Bad("lọc Qua Internet cần 1 máy");
+    Snap(main, "v213-may-chu-loc-internet");
+    mc.MachineFilter.Selected = 0; mc.Render(); P(5);
+    var more = mc.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "⋯ Thêm" && b.Flyout is MenuFlyout);
+    if (more is null) Bad("thiếu nút ⋯ Thêm (Quản trị)");
+    else
+    {
+        var items = ((MenuFlyout)more.Flyout!).Items.OfType<MenuItem>().Select(i => i.Header?.ToString()).ToList();
+        Console.WriteLine($"[v213] ⋯ Thêm: {string.Join(" · ", items)}");
+        if (!items.Contains("Địa chỉ Internet của máy chủ…") || !items.Contains("Nhật ký nối máy")) Bad("⋯ Thêm thiếu mục");
+        more.Flyout!.ShowAt(more); P(10); SnapFlyout(main, more, "v213-may-chu-them"); more.Flyout.Hide(); P(5);
+    }
+    if (!mc.GetVisualDescendants().OfType<Button>().Any(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Tắt máy chủ" && b.Classes.Contains("danger"))) Bad("thiếu nút Tắt máy chủ (danger)");
+    foreach (var (key, tab) in new[] { ("lan", "Máy chủ"), ("drive", "Máy chủ"), ("dulieu", "Máy chủ"), ("phone", "Điện thoại"), ("saoluu", "Sao lưu"), ("dcn", "Sao lưu") })
+    {
+        main.Navigate("audit"); P(5); main.Navigate(key); P(15);
+        var h = (main.PageHost.Content as DongBoView)?.Tabs.SelectedItem is TabItem ti ? KhoLanh.App.Controls.Icon.TextOf(ti.Header) : null;
+        Console.WriteLine($"[v213] khóa cũ \"{key}\" → {h}");
+        if (h != tab) Bad($"khóa {key} mở {h}, cần {tab}");
+    }
+
+    // --- c) máy con mất máy chủ, có thay đổi chờ gửi
+    KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleClient, code);
+    s.Settings.Set("lan_synced_at", DateTime.Now.AddMinutes(-47).ToString("s", System.Globalization.CultureInfo.InvariantCulture));
+    s.ReloadLan(start: false);
+    s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["ThuMayChu"] = new() { new System.Text.Json.Nodes.JsonObject { ["ma"] = "a" } } });
+    main.Navigate("audit"); P(5); main.Navigate("dongbo"); P(30);
+    Console.WriteLine($"[v213] máy con mất máy chủ: {Mc()?.State} · chờ gửi {s.Lan.PendingCount()}");
+    if (Mc()?.State != "may-don-cho") Bad("máy con mất máy chủ có chờ gửi phải hiện may-don-cho");
+    if (Mc()?.GetVisualDescendants().OfType<Button>().Any(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Nối lại ngay" && b.Classes.Contains("primary")) != true) Bad("thiếu nút Nối lại ngay");
+    CheckUnderNav(main, "v213-may-don-cho"); Snap(main, "v213-may-don-cho");
+
+    // --- d) máy đơn dùng bản Drive cá nhân của máy chủ
+    s.Settings.Set("lan_offline_src", "MAY-CHU-KHO · sao lưu 26/11 22:00");
+    main.Navigate("audit"); P(5); main.Navigate("dongbo"); P(30);
+    Console.WriteLine($"[v213] máy đơn dùng bản Drive: {Mc()?.State}");
+    if (Mc()?.State != "may-don-drive") Bad("máy đơn dùng bản Drive phải hiện may-don-drive");
+    Snap(main, "v213-may-don-drive");
+    s.Settings.Set("lan_offline_src", "");
+
+    // --- e) máy đơn chưa bật LAN
+    s.Settings.Set("lan_role", ""); s.Settings.Set("lan_serving", ""); s.ReloadLan(start: false);
+    main.Navigate("audit"); P(5); main.Navigate("dongbo"); P(30);
+    Console.WriteLine($"[v213] máy đơn: {Mc()?.State}");
+    if (Mc()?.State != "may-don") Bad("máy đơn phải hiện may-don");
+    if (Mc()?.GetVisualDescendants().OfType<Button>().Any(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Bật máy chủ trên máy này") != true) Bad("Quản trị cần nút Bật máy chủ trên máy này");
+    CheckUnderNav(main, "v213-may-don"); Snap(main, "v213-may-don");
+    if (navBad.Count > 0) ok = false;
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v213) — ĐẠT: " : "Xong (v213) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.119: SHOTS_ONLY=v212 — chép chữ: chuột phải vào chữ thường → menu "Chép chữ này / Chép cả khung"; chữ trong nút không bật menu; hộp thông báo bôi đen được. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v212")
 {
@@ -1173,7 +1263,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v204")
     Console.WriteLine($"[v204] máy chủ: {s.Lan.Serving} · mã LAN: {string.Join(" ; ", addrs)} · tự thử: {test}");
     if (!test.Contains("đang làm máy chủ") || !addrs.Contains($"http://127.0.0.1:{hp}")) ok = false;
     KhoLanh.Core.Lan.LanService.SetPublicUrl(s.Settings, "kho.kcenter.xyz");
-    main.Navigate("lan"); P(40);
+    main.Show("lan", new KhoLanh.App.Views.LanView()); P(40);   // 1.121: khung cũ chỉ còn trong cửa sổ «Mở danh sách đầy đủ» (tab Máy chủ có hộp Địa chỉ Internet)
     var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t => t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Máy chủ LAN"));
     if (inner is not null) { inner.SelectedItem = inner.Items.OfType<TabItem>().First(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Máy chủ LAN"); P(30); }
     var lv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().FirstOrDefault();
@@ -1524,10 +1614,9 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
     if (w.PageHost.Content is DongBoView dv)
     {
         var heads = dv.Tabs.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
-        Console.WriteLine($"[v205] Đồng bộ & sao lưu: tab {string.Join(" · ", heads)} · thẻ {string.Join(" | ", dv.State.Select(x => x.Key + "=" + x.Value.Kind + " " + x.Value.Text))}");
-        if (heads.Count != 4) Bad("cần 4 tab");
-        if (dv.State.Count != 3) Bad("Tình trạng cần 3 thẻ");
-        string[] names = { "v205-dong-bo-tinh-trang", "v205-giua-cac-may", "v205-dien-thoai", "v205-sao-luu" };
+        Console.WriteLine($"[v205] Đồng bộ & sao lưu: tab {string.Join(" · ", heads)} · Máy chủ: {dv.MayChu.State}");
+        if (string.Join("|", heads) != "Máy chủ|Điện thoại|Sao lưu") Bad("cần 3 tab Máy chủ · Điện thoại · Sao lưu (1.121)");
+        string[] names = { "v205-may-chu", "v205-dien-thoai", "v205-sao-luu" };
         for (var t = 0; t < dv.Tabs.ItemCount; t++)
         {
             dv.Tabs.SelectedIndex = t; Wait(30);
@@ -1537,7 +1626,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
         }
     }
     else Bad("dongbo không mở DongBoView");
-    foreach (var (key, tab) in new[] { ("phone", "Điện thoại"), ("dcn", "Sao lưu"), ("lan", "Giữa các máy"), ("dulieu", "Tình trạng") })
+    foreach (var (key, tab) in new[] { ("phone", "Điện thoại"), ("dcn", "Sao lưu"), ("lan", "Máy chủ"), ("drive", "Máy chủ"), ("dulieu", "Máy chủ"), ("saoluu", "Sao lưu") })
     {
         w.Navigate("audit"); Wait(10); w.Navigate(key); Wait(20);
         var h = (w.PageHost.Content as DongBoView)?.Tabs.SelectedItem is TabItem ti ? ti.Header?.ToString() : null;

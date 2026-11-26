@@ -32,7 +32,8 @@ public partial class MainWindow : Window
     /// <summary>Mục "users" chỉ Quản trị; các mục khác theo phân quyền tài khoản (mức Xem trở lên).</summary>
     private static bool Allowed(NavItem i) => i.Key is "users" ? App.Services.Session.CanManageAccounts   // 1.110: Quản trị hoặc quyền "Tạo / sửa tài khoản"
         : i.Key is "troly" ? Roles.IsAdmin(App.Services.Session.Role)
-        : i.Key is "ketnoi" or "dongbo" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") || App.Services.Session.Can("phone")
+        : i.Key is "dongbo" ? App.Services.Session.CurrentUser is not null   // 1.121: tab Máy chủ cho MỌI tài khoản (nội dung theo quyền)
+        : i.Key is "ketnoi" ? Roles.IsAdmin(App.Services.Session.Role) || App.Services.Session.Can("backup") || App.Services.Session.Can("phone")
         : App.Services.Session.Can(i.Key);
 
     private readonly List<(string group, NavItem[] items)> _menu;
@@ -226,7 +227,7 @@ public partial class MainWindow : Window
             : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
 
-    private void OnLanPill(object? sender, RoutedEventArgs e) { if (Roles.IsAdmin(App.Services.Session.Role)) Navigate("lan"); }
+    private void OnLanPill(object? sender, RoutedEventArgs e) => Navigate("lan");   // 1.121: mọi tài khoản xem tab Máy chủ
 
     private static bool _autoStarted;
 
@@ -444,6 +445,7 @@ public partial class MainWindow : Window
     {
         // 1.68: Mạng LAN / Đồng bộ Google Drive / sao lưu gom vào "Dữ liệu & sao lưu" — giữ khóa cũ để các nút / Trợ lý mở đúng tab
         // 1.105: Dữ liệu & sao lưu + Đồng bộ điện thoại gộp vào "Đồng bộ & sao lưu" — khóa cũ mở đúng tab
+        // 1.121: 3 tab Máy chủ · Điện thoại · Sao lưu — "lan" / "drive" / "dulieu" → Máy chủ
         if (key is "lan" or "drive" or "saoluu" or "dcn" or "dulieu" or "phone") { page ??= new DongBoView(key); key = "dongbo"; }
         var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
         if (item is null) return;

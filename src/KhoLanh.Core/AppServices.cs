@@ -145,6 +145,16 @@ public class AppServices
               + " Khôi phục được ở máy ngoài mạng LAN (máy đó tự tách ra dùng dữ liệu riêng)."
             : null;
 
+    /// <summary>
+    /// 1.121: bỏ Thư mục / Drive dùng chung — gọi MỘT lần lúc mở app, trước khi bật LAN (App.InitServices). Máy cũ còn cài Drive dùng chung tự chuyển
+    /// (<see cref="DriveRetire"/>); máy khác không đổi gì. Trả câu báo (null = không có gì đổi).
+    /// </summary>
+    public string? RetireDriveSync()
+    {
+        try { return DriveRetire.Run(this)?.Message; }
+        catch (Exception e) { return "Chưa bỏ được đồng bộ Drive dùng chung: " + e.Message; }
+    }
+
     public void ReloadLan(bool start = true)
     {
         var old = Lan;

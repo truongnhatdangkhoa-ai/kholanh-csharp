@@ -284,14 +284,14 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         var list = new List<Finding>
         {
             Mk("sao-luu", "vang", "Sao lưu", "Bản sao lưu cũ", "x"),
-            Mk("dong-bo", "vang", "Google Drive", "Đồng bộ Google Drive báo lỗi", "x"),
+            Mk("dong-bo", "vang", "Mạng LAN", "Không nối được máy chủ LAN", "x"),   // 1.121: bỏ "Đồng bộ Drive ngay" → không có sửa nhanh
             Mk("ket-noi", "vang", "Email lịch xuất", "Gmail lịch xuất mất kết nối", "x"),
             Mk(PerfChecks.Cat, "vang", PerfChecks.Mod, "KhoLanh đang giữ 1,900 MB RAM", "x"),
             Mk("csdl", "do", "M", "Lỗi khác", "x"),
             Mk("sao-luu", "xanh", "Sao lưu", "Bản sao lưu cũ", "x"),
         };
         TroLyFix.Assign(list);
-        Assert.Equal(new[] { TroLyFix.SaoLuuNgay, TroLyFix.DongBoDrive, TroLyFix.KiemTraGmail, TroLyFix.DonBoNho, "", "" }, list.Select(f => f.Fix));
+        Assert.Equal(new[] { TroLyFix.SaoLuuNgay, "", TroLyFix.KiemTraGmail, TroLyFix.DonBoNho, "", "" }, list.Select(f => f.Fix));
     }
 
     [Fact]
@@ -431,10 +431,9 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
             AcctEnabled = true, AcctError = new ConnErrorLog.Entry(at, AccountSyncService.PhoneScriptMsg, ConnErrorLog.KindPhoneScript),
             PhoneEnabled = true, PhoneError = new ConnErrorLog.Entry(at, "Mã truy cập không đúng.", ConnErrorLog.KindAuth),
             MailReady = true, MailEmail = "kho@gmail.com", MailStatus = "✖ 08:00 23/11 · Sai mật khẩu ứng dụng",
-            DriveEnabled = true, DriveDir = @"G:\My Drive\KhoLanh", DriveDirExists = false,
         };
         var f = CheckConfig(info);
-        Assert.Equal(4, f.Count);
+        Assert.Equal(3, f.Count);   // 1.121: bỏ kiểm tra thư mục Drive dùng chung
         var acct = Assert.Single(f, x => x.Mod == "Tài khoản dùng chung");
         Assert.Equal(("do", "ketnoi"), (acct.Sev, acct.Go));
         Assert.Contains("Web App của app điện thoại", acct.Title);
@@ -443,15 +442,14 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         Assert.Contains("PC_TOKEN", ph.Title);
         var ml = Assert.Single(f, x => x.Mod == "Email lịch xuất");
         Assert.Equal(("vang", "lx"), (ml.Sev, ml.Go));
-        var dr = Assert.Single(f, x => x.Mod == "Đồng bộ Google Drive");
-        Assert.Equal(("do", "drive"), (dr.Sev, dr.Go));
+        Assert.DoesNotContain(f, x => x.Mod.Contains("Drive"));
         Assert.All(f, x => Assert.Equal("ket-noi", x.Cat));
 
-        // lỗi tải thường (mất mạng) → Cần xem; Gmail ✓ / Drive còn → không báo; chưa bật gì → không có phát hiện
+        // lỗi tải thường (mất mạng) → Cần xem; Gmail ✓ → không báo; chưa bật gì → không có phát hiện
         var ok = CheckConfig(new ConfigInfo
         {
             AcctEnabled = true, AcctError = new ConnErrorLog.Entry(at, "Không kết nối được Google Sheet — kiểm tra Internet.", ""),
-            MailReady = true, MailStatus = "✓ Đã kết nối kho@gmail.com", DriveEnabled = true, DriveDir = _dir, DriveDirExists = true,
+            MailReady = true, MailStatus = "✓ Đã kết nối kho@gmail.com",
         });
         Assert.Equal("vang", Assert.Single(ok).Sev);
         Assert.Equal("xanh", Assert.Single(CheckConfig(new ConfigInfo { PhoneEnabled = true })).Sev);
@@ -459,7 +457,7 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         var tn = Assert.Single(CheckConfig(new ConfigInfo { TunnelUrl = "https://kho.kcenter.xyz", TunnelError = "Chưa nối được: HTTP 530" }));
         Assert.Equal("do", tn.Sev); Assert.Equal("lan", tn.Go);
         Assert.Empty(CheckConfig(new ConfigInfo { TunnelUrl = "https://kho.kcenter.xyz" }).Where(f => f.Sev != "xanh"));
-        Assert.Empty(CheckConfig(new ConfigInfo { AcctError = info.AcctError, PhoneError = info.PhoneError, MailStatus = info.MailStatus, DriveDirExists = false }));
+        Assert.Empty(CheckConfig(new ConfigInfo { AcctError = info.AcctError, PhoneError = info.PhoneError, MailStatus = info.MailStatus }));
     }
 
     [Fact]

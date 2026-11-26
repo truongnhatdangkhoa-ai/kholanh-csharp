@@ -62,13 +62,13 @@ public static class TroLyChecks
         ["ghi-phieu"] = new[] { "src/KhoLanh.Core/PhieuXuat/PxhtService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs", "src/KhoLanh.Core/TonKho/AnAnService.cs" },
         ["trung-khoa"] = new[] { "src/KhoLanh.Core/Modules/ModuleBridge.cs › WriteSheets", "src/KhoLanh.Core/Lan/SheetMerge.cs", "Service của module liên quan (nơi thêm dòng)" },
         ["sao-luu"] = new[] { "src/KhoLanh.Core/Services/BackupService.cs", "src/KhoLanh.App/App.axaml.cs › DailyAutoBackup" },
-        ["dong-bo"] = new[] { "src/KhoLanh.Core/Lan/LanService.cs", "src/KhoLanh.Core/Lan/SheetMerge.cs", "src/KhoLanh.Core/Lan/DriveSync.cs" },
+        ["dong-bo"] = new[] { "src/KhoLanh.Core/Lan/LanService.cs", "src/KhoLanh.Core/Lan/SheetMerge.cs" },
         ["csdl"] = new[] { "src/KhoLanh.Core/Data/Database.cs", "src/KhoLanh.Core/Modules/ModuleBridge.cs" },
         ["loi-app"] = new[] { "logs/loi.log (chi tiết lỗi)", "src/KhoLanh.App/Views/<màn hình phát sinh lỗi>" },
         ["cham"] = new[] { "logs/cham.log (thao tác > 2 giây)", "src/KhoLanh.Core/TroLy/Perf.cs" },
         ["nghiep-vu"] = new[] { "src/KhoLanh.Core/PhieuXuat/PxhtService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
         ["ma-hang"] = new[] { "src/KhoLanh.Core/TonKho/NapExcel.cs (nạp Load Data)", "src/KhoLanh.Core/ViTri/ViTriService.cs › Import", "src/KhoLanh.Core/TongHop/TongHopService.cs", "file Excel nguồn" },
-        ["ket-noi"] = new[] { "src/KhoLanh.Core/Services/ConnErrorLog.cs", "src/KhoLanh.Core/Services/AccountSyncService.cs", "src/KhoLanh.Core/Services/PhoneWebApp.cs", "src/KhoLanh.Core/LichXuat/LichXuatService.cs › MailStatus", "src/KhoLanh.Core/Lan/DriveSync.cs" },
+        ["ket-noi"] = new[] { "src/KhoLanh.Core/Services/ConnErrorLog.cs", "src/KhoLanh.Core/Services/AccountSyncService.cs", "src/KhoLanh.Core/Services/PhoneWebApp.cs", "src/KhoLanh.Core/LichXuat/LichXuatService.cs › MailStatus" },
         ["cheo"] = new[] { "src/KhoLanh.Core/TonKho/AnAnService.cs", "src/KhoLanh.Core/ViTri/ViTriService.cs", "src/KhoLanh.Core/TonKhoGui/GuiService.cs" },
     };
 
@@ -194,7 +194,7 @@ public static class TroLyChecks
         // 1.120: gần nửa bảng trở lên là dòng lặp → nhiều khả năng cả bảng bị nhân đôi (gộp LAN cũ) — chỉ cách sửa
         var doubled = sameRows * 2 >= objs.Count;
         if (same.Count > 0) o.Add(Mk("trung-khoa", "vang", where, "Dòng trùng hoàn toàn", $"{same.Count} nhóm dòng giống hệt nhau (tổng {sameRows} dòng)."
-                + (doubled ? " Gần như cả bảng bị nhân đôi — thường do lần tự gộp LAN khi 2 máy cùng nạp file (đã sửa ở bản 1.120). Cách sửa: Đồng bộ & sao lưu › Giữa các máy › Máy chủ LAN › Trùng sửa › chọn mục \"Đã tự gộp\" của bảng này › Hoàn tác gộp, hoặc nạp lại file mới nhất của module." : ""),
+                + (doubled ? " Gần như cả bảng bị nhân đôi — thường do lần tự gộp LAN khi 2 máy cùng nạp file (đã sửa ở bản 1.120). Cách sửa: Đồng bộ & sao lưu › Máy chủ › Trùng sửa cần xem › chọn mục \"Đã tự gộp\" của bảng này › Hoàn tác gộp, hoặc nạp lại file mới nhất của module." : ""),
             Cut(same.Select(x => "×" + x.N + " " + string.Join(" | ", x.Vals.Take(4))))));
         // (b) trùng KHÓA nhận diện: ≥ 3 cột nhận diện, có mã hàng và (lô hoặc số phiếu) — mã + size / mã + vị trí lặp là bình thường ở bảng tồn
         var cols = IdentCols(objs[0]);
@@ -304,7 +304,7 @@ public static class TroLyChecks
         return o;
     }
 
-    // ------------------------------------------------------------------ 5) Đồng bộ (LAN / Google Drive / file tạm)
+    // ------------------------------------------------------------------ 5) Đồng bộ (LAN / file tạm)
 
     public sealed class SyncInfo
     {
@@ -315,9 +315,7 @@ public static class TroLyChecks
         public string LanListenError = "";
         public int Pending;                // số bảng trong sổ chờ (máy con chưa gửi lên)
         public double PendingAgeMin = double.NaN;
-        public bool DriveEnabled;
-        public string DriveStatus = "";
-        public double DriveOkAgeMin = double.NaN;
+        // 1.121: bỏ Thư mục / Drive dùng chung — không còn số liệu Drive ở đây (Drive cá nhân kiểm ở phần Sao lưu).
     }
 
     public static List<Finding> CheckSync(SyncInfo? info, double tmpMin = 10, double staleMin = 60)
@@ -335,18 +333,12 @@ public static class TroLyChecks
             if (info.Pending > 0 && info.PendingAgeMin > staleMin)
                 o.Add(Mk("dong-bo", "vang", L, "Thay đổi chờ gửi lên máy chủ lâu", $"{info.Pending} bảng sửa trên máy này chưa gửi được lên máy chủ, lâu nhất {Math.Round(info.PendingAgeMin)} phút."));
         }
-        if (info.DriveEnabled)
-        {
-            const string D = "Đồng bộ Google Drive";
-            if (Regex.IsMatch(info.DriveStatus, "lỗi|không", RegexOptions.IgnoreCase)) o.Add(Mk("dong-bo", "vang", D, "Đồng bộ Google Drive báo lỗi", info.DriveStatus[..Math.Min(250, info.DriveStatus.Length)]));
-            else if (info.DriveOkAgeMin > staleMin * 6) o.Add(Mk("dong-bo", "vang", D, "Lâu chưa đồng bộ được qua Google Drive", $"Lần thành công gần nhất cách đây {Math.Round(info.DriveOkAgeMin)} phút."));
-        }
         if (o.Count == 0) o.Add(Mk("dong-bo", "xanh", "Đồng bộ", "Đồng bộ ổn",
-            info.LanEnabled || info.DriveEnabled ? "Không thấy file dở dang, sổ chờ tồn đọng hay lỗi đồng bộ." : "Máy đơn (không dùng LAN / Drive), không có file tạm dở dang."));
+            info.LanEnabled ? "Không thấy file dở dang, sổ chờ tồn đọng hay lỗi đồng bộ." : "Máy đơn (chưa nối máy chủ), không có file tạm dở dang."));
         return o;
     }
 
-    // ------------------------------------------------------------------ 5b) Cấu hình kết nối (Tài khoản dùng chung / điện thoại / Gmail / Drive)
+    // ------------------------------------------------------------------ 5b) Cấu hình kết nối (Tài khoản dùng chung / điện thoại / Gmail / máy chủ từ xa)
 
     /// <summary>Số liệu cấu hình kết nối của máy (TroLyService.CollectConfig gom từ settings) — chỉ dữ liệu thường để test được.</summary>
     public sealed class ConfigInfo
@@ -358,9 +350,6 @@ public static class TroLyChecks
         public bool MailReady;
         public string MailEmail = "";
         public string MailStatus = "";
-        public bool DriveEnabled;
-        public string DriveDir = "";
-        public bool DriveDirExists = true;
         /// <summary>1.104: máy chủ có địa chỉ từ xa (Cloudflare Tunnel): địa chỉ + lỗi tự thử nối (rỗng = nối được).</summary>
         public string TunnelUrl = "", TunnelError = "";
     }
@@ -371,7 +360,7 @@ public static class TroLyChecks
     /// <summary>
     /// Kiểm tra cấu hình kết nối — mỗi lỗi là 1 phát hiện có nút «Mở trang sửa»: Tài khoản dùng chung trỏ nhầm Web App điện thoại (Nặng) / tải lỗi
     /// (Cần xem) → Cài đặt máy; PC_TOKEN sai / đồng bộ điện thoại lỗi (Cần xem) → Đồng bộ điện thoại; Gmail lịch xuất mất kết nối (Cần xem) → Tổng quan;
-    /// thư mục Google Drive dùng chung không còn (Nặng) → Dữ liệu &amp; sao lưu › Thư mục / Drive dùng chung.
+    /// máy chủ từ xa không nối được qua Internet (Nặng) → Đồng bộ &amp; sao lưu › Máy chủ. (1.121: bỏ kiểm tra thư mục Drive dùng chung.)
     /// </summary>
     public static List<Finding> CheckConfig(ConfigInfo? info)
     {
@@ -407,21 +396,16 @@ public static class TroLyChecks
             o.Add(Go(Mk("ket-noi", "vang", "Email lịch xuất", "Gmail lịch xuất mất kết nối",
                 $"Máy không đọc được hộp thư {info.MailEmail} — lịch xuất không tự cập nhật theo email. Mở Tổng quan › Email, bấm «Lưu & kiểm tra kết nối» (mật khẩu ứng dụng bị thu hồi / đổi mật khẩu Gmail thì tạo mật khẩu ứng dụng mới).",
                 new[] { Short(info.MailStatus.Trim(), 240) }), "lx", "Tổng quan › Email"));
-        if (info.DriveEnabled && !info.DriveDirExists)
-            o.Add(Go(Mk("ket-noi", "do", "Đồng bộ Google Drive", "Thư mục Google Drive dùng chung không còn",
-                "Đồng bộ qua Drive đang bật nhưng không thấy thư mục — máy này không nhận / gửi dữ liệu với các máy khác. Kiểm tra Google Drive cho máy tính đang chạy và đã đăng nhập, hoặc chọn lại thư mục.",
-                new[] { info.DriveDir }), "drive", "Đồng bộ & sao lưu › Giữa các máy"));
         if (info.TunnelUrl.Length > 0 && info.TunnelError.Length > 0)
             o.Add(Go(Mk("ket-noi", "do", "Máy chủ từ xa", "Máy ở xa không nối được máy chủ qua Internet",
                 $"Máy chủ tự thử nối qua {info.TunnelUrl} không được — các máy ở nơi khác đang làm riêng trên dữ liệu của mình (sổ chờ, nối lại sẽ tự gửi). Kiểm tra dịch vụ cloudflared trên máy này đang chạy, mạng Internet, và Public hostname trên Cloudflare trỏ đúng HTTP localhost.",
-                new[] { Short(info.TunnelError, 240) }), "lan", "Đồng bộ & sao lưu › Giữa các máy"));
-        if (o.Count == 0 && (info.AcctEnabled || info.PhoneEnabled || info.MailReady || info.DriveEnabled))
+                new[] { Short(info.TunnelError, 240) }), "lan", "Đồng bộ & sao lưu › Máy chủ"));
+        if (o.Count == 0 && (info.AcctEnabled || info.PhoneEnabled || info.MailReady))
         {
             var on = new List<string>();
             if (info.AcctEnabled) on.Add("tài khoản dùng chung");
             if (info.PhoneEnabled) on.Add("đồng bộ điện thoại");
             if (info.MailReady) on.Add("Gmail lịch xuất");
-            if (info.DriveEnabled) on.Add("thư mục Drive dùng chung");
             o.Add(Mk("ket-noi", "xanh", "Kết nối", "Cấu hình kết nối ổn", "Không thấy lỗi ở lần dùng gần nhất: " + string.Join(", ", on) + "."));
         }
         return o;
