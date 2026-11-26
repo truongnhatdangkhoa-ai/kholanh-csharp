@@ -99,6 +99,7 @@ public sealed class GridModel
         foreach (var (r, c, v0) in cells)
         {
             if (r < 0 || c < 0 || c >= Columns.Count || (Columns[c].ReadOnly && !force)) continue;
+            if (!force && IsLocked(r, c)) { LockedHit = true; continue; }
             while (_rows.Count <= r) _rows.Add(new string[Columns.Count].Select(_ => "").ToArray());
             var before = _rows[r][c] ?? "";
             var v = v0 ?? "";
@@ -113,6 +114,16 @@ public sealed class GridModel
     public void Set(int r, int c, string v) => SetCells(new[] { (r, c, v) });
 
     /// <summary>
+    /// 1.117: ô KHÓA CỨNG theo (dòng, cột) — gõ / dán / Delete / điền đều bỏ qua ô này, dòng có ô khóa không xóa được
+    /// (vd cột hệ thống của mẫu có sẵn ở Nhập liệu › Mẫu: chỉ đổi tên được). Khác <c>SheetGrid.SoftLock</c> (nhấn đúp vẫn sửa được).
+    /// </summary>
+    public Func<int, int, bool>? CellLocked { get; set; }
+    public bool IsLocked(int r, int c) => CellLocked is { } f && r >= 0 && r < _rows.Count && c >= 0 && c < Columns.Count && f(r, c);
+    public bool RowLocked(int r) => CellLocked is not null && Enumerable.Range(0, Columns.Count).Any(c => IsLocked(r, c));
+    /// <summary>Lần sửa gần nhất có chạm ô / dòng khóa (để màn hình nhắc) — màn hình tự đặt lại false.</summary>
+    public bool LockedHit { get; set; }
+
+    /// <summary>
     /// Ô tự tính (1.62): sau mỗi lần sửa / dán / điền, gọi với danh sách ô vừa đổi (dòng, cột, trước, sau) → trả các ô cần ghi thêm
     /// (cột tự điền theo mã hàng, công thức…). Ghi chung một lần hoàn tác, ghi được cả cột chỉ đọc.
     /// </summary>
@@ -125,7 +136,7 @@ public sealed class GridModel
             var extra = Derive(e.Cells.ToList());
             foreach (var (r, c, v0) in extra)
             {
-                if (r < 0 || c < 0 || c >= Columns.Count) continue;
+                if (r < 0 || c < 0 || c >= Columns.Count || IsLocked(r, c)) continue;
                 while (_rows.Count <= r) _rows.Add(Enumerable.Repeat("", Columns.Count).ToArray());
                 var before = _rows[r][c] ?? ""; var v = v0 ?? "";
                 if (before == v) continue;
@@ -163,7 +174,12 @@ public sealed class GridModel
         from = Math.Max(0, from); to = Math.Min(_rows.Count - 1, to);
         if (to < from) return;
         var e = new Edit { RowsBefore = _rows.Count, ColsBefore = Columns.Count, RemovedRows = new() };
-        for (var r = to; r >= from; r--) { e.RemovedRows.Add((r, _rows[r])); _rows.RemoveAt(r); }
+        for (var r = to; r >= from; r--)
+        {
+            if (RowLocked(r)) { LockedHit = true; continue; }   // 1.117: dòng có ô khóa cứng giữ lại
+            e.RemovedRows.Add((r, _rows[r])); _rows.RemoveAt(r);
+        }
+        if (e.RemovedRows.Count == 0) return;
         e.RowsAfter = _rows.Count; e.ColsAfter = Columns.Count;
         Push(e);
     }
@@ -304,6 +320,7 @@ public sealed class GridModel
             {
                 var c = sel.C1 + dc;
                 if (c >= Columns.Count || Columns[c].ReadOnly) continue;
+                if (IsLocked(r, c)) { LockedHit = true; continue; }
                 var src = data[dr % h];
                 var v = dc % w < src.Count ? src[dc % w] : "";
                 while (_rows.Count <= r) _rows.Add(Enumerable.Repeat("", Columns.Count).ToArray());

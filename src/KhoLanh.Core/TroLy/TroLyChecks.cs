@@ -423,7 +423,8 @@ public static class TroLyChecks
     /// Một NGUYÊN NHÂN GỐC lỗi phần mềm (đã gộp): Msg / Type = lỗi trong cùng (bỏ lớp AggregateException / "A Task's exception(s)…" bọc ngoài),
     /// Count = tổng số lần trong mọi nơi phát sinh, Places = các nơi (màn hình / hàm) đã gặp, theo thứ tự gặp lần đầu.
     /// </summary>
-    public sealed record AppError(string Mod, string Msg, string Type, int Count, DateTime Last, string Stack, IReadOnlyList<string>? Places = null);
+    /// <param name="LastVer">1.117: phiên bản app ghi ở lần xuất hiện cuối ("2026-11-24 16:10:17 bản 1.53.0"), rỗng nếu log cũ không ghi.</param>
+    public sealed record AppError(string Mod, string Msg, string Type, int Count, DateTime Last, string Stack, IReadOnlyList<string>? Places = null, string LastVer = "");
 
     private static readonly Regex ErrHead = new(@"^([\w.`]+(?:Exception|Error))(?::\s*(.*))?$");
     private static readonly Regex ErrInner = new(@"--->\s*(?:\(Inner Exception #\d+\)\s*)?([\w.`]+(?:Exception|Error))(?::\s*(.*))?$");
@@ -464,15 +465,15 @@ public static class TroLyChecks
     public static List<AppError> ParseErrorLog(string text, DateTime now, int days = 7)
     {
         var head = new Regex(@"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})(?: bản (\S+))?(?: \[(.+?)\])?\s*$");
-        var blocks = new List<(DateTime At, string Where, List<string> Lines)>();
+        var blocks = new List<(DateTime At, string Where, List<string> Lines, string Ver)>();
         foreach (var raw in text.Replace("\r", "").Split('\n'))
         {
             var m = head.Match(raw);
             if (m.Success && DateTime.TryParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out var at))
-            { blocks.Add((at, m.Groups[3].Value, new())); continue; }
+            { blocks.Add((at, m.Groups[3].Value, new(), m.Groups[2].Value)); continue; }
             if (blocks.Count > 0 && raw.Trim().Length > 0) blocks[^1].Lines.Add(raw);
         }
-        var groups = new Dictionary<string, List<(DateTime At, string Where, List<string> Lines, string Type, string Msg, bool Biz, string AtLine)>>();
+        var groups = new Dictionary<string, List<(DateTime At, string Where, List<string> Lines, string Type, string Msg, bool Biz, string AtLine, string Ver)>>();
         var order = new List<string>();
         foreach (var b in blocks)
         {
@@ -482,7 +483,7 @@ public static class TroLyChecks
             var atLine = b.Lines.FirstOrDefault(l => Regex.IsMatch(l, @"^\s*at KhoLanh\.")) ?? "";
             var key = type + "|" + NormMsg(msg);
             if (!groups.TryGetValue(key, out var g)) { groups[key] = g = new(); order.Add(key); }
-            g.Add((b.At, b.Where, b.Lines, type, msg, biz, atLine.Trim()));
+            g.Add((b.At, b.Where, b.Lines, type, msg, biz, atLine.Trim(), b.Ver));
         }
         var res = new List<AppError>();
         foreach (var key in order)
@@ -501,7 +502,7 @@ public static class TroLyChecks
                 : g.Select(x => x.Where).FirstOrDefault(w => w.Length > 0) ?? "Phần mềm";
             var src = g.Where(x => !x.Biz).OrderBy(x => x.At).Last();
             var stack = string.Join(" ⏎ ", src.Lines.Take(4).Select(l => l.Trim()));
-            res.Add(new AppError(mod, latest.Msg, latest.Type, g.Count, latest.At, stack, places));
+            res.Add(new AppError(mod, latest.Msg, latest.Type, g.Count, latest.At, stack, places, latest.Ver));
         }
         return res;
     }
@@ -527,15 +528,26 @@ public static class TroLyChecks
         return m.Success ? m.Groups[1].Value : "Phần mềm";
     }
 
-    public static List<Finding> CheckErrors(IEnumerable<AppError> errs) => errs.Select(e =>
+    /// <summary>
+    /// 1.117 (báo cáo Trợ lý 26/11: 5 / 7 phát hiện "Nặng" là lỗi ĐÃ SỬA — lần cuối ở bản 1.53 / 1.73 / 1.82 / 1.16 / 1.95, app đang 1.115): lỗi mà lần
+    /// xuất hiện cuối thuộc bản CŨ hơn <paramref name="currentVer"/> (chưa tái phát từ khi lên bản mới) → mức Thông tin, ghi rõ bản lỗi cuối / bản đang chạy.
+    /// Tái phát ở bản đang chạy → mức như cũ (≥ 5 lần đỏ, còn lại vàng). Log cũ không ghi bản → như cũ.
+    /// </summary>
+    public static bool FixedSince(string lastVer, string currentVer) =>
+        Version.TryParse(lastVer, out var a) && Version.TryParse(currentVer, out var b) && a < b;
+
+    public static List<Finding> CheckErrors(IEnumerable<AppError> errs, string currentVer = "") => errs.Select(e =>
     {
+        var old = FixedSince(e.LastVer, currentVer);
         var places = e.Places ?? Array.Empty<string>();
         var ev = new List<string>();
         if (places.Count > 1) ev.Add($"Gộp {places.Count} nơi phát sinh cùng nguyên nhân: " + string.Join(" · ", places.Take(8)) + (places.Count > 8 ? " …" : ""));
         else if (places.Count == 1) ev.Add("Nơi phát sinh: " + places[0]);
         if (e.Stack.Length > 0) ev.Add(e.Stack);
-        var f = Mk("loi-app", e.Count >= 5 ? "do" : "vang", e.Mod, "Lỗi phần mềm: " + Short(e.Msg, 90),
-            $"Xuất hiện {e.Count} lần trong 7 ngày" + (places.Count > 1 ? $" ở {places.Count} nơi" : "") + $", lần cuối {e.Last:dd/MM/yyyy HH:mm}" + (e.Type.Length > 0 ? " · " + e.Type : ""),
+        var f = Mk("loi-app", old ? "xanh" : e.Count >= 5 ? "do" : "vang", e.Mod, (old ? "Lỗi cũ, chưa tái phát ở bản mới: " : "Lỗi phần mềm: ") + Short(e.Msg, 90),
+            $"Xuất hiện {e.Count} lần trong 7 ngày" + (places.Count > 1 ? $" ở {places.Count} nơi" : "") + $", lần cuối {e.Last:dd/MM/yyyy HH:mm}"
+            + (e.LastVer.Length > 0 ? $" (bản {e.LastVer})" : "") + (e.Type.Length > 0 ? " · " + e.Type : "")
+            + (old ? $". Từ khi lên bản {currentVer} chưa gặp lại — nhiều khả năng đã được sửa; tái phát sẽ báo lại mức cũ." : ""),
             ev, Hash("loi-app|" + e.Type + "|" + NormMsg(e.Msg)));
         f.LastAt = e.Last;
         return f;

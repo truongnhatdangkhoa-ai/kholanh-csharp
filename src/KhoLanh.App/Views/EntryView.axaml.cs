@@ -29,8 +29,13 @@ public partial class EntryView : UserControl, IPage
     private readonly DispatcherTimer _autosave = new() { Interval = TimeSpan.FromSeconds(2) };
     private List<Item> _items = new();
 
-    public record Item(EntryService.PageInfo Page)
+    public sealed class Item(EntryService.PageInfo page) : System.ComponentModel.INotifyPropertyChanged
     {
+        public EntryService.PageInfo Page { get; } = page;
+        private bool _checked;
+        /// <summary>1.117: ô tích đầu dòng ở Danh sách trang (Xóa / Khôi phục nhiều trang một lần).</summary>
+        public bool Checked { get => _checked; set { if (_checked == value) return; _checked = value; PropertyChanged?.Invoke(this, new(nameof(Checked))); } }
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         public string Name => Page.Name;
         public string Line => $"{Page.Rows:#,0} dòng · {Short(Page.UpdatedAt)}" + (Page.UpdatedBy.Length > 0 ? " · " + Page.UpdatedBy : "");
         public override string ToString() => Name;
@@ -85,7 +90,8 @@ public partial class EntryView : UserControl, IPage
 
     private void ReloadList(string? selectId)
     {
-        try { _items = Svc.Pages(TrashToggle.IsChecked == true).Select(p => new Item(p)).ToList(); }
+        var ticked = _items.Where(i => i.Checked).Select(i => i.Page.Id).ToHashSet();
+        try { _items = Svc.Pages(TrashToggle.IsChecked == true).Select(p => new Item(p) { Checked = ticked.Contains(p.Id) }).ToList(); }
         catch (BusinessException ex) { _items = new(); CountText.Text = ex.Message; }
         FillList(selectId ?? _page?.Id);
     }
@@ -96,9 +102,9 @@ public partial class EntryView : UserControl, IPage
         var shown = q.Length == 0 ? _items : _items.Where(i => i.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase)).ToList();
         PageList.ItemsSource = shown;
         CountText.Text = $"{shown.Count} trang";
+        SyncChecks();
         var trash = TrashToggle.IsChecked == true;
         RestoreButton.IsVisible = trash; RenameButton.IsVisible = !trash;
-        DeleteButton.Content = trash ? "Xóa hẳn" : "Xóa";
         var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash && !_closed ? shown.FirstOrDefault() : null);
         if (target is not null) PageList.SelectedItem = target;
         SyncCombo();
@@ -144,6 +150,34 @@ public partial class EntryView : UserControl, IPage
         if (_dirty && !await SaveAsync(quiet: true)) { SyncCombo(); return; }
         PageList.SelectedItem = _items.FirstOrDefault(i => i.Page.Id == it.Page.Id);
         if (_page?.Id != it.Page.Id) Open(it.Page);
+    }
+
+    // ------------------------------------------------------------------ 1.117: ô tích danh sách trang
+
+    private List<Item> Shown() => (PageList.ItemsSource as IEnumerable<Item>)?.ToList() ?? new();
+    private List<Item> Ticked() => Shown().Where(i => i.Checked).ToList();
+
+    private void OnAllCheck(object? sender, RoutedEventArgs e)
+    {
+        var on = AllCheck.IsChecked == true;
+        foreach (var i in Shown()) i.Checked = on;
+        SyncChecks();
+    }
+
+    private void OnRowCheck(object? sender, RoutedEventArgs e) => SyncChecks();
+
+    /// <summary>Ô tiêu đề: tích hết / bỏ hết / một phần; nút Xóa / Khôi phục ghi số trang đã tích.</summary>
+    private void SyncChecks()
+    {
+        var shown = Shown(); var n = shown.Count(i => i.Checked);
+        AllCheck.IsThreeState = n > 0 && n < shown.Count;
+        AllCheck.IsChecked = n == 0 ? false : n == shown.Count ? true : null;
+        AllCheck.IsEnabled = shown.Count > 0;
+        var trash = TrashToggle.IsChecked == true;
+        var del = trash ? "Xóa hẳn" : "Xóa";
+        DeleteButton.Content = n > 0 ? $"{del} {n} trang" : del;
+        RestoreButton.Content = n > 0 ? $"Khôi phục {n} trang" : "Khôi phục";
+        CountText.Text = n > 0 ? $"{shown.Count} trang · đã tích {n}" : $"{shown.Count} trang";
     }
 
     private void OnOpenPage(object? sender, RoutedEventArgs e) { if (_page is not null) Tabs.SelectedIndex = 0; }
@@ -211,8 +245,21 @@ public partial class EntryView : UserControl, IPage
 
     private async void OnDelete(object? sender, RoutedEventArgs e)
     {
-        if (_page is null) return;
         var forever = TrashToggle.IsChecked == true;
+        if (Ticked() is { Count: > 0 } many)
+        {   // 1.117: xóa / xóa hẳn các trang đã tích
+            var names = string.Join(", ", many.Take(5).Select(i => "“" + i.Name + "”")) + (many.Count > 5 ? $" và {many.Count - 5} trang khác" : "");
+            var m = forever ? $"Xóa hẳn {many.Count} trang: {names}? Không khôi phục được (trừ từ file sao lưu)." : $"Đưa {many.Count} trang vào thùng rác: {names}? Khôi phục lại được.";
+            if (!await Ui.Confirm(this, m, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
+            var ids = many.Select(i => i.Page.Id).ToList();
+            if (!forever && _dirty && _page is not null && ids.Contains(_page.Id)) await SaveAsync(quiet: true);
+            if (!await Ui.Run(this, () => { foreach (var id in ids) Svc.Delete(id, forever); })) { ReloadList(null); return; }
+            foreach (var i in many) i.Checked = false;
+            if (_page is not null && ids.Contains(_page.Id)) { _dirty = false; _page = null; _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = ""; RecheckKk(); }
+            ReloadList(null);
+            return;
+        }
+        if (_page is null) return;
         var msg = forever ? $"Xóa hẳn trang “{_page.Name}”? Không khôi phục được (trừ từ file sao lưu)." : $"Đưa trang “{_page.Name}” vào thùng rác? Khôi phục lại được.";
         if (!await Ui.Confirm(this, msg, "Xóa trang", forever ? "Xóa hẳn" : "Xóa")) return;
         if (!forever && _dirty) await SaveAsync(quiet: true);
@@ -223,6 +270,16 @@ public partial class EntryView : UserControl, IPage
 
     private async void OnRestore(object? sender, RoutedEventArgs e)
     {
+        if (Ticked() is { Count: > 0 } many)
+        {   // 1.117: khôi phục các trang đã tích
+            var ids = many.Select(i => i.Page.Id).ToList();
+            if (!await Ui.Run(this, () => { foreach (var x in ids) Svc.Restore(x); })) { ReloadList(null); return; }
+            foreach (var i in many) i.Checked = false;
+            TrashToggle.IsChecked = false;
+            _page = null;
+            ReloadList(ids[0]);
+            return;
+        }
         if (_page is null) return;
         var id = _page.Id;
         if (!await Ui.Run(this, () => Svc.Restore(id))) return;
@@ -249,7 +306,7 @@ public partial class EntryView : UserControl, IPage
             if (_model.Version == version) _dirty = false;
             SaveState.Text = _dirty ? "Chưa lưu…" : $"Đã lưu {DateTime.Now:HH:mm:ss}";
             var idx = _items.FindIndex(i => i.Page.Id == saved.Id);
-            if (idx >= 0) { _items[idx] = new Item(saved); var sel = PageList.SelectedItem; FillList(saved.Id); }
+            if (idx >= 0) { _items[idx] = new Item(saved) { Checked = _items[idx].Checked }; var sel = PageList.SelectedItem; FillList(saved.Id); }
             return true;
         }
         catch (SheetConflictException)
@@ -829,7 +886,7 @@ internal static class ColumnsDialog
         {
             var cols = ColumnTable.Read(model, current.Select(c => c.Key), out var err);
             if (err is not null) { await Ui.Message(w, err); return; }
-            result = cols; w.Close();
+            result = EntryService.RenameRefs(current, cols); w.Close();   // 1.117: đổi tên cột → công thức đổi theo
         };
         cancel.Click += (_, _) => w.Close();
         w.Opened += (_, _) => grid.Focus();

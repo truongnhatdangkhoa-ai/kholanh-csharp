@@ -54,17 +54,37 @@
             <Button x:Name="DeleteButton" Content="Xóa" Classes="danger" Click="OnDelete"/>
           </WrapPanel>
         </Border>
-        <Border Classes="card" Padding="4">
-          <ListBox x:Name="PageList" SelectionChanged="OnPageSelected" DoubleTapped="OnListDoubleTapped">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Grid ColumnDefinitions="*,Auto" Margin="4,3">
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                  <TextBlock Grid.Column="1" Text="{Binding Line}" Classes="muted" FontSize="12" Margin="16,0,0,0" VerticalAlignment="Center"/>
-                </Grid>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
+        <!-- 1.117: kẻ viền từng dòng + ô tích đầu dòng (ô tiêu đề = chọn tất cả trang đang hiện); Xóa / Khôi phục áp cho các trang đã tích -->
+        <Border Classes="card" Padding="0" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="1">
+          <DockPanel>
+            <Border DockPanel.Dock="Top" Background="{DynamicResource Surface2}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="0,0,0,1" Padding="10,6">
+              <Grid ColumnDefinitions="34,*,Auto">
+                <CheckBox x:Name="AllCheck" IsThreeState="False" VerticalAlignment="Center" ToolTip.Tip="Chọn / bỏ chọn tất cả trang đang hiện" Click="OnAllCheck"/>
+                <TextBlock Grid.Column="1" Text="Tên trang" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="Số dòng · cập nhật · người sửa" FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+              </Grid>
+            </Border>
+            <ListBox x:Name="PageList" SelectionChanged="OnPageSelected" DoubleTapped="OnListDoubleTapped" Padding="0">
+              <ListBox.Styles>
+                <Style Selector="ListBoxItem">
+                  <Setter Property="BorderBrush" Value="{DynamicResource Border}"/>
+                  <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                  <Setter Property="Padding" Value="10,4"/>
+                  <Setter Property="Margin" Value="0"/>
+                  <Setter Property="CornerRadius" Value="0"/>
+                </Style>
+              </ListBox.Styles>
+              <ListBox.ItemTemplate>
+                <DataTemplate>
+                  <Grid ColumnDefinitions="34,*,Auto" Margin="0,3">
+                    <CheckBox IsChecked="{Binding Checked}" VerticalAlignment="Center" Click="OnRowCheck"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="{Binding Line}" Classes="muted" FontSize="12" Margin="16,0,0,0" VerticalAlignment="Center"/>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
         </Border>
       </DockPanel>
     </TabItem>

@@ -974,6 +974,54 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.117: SHOTS_ONLY=v210 — Nhập liệu › Danh sách trang: viền từng dòng + ô tích / chọn tất cả; Mẫu: cột hệ thống (Size, Đặc tính…) khóa cứng, chỉ đổi tên. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v210")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    var kk = KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke");
+    foreach (var n in new[] { "Kho 2 E dãy 01 25-11-2026", "Kho 2 E dãy 02 25-11-2026", "Kho 2 E dãy 03 25-11-2026", "Kiểm kê 25/11/2026" }) s.Entry.Create(n, kk);
+    main.Show("m6", new KhoLanh.App.Views.EntryView()); P(40);
+    var ev = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.EntryView>().First();
+    var tabs = ev.GetVisualDescendants().OfType<TabControl>().First(t => t.Name == "Tabs");
+    tabs.SelectedIndex = 1; P(30);
+    var list = ev.GetVisualDescendants().OfType<ListBox>().First(l => l.Name == "PageList");
+    var items = list.ItemsSource!.Cast<KhoLanh.App.Views.EntryView.Item>().ToList();
+    items[1].Checked = true; items[2].Checked = true; P(5);
+    var rowChecks = list.GetVisualDescendants().OfType<CheckBox>().Where(c => c.IsEffectivelyVisible).ToList();
+    rowChecks.First(c => c.IsChecked == true).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(5);
+    var all = ev.GetVisualDescendants().OfType<CheckBox>().First(c => c.Name == "AllCheck");
+    var del = ev.GetVisualDescendants().OfType<Button>().First(b => b.Name == "DeleteButton");
+    Console.WriteLine($"[v210] ô tích dòng: {rowChecks.Count} · chọn tất cả = {all.IsChecked?.ToString() ?? "một phần"} · nút: {del.Content}");
+    if (rowChecks.Count < items.Count || all.IsChecked is not null || del.Content?.ToString() != "Xóa 2 trang") ok = false;
+    var lbi = list.GetVisualDescendants().OfType<ListBoxItem>().First();
+    Console.WriteLine($"[v210] viền dòng: {lbi.BorderThickness}");
+    if (lbi.BorderThickness.Bottom < 1) ok = false;
+    Snap(main, "v210-danh-sach-tich");
+    all.IsChecked = true; all.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(5);
+    Console.WriteLine($"[v210] chọn tất cả: {items.Count(i => i.Checked)}/{items.Count} · nút: {del.Content}");
+    if (items.Any(i => !i.Checked)) ok = false;
+
+    tabs.SelectedIndex = 2; P(30);
+    var mauList = ev.GetVisualDescendants().OfType<ListBox>().First(l => l.IsEffectivelyVisible && l.Name != "PageList");
+    mauList.SelectedItem = mauList.Items.OfType<ListBoxItem>().First(i => i.Tag is KhoLanh.Core.Entry.EntryService.Template { Id: "kiem-ke" }); P(20);
+    var mg = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(g => g.IsEffectivelyVisible);
+    var mm = mg.Model;
+    int Row(string h) => Enumerable.Range(0, mm.RowCount).First(r => mm.Get(r, 0) == h);
+    var size = Row("Size");
+    mm.SetCells(new[] { (size, 3, ""), (size, 1, "Số") }); P(3);
+    mm.DeleteRows(Row("Đặc tính"), Row("Đặc tính")); P(3);
+    mm.Set(size, 0, "Size hàng"); P(3);
+    var kept = mm.Get(size, 3); var stillDt = Enumerable.Range(0, mm.RowCount).Any(r => mm.Get(r, 0) == "Đặc tính");
+    Console.WriteLine($"[v210] Size: tự điền = {kept} · kiểu = {mm.Get(size, 1)} · tên = {mm.Get(size, 0)} · Đặc tính còn = {stillDt}");
+    if (kept.Length == 0 || mm.Get(size, 1) != "Chữ" || mm.Get(size, 0) != "Size hàng" || !stillDt) ok = false;
+    mg.Select(size, 3); P(3); mg.BeginEdit(null, force: true); P(5);
+    var ed = mg.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.IsVisible);
+    Console.WriteLine($"[v210] nhấn đúp ô Tự điền hệ thống: mở sửa = {ed is not null}");
+    if (ed is not null) ok = false;
+    Snap(main, "v210-mau-cot-he-thong");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v210) — ĐẠT: " : "Xong (v210) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.116: SHOTS_ONLY=v209 — Nhập liệu kiểm kê: gõ lô "22.05 L16" → "22.05.<năm> L16"; ô tự điền (Ngày nhập) khóa tạm: gõ không sửa, nhấn đúp mới sửa. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v209")
 {

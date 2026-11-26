@@ -19,6 +19,8 @@ public partial class EntryView
     private Button _mauSave = null!, _mauDel = null!, _mauCopy = null!, _mauUse = null!, _mauNew = null!;
     private TextBlock _mauState = null!, _mauKind = null!;
     private EntryService.Template? _mau;
+    private HashSet<string> _mauLocked = new();
+    private static IBrush LockedBg => AppTheme.Brush("#EEF1F5");
     private bool _mauLoading, _mauDirty;
     private string _mauSig = "";
     /// <summary>Nội dung đang sửa (tên + bảng cột) — khác lúc mở mẫu thì là "chưa lưu".</summary>
@@ -78,6 +80,11 @@ public partial class EntryView
         DockPanel.SetDock(head, Dock.Top);
         _mauGrid = ColumnTable.Grid(_mauModel);
         _mauModel.ReadOnly = !edit;
+        // 1.117: cột hệ thống của mẫu có sẵn (Size, Trọng lượng, Đặc tính, Tổng Net…) khóa cứng Kiểu / Tự điền / Công thức, không xóa dòng — chỉ đổi tên / độ rộng
+        _mauModel.CellLocked = (r, c) => c is 1 or 3 or 4 && _mauLocked.Contains(_mauModel.Get(r, 5));
+        _mauGrid.CellBackground = (r, c) => c is 1 or 3 or 4 && r < _mauModel.RowCount && _mauLocked.Contains(_mauModel.Get(r, 5)) ? LockedBg : null;
+        _mauGrid.CellForeground = (r, c) => c is 1 or 3 or 4 && r < _mauModel.RowCount && _mauLocked.Contains(_mauModel.Get(r, 5)) ? AutoFg : null;
+        _mauGrid.SoftLockHit += () => { _mauState.Text = "Cột hệ thống (nền xám): chỉ đổi tên / độ rộng — không sửa kiểu, tự điền, công thức, không xóa."; _mauState.Foreground = AppTheme.Brush("#9A5B00"); };
         _mauModel.Changed += MauTouched;
         var right = new Border { Classes = { "card" }, Padding = new Thickness(10), Child = new DockPanel { Children = { head, _mauGrid } } };
 
@@ -95,7 +102,7 @@ public partial class EntryView
     private void MauTouched()
     {
         if (_mauLoading || _mau is null || _mau.Id.Length == 0) return;
-        _mauDirty = MauSig() != _mauSig; _mauState.Text = _mauDirty ? "Chưa lưu mẫu…" : "";
+        _mauDirty = MauSig() != _mauSig; _mauState.Text = _mauDirty ? "Chưa lưu mẫu…" : ""; _mauState.ClearValue(TextBlock.ForegroundProperty);
     }
 
     private void ReloadMau(string? selectId)
@@ -140,10 +147,12 @@ public partial class EntryView
         try
         {
             _mau = t;
+            _mauLocked = EntryService.SystemKeys(t);
             _mauName.Text = t.Name;
             ColumnTable.Load(_mauModel, t.Columns);
             _mauGrid.Refresh();
-            _mauKind.Text = isNew ? "Mẫu mới — bấm Lưu mẫu" : KindText(t);
+            _mauKind.Text = isNew ? "Mẫu mới — bấm Lưu mẫu" : KindText(t) + (_mauLocked.Count > 0 ? $" · {_mauLocked.Count} cột hệ thống khóa (nền xám, chỉ đổi tên được)" : "");
+            _mauState.ClearValue(TextBlock.ForegroundProperty);
             _mauDirty = isNew;
             _mauSig = MauSig();
             _mauState.Text = isNew ? "Chưa lưu mẫu…" : "";
@@ -167,7 +176,10 @@ public partial class EntryView
     {
         if (_mau is null) return;
         var cols = ColumnTable.Read(_mauModel, _mau.Columns.Select(c => c.Key), out var err);
+        cols = EntryService.KeepSystemCols(_mau, cols, out var sysErr);   // 1.117
+        err ??= sysErr;
         if (err is not null) { await Ui.Message(this, err, "Chưa lưu được mẫu"); return; }
+        cols = EntryService.RenameRefs(_mau.Columns, cols);               // 1.117: đổi tên cột → công thức gọi theo tên mới
         var name = (_mauName.Text ?? "").Trim();
         string? id = _mau.Id.Length > 0 ? _mau.Id : null;
         if (id is null && Svc.Templates().FirstOrDefault(t => t.Name.Equals(name, StringComparison.CurrentCultureIgnoreCase)) is { } same
