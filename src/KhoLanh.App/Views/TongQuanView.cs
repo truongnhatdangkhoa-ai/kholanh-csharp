@@ -508,7 +508,12 @@ public sealed partial class TongQuanView : UserControl, IPage
         var (done, plan, kd, kp) = MonthCont(Svc.Rows, m);
         _monthBody.Children.Add(new TextBlock { Text = $"{all.Count} lịch · {done + plan} container (đã xuất {done} · dự kiến {plan}) · {Tan(kd + kp)} tấn (đã xuất {Tan(kd)})", Foreground = Muted, FontSize = 12.5, Margin = new Thickness(0, 0, 0, 6) });
         if (all.Count == 0) { _monthBody.Children.Add(new TextBlock { Text = "Tháng này chưa có lịch xuất.", Foreground = Muted }); return; }
-        foreach (var day in all.GroupBy(r => r.Ngay).OrderBy(g => g.Key, StringComparer.Ordinal))
+        // Số thứ tự đếm theo từng LSX / container, liên tục trong cả tháng từ ngày cũ nhất (1) → mới nhất;
+        // ngày mới nhất hiện ở trên cùng. Mỗi lịch (kể cả lịch ghép nhiều LSX) = 1 số.
+        var stt = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var d0 in all.GroupBy(r => r.Ngay).OrderBy(g => g.Key, StringComparer.Ordinal))
+            foreach (var g0 in d0.OrderBy(r => r.Id, StringComparer.Ordinal).GroupBy(ContKey)) stt[d0.Key + "|" + g0.Key] = stt.Count + 1;
+        foreach (var day in all.GroupBy(r => r.Ngay).OrderByDescending(g => g.Key, StringComparer.Ordinal))
         {
             var (bg, tag) = day.Key == t ? ("#E3F2FB", " · hôm nay") : day.Key == tm ? ("#E6F4EA", " · ngày mai") : string.CompareOrdinal(day.Key, t) < 0 ? ("#F1F5F9", "") : ("#FFF8E1", "");
             var hd = new DockPanel();
@@ -517,11 +522,10 @@ public sealed partial class TongQuanView : UserControl, IPage
             var cont = day.GroupBy(ContKey).Count();
             hd.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, Children = { hv, new TextBlock { Text = $"{cont} cont · {Tan(day.Sum(r => r.Kg))} tấn", Foreground = Muted, FontSize = 12, VerticalAlignment = VerticalAlignment.Center } } });
             _monthBody.Children.Add(new Border { Background = B(bg), CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 5), Margin = new Thickness(0, 6, 0, 2), Child = hd });
-            var n = 0;
             foreach (var g in day.OrderBy(r => r.Id, StringComparer.Ordinal).GroupBy(ContKey))
             {
                 var x = Mk(g.ToList(), DateTime.Now, Svc.StateOf);
-                var r = Row(new[] { (++n).ToString(), x.Gio.Length > 0 ? GioVn(x.Gio) : "", x.Lsx, "", x.Khach, x.Kg > 0 ? Tan(x.Kg) : "—", x.Cont.Length > 0 ? x.Cont : "—", "" }, false, null);
+                var r = Row(new[] { stt[day.Key + "|" + g.Key].ToString(), x.Gio.Length > 0 ? GioVn(x.Gio) : "", x.Lsx, "", x.Khach, x.Kg > 0 ? Tan(x.Kg) : "—", x.Cont.Length > 0 ? x.Cont : "—", "" }, false, null);
                 var gr = (Grid)r.Child!;
                 var co = CoBadge(x.Co); co.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(co, 3); gr.Children.Add(co);
                 var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 }; sp.Children.Add(StPill(x.St)); if (x.Viec is { } v) sp.Children.Add(new TextBlock { Text = v.Level == "red" ? "⚠" : v.Level == "amber" ? "⏰" : "○", VerticalAlignment = VerticalAlignment.Center });
