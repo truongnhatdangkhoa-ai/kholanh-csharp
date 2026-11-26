@@ -974,6 +974,29 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.119: SHOTS_ONLY=v212 — chép chữ: chuột phải vào chữ thường → menu "Chép chữ này / Chép cả khung"; chữ trong nút không bật menu; hộp thông báo bôi đen được. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v212")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    var lv = new KhoLanh.App.Views.LanView();
+    main.Show("lan", lv); P(40);
+    bool Right(TextBlock t) { var e = new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent }; t.RaiseEvent(e); P(5); return e.Handled; }
+    var plain = main.PageHost.GetVisualDescendants().OfType<TextBlock>().First(t => t.IsEffectivelyVisible && t is not SelectableTextBlock && (t.Text?.Length ?? 0) > 3 && KhoLanh.App.Controls.CopyText.Eligible(t));
+    var inBtn = main.PageHost.GetVisualDescendants().OfType<Button>().SelectMany(b => b.GetVisualDescendants().OfType<TextBlock>()).First(t => (t.Text?.Length ?? 0) > 0);
+    var h1 = Right(plain); var h2 = Right(inBtn);
+    Console.WriteLine($"[v212] chuột phải chữ «{plain.Text}» → menu chép: {h1} · chữ trong nút «{inBtn.Text}» → không menu: {!h2}");
+    if (!h1 || h2) ok = false;
+    Snap(main, "v212-chep-chu");
+    Window? dlg = null;
+    Window.WindowOpenedEvent.AddClassHandler<Window>((w, _) => { if (w.Title == "Thông báo thử") dlg = w; }, Avalonia.Interactivity.RoutingStrategies.Direct);
+    _ = KhoLanh.App.Ui.Message(main, "Câu báo thử: mã LSX 26.09.020 — bôi đen để chép.", "Thông báo thử"); P(30);
+    var sel = dlg?.GetVisualDescendants().OfType<SelectableTextBlock>().Any(t => t.Text?.Contains("26.09.020") == true) == true;
+    Console.WriteLine($"[v212] hộp thông báo có chữ bôi đen được: {sel}");
+    if (!sel) ok = false;
+    dlg?.Close();
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v212) — ĐẠT: " : "Xong (v212) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.118: SHOTS_ONLY=v211 — Máy chủ LAN › Máy đang nối: 2 bảng (trong mạng LAN / qua Internet), có cột Tài khoản. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v211")
 {

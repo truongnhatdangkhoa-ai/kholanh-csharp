@@ -55,7 +55,7 @@ public static class Ui
         var task = Task.Run(work);
         // việc xong nhanh (< 0,4 s) thì không hiện cửa sổ cho đỡ nháy
         if (await Task.WhenAny(task, Task.Delay(400)) == task) { var r0 = await task; Rec(r0); return (true, r0); }
-        var msg = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        var msg = new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
         var sec = new TextBlock { Classes = { "muted" }, FontSize = 12 };
         var bar = new ProgressBar { IsIndeterminate = true, Height = 6, Margin = new Thickness(0, 10, 0, 4) };
         var body = new StackPanel(); body.Children.Add(msg); body.Children.Add(bar); body.Children.Add(sec);
@@ -149,7 +149,7 @@ public static class Ui
     {
         var ok = new Button { Content = "Đóng", IsDefault = true, IsCancel = true, Classes = { "primary" } };
         var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(Buttons(ok));
         var w = Dialog(title, body);
         ok.Click += (_, _) => w.Close();
@@ -162,7 +162,7 @@ public static class Ui
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
         var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(Buttons(n, y));
         var w = Dialog(title, body);
         y.Click += (_, _) => { result = true; w.Close(); };
@@ -176,7 +176,7 @@ public static class Ui
     {
         var result = -1;
         var body = new StackPanel { Spacing = 6 };
-        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
+        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6) });
         Window? w = null;
         for (var i = 0; i < options.Count; i++)
         {
@@ -202,7 +202,7 @@ public static class Ui
         var y = new Button { Content = "Đồng ý", IsDefault = true, Classes = { "primary" } };
         var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(box);
         body.Children.Add(Buttons(n, y));
         var w = Dialog(title, body);
@@ -223,7 +223,7 @@ public static class Ui
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
         var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
         body.Children.Add(list);
         if (inputLabel is not null)
         {

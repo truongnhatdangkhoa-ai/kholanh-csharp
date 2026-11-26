@@ -12,7 +12,7 @@ public partial class App : Application
     public static AppServices Services { get; private set; } = null!;
     public static string DataFolder { get; private set; } = "";
 
-    public override void Initialize() { AvaloniaXamlLoader.Load(this); AppTheme.Install(this); Controls.Icon.InstallEmojiSwap(); Controls.HintTrim.Install(); TitleBar.Install(); }
+    public override void Initialize() { AvaloniaXamlLoader.Load(this); AppTheme.Install(this); Controls.Icon.InstallEmojiSwap(); Controls.HintTrim.Install(); Controls.CopyText.Install(); TitleBar.Install(); }
 
     public override void OnFrameworkInitializationCompleted()
     {
