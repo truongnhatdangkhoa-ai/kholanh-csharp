@@ -382,11 +382,7 @@ public sealed class MayChuView : UserControl
             {
                 await Ui.Run(this, () =>
                 {
-#if LUONG1
-                    S.Lan.RetryNow();   // luồng 1: vòng sau thử tìm máy chủ ngay
-#else
-                    S.ReloadLan();      // tạm (chưa có LanService.RetryNow): khởi động lại phần LAN → tìm máy chủ ngay
-#endif
+                    S.Lan.RetryNow();   // vòng sau thử tìm máy chủ ngay
                 });
                 Hook();
             }
@@ -398,9 +394,7 @@ public sealed class MayChuView : UserControl
     private void FillPending(int pending)
     {
         List<(string DbKey, string Sheet, string At, string User)> list = new();
-#if LUONG1
         try { list = S.Lan.PendingList(); } catch { }
-#endif
         if (pending == 0 || list.Count == 0) return;
         _pendSec.IsVisible = true;
         var rows = list.Select(x => new[] { KhoLanh.Core.TroLy.TroLyService.DbLabel(x.DbKey), x.Sheet, x.At, x.User }).ToList();

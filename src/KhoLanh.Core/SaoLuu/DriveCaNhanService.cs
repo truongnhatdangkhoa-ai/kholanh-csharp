@@ -110,7 +110,7 @@ public sealed class DriveCaNhanService
         var lan = _lan();
         if (lan.HoldsMainData) return null;
         return lan.Role == LanService.RoleRemote
-            ? "Máy này là máy xem từ xa (đồng bộ qua Drive dùng chung) — dữ liệu chính ở máy chính, hãy sao lưu / khôi phục ở máy đó."
+            ? "Máy này là máy xem từ xa — dữ liệu chính ở máy chủ, hãy sao lưu / khôi phục ở máy đó."
             : "Máy này là máy con / dự phòng LAN — dữ liệu chính ở máy chủ, hãy sao lưu / khôi phục trên máy chủ.";
     }
 
