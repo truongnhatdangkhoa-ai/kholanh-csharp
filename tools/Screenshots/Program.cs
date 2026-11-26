@@ -2016,7 +2016,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v232")
     if (tabs.SelectedIndex != 1) Bad("bấm đúp không mở tab Phiếu xuất");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v232) — ĐẠT: " : "Xong (v232) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
-// 1.134: bôi đen + chép chữ như web (chuột thật: kéo 1 dòng, Ctrl+C, kéo qua nhiều dòng, bấm đúp 1 từ, nút vẫn bấm được). SHOTS_ONLY=v233; thoát mã 1 nếu sai.
+// 1.135: bôi đen + chép chữ như web (chuột thật: kéo 1 dòng, Ctrl+C, kéo qua nhiều dòng, bấm đúp 1 từ, nút vẫn bấm được). SHOTS_ONLY=v233; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v233")
 {
     var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V233] SAI: " + m); }

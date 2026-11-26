@@ -166,7 +166,7 @@ public sealed class ViTriView : UserControl, IPage
         root.Children.Add(top);
         root.Children.Add(_tabs);
         Content = root;
-        // 1.134 (hiệu năng): quay lại trang đã giữ sẵn mà dữ liệu chưa đổi → giữ nguyên (cả phiếu đang soạn), không đọc lại toàn bộ
+        // 1.135 (hiệu năng): quay lại trang đã giữ sẵn mà dữ liệu chưa đổi → giữ nguyên (cả phiếu đang soạn), không đọc lại toàn bộ
         // (đo: mở lại 0,9 s — chậm hơn lần đầu — và trước đây còn xóa phiếu đang soạn dở mỗi lần quay lại)
         AttachedToVisualTree += (_, _) => { if (_loadedSeq < 0 || _loadedSeq != DataSeq()) _ = Safe(LoadAsync); };
     }
