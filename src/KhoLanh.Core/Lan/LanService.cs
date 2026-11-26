@@ -340,8 +340,36 @@ public sealed partial class LanService : ISheetSource, IDisposable
             _listener = l; ListenError = "";
             _ = AcceptLoop(l, _cts.Token);
         }
-        catch (SocketException e) { ListenError = $"Không mở được cổng {Port}: {e.Message}"; }
+        catch (SocketException e) { ListenError = PortBusyText(Port, e, OtherHolders()); }
         ListenHttp();
+    }
+
+    /// <summary>
+    /// 1.117 (Trợ lý: "Máy chủ LAN không mở được cổng 47820: Only one usage of each socket address…"): câu báo nói rõ AI đang giữ cổng để người dùng tự xử lý.
+    /// <paramref name="holders"/> = chương trình KhoLanh khác đang chạy trên máy (cửa sổ KhoLanh thứ hai, KhoLanh.Server, bản cũ chưa thoát hẳn sau cập nhật).
+    /// </summary>
+    public static string PortBusyText(int port, SocketException e, IReadOnlyList<string> holders)
+    {
+        if (e.SocketErrorCode != SocketError.AddressAlreadyInUse) return $"Không mở được cổng {port}: {e.Message}";
+        if (holders.Count > 0)
+            return $"Không mở được cổng {port}: {string.Join(", ", holders)} khác trên máy này đang giữ cổng (mỗi máy chỉ 1 chương trình làm máy chủ). "
+                 + "Đóng bớt cửa sổ KhoLanh / tắt KhoLanh.Server rồi chờ vài giây — app tự thử lại mỗi 3 giây. Vừa cập nhật xong thì bản cũ có thể chưa thoát hẳn, chờ 1 phút.";
+        return $"Không mở được cổng {port}: một chương trình khác (không phải KhoLanh) đang dùng cổng này. Tắt chương trình đó hoặc khởi động lại máy — "
+             + "app tự thử lại mỗi 3 giây (xem chương trình giữ cổng: cmd › netstat -ano | findstr :" + port + ").";
+    }
+
+    /// <summary>Chương trình KhoLanh khác (không phải chính tiến trình này) đang chạy trên máy.</summary>
+    private static IReadOnlyList<string> OtherHolders()
+    {
+        var res = new List<string>();
+        try
+        {
+            var me = Environment.ProcessId;
+            if (System.Diagnostics.Process.GetProcessesByName("KhoLanh").Any(p => p.Id != me)) res.Add("Một cửa sổ KhoLanh");
+            if (System.Diagnostics.Process.GetProcessesByName("KhoLanh.Server").Any(p => p.Id != me)) res.Add("KhoLanh.Server");
+        }
+        catch { /* không đọc được danh sách tiến trình: báo chung */ }
+        return res;
     }
 
     // ------------------------------------------------------------------ 1.104: máy chủ từ xa qua Cloudflare Tunnel

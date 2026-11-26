@@ -27,7 +27,13 @@ internal static class Program
         CultureInfo.DefaultThreadCurrentUICulture = vi;
         CultureInfo.CurrentCulture = vi;
         CultureInfo.CurrentUICulture = vi;
-        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        try { return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown); }
+        catch (InvalidOperationException e) when (e.Message.Contains("Dispatcher shut down", StringComparison.OrdinalIgnoreCase))
+        {
+            // 1.117 (Trợ lý: "Cannot perform requested operation because the Dispatcher shut down" ở Program.Main, 4 lần / 7 ngày): app đang thoát
+            // (đóng / tự cập nhật) mà vòng giao diện còn lượt chờ — Avalonia ném lỗi này SAU khi đã đóng mọi cửa sổ. Không mất dữ liệu, không ghi lỗi.
+            return 0;
+        }
     }
 
     public static AppBuilder BuildAvaloniaApp() =>

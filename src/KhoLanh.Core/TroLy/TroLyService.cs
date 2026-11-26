@@ -119,7 +119,7 @@ public sealed partial class TroLyService
             res.Steps.Add(new Step(name, t.ElapsedMilliseconds, err));
         }
 
-        StepRun("Lỗi phần mềm", () => f.AddRange(CheckErrors(ReadErrors(now))));
+        StepRun("Lỗi phần mềm", () => f.AddRange(CheckErrors(ReadErrors(now), Version)));
         StepRun("Cơ sở dữ liệu", () => { var info = CollectDb(deep); liveRows = info.SheetRows; f.AddRange(CheckDb(info)); });
         PhieuCol? phieu = null;
         StepRun("Ghi phiếu", () => { phieu = CollectPhieu(); f.AddRange(CheckPhieu(phieu, "Phiếu xuất (5 nguồn)")); });

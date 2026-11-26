@@ -372,7 +372,7 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
     {
         Seed();
         Directory.CreateDirectory(Path.Combine(_dir, "logs"));
-        File.WriteAllText(Path.Combine(_dir, "logs", "loi.log"), "2026-11-23 08:00:00 bản 1.24.0\nSystem.InvalidOperationException: hỏng\n   at KhoLanh.App.Views.GuiView.Load()\n\n");
+        File.WriteAllText(Path.Combine(_dir, "logs", "loi.log"), $"2026-11-23 08:00:00 bản {_s.TroLy.Version}\nSystem.InvalidOperationException: hỏng\n   at KhoLanh.App.Views.GuiView.Load()\n\n");
         var r = _s.TroLy.Scan(deep: true);
         Assert.All(r.Steps, s => Assert.Equal("", s.Error));
         Assert.Contains(r.Findings, x => x.Title == "Trùng số phiếu");
