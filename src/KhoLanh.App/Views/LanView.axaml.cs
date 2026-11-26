@@ -65,8 +65,7 @@ public partial class LanView : UserControl, IPage
         AutoRows.Children.Add(new TextBlock
         {
             Text = "• Quản trị: bật / tắt máy chủ trên máy giữ dữ liệu chính (nên là máy luôn bật).\n"
-                   + "• Tài khoản có quyền \"Máy dự phòng LAN\" (Hệ thống › Tài khoản › phân quyền): máy đăng nhập là máy dự phòng.\n"
-                   + "• Mọi tài khoản khác: máy con — đăng nhập là tự nối máy chủ trong cùng mạng.",
+                   + "• Mọi tài khoản khác: máy con — đăng nhập là tự nối máy chủ. Máy chủ tắt thì máy con làm riêng, bật lại thì tự gộp.",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep",
         });
         var canWrite = s.Accounts.CanWrite;
@@ -77,7 +76,7 @@ public partial class LanView : UserControl, IPage
         ClaimButton.IsEnabled = canWrite;
         StandbyButton.IsVisible = admin && isServer;
         StandbyButton.IsEnabled = canWrite;
-        DropStandbyButton.IsEnabled = canWrite && plan.DuPhong is not null;
+        DropStandbyButton.IsVisible = false;   // 1.131: bỏ máy dự phòng
         if (!canWrite) AutoMsg.Text = "Chỉ tài khoản Quản trị bật / tắt được máy chủ.";
         ShowPlanSlots(plan);
     }
@@ -86,7 +85,7 @@ public partial class LanView : UserControl, IPage
     {
         var me = App.Services.Lan.MachineId;
         string S(LanPlan.Slot? x) => x is null ? "chưa có" : $"{x.Name}{(x.Id == me ? " (máy này)" : "")} — {string.Join(", ", x.Addrs)}";
-        AutoSlots.Text = $"Máy chủ chính: {S(plan.Chu)}\nMáy dự phòng: {S(plan.DuPhong)}" + (App.LanPublishNote.Length > 0 ? "\n" + App.LanPublishNote : "");
+        AutoSlots.Text = $"Máy chủ chính: {S(plan.Chu)}" + (App.LanPublishNote.Length > 0 ? "\n" + App.LanPublishNote : "");
     }
 
     private async void OnClaim(object? sender, RoutedEventArgs e)
@@ -106,10 +105,7 @@ public partial class LanView : UserControl, IPage
 
     private async void OnRelease(object? sender, RoutedEventArgs e)
     {
-        var d = App.Services.Accounts.Plan?.DuPhong;
-        if (!await Ui.Confirm(this, "Tắt máy chủ trên máy này?" + (d is null
-                ? "\n\nChưa có máy dự phòng: các máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại (ở máy này hoặc máy khác) thì tự gộp."
-                : $"\n\nMáy dự phòng {d.Name} sẽ tự làm máy chủ."), "Tắt máy chủ", "Tắt")) return;
+        if (!await Ui.Confirm(this, "Tắt máy chủ trên máy này?\n\nCác máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại (ở máy này hoặc máy khác) thì tự gộp.", "Tắt máy chủ", "Tắt")) return;
         string msg = "";
         if (!await Ui.RunAsync(this, async () => msg = await KhoLanh.Core.Lan.LanPlanSync.ReleaseServerAsync(App.Services))) return;
         Resubscribe();
@@ -117,14 +113,7 @@ public partial class LanView : UserControl, IPage
         LoadPlan();
     }
 
-    private async void OnDropStandby(object? sender, RoutedEventArgs e)
-    {
-        if (App.Services.Accounts.Plan?.DuPhong is not { } d) return;
-        if (!await Ui.Confirm(this, $"Bỏ ghi nhận máy dự phòng {d.Name}? Lần đăng nhập tới máy đó thành máy con.", "Bỏ máy dự phòng", "Bỏ")) return;
-        if (!await Ui.RunAsync(this, async () => await App.Services.Accounts.UpdatePlanAsync(p => { p.DuPhong = null; return true; }))) return;
-        AutoMsg.Text = "Đã bỏ máy dự phòng.";
-        LoadPlan();
-    }
+    private void OnDropStandby(object? sender, RoutedEventArgs e) { }   // 1.131: bỏ máy dự phòng (nút ẩn, giữ cho axaml)
 
     private void Refresh()
     {

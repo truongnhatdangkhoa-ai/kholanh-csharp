@@ -76,35 +76,42 @@ public class LanPlanTests : IDisposable
     [Fact]
     public void Decide_keeps_roles_with_the_machine()
     {
-        // 1.106: không cài tay — máy chủ do Quản trị bật (ghi theo máy), dự phòng theo quyền "Máy dự phòng LAN", còn lại máy con.
+        // 1.106: không cài tay — máy chủ do Quản trị bật (ghi theo máy), còn lại máy con.
+        // 1.131 (người dùng: "bỏ máy dự phòng, chỉ dùng 1 máy chính"): không còn vai dự phòng — máy từng là dự phòng thành máy con.
         var p = new LanPlan();
         p.Vai["admin"] = "chu";                                                // gán vai cũ trên Sheet: bỏ qua
         Assert.Equal("", p.Decide("admin", "A", "")!.Role);                    // chưa bật máy chủ: máy đơn
         Assert.Equal(("chu", true), (p.Decide("x", "A", "chu")!.Role, p.Decide("x", "A", "chu")!.ClaimServer));
-        Assert.Equal("", p.Decide("ql", "B", "", standbyAllowed: true)!.Role); // dự phòng cần có máy chủ trước
         p.Chu = new LanPlan.Slot("A", "May A", new() { "10.0.0.1:47820" }, ""); p.Key = "k";
         Assert.Equal("chu", p.Decide("nhanvien", "A", "chu")!.Role);           // máy chủ giữ vai dù ai đăng nhập
         Assert.Equal("con", p.Decide("admin", "C", "")!.Role);                 // Quản trị đăng nhập máy khác → máy con (bật máy chủ bằng nút)
         Assert.Equal("con", p.Decide("nhanvien", "X", "chu")!.Role);
-        var sb = p.Decide("ql", "B", "", standbyAllowed: true)!;
-        Assert.Equal(("duphong", true), (sb.Role, sb.ClaimStandby));
-        Assert.Equal("con", p.Decide("ql", "B", "")!.Role);                    // không có quyền → máy con
-        // máy chủ thấy máy dự phòng: chỉ ghi khi tài khoản trên máy đó có quyền dự phòng
-        var standbys = new[] { ("B", "May B", new List<string> { "10.0.0.2:47820" }, "ql") };
-        Assert.False(p.Fix("A", "May A", "chu", "admin", new() { "10.0.0.1:47820" }, "k", 0, standbys, _ => false));
+        Assert.Equal("con", p.Decide("ql", "B", "")!.Role);
+        // kế hoạch cũ còn ghi máy dự phòng B → B thành máy con; máy chủ ghi lại kế hoạch thì xóa ô dự phòng
+        p.DuPhong = new LanPlan.Slot("B", "May B", new() { "10.0.0.2:47820" }, "");
+        Assert.Equal("con", p.Decide("ql", "B", "duphong")!.Role);
+        Assert.True(p.Fix("A", "May A", "chu", "admin", new() { "10.0.0.1:47820" }, "k", 0));
         Assert.Null(p.DuPhong);
-        Assert.True(p.Fix("A", "May A", "chu", "admin", new() { "10.0.0.1:47820" }, "k", 0, standbys, u => u == "ql"));
-        Assert.Equal("duphong", p.Decide("nhanvien", "B", "con")!.Role);
-        Assert.Equal("con", p.Decide("ql2", "D", "", standbyAllowed: true)!.Role);  // đã có máy dự phòng
-        p.DuPhong = null;
-        Assert.Equal("con", p.Decide("nhanvien", "B", "duphong")!.Role);
+        Assert.False(p.Fix("A", "May A", "chu", "admin", new() { "10.0.0.1:47820" }, "k", 0));
         var q = LanPlan.Parse(p.ToJson())!;
         Assert.Equal("May A", q.Chu!.Name);
-        // quyền: chỉ khi tích riêng
-        Assert.False(LanPlan.CanStandby(new User { Username = "a", Role = Roles.Admin, IsActive = true }));
-        Assert.False(LanPlan.CanStandby(new User { Username = "m", Role = Roles.Manager, IsActive = true }));
-        Assert.True(LanPlan.CanStandby(new User { Username = "m", Role = Roles.Manager, IsActive = true, Permissions = Perm.Serialize(new Dictionary<string, string> { [LanPlan.StandbyPerm] = Perm.Edit }) }));
-        Assert.Equal(Perm.None, Perm.Defaults(Roles.Manager)[LanPlan.StandbyPerm]);
+        Assert.Null(q.DuPhong);
+        // quyền "Máy dự phòng LAN" không còn trong Phân quyền
+        Assert.DoesNotContain(Perm.Items, i => i.Key == "landuphong");
+    }
+
+    [Fact]
+    public void May_du_phong_cu_tu_thanh_may_con_khi_mo_app()
+    {
+        // 1.131: máy còn vai dự phòng (kế hoạch cũ / cài tay) → lúc mở app thành máy con
+        var b = Machine("B");
+        b.Settings.Set("lan_role", LanService.RoleStandby);
+        b.ReloadLan(start: false);
+        Assert.Equal(LanService.RoleStandby, b.Lan.Role);
+        Assert.NotNull(b.RetireStandby());
+        Assert.Equal(LanService.RoleClient, b.Settings.Get("lan_role"));
+        Assert.Equal(LanService.RoleClient, b.Lan.Role);
+        Assert.Null(b.RetireStandby());                      // lần sau không đổi gì
     }
 
     [Fact]
@@ -118,7 +125,7 @@ public class LanPlanTests : IDisposable
         _web.Token = Between(script, "var MA_DOC = '", "'");
         _web.Admin = Between(script, "var MA_QUAN_TRI = '", "'");
         await a.Accounts.ConnectAsync(Url);
-        a.Auth.CreateUser("quanly", "Quản lý A", "matkhau2", Roles.Manager, Perm.Serialize(new Dictionary<string, string> { [LanPlan.StandbyPerm] = Perm.Edit, ["m1"] = Perm.Edit }));
+        a.Auth.CreateUser("quanly", "Quản lý A", "matkhau2", Roles.Manager, Perm.Serialize(new Dictionary<string, string> { ["landuphong"] = Perm.Edit, ["m1"] = Perm.Edit }));   // quyền dự phòng cũ (1.106) còn lưu → bỏ qua
         a.Auth.CreateUser("nhanvien", "Nhân viên", "matkhau3", Roles.Staff, Perm.Serialize(new Dictionary<string, string> { ["m1"] = Perm.Edit }));
         var staffCode = a.Accounts.ConnectionCode(forAdmin: false);
         var adminCode = a.Accounts.ConnectionCode(forAdmin: true);
@@ -138,17 +145,15 @@ public class LanPlanTests : IDisposable
         Assert.Equal(a.Lan.MachineId, plan.Chu!.Id);
         Assert.Equal(a.Lan.Key, plan.Key);
 
-        // Máy B: quản lý (có quyền Máy dự phòng LAN) đăng nhập → máy dự phòng, không cần dán mã LAN.
+        // Máy B: quản lý (tài khoản còn lưu quyền "Máy dự phòng LAN" cũ) đăng nhập → 1.131: máy con, không còn máy dự phòng.
         var b = Machine("B");
         await b.Accounts.ConnectAsync(staffCode);
         await Login(b, "quanly", "matkhau2");
-        Assert.Equal(LanService.RoleStandby, b.Lan.Role);
+        Assert.Equal(LanService.RoleClient, b.Lan.Role);
         Until(() => b.Lan.Online && Local(b, "S") == "a", "máy B chép dữ liệu máy chủ");
-        // máy dự phòng đã ghi trên Sheet; máy chủ thấy nó, ghi lại không xóa
-        Until(() => a.Lan.Machines().Any(m => m.Role == LanService.RoleStandby), "máy chủ thấy máy dự phòng");
         await a.Accounts.PullAsync();
         Assert.Null(await LanPlanSync.PublishAsync(a));
-        Assert.Equal(b.Lan.MachineId, LanPlan.Parse(_web.Rows.Single(r => r["username"] == LanPlan.RowName)["quyen"])!.DuPhong!.Id);
+        Assert.Null(LanPlan.Parse(_web.Rows.Single(r => r["username"] == LanPlan.RowName)["quyen"])!.DuPhong);
 
         // Máy C: nhân viên → máy con; ghi vào máy chủ.
         var c = Machine("C");

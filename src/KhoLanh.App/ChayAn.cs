@@ -96,7 +96,7 @@ public static class ChayAn
             await Ui.Message(w, "Chỉ tài khoản Quản trị được thoát hẳn phần mềm trên máy chủ (để các máy khác không mất máy chủ).", "Thoát hẳn");
             return;
         }
-        if (!await Ui.Confirm(w, "Thoát hẳn Kho Lạnh trên máy chủ?\n\nCác máy khác sẽ mất máy chủ: máy dự phòng (nếu có) làm thay, không thì từng máy làm riêng và tự gửi phần sửa khi máy chủ mở lại.", "Thoát hẳn", "Thoát hẳn")) return;
+        if (!await Ui.Confirm(w, "Thoát hẳn Kho Lạnh trên máy chủ?\n\nCác máy khác sẽ mất máy chủ: từng máy làm riêng trên dữ liệu trong máy và tự gửi phần sửa khi máy chủ mở lại.", "Thoát hẳn", "Thoát hẳn")) return;
         ExitRequested = true;
         RemoveTray();
         (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown();

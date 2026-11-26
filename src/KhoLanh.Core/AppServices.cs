@@ -158,6 +158,21 @@ public class AppServices
         catch (Exception e) { return "Chưa bỏ được đồng bộ Drive dùng chung: " + e.Message; }
     }
 
+    /// <summary>
+    /// 1.131 (người dùng: "bỏ máy dự phòng, chỉ dùng 1 máy chính; máy chính tắt thì máy con làm riêng, máy chủ mở lại thì ghép lại") — gọi lúc mở app,
+    /// trước khi bật LAN: máy còn vai dự phòng (kế hoạch cũ / cài tay) thành máy con. Đang tạm làm chủ lúc tắt app (`lan_serving` = 1) thì lần nối máy chủ
+    /// tới tự gửi phần đã sửa lên để gộp (Demote, như máy chủ cũ). Trả câu báo (null = không đổi).
+    /// </summary>
+    public string? RetireStandby()
+    {
+        if (Settings.Get("lan_role") != LanService.RoleStandby) return null;
+        Settings.Set("lan_role", LanService.RoleClient);
+        ReloadLan(start: false);
+        const string msg = "Đã bỏ vai máy dự phòng: máy này thành máy con (chỉ còn 1 máy chủ; máy chủ tắt thì máy con làm riêng, bật lại thì tự gộp).";
+        try { Audit.Log(Session.Username, "Bỏ máy dự phòng LAN", msg); } catch { }
+        return msg;
+    }
+
     public void ReloadLan(bool start = true)
     {
         var old = Lan;

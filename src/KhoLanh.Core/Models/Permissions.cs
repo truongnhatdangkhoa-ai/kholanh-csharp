@@ -46,7 +46,6 @@ public static class Perm
         new("taikhoan", "Tạo / sửa tài khoản", "Hệ thống", new[] { Edit }, "Tạo, sửa, khóa, đặt lại mật khẩu tài khoản Nhân viên / Quản lý (tự đồng bộ lên Google Sheet chung). Không tạo / sửa được tài khoản Quản trị"),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
         // 1.121: bỏ "drivepush" (Gửi dữ liệu từ máy xem từ xa qua Drive) — bỏ hẳn Thư mục / Drive dùng chung; quyền đã lưu chứa khóa này bị bỏ qua.
-        new("landuphong", "Máy dự phòng LAN", "Hệ thống", new[] { Edit }, "Máy đăng nhập bằng tài khoản này làm máy dự phòng (giữ bản sao dữ liệu, tự làm máy chủ khi máy chủ chính tắt) nếu chưa có máy dự phòng. Không tích = máy con"),
     };
 
     /// <summary>
@@ -69,7 +68,6 @@ public static class Perm
     {
         var d = new Dictionary<string, string>();
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
-        d["landuphong"] = None;   // 1.106: máy dự phòng LAN chỉ khi Quản trị tích riêng
         d["khoiphuc"] = None;     // 1.114: khôi phục chỉ khi Quản trị tích riêng (Quản trị luôn có)
         d["taikhoan"] = None;     // 1.110: tạo / sửa tài khoản chỉ khi Quản trị tích riêng (Quản trị luôn có)
         if (role == Roles.Staff)

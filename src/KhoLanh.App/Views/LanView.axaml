@@ -71,7 +71,7 @@
             <Border Classes="card" VerticalAlignment="Top">
               <StackPanel Spacing="8">
                 <TextBlock Text="Máy chủ LAN theo tài khoản" Classes="section"
-                           ToolTip.Tip="Không cài tay IP / mã: Quản trị bật máy chủ trên máy giữ dữ liệu chính; tài khoản có quyền Máy dự phòng LAN đăng nhập máy nào thì máy đó làm dự phòng; mọi tài khoản khác là máy con, tự nối máy chủ trong cùng mạng. Địa chỉ máy chủ lưu trên Google Sheet chung."/>
+                           ToolTip.Tip="Không cài tay IP / mã: Quản trị bật máy chủ trên máy giữ dữ liệu chính; mọi tài khoản khác là máy con, tự nối máy chủ trong cùng mạng. Địa chỉ máy chủ lưu trên Google Sheet chung."/>
                 <StackPanel x:Name="AutoRows" Spacing="4"/>
                 <TextBlock x:Name="AutoSlots" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
                 <WrapPanel ItemSpacing="6" LineSpacing="6">
@@ -99,7 +99,7 @@
               </Border>
               <Expander Header="Khi máy chủ tắt thì sao?" HorizontalAlignment="Stretch">
                 <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
-                           Text="• Có máy dự phòng: khoảng 10 giây sau máy dự phòng tự làm máy chủ, các máy con tự chuyển sang. Máy chủ chính bật lại sẽ chép phần thiếu rồi nhận lại vai.&#10;• Không có máy nào làm chủ: mỗi máy làm tiếp trên dữ liệu riêng, ghi sổ chờ; có máy chủ lại thì tự gửi lên (trùng sửa hiện ở tab Máy đang nối &amp; trùng sửa).&#10;• Nên để chỉ một máy nạp file cho mỗi module trong lúc mất máy chủ."/>
+                           Text="• Máy chủ tắt: mỗi máy làm tiếp trên dữ liệu riêng, ghi sổ chờ; có máy chủ lại thì tự gửi lên (trùng sửa hiện ở tab Máy đang nối &amp; trùng sửa).&#10;• Nên để chỉ một máy nạp file cho mỗi module trong lúc mất máy chủ."/>
               </Expander>
             </StackPanel>
           </Grid>

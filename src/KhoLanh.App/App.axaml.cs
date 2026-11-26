@@ -145,6 +145,7 @@ public partial class App : Application
         }
         // 1.121: bỏ Thư mục / Drive dùng chung — máy cũ còn cài tự chuyển (trước khi bật LAN); câu báo hiện ở tab Máy chủ / nhật ký.
         DriveRetireNote = Services.RetireDriveSync() ?? "";
+        if (Services.RetireStandby() is { } sb) DriveRetireNote = DriveRetireNote.Length > 0 ? DriveRetireNote + "\n" + sb : sb;   // 1.131
     }
 
     /// <summary>1.121: câu báo lần chuyển máy cũ khỏi Drive dùng chung (rỗng = máy không dùng Drive dùng chung) — tab Máy chủ hiện.</summary>

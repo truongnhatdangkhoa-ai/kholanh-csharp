@@ -28,8 +28,6 @@ public sealed class LanPlan
     public DrivePlan Drive = new();
 
     /// <summary>1.106: quyền "Máy dự phòng LAN" (Hệ thống › Tài khoản › phân quyền) — chỉ tính khi được tích RIÊNG (Quản trị không tự có).</summary>
-    public const string StandbyPerm = "landuphong";
-    public static bool CanStandby(User? u) => u is not null && u.IsActive && Perm.Parse(u.Permissions).TryGetValue(StandbyPerm, out var v) && v != Perm.None;
 
     public string RoleOf(string username) => Vai.TryGetValue(username, out var r) && r is LanService.RoleServer or LanService.RoleStandby ? r : LanService.RoleClient;
 
@@ -85,31 +83,26 @@ public sealed class LanPlan
     /// <summary>
     /// 1.106 — VAI THEO TÀI KHOẢN (người dùng: "xóa chế độ vai trò theo máy, chỉ áp dụng theo vai trò tài khoản"): luôn bật khi có tài khoản dùng chung,
     /// không cài tay IP / mã LAN. Máy chủ chính = máy mà Quản trị bấm "Bật máy chủ trên máy này" (giữ vai dù ai đăng nhập, Quản trị tắt được);
-    /// máy dự phòng = máy đăng nhập bằng tài khoản có quyền "Máy dự phòng LAN" (<paramref name="standbyAllowed"/>) khi chưa có máy dự phòng;
     /// mọi tài khoản khác (Quản lý, Nhân viên…) = máy con, tự nối máy chủ theo địa chỉ ghi trên Google Sheet. <see cref="On"/> / <see cref="Vai"/> cũ bỏ qua.
     /// </summary>
-    public Decision? Decide(string username, string machineId, string currentRole, bool standbyAllowed = false)
+    public Decision? Decide(string username, string machineId, string currentRole)
     {
+        // 1.131 (người dùng: "bỏ máy dự phòng, chỉ dùng 1 máy chính; máy chính tắt thì máy con tự làm riêng, máy chủ mở lại thì ghép lại"):
+        // không còn vai dự phòng — máy từng làm dự phòng thành máy con (phần đã sửa khi nó tạm làm chủ được gửi lên máy chủ để gộp).
         if (Chu?.Id == machineId) return new(LanService.RoleServer, false, false, "máy này là máy chủ chính");
-        if (DuPhong?.Id == machineId) return new(LanService.RoleStandby, false, false, "máy này là máy dự phòng");
         var haveServer = Chu is not null && Key.Length > 0;
-        if (standbyAllowed && DuPhong is null && haveServer)
-            return new(LanService.RoleStandby, false, true, $"tài khoản {username} có quyền máy dự phòng, chưa có máy dự phòng");
         if (currentRole == LanService.RoleServer && Chu is null)
             return new(LanService.RoleServer, true, false, "máy này đang làm máy chủ, chưa có máy chủ ghi nhận");
-        if (haveServer || currentRole == LanService.RoleClient) return new(LanService.RoleClient, false, false, haveServer ? $"máy chủ chính là {Chu!.Name}" : "chưa có máy chủ chính");
+        if (haveServer || currentRole is LanService.RoleClient) return new(LanService.RoleClient, false, false, haveServer ? $"máy chủ chính là {Chu!.Name}" : "chưa có máy chủ chính");
         return new(LanService.RoleSingle, false, false, "chưa bật máy chủ nào");
     }
 
     /// <summary>
-    /// Sửa kế hoạch cho khớp với máy này: máy chủ chính ghi tên / địa chỉ / khóa / cổng của mình và máy dự phòng nó thấy;
-    /// máy dự phòng ghi tên / địa chỉ của mình. Không giành vai đã ghi cho máy khác. Máy dự phòng chưa ghi nhận chỉ được ghi
-    /// khi người đang đăng nhập trên đó được gán "máy dự phòng" (Quản trị bỏ máy dự phòng thì nó không tự quay lại). Trả true nếu có sửa.
+    /// Sửa kế hoạch cho khớp với máy này: máy chủ chính ghi tên / địa chỉ / khóa / cổng của mình (1.131: bỏ máy dự phòng — ô dự phòng cũ bị xóa).
+    /// Không giành vai đã ghi cho máy khác. Trả true nếu có sửa.
     /// </summary>
-    public bool Fix(string machineId, string machineName, string role, string user, List<string> addrs, string key, int port,
-        IEnumerable<(string Id, string Name, List<string> Addrs, string User)> standbys, Func<string, bool>? standbyUser = null)
+    public bool Fix(string machineId, string machineName, string role, string user, List<string> addrs, string key, int port)
     {
-        standbyUser ??= _ => false;
         var changed = false;
         var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         bool Same(Slot? s, string id, string name, List<string> a) => s is not null && s.Id == id && s.Name == name && s.Addrs.SequenceEqual(a);
@@ -118,20 +111,7 @@ public sealed class LanPlan
             if (!Same(Chu, machineId, machineName, addrs)) { Chu = new Slot(machineId, machineName, addrs, now, Chu?.User is { Length: > 0 } u0 ? u0 : user); changed = true; }
             if (Key != key) { Key = key; changed = true; }
             if (Port != port) { Port = port; changed = true; }
-            if (DuPhong?.Id == machineId) { DuPhong = null; changed = true; }
-            foreach (var sb in standbys)
-            {
-                if (sb.Id == machineId || sb.Addrs.Count == 0) continue;
-                if (DuPhong is null && standbyUser(sb.User))
-                { DuPhong = new Slot(sb.Id, sb.Name, sb.Addrs, now, sb.User); changed = true; }
-                else if (DuPhong is not null && DuPhong.Id == sb.Id && !Same(DuPhong, sb.Id, sb.Name, sb.Addrs))
-                { DuPhong = DuPhong with { Name = sb.Name, Addrs = sb.Addrs, At = now }; changed = true; }
-            }
-        }
-        else if (role == LanService.RoleStandby && Chu?.Id != machineId)
-        {
-            if (DuPhong is null && standbyUser(user)) { DuPhong = new Slot(machineId, machineName, addrs, now, user); changed = true; }
-            else if (DuPhong?.Id == machineId && !Same(DuPhong, machineId, machineName, addrs)) { DuPhong = DuPhong with { Name = machineName, Addrs = addrs, At = now }; changed = true; }
+            if (DuPhong is not null) { DuPhong = null; changed = true; }
         }
         return changed;
     }
