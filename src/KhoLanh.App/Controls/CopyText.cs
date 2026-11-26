@@ -20,12 +20,16 @@ public static class CopyText
 
     private static void OnContext(TextBlock tb, ContextRequestedEventArgs e)
     {
-        if (e.Handled || tb is SelectableTextBlock || string.IsNullOrWhiteSpace(tb.Text) || !Eligible(tb)) return;
-        var text = tb.Text!.Trim();
+        if (e.Handled || tb is SelectableTextBlock || !Eligible(tb)) return;
+        var sel = TextSelect.SelectedText();   // 1.135: vừa bôi đen → mục đầu "Chép đoạn đã bôi đen"
+        var text = TextSelect.TextOf(tb).Trim();
+        if (text.Length == 0 && sel.Length == 0) return;
         var box = Box(tb);
         var all = box is null ? "" : AllText(box);
         var top = TopLevel.GetTopLevel(tb);
-        var items = new List<MenuItem> { Item(top, "Chép chữ này", text) };
+        var items = new List<MenuItem>();
+        if (sel.Length > 0) items.Add(Item(top, "Chép đoạn đã bôi đen", sel));
+        if (text.Length > 0) items.Add(Item(top, "Chép chữ này", text));
         if (all.Length > 0 && all != text) items.Add(Item(top, "Chép cả khung", all));
         var menu = new ContextMenu { ItemsSource = items, Placement = PlacementMode.Pointer };
         menu.Open(tb);
