@@ -113,6 +113,25 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 | 1.43 | Giao diện mới bước 1 — nền móng: bảng màu Tối thiết kế riêng (`AppTheme.DesignedDark`), tài nguyên mới (Text, Surface2, BorderStrong, Ok/Warn/Bad/Info + Soft, NavFg…), kiểu nút primary / thường / ghost / danger, ô nhập 32 px, tab gạch chân, `Border.pill.*`, bộ biểu tượng nét mảnh `Controls/Icon.cs` | `AppTheme.cs`, `Styles.axaml`, `Controls/Icon.cs` |
 | 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ · sắp lại nhóm menu (Chức năng, Chứng từ) | `AppUpdater.cs`, `Services/UpdateScript.cs` |
 
+## ĐANG CHỜ: máy chủ ở nhà qua Cloudflare Tunnel (cập nhật 26/11/2026)
+Phần app đã xong ở 1.113 (`Lan/LanHttp.cs`, hướng dẫn đầy đủ `docs/MAY-CHU-TU-XA.md`). Người dùng đang làm phần Cloudflare / tên miền:
+- ✅ Tên miền **kcenter.xyz** (Mắt Bão) từng bị khóa "verification-hold" vì chưa ký hồ sơ → người dùng đã ký hồ sơ / eKYC, tên miền chạy lại.
+- ✅ Cloudflare (gói Free) đã thêm kcenter.xyz, nhập tay 5 bản ghi của trang giới thiệu (GitHub Pages), TẤT CẢ để **DNS only** (đám mây xám — KHÔNG bấm
+  "Proxy DNS records", kẻo GitHub Pages lỗi chứng chỉ): A `@` → 185.199.108.153 / .109.153 / .110.153 / .111.153, CNAME `www` → truongnhatdangkhoa-ai.github.io.
+  Không có email (MX), DNSSEC đang tắt ("Bảo mật DNS: Chưa đăng ký" ở Mắt Bão).
+- ✅ Mắt Bão đã đổi nameserver sang `arch.ns.cloudflare.com` / `chin.ns.cloudflare.com` ("Cập nhật Nameserver thành công"), đã bấm Check nameservers.
+- ⏳ CHỜ Cloudflare báo **Active** (1–24 giờ, có email). Vẫn thấy `verification-hold.suspended-domain.com` sau nhiều giờ → nhờ người dùng gọi Mắt Bão 1900 1830.
+- ⏭ Khi Active, hướng dẫn người dùng (từng bước, xin ảnh nếu lạ):
+  1. Mở `kcenter.xyz` kiểm tra trang giới thiệu còn chạy.
+  2. PC cá nhân (máy chủ; app: Đồng bộ & sao lưu › Giữa các máy › Máy chủ LAN › "Bật máy chủ trên máy này" / "Chuyển máy chủ về máy này"; tắt ngủ, khởi động cùng Windows).
+  3. https://one.dash.cloudflare.com › Networks › Tunnels › Create a tunnel › Cloudflared › tên `kholanh` › Windows → cài `cloudflared`, chạy lệnh
+     `cloudflared.exe service install <mã>` bằng CMD quyền Administrator (mã bí mật — không hỏi, không ghi lại) → Healthy.
+  4. Public hostname: Subdomain `kho` · Domain `kcenter.xyz` · Type **HTTP** · URL `localhost:47821` (cổng hiện ở khung "Máy chủ từ xa" của app; mặc định cổng LAN + 1).
+  5. Trình duyệt mở `https://kho.kcenter.xyz` → thấy "KhoLanh OK".
+  6. App trên máy chủ › khung **Máy chủ từ xa** › nhập `kho.kcenter.xyz` › Lưu địa chỉ (ghi lên Google Sheet chung) › Kiểm tra nối từ xa (✓). Máy ở xa chỉ cần đăng nhập.
+  7. Đây là lần chạy Cloudflare THẬT đầu tiên (test chỉ dùng HTTP 127.0.0.1) — lỗi gì thì xem `HttpLanConnection` (403 = sai khóa / giờ lệch > 5 phút, 502/530 = đường hầm chạy nhưng app máy chủ không trả lời) và Trợ lý (cảnh báo "Máy ở xa không nối được máy chủ qua Internet").
+- Khi xong hết: xóa mục này, ghi 1 dòng vào Nhật ký tiến độ.
+
 ## Việc tạm hoãn / còn mở
 - Drive cá nhân (sao lưu database module lên Drive riêng) / Kho dữ liệu cá nhân / Dọn rác (app cũ: `core/drive-ca-nhan.js`, `core/kho-ca-nhan.js`, `core/don-rac.js`) — chưa làm. Lưu trữ cá nhân (`core/luu-tru.js`) ĐÃ làm ở 1.60 (chưa có: đồng bộ điện thoại qua LAN như app cũ).
 - Bản điện thoại MỚI: repo `truongnhatdangkhoa-ai/kholanh-csharp-mobile` (tách từ app cũ 24/11/2026, Google Sheet mới riêng; repo cũ giữ nguyên cho hệ thống đang dùng). Trước đó: dùng nguyên app `truongnhatdangkhoa-ai/kholanh-anan-mobile` (Capacitor, Google Sheet + Apps Script `Code.gs`). Giai đoạn sau (khi cần dữ liệu tức thì / chung tài khoản): cổng API HTTPS trên `KhoLanh.Server`, điện thoại đăng nhập bằng tài khoản PC — chưa làm. Icon mới đã dùng ở repo điện thoại mới.
