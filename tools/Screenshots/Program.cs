@@ -1987,6 +1987,35 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v230")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v230) — ĐẠT: " : "Xong (v230) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.132: Tồn theo vị trí › Tra cứu đã xuất (mã / size / vị trí, tồn hiện tại ở vị trí, mở phiếu). SHOTS_ONLY=v232; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v232")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V232] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var vt = s.ViTri; vt.Load();
+    var idx = Enumerable.Range(0, vt.Rows.Count).Where(i => vt.Rows[i].Sl >= 6).Take(4).ToList();
+    var a = vt.CreateSlip(new() { new(idx[0], 3), new(idx[1], 2) }, false, "xuatxa", DateTime.Today, "Phiếu thử A");
+    var b = vt.CreateSlip(new() { new(idx[2], vt.Rows[idx[2]].Sl), new(idx[3], 1) }, false, "xuatxa", DateTime.Today, "Phiếu thử B");
+    var ma = vt.Rows[idx[0]].Ma;
+    main.Navigate("m7"); P(40);
+    var v = main.PageHost.GetVisualDescendants().OfType<ViTriView>().First();
+    var tabs = v.GetVisualDescendants().OfType<TabControl>().First();
+    tabs.SelectedIndex = 5; P(30);
+    Console.WriteLine($"[V232] tất cả: {v._xRows.Count} dòng");
+    if (v._xRows.Count < 4) Bad("thiếu dòng hàng đã xuất");
+    v._xq.Text = ma; P(20);
+    Console.WriteLine($"[V232] tìm “{ma}”: {v._xRows.Count} dòng · tồn hiện tại ở vị trí {string.Join(", ", v._xRows.Select(x => x.TonVt))}");
+    if (v._xRows.Count == 0 || v._xRows.Any(x => x.Ma != ma && x.MaGoc != ma)) Bad("tìm theo mã sai");
+    v._xq.Text = ""; P(10);
+    Snap(main, "v232-tra-cuu-da-xuat");
+    // bấm đúp dòng của phiếu B → tab Phiếu xuất chọn đúng phiếu B
+    var rb = v._xRows.FindIndex(x => x.SlipId == b.Id);
+    v._xg!.Select(rb, 0); P(5);
+    v._xg.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); P(40);
+    Console.WriteLine($"[V232] bấm đúp phiếu {b.Id} → tab {tabs.SelectedIndex}");
+    if (tabs.SelectedIndex != 1) Bad("bấm đúp không mở tab Phiếu xuất");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v232) — ĐẠT: " : "Xong (v232) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
 {

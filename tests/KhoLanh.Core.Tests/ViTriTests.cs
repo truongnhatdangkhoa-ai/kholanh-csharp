@@ -99,6 +99,27 @@ public class ViTriTests : IDisposable
     }
 
     [Fact]
+    public void Tra_cuu_hang_da_xuat_theo_ma_size_vi_tri()
+    {
+        // 1.132: mọi dòng của mọi phiếu xuất (mới nhất trước) + tồn hiện tại ở đúng Mã · Lô · Vị trí để rà soát
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var i0 = Idx(A, "A.02.01", "L1"); var i4 = 4;
+        var a = Vt.CreateSlip(new() { new(i0, 12) }, false, "xuatxa", DateTime.Today, "");
+        var b = Vt.CreateSlip(new() { new(i4, 5) }, false, "xuatxa", DateTime.Today, "");
+        var l = Vt.DaXuatList();
+        Assert.Equal(2, l.Count);
+        var la = l.Single(x => x.SlipId == a.Id);
+        Assert.Equal((A, "A.02.01", "L1", 12.0), (la.MaGoc, la.Vt, la.Lo, la.Sl));
+        Assert.Equal(38, la.TonVt);                         // file tồn (sau khi trừ) còn 38 ở đúng ô
+        var lb = l.Single(x => x.SlipId == b.Id);
+        // ô B.01.03 có 2 dòng cùng mã + lô: xuất hết 1 dòng thì ô vẫn còn dòng kia → tồn hiện tại = tổng các dòng cùng Mã · Lô · Vị trí
+        Assert.Equal(Vt.Rows.Where(r => r.MaGoc == lb.MaGoc && r.Lo == lb.Lo && r.Vt == lb.Vt).Sum(r => r.Sl), lb.TonVt);
+        Assert.Equal(0, Vt.Rows[i4].Sl);
+        Assert.Equal(DateTime.Today.ToString("yyyy-MM-dd"), la.Ngay);
+        Assert.Equal(ViTriService.ShortCode(A), la.Ma);
+    }
+
+    [Fact]
     public void Create_slip_deducts_persists_and_reloads_like_old_app()
     {
         Vt.Load(); Vt.Import(Vt.ReadFile(F1()));

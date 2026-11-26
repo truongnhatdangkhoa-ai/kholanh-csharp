@@ -1015,6 +1015,30 @@ public sealed class ViTriService
 
     // ------------------------------------------------------------------ lưu trữ theo ngày + thống kê Size
 
+    /// <summary>1.132: 1 dòng hàng đã xuất (mọi phiếu, đang mở + đã lưu trữ) — tra cứu / rà soát theo mã, size, vị trí.</summary>
+    public sealed record DaXuat(string Ngay, string MaPhieu, string Loai, string MaGoc, string Ma, string Ten, string Size, string Lo, string Vt,
+        double Sl, double Tl, string NguoiTao, bool DienThoai, bool DaTru, double TonVt, string SlipId);
+
+    /// <summary>
+    /// 1.132 (người dùng: "trong tồn vị trí thêm tìm mã hàng, size, vị trí đã xuất để rà soát lại các mã hàng đã xuất"): mọi dòng của mọi phiếu xuất,
+    /// mới nhất trước; <see cref="DaXuat.TonVt"/> = tồn hiện tại (file đang nạp) ở đúng Mã · Lô · Vị trí của dòng — đã xuất hết mà file còn tồn thì dễ thấy.
+    /// </summary>
+    public List<DaXuat> DaXuatList()
+    {
+        var ton = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in Rows) { if (r.Ghost) continue; var k = r.MaGoc.Trim() + "|" + r.Lo.Trim() + "|" + r.Vt.Trim(); ton[k] = ton.GetValueOrDefault(k) + r.Sl; }
+        var o = new List<DaXuat>();
+        foreach (var s in Slips.OrderByDescending(x => x.CreatedAt, StringComparer.Ordinal))
+            foreach (var l in s.Lines)
+            {
+                var ma = ShortCode(l.MaGoc);
+                var size = SizeOf(new Row { Ma = ma, Ten = l.Ten });
+                o.Add(new DaXuat(DayKey(s), s.MaPhieu.Length > 0 ? s.MaPhieu : s.Id, LoaiLabel(s.Loai), l.MaGoc, ma, l.Ten, size, l.Lo, l.Vt, l.Qty, l.Tl,
+                    s.NguoiTao, s.FromPhone, s.Deducted, Math.Round(ton.GetValueOrDefault(l.MaGoc.Trim() + "|" + l.Lo.Trim() + "|" + l.Vt.Trim()), 3), s.Id));
+            }
+        return o;
+    }
+
     public sealed record ArcGroup(string Day, string Loai, List<Slip> Slips)
     {
         public int NLines => Slips.Sum(s => s.Lines.Count);
