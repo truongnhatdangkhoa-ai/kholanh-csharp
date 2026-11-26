@@ -151,6 +151,8 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
+        RefreshButton.Content = Controls.Icon.Make("refresh", 16);   // 1.139: làm mới trang đang mở
+        ToolTip.SetTip(RefreshButton, "Làm mới");
         // 1.97: biểu tượng tài khoản theo quyền (phương án B): ô màu + hình khiên / cặp / người, tên, nhãn quyền
         var shownName = string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName;
         UserButton.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
@@ -751,6 +753,22 @@ public partial class MainWindow : Window
         if (!saved) { AppTheme.SetDensity(dens0); AppTheme.Apply(mode0, scale0); ApplyZoom(); }
         else AppTheme.SaveFor(App.Services.Session.Username);
         ReloadPage();
+    }
+
+    private bool _refreshing;
+    /// <summary>1.139: nút Làm mới — tải lại danh sách dùng chung (tài khoản), thử nối lại máy chủ, bỏ trang giữ sẵn rồi dựng lại trang đang mở bằng dữ liệu mới.</summary>
+    private async void OnRefreshClick(object? sender, RoutedEventArgs e)
+    {
+        if (_refreshing) return;
+        _refreshing = true; RefreshButton.IsEnabled = false;
+        try
+        {
+            try { App.Services.Lan.RetryNow(); } catch { }
+            try { if (App.Services.Accounts.Enabled) await App.Services.Accounts.PullAsync(TimeSpan.FromSeconds(8)); } catch { }
+            ClearPageCache();
+            if (_current.Length > 0) Show(_current, null);
+        }
+        finally { _refreshing = false; RefreshButton.IsEnabled = true; }
     }
 
     /// <summary>Dựng lại màn hình đang mở (để các ô vẽ tay lấy màu mới).</summary>
