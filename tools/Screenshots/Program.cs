@@ -974,6 +974,37 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.113: SHOTS_ONLY=v204 — Máy chủ từ xa (Cloudflare Tunnel): ô "Địa chỉ từ xa" ở Đồng bộ & sao lưu › Giữa các máy › Máy chủ LAN, mã LAN chứa địa chỉ,
+// "Kiểm tra nối từ xa" qua HTTP thật (127.0.0.1 thay cho Cloudflare). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v204")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    int Free() { var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); l.Start(); var p = ((System.Net.IPEndPoint)l.LocalEndpoint).Port; l.Stop(); return p; }
+    var tcp = Free(); var hp = Free();
+    s.Settings.Set("lan_http_port", hp.ToString());
+    KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleServer, null, tcp);
+    KhoLanh.Core.Lan.LanService.SetPublicUrl(s.Settings, $"http://127.0.0.1:{hp}");
+    s.ReloadLan(start: true);
+    for (var i = 0; i < 100 && !s.Lan.Serving; i++) P(5);
+    var test = "";
+    // chặn luồng giao diện như Trợ lý quét nền: máy chủ đường hầm phải trả lời được (không bám luồng giao diện)
+    try { test = Task.Run(() => s.Lan.TestPublicAsync()).GetAwaiter().GetResult(); } catch (Exception ex) { test = "LỖI " + ex.Message; }
+    var (addrs, _) = KhoLanh.Core.Lan.LanService.ParseCode(s.Lan.ConnectionCode());
+    Console.WriteLine($"[v204] máy chủ: {s.Lan.Serving} · mã LAN: {string.Join(" ; ", addrs)} · tự thử: {test}");
+    if (!test.Contains("đang làm máy chủ") || !addrs.Contains($"http://127.0.0.1:{hp}")) ok = false;
+    KhoLanh.Core.Lan.LanService.SetPublicUrl(s.Settings, "kho.kcenter.xyz");
+    main.Navigate("lan"); P(40);
+    var inner = main.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(t => t.Items.OfType<TabItem>().Any(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Máy chủ LAN"));
+    if (inner is not null) { inner.SelectedItem = inner.Items.OfType<TabItem>().First(i => KhoLanh.App.Controls.Icon.TextOf(i.Header) == "Máy chủ LAN"); P(30); }
+    var lv = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.LanView>().FirstOrDefault();
+    var box = lv?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.Name == "RemoteUrlBox");
+    var card = lv?.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Name == "RemoteCard");
+    Console.WriteLine($"[v204] khung Máy chủ từ xa: {card?.IsEffectivelyVisible} · ô địa chỉ: {box?.Text}");
+    if (card?.IsEffectivelyVisible != true || box?.Text != "https://kho.kcenter.xyz") ok = false;
+    Snap(main, "v204-may-chu-tu-xa");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v204) — ĐẠT: " : "Xong (v204) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.102: SHOTS_ONLY=v202 — Trợ lý giai đoạn 4: nút "Sửa nhanh" ở khung chi tiết (sao lưu ngay → quét lại hết cảnh báo), thông báo góc màn hình cho cảnh báo Nặng mới. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v202")
 {

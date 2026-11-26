@@ -501,6 +501,15 @@ public sealed partial class TroLyService
             info.DriveEnabled = true; info.DriveDir = dr.Dir;
             try { info.DriveDirExists = Directory.Exists(dr.Dir); } catch { info.DriveDirExists = false; }
         }
+        try
+        {
+            if (_lan() is { Serving: true, PublicUrl.Length: > 0 } lan)
+            {
+                info.TunnelUrl = lan.PublicUrl;
+                try { Task.Run(() => lan.TestPublicAsync()).GetAwaiter().GetResult(); } catch (Exception e) { info.TunnelError = e.Message; }
+            }
+        }
+        catch { }
         return info;
     }
 

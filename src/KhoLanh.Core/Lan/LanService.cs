@@ -50,7 +50,11 @@ public sealed partial class LanService : ISheetSource, IDisposable
     internal Func<Task>? TestAfterPullResponse;
     private int _pullsApplied;
     internal int PullsApplied => Volatile.Read(ref _pullsApplied);
-    private readonly ConcurrentDictionary<string, LanConnection> _conns = new();
+    private readonly ConcurrentDictionary<string, ILanConn> _conns = new();
+    /// <summary>Địa chỉ gọi được gần nhất của từng máy (thử trước — máy ở xa khỏi chờ hết các địa chỉ trong nhà).</summary>
+    private readonly ConcurrentDictionary<string, string> _goodEp = new();
+    private LanHttpServer? _http;
+    private DateTime _lastListen = DateTime.MinValue;
     private readonly ConcurrentDictionary<string, Seen> _seen = new();
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
@@ -80,7 +84,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     public record Node(string Id, string Name, string Role, List<string> Addrs);
     /// <summary>1.100: "IP:cổng" của máy chủ đang nối (máy con) — để đo độ trễ LAN; null khi chính máy này làm chủ / chưa nối.</summary>
-    public string? ServerAddress => _server?.Addrs.FirstOrDefault();
+    /// <summary>Địa chỉ đang dùng để nối máy chủ (địa chỉ gọi được gần nhất; qua đường hầm thì là https://…).</summary>
+    public string? ServerAddress => _server is { } sv ? (_goodEp.TryGetValue(string.Join(";", sv.Addrs), out var g) ? g : sv.Addrs.FirstOrDefault()) : null;
     public record Seen(string Id, string Name, string Role, string Addr, DateTime At, bool ServerDown, int Pending, string User = "");
 
     public LanService(Database db, ModuleStore store, SettingsService settings, Session session, AuditService audit)
@@ -241,8 +246,9 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     private List<string> MyAddrs()
     {
-        var over = _settings.Get("lan_addrs"); // chỉ dùng khi kiểm thử
-        if (over.Length > 0) return over.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var pub = PublicUrl;   // 1.104: địa chỉ từ xa (đường hầm) đứng CUỐI — máy trong nhà vẫn nối thẳng, máy ở xa thử hết rồi nhớ địa chỉ này
+        var over = _settings.Get("lan_addrs"); // máy chủ không giao diện (--public) / kiểm thử
+        if (over.Length > 0) { var o = over.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList(); if (pub.Length > 0 && !o.Contains(pub)) o.Add(pub); return o; }
         var list = new List<string>();
         try
         {
@@ -255,6 +261,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
         }
         catch { }
         if (list.Count == 0) list.Add($"127.0.0.1:{Port}");
+        if (pub.Length > 0) list.Add(pub);
         return list;
     }
 
@@ -324,7 +331,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     private void Listen()
     {
-        if (_listener is not null || _cts is null) return;
+        if (_cts is null) return;
+        if (_listener is not null) { ListenHttp(); return; }
         try
         {
             var l = new TcpListener(IPAddress.Any, Port);
@@ -333,6 +341,45 @@ public sealed partial class LanService : ISheetSource, IDisposable
             _ = AcceptLoop(l, _cts.Token);
         }
         catch (SocketException e) { ListenError = $"Không mở được cổng {Port}: {e.Message}"; }
+        ListenHttp();
+    }
+
+    // ------------------------------------------------------------------ 1.104: máy chủ từ xa qua Cloudflare Tunnel
+
+    /// <summary>Cổng HTTP chỉ trong máy (127.0.0.1) cho cloudflared chuyển vào — mặc định cổng LAN + 1.</summary>
+    public int HttpPort => int.TryParse(_settings.Get("lan_http_port"), out var p) && p > 0 ? p : Port + 1;
+    /// <summary>Địa chỉ từ xa (đường hầm), vd https://kho.kcenter.xyz — đưa vào mã LAN để máy ở xa nối qua Internet.</summary>
+    public string PublicUrl => LanHttp.NormUrl(_settings.Get("lan_public")) ?? "";
+    public static void SetPublicUrl(SettingsService st, string? url)
+    {
+        var u = LanHttp.NormUrl(url);
+        if (!string.IsNullOrWhiteSpace(url) && u is null) throw new BusinessException("Địa chỉ từ xa không hợp lệ — ví dụ: kho.kcenter.xyz");
+        st.Set("lan_public", u ?? "");
+    }
+    public string HttpError { get; private set; } = "";
+    /// <summary>Lần cuối có máy nối vào qua đường hầm.</summary>
+    public DateTime TunnelLastOk => _http?.LastOk ?? DateTime.MinValue;
+
+    private void ListenHttp()
+    {
+        if (_http is not null || _cts is null) return;
+        try { _http = new LanHttpServer(HttpPort, () => _key, (req, remote) => Handle(req, remote)); HttpError = ""; }
+        catch (SocketException e) { HttpError = $"Không mở được cổng {HttpPort} cho đường hầm: {e.Message}"; }
+    }
+
+    /// <summary>Kiểm tra đường hầm từ chính máy này: gọi "hello" qua địa chỉ từ xa (đi ra Internet rồi vòng về).</summary>
+    public async Task<string> TestPublicAsync(string? url = null)
+    {
+        var u = LanHttp.NormUrl(url ?? PublicUrl) ?? throw new BusinessException("Chưa nhập địa chỉ từ xa.");
+        if (_key.Length == 0) throw new BusinessException("Máy này chưa bật mạng LAN.");
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var c = new HttpLanConnection(u, _key);
+        JsonObject h;
+        try { h = await c.CallAsync(Req("hello"), TimeSpan.FromSeconds(15)).ConfigureAwait(false); }
+        catch (LanUnreachableException e) { throw new BusinessException("Chưa nối được: " + e.Message.Replace($"Không nối được {u}: ", "")); }
+        if (h["ok"]?.GetValue<bool>() != true) throw new BusinessException(h["error"]?.ToString() ?? "Máy chủ trả lời lỗi.");
+        var name = h["name"]?.ToString() ?? "";
+        return $"Nối được qua {u} trong {sw.ElapsedMilliseconds:#,0} ms — máy trả lời: {name}" + (h["serving"]?.GetValue<bool>() == true ? " (đang làm máy chủ)." : " (CHƯA làm máy chủ).");
     }
 
     /// <summary>Mã LAN trong ket-noi.txt cạnh exe (bộ cài máy mới), nếu có.</summary>
@@ -351,6 +398,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     {
         try { _cts?.Cancel(); } catch { }
         try { _listener?.Stop(); } catch { }
+        try { _http?.Dispose(); } catch { }
         foreach (var c in _conns.Values) c.Dispose();
         _conns.Clear();
         try { _loop?.Wait(2000); } catch { }
@@ -376,7 +424,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private async Task Tick(CancellationToken ct)
     {
         var now = DateTime.Now;
-        if (Capable && _listener is null && now - _lastTry > T(3)) Listen();
+        if (Capable && (_listener is null || _http is null) && now - _lastListen > T(3)) { _lastListen = now; Listen(); }
         if (Serving)
         {
             if (_frozen && now - _frozenAt > T(10)) { _frozen = false; Raise(); }
@@ -727,14 +775,16 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     /// <summary>Bắt buộc mã hóa (không nhận / không dùng kênh thường). Đặt lan_enc = 1 (máy chủ trên Internet nên bật).</summary>
     public bool RequireEnc => _settings.Get("lan_enc") == "1";
-    private LanConnection Conn(string ep) => _conns.GetOrAdd(ep, e => new LanConnection(e, _key, RequireEnc));
+    private ILanConn Conn(string ep) => _conns.GetOrAdd(ep, e => LanHttp.IsUrl(e) ? new HttpLanConnection(e, _key) : new LanConnection(e, _key, RequireEnc));
 
     private async Task<JsonObject> CallNode(Node n, JsonObject req, TimeSpan timeout, CancellationToken ct)
     {
         LanUnreachableException? last = null;
-        foreach (var ep in n.Addrs)
+        var key = string.Join(";", n.Addrs);
+        var order = _goodEp.TryGetValue(key, out var good) && n.Addrs.Contains(good) ? n.Addrs.OrderBy(a => a == good ? 0 : 1).ToList() : n.Addrs;
+        foreach (var ep in order)
         {
-            try { return await Conn(ep).CallAsync(req, timeout, ct); }
+            try { var r = await Conn(ep).CallAsync(req, timeout, ct); _goodEp[key] = ep; return r; }
             catch (LanUnreachableException e) { last = e; }
         }
         throw last ?? new LanUnreachableException("Không có địa chỉ.");

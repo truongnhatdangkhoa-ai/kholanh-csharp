@@ -134,6 +134,63 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public async Task May_o_xa_noi_may_chu_qua_duong_ham_https()
+    {
+        // 1.104: máy chủ ở nhà + Cloudflare Tunnel → máy con ở xa chỉ nối được địa chỉ từ xa (http(s)://…), không vào được IP trong nhà
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var httpPort = FreePort();
+        {
+            var s0 = new AppServices(ms.Path);
+            s0.Settings.Set("lan_addrs", "127.0.0.1:1");   // địa chỉ "trong nhà" máy ở xa không tới được
+            s0.Settings.Set("lan_http_port", httpPort.ToString());
+            LanService.SetPublicUrl(s0.Settings, $"http://127.0.0.1:{httpPort}/");
+        }
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var (addrs, _) = LanService.ParseCode(srv.Lan.ConnectionCode());
+        Assert.Equal(new[] { "127.0.0.1:1", $"http://127.0.0.1:{httpPort}" }, addrs);
+        var mc = Setup("con", LanService.RoleClient, srv.Lan.ConnectionCode());
+        var cli = Boot(mc);
+        Until(() => cli.Lan.Online, "máy con nối máy chủ qua đường hầm");
+        Assert.Equal($"http://127.0.0.1:{httpPort}", cli.Lan.ServerAddress);
+        cli.Lan.Write(Db, One("S", Rows("a", "b")));
+        Assert.Equal("a,b", Local(srv, "S"));
+        srv.Lan.Write(Db, One("T", Rows("x")));
+        Assert.Equal("x", Names(cli.Lan.Read(Db, "T")));
+        Assert.True(srv.Lan.TunnelLastOk > DateTime.Now.AddMinutes(-1));
+        Assert.Contains("đang làm máy chủ", await srv.Lan.TestPublicAsync());
+    }
+
+    [Fact]
+    public async Task Duong_ham_chan_sai_ma_lan_va_goi_lai_goi_tin_cu()
+    {
+        var key = "khoa-that"; var guard = new LanHttp.ReplayGuard();
+        var req = new JsonObject { ["op"] = "hello", ["k"] = key };
+        var (body, nonce) = LanHttp.SealRequest(key, req);
+        var open = LanHttp.OpenRequest(key, body, guard);
+        Assert.NotNull(open); Assert.Equal("hello", open!.Value.Req["op"]!.ToString()); Assert.Null(open.Value.Req["ts"]);
+        Assert.Null(LanHttp.OpenRequest(key, body, guard));                              // gửi lại đúng gói cũ
+        Assert.Null(LanHttp.OpenRequest("khoa-sai", LanHttp.SealRequest(key, req).Body, guard));
+        Assert.Null(LanHttp.OpenRequest(key, LanHttp.SealRequest(key, req, DateTime.UtcNow.AddMinutes(-10)).Body, guard)); // gói quá hạn
+        var res = LanHttp.SealResponse(key, nonce, new JsonObject { ["ok"] = true });
+        Assert.True(LanHttp.OpenResponse(key, nonce, res)!["ok"]!.GetValue<bool>());
+        Assert.Null(LanHttp.OpenResponse("khoa-sai", nonce, res));
+        Assert.Equal("https://kho.kcenter.xyz", LanHttp.NormUrl(" kho.kcenter.xyz/ "));
+        Assert.Equal("https://kho.kcenter.xyz", LanHttp.NormUrl("https://kho.kcenter.xyz/"));
+        Assert.Null(LanHttp.NormUrl("kho kcenter"));
+        // máy chủ thật: sai khóa → 403 → máy con báo không nối được (không lộ dữ liệu)
+        var port = FreePort();
+        using var srv = new LanHttpServer(port, () => key, (r, _) => new JsonObject { ["ok"] = true, ["op"] = r["op"]!.ToString() });
+        using var good = new HttpLanConnection($"http://127.0.0.1:{port}", key);
+        Assert.Equal("hello", (await good.CallAsync(req, TimeSpan.FromSeconds(5)))["op"]!.ToString());
+        using var bad = new HttpLanConnection($"http://127.0.0.1:{port}", "khoa-sai");
+        var ex = await Assert.ThrowsAsync<LanUnreachableException>(() => bad.CallAsync(req, TimeSpan.FromSeconds(5)));
+        Assert.Contains("từ chối", ex.Message);
+        using var http = new HttpClient();
+        Assert.Equal("KhoLanh OK", await http.GetStringAsync($"http://127.0.0.1:{port}/"));
+    }
+
+    [Fact]
     public void Client_reads_and_writes_the_server_directly()
     {
         var (srv, cli, _, _) = Pair();

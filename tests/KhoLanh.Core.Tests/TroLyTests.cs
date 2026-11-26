@@ -455,6 +455,10 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
         });
         Assert.Equal("vang", Assert.Single(ok).Sev);
         Assert.Equal("xanh", Assert.Single(CheckConfig(new ConfigInfo { PhoneEnabled = true })).Sev);
+        // 1.104: máy chủ từ xa tự thử nối qua đường hầm không được → Nặng, mở trang Máy chủ LAN
+        var tn = Assert.Single(CheckConfig(new ConfigInfo { TunnelUrl = "https://kho.kcenter.xyz", TunnelError = "Chưa nối được: HTTP 530" }));
+        Assert.Equal("do", tn.Sev); Assert.Equal("lan", tn.Go);
+        Assert.Empty(CheckConfig(new ConfigInfo { TunnelUrl = "https://kho.kcenter.xyz" }).Where(f => f.Sev != "xanh"));
         Assert.Empty(CheckConfig(new ConfigInfo { AcctError = info.AcctError, PhoneError = info.PhoneError, MailStatus = info.MailStatus, DriveDirExists = false }));
     }
 
