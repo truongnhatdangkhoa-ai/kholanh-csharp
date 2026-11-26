@@ -57,9 +57,33 @@ public class EntryRulesTests
     }
 
     [Fact]
-    public void Kiem_ke_template_fills_size_weight_net_and_date_once()
+    public void Kiem_ke_go_lo_thi_dac_tinh_lay_theo_ket_qua_khang_sinh()
     {
         var cols = KiemKe();
+        int lo = cols.FindIndex(c => c.Header == "Lô"), dt = cols.FindIndex(c => c.Header == "Đặc tính"), gc = cols.FindIndex(c => c.Header == "Ghi chú");
+        Assert.True(lo >= 0 && dt == lo + 1 && gc == dt + 1);
+        var cells = new Dictionary<(int, int), string> { [(0, 1)] = "VRHLBTNXECR00162IMA1" };
+        string Get(int r, int c) => cells.TryGetValue((r, c), out var v) ? v : "";
+        string? Ks(string l) => l.Contains("L16") ? "33-EU" : null;
+        void Apply(int c, string v)
+        {
+            var before = Get(0, c); cells[(0, c)] = v;
+            foreach (var (r, cc, vv) in EntryRules.Derive(cols, Get, new[] { (0, c, before, v) }, _ => null, new DateTime(2026, 11, 26), Ks)) cells[(r, cc)] = vv;
+        }
+        Apply(lo, "22.05.26 L16");
+        Assert.Equal("33-EU", Get(0, dt));
+        Apply(lo, "22.05.26 L99");                  // lô chưa có kết quả → bỏ đặc tính của lô cũ
+        Assert.Equal("", Get(0, dt));
+        Apply(lo, "22.05.26 L16"); Apply(dt, "Sửa tay");
+        Assert.Equal("Sửa tay", Get(0, dt));        // người dùng sửa tay → giữ cho tới khi đổi lô
+        Apply(lo, "");
+        Assert.Equal("", Get(0, dt));
+    }
+
+    [Fact]
+    public void Kiem_ke_template_fills_size_weight_net_and_date_once()
+    {
+        var cols = KiemKe().Where(c => c.Header is not ("Lô" or "Đặc tính")).ToList();   // 1.115: Lô / Đặc tính thử riêng ở test lô
         Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Ghi chú", "Ngày nhập",
             "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" }, cols.Select(c => c.Header));
         var day1 = new DateTime(2026, 11, 24);

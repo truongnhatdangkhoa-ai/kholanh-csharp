@@ -44,11 +44,12 @@ public sealed class EntryService
         // 1.62: mẫu kiểm kê mới — Size / Trọng lượng theo mã, Net = Số lượng × Trọng lượng, Ngày nhập = ngày tạo dòng (không tự đổi khi sửa)
         // 1.71: Net(kg) → Tổng Net(kg); thêm Số lượng xuất · Số lượng còn lại (= Số lượng − SL xuất, là số đối chiếu kiểm kê) ·
         //       Tổng Net(kg) còn lại (= SL còn lại × Trọng lượng) · Ngày xuất (tự điền khi gõ SL xuất)
-        new("kiem-ke", "Kiểm kê", Cols(("Vị trí", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Size", "text", 90, EntryRules.Size, ""),
+        // 1.115: thêm Lô · Đặc tính (theo lô, kết quả kháng sinh) trước Ghi chú — khóa c12 / c13 để khóa các cột cũ không đổi
+        new("kiem-ke", "Kiểm kê", KkLoDt(Cols(("Vị trí", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Size", "text", 90, EntryRules.Size, ""),
             ("Trọng lượng", "number", 100, EntryRules.Tl, ""), ("Số lượng", "number", 90, "", ""), ("Tổng Net(kg)", "number", 110, "", "=[Số lượng]*[Trọng lượng]"),
             ("Ghi chú", "text", 200, "", ""), ("Ngày nhập", "date", 100, EntryRules.Today, ""),
             (KkXuat, "number", 110, "", ""), (KkConLai, "number", 120, "", "=[Số lượng]-[Số lượng xuất]"),
-            (KkNetConLai, "number", 140, "", "=[Số lượng còn lại]*[Trọng lượng]"), ("Ngày xuất", "date", 100, EntryRules.NgayXuat, "")), true),
+            (KkNetConLai, "number", 140, "", "=[Số lượng còn lại]*[Trọng lượng]"), ("Ngày xuất", "date", 100, EntryRules.NgayXuat, ""))), true),
     };
 
     public const string KkXuat = "Số lượng xuất", KkConLai = "Số lượng còn lại", KkNetConLai = "Tổng Net(kg) còn lại";
@@ -70,6 +71,18 @@ public sealed class EntryService
         Add(KkConLai, "number", 120, "", "=[Số lượng]-[Số lượng xuất]");
         Add(KkNetConLai, "number", 140, "", "=[Số lượng còn lại]*[Trọng lượng]");
         Add("Ngày xuất", "date", 100, EntryRules.NgayXuat, "");
+        return KkLoDt(res);
+    }
+
+    /// <summary>1.115: chèn Lô (nhập tay) + Đặc tính (tự điền theo lô) trước Ghi chú nếu chưa có (khóa cột mới = số tiếp theo).</summary>
+    private static List<GridColumn> KkLoDt(List<GridColumn> cols)
+    {
+        string F(GridColumn c) => GridFilter.Fold(c.Header).Trim();
+        var res = cols.ToList();
+        var next = res.Select(c => c.Key.StartsWith("c") && int.TryParse(c.Key[1..], out var n) ? n : -1).DefaultIfEmpty(-1).Max() + 1;
+        int At() { var i = res.FindIndex(c => F(c) == "ghi chu"); return i < 0 ? res.Count : i; }
+        if (!res.Any(c => F(c) is "lo" or "so lo" or "lo batch" or "lo hang")) res.Insert(At(), new GridColumn("c" + next++, "Lô", 110, "text"));
+        if (!res.Any(c => F(c) == "dac tinh")) res.Insert(At(), new GridColumn("c" + next++, "Đặc tính", 130, "text") { Auto = EntryRules.Dt });
         return res;
     }
 

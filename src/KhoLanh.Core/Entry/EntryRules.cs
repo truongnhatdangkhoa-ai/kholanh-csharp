@@ -13,11 +13,12 @@ namespace KhoLanh.Core.Entry;
 /// </summary>
 public static class EntryRules
 {
-    public const string Ten = "ten", Size = "size", Tl = "tl", Today = "today", NgayXuat = "ngayxuat";
+    public const string Ten = "ten", Size = "size", Tl = "tl", Today = "today", NgayXuat = "ngayxuat", Dt = "dt";
 
     public static readonly (string Key, string Label)[] AutoKinds =
     {
         ("", "Không"), (Ten, "Tên hàng theo mã"), (Size, "Size theo mã"), (Tl, "Trọng lượng theo mã"), (Today, "Ngày tạo dòng"), (NgayXuat, "Ngày khi gõ SL xuất"),
+        (Dt, "Đặc tính theo lô (kết quả kháng sinh)"),
     };
     public static string AutoLabel(string? key) => AutoKinds.FirstOrDefault(a => a.Key == (key ?? "")).Label ?? "Không";
     /// <summary>Chữ người dùng gõ / chọn ở ô "Tự điền" → khóa.</summary>
@@ -27,6 +28,7 @@ public static class EntryRules
         if (f.Length == 0 || f.StartsWith("khong")) return "";
         if (f == NgayXuat || (f.StartsWith("ngay") && f.Contains("xuat"))) return NgayXuat;
         if (f.StartsWith("ngay") || f.Contains("hom nay") || f == Today) return Today;
+        if (f.StartsWith("dac tinh") || f == Dt) return Dt;
         if (f.StartsWith("ten") || f == Ten) return Ten;
         if (f.StartsWith("size") || f.StartsWith("co")) return Size;
         if (f.StartsWith("trong") || f.StartsWith("tl") || f.StartsWith("kg")) return Tl;
@@ -57,6 +59,13 @@ public static class EntryRules
         };
     }
 
+    /// <summary>1.115: cột Lô (Lô / Số lô / Lô batch).</summary>
+    public static int LoCol(IReadOnlyList<GridColumn> cols)
+    {
+        for (var i = 0; i < cols.Count; i++) if (GridFilter.Fold(cols[i].Header).Trim() is "lo" or "so lo" or "lo batch" or "lo hang") return i;
+        return -1;
+    }
+
     /// <summary>Cột số lượng xuất (Số lượng xuất / SL xuất / Số kiện xuất).</summary>
     public static int XuatQtyCol(IReadOnlyList<GridColumn> cols)
     {
@@ -77,7 +86,8 @@ public static class EntryRules
     /// <paramref name="lookup"/> tra mã hàng (null = chưa nạp / không có).
     /// </summary>
     public static List<(int r, int c, string v)> Derive(IReadOnlyList<GridColumn> cols, Func<int, int, string> get,
-        IEnumerable<(int r, int c, string before, string after)> changed, Func<string, Info?> lookup, DateTime today)
+        IEnumerable<(int r, int c, string before, string after)> changed, Func<string, Info?> lookup, DateTime today,
+        Func<string, string?>? loLookup = null)
     {
         var res = new List<(int r, int c, string v)>();
         var byRow = changed.Where(x => x.c < cols.Count).GroupBy(x => x.r);
@@ -85,6 +95,7 @@ public static class EntryRules
         var hasFx = cols.Any(c => c.Formula.Length > 0);
         var hasToday = cols.Any(c => c.Auto == Today);
         var hasXuatDay = cols.Any(c => c.Auto == NgayXuat);
+        var loCol = cols.Any(c => c.Auto == Dt) ? LoCol(cols) : -1;
         foreach (var g in byRow)
         {
             var r = g.Key;
@@ -118,6 +129,20 @@ public static class EntryRules
                     var wasAuto = now.Length == 0 || (ov.Length > 0 && now == ov);
                     if (nv.Length > 0) { if (explicitKind.Length > 0 || wasAuto) Set(c, nv); }
                     else if (now.Length > 0 && ov.Length > 0 && now == ov) Set(c, "");   // mã mới không tra được → bỏ giá trị của mã cũ
+                }
+            }
+
+            // 2b. (1.115) đổi lô → Đặc tính = kết quả kháng sinh của lô (như phiếu xuất nội địa); lô không tra được → bỏ giá trị của lô cũ
+            if (loCol >= 0 && loLookup is not null && before.TryGetValue(loCol, out var oldLo))
+            {
+                var newLo = Get(loCol).Trim();
+                string nv = newLo.Length > 0 ? loLookup(newLo) ?? "" : "", ov = oldLo.Trim().Length > 0 ? loLookup(oldLo.Trim()) ?? "" : "";
+                for (var c = 0; c < cols.Count; c++)
+                {
+                    if (cols[c].Auto != Dt || userChanged.Contains(c)) continue;
+                    var now = Get(c).Trim();
+                    if (nv.Length > 0) Set(c, nv);
+                    else if (now.Length > 0 && (now == ov || newLo.Length == 0)) Set(c, "");
                 }
             }
 

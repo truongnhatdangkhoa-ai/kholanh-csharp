@@ -95,11 +95,13 @@ public partial class EntryView : UserControl, IPage
         var trash = TrashToggle.IsChecked == true;
         RestoreButton.IsVisible = trash; RenameButton.IsVisible = !trash;
         DeleteButton.Content = trash ? "Xóa hẳn" : "Xóa";
-        var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash ? shown.FirstOrDefault() : null);
+        var target = shown.FirstOrDefault(i => i.Page.Id == selectId) ?? (_page is null && !trash && !_closed ? shown.FirstOrDefault() : null);
         if (target is not null) PageList.SelectedItem = target;
         SyncCombo();
         EmptyText.IsVisible = _page is null;
-        EmptyText.Text = trash ? "Chọn một trang trong thùng rác để xem hoặc khôi phục." : "Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống).";
+        EmptyText.Text = trash ? "Chọn một trang trong thùng rác để xem hoặc khôi phục."
+            : _closed && _items.Count > 0 ? "Đã đóng trang. Chọn trang ở ô “Trang” phía trên (hoặc tab Danh sách trang), hoặc bấm “+ Trang mới”."
+            : "Chưa có trang nào. Bấm “+ Trang mới” để bắt đầu nhập (chọn mẫu có sẵn hoặc bảng trống).";
     }
 
     private bool _syncing;
@@ -114,8 +116,22 @@ public partial class EntryView : UserControl, IPage
             PageCombo.ItemsSource = list;
             PageCombo.SelectedItem = list.FirstOrDefault(i => i.Page.Id == _page?.Id);
             PageCombo.PlaceholderText = trash ? "(đang xem thùng rác)" : list.Count == 0 ? "(chưa có trang)" : "Chọn trang…";
+            CloseButton.IsVisible = _page is not null;
         }
         finally { _syncing = false; }
+    }
+
+    // 1.115: đóng trang đang mở (trước đây chỉ thoát được bằng cách mở trang khác)
+    private bool _closed;
+    private async void OnClosePage(object? sender, RoutedEventArgs e)
+    {
+        if (_page is null) return;
+        if (_dirty && !_model.ReadOnly && !await SaveAsync(quiet: true)) return;
+        _autosave.Stop();
+        _closed = true; _dirty = false; _page = null;
+        _grid.IsVisible = false; SaveState.Text = ""; StatusText.Text = ""; RecheckKk();
+        PageList.SelectedItem = null;
+        FillList(null);
     }
 
     private async void OnComboSelected(object? sender, SelectionChangedEventArgs e)
@@ -142,6 +158,7 @@ public partial class EntryView : UserControl, IPage
         try { rows = Svc.LoadWithColors(p); }
         catch (BusinessException ex) { _ = Ui.Message(this, ex.Message); return; }
         _loading = true;
+        _closed = false;
         _page = p;
         LoadModel(p.Columns, rows);
         _model.ReadOnly = !Svc.CanEdit || p.Deleted;
@@ -383,6 +400,8 @@ public partial class EntryView : UserControl, IPage
     private HashSet<string> Known => IsKk ? _knownKk : _known;
     private Dictionary<string, EntryRules.Info>? Look => IsKk ? _lookupKk : _lookup;
     private static DateTime _sugAt;
+    private static KhoLanh.Core.PhieuKho.CargoCore.KsIndex? _ks;   // 1.115: kết quả kháng sinh (Đặc tính theo lô)
+    private static string? LoLookup(string lo) => KhoLanh.Core.PhieuKho.CargoCore.DacTinhOfLo(_ks, lo);
     private static readonly IBrush UnknownBg = AppTheme.Brush("#FFF2D6");
 
     /// <summary>Nạp ngầm: gợi ý = mã còn tồn ở Tồn kho An An; tự điền / nhận mã = tồn mọi module (theo quyền xem) + Danh mục mã hàng.</summary>
@@ -400,11 +419,14 @@ public partial class EntryView : UserControl, IPage
                 var look = MaGoiY.Lookup(list);
                 var kk = MaGoiY.Build(data.AnAn, MaGoiY.ReadCatalog(s.Lan), data.Seg);   // Tồn kho An An (mọi dòng còn tồn) → Danh mục
                 var lookKk = MaGoiY.Lookup(kk);
+                KhoLanh.Core.PhieuKho.CargoCore.KsIndex? ks = null;
+                try { ks = KhoLanh.Core.PhieuKho.CargoCore.KsFromRows(System.Text.Json.Nodes.JsonNode.Parse(s.Lan.Read(KhoLanh.Core.KhangSinh.KhangSinhService.Db, KhoLanh.Core.KhangSinh.KhangSinhService.Sheet)) as System.Text.Json.Nodes.JsonArray ?? new()); } catch { }
                 Dispatcher.UIThread.Post(() =>
                 {
                     _sugs = list; _known = MaGoiY.Known(list); _lookup = look;
                     _sugsKk = kk; _knownKk = MaGoiY.Known(kk); _lookupKk = lookKk;
-                    FillPending(); _grid.Refresh(); RecheckKk();
+                    if (ks is not null) _ks = ks;
+                    FillPending(); FillPendingLo(); _grid.Refresh(); RecheckKk();
                 });
             }
             catch { /* gợi ý chỉ để tiện, lỗi thì thôi */ }
@@ -469,7 +491,20 @@ public partial class EntryView : UserControl, IPage
             var code = EntryRules.CodeCol(cols);
             foreach (var x in ch) if (x.c == code) _pending.Add(x.r);
         }
-        return EntryRules.Derive(cols, _model.Get, ch, Lookup, DateTime.Today);
+        return EntryRules.Derive(cols, _model.Get, ch, Lookup, DateTime.Today, LoLookup);
+    }
+
+    /// <summary>1.115: kết quả kháng sinh vừa nạp → điền Đặc tính cho các dòng đã có lô mà Đặc tính còn trống.</summary>
+    private void FillPendingLo()
+    {
+        if (_ks is null || _model.ReadOnly || _page is null) return;
+        var cols = PageCols; var lo = EntryRules.LoCol(cols);
+        var dt = Enumerable.Range(0, cols.Count).Where(c => cols[c].Auto == EntryRules.Dt).ToList();
+        if (lo < 0 || dt.Count == 0) return;
+        var rows = Enumerable.Range(0, _model.RowCount).Where(r => _model.Get(r, lo).Trim().Length > 0 && dt.Any(c => _model.Get(r, c).Trim().Length == 0)).ToList();
+        if (rows.Count == 0) return;
+        var cells = EntryRules.Derive(cols, _model.Get, rows.Select(r => (r, lo, "", _model.Get(r, lo))), Lookup, DateTime.Today, LoLookup);
+        if (cells.Count > 0) _model.SetCells(cells, force: true);
     }
 
     /// <summary>Bảng tra vừa nạp xong → điền các dòng đã đổi mã trong lúc chờ.</summary>
@@ -479,7 +514,7 @@ public partial class EntryView : UserControl, IPage
         var cols = PageCols; var code = EntryRules.CodeCol(cols);
         var rows = _pending.Where(r => r < _model.RowCount).ToList(); _pending.Clear();
         if (code < 0 || rows.Count == 0) return;
-        var cells = EntryRules.Derive(cols, _model.Get, rows.Select(r => (r, code, "", _model.Get(r, code))), Lookup, DateTime.Today);
+        var cells = EntryRules.Derive(cols, _model.Get, rows.Select(r => (r, code, "", _model.Get(r, code))), Lookup, DateTime.Today, LoLookup);
         if (cells.Count > 0) _model.SetCells(cells, force: true);
     }
 

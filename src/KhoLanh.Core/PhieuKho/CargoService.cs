@@ -48,14 +48,7 @@ public sealed class CargoService
             var d = row["data"]?.ToString() ?? ""; if (d.StartsWith("__JSON__")) d = d[8..];
             if (CargoCore.CfgFromJson(d) is { } c) Cfg = CargoCore.NormCfg(c);
         }
-        var recs = new List<KhangSinhCore.Rec>();
-        foreach (var o in Read(KhangSinhService.Db, KhangSinhService.Sheet).OfType<JsonObject>())
-        {
-            var k = o["key"]?.ToString() ?? "";
-            if (!(k.StartsWith("s:batch:") || k.StartsWith("l:batch:"))) continue;   // app cũ lưu "s:batch:…" (dùng chung) hoặc "l:batch:…"
-            try { if (JsonNode.Parse(o["value"]?.ToString() ?? "") is JsonObject j) recs.Add(new KhangSinhCore.Rec { Key = k, J = j }); } catch { }
-        }
-        Ks = CargoCore.KsIndex.From(recs); KsAt = DateTime.Now;
+        Ks = CargoCore.KsFromRows(Read(KhangSinhService.Db, KhangSinhService.Sheet)); KsAt = DateTime.Now;   // app cũ lưu "s:batch:…" / "l:batch:…"
         LoadStock();
     }
 
