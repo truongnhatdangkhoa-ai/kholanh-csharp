@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using KhoLanh.Core.Grid;
+using KhoLanh.Core.SoDo;
 
 namespace KhoLanh.Core.Entry;
 
@@ -59,6 +61,58 @@ public static class EntryRules
         };
     }
 
+    /// <summary>1.130: cột Vị trí (Vị trí / VT).</summary>
+    public static int VtCol(IReadOnlyList<GridColumn> cols)
+    {
+        for (var i = 0; i < cols.Count; i++) if (GridFilter.Fold(cols[i].Header).Trim() is "vi tri" or "vt" or "vitri") return i;
+        return -1;
+    }
+
+    private const string Sep = @"[.\s\-/]*";
+    private static readonly Regex ReVtFull = new(@"^(?:(?:TG)?(\d{1,2})" + Sep + @")?([A-Z]{1,2})" + Sep + @"(\d{1,3})" + Sep + @"(\d)" + Sep + @"(\d)$", RegexOptions.IgnoreCase);
+    private static readonly Regex ReVtNum = new(@"^(\d{1,3})" + Sep + @"(\d)" + Sep + @"(\d)$");
+
+    /// <summary>
+    /// 1.130 gõ vị trí nhanh (người dùng duyệt): "a0112" / "a.1.1.2" / "a 01 1 2" → "TG1.A.01.1.2" (kho lấy theo vị trí <paramref name="refVt"/>
+    /// = dòng trên gần nhất), "0113" (chỉ số) → cùng kho + khu với dòng trên, "tg2a0112" / "2a0112" → kho TG2, "tg1.a.01.1.2" → viết hoa đúng dạng.
+    /// Không hiểu / không có dòng trên để lấy kho → giữ nguyên (Kiểm tra kiểm kê vẫn báo vị trí lạ).
+    /// </summary>
+    public static string NormVt(string? text, string? refVt)
+    {
+        var raw = (text ?? "").Trim();
+        if (raw.Length == 0) return raw;
+        if (SoDoCore.Parse(raw) is { } full) return full.Code;
+        var rf = SoDoCore.Parse(refVt);
+        string? kho = rf?.Kho, khu = rf?.Khu; int d, t, k;
+        var m = ReVtFull.Match(raw);
+        if (m.Success)
+        {
+            if (m.Groups[1].Success) kho = "TG" + int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+            khu = m.Groups[2].Value.ToUpperInvariant();
+            (d, t, k) = (int.Parse(m.Groups[3].Value), int.Parse(m.Groups[4].Value), int.Parse(m.Groups[5].Value));
+        }
+        else if ((m = ReVtNum.Match(raw)).Success && khu is not null)
+            (d, t, k) = (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), int.Parse(m.Groups[3].Value));
+        else return raw;
+        if (kho is null) return raw;
+        return SoDoCore.Parse(SoDoCore.CodeOf(kho, khu!, d, t, k))?.Code ?? raw;
+    }
+
+    private static readonly Regex ReCalc = new(@"^[\d\s.,+\-*/xX×()]+$");
+    /// <summary>
+    /// 1.130 ô số tính được (người dùng duyệt): "10+5" → 15, "3x12" / "3*12" → 36, "1,500-20" → 1480 (dấu phẩy = ngăn nghìn như toàn app).
+    /// Chỉ khi có phép tính giữa 2 số; không phải phép tính / lỗi → null (giữ nguyên chữ người dùng gõ).
+    /// </summary>
+    public static string? Calc(string? text)
+    {
+        var s = (text ?? "").Trim();
+        if (s.Length < 3 || !ReCalc.IsMatch(s) || !Regex.IsMatch(s, @"[\d)]\s*[+\-*/xX×]\s*[\d(]")) return null;
+        var expr = Regex.Replace(s.Replace(",", ""), "[xX×]", "*");
+        var v = CongThuc.Eval("=" + expr, NoRow.Instance);
+        return CongThuc.IsError(v) || !double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? null : v;
+    }
+    private sealed class NoRow : CongThuc.IRow { public static readonly NoRow Instance = new(); public string? ByName(string h) => null; public string? ByIndex(int c) => null; }
+
     /// <summary>1.115: cột Lô (Lô / Số lô / Lô batch).</summary>
     public static int LoCol(IReadOnlyList<GridColumn> cols)
     {
@@ -115,6 +169,7 @@ public static class EntryRules
         var hasXuatDay = cols.Any(c => c.Auto == NgayXuat);
         var loCol = cols.Any(c => c.Auto == Dt) ? LoCol(cols) : -1;
         var loAny = LoCol(cols);
+        var vtCol = VtCol(cols);
         foreach (var g in byRow)
         {
             var r = g.Key;
@@ -149,6 +204,25 @@ public static class EntryRules
                     if (nv.Length > 0) { if (explicitKind.Length > 0 || wasAuto) Set(c, nv); }
                     else if (now.Length > 0 && ov.Length > 0 && now == ov) Set(c, "");   // mã mới không tra được → bỏ giá trị của mã cũ
                 }
+            }
+
+            // 1b. (1.130) ô số gõ phép tính → kết quả ("10+5" → 15, "3x12" → 36)
+            foreach (var c in userChanged)
+                if (cols[c].Type == "number" && cols[c].Formula.Length == 0 && Calc(Get(c)) is { } kq) Set(c, kq);
+
+            // 1c. (1.130) vị trí: gõ tắt → đủ dạng ("a0112" → TG1.A.01.1.2, kho / khu theo dòng trên); dòng mới để trống vị trí → lấy vị trí dòng trên
+            if (vtCol >= 0)
+            {
+                string? Above() { for (var rr = r - 1; rr >= 0 && rr >= r - 300; rr--) { var v = get(rr, vtCol).Trim(); if (v.Length > 0) return v; } return null; }
+                if (userChanged.Contains(vtCol))
+                {
+                    var raw = Get(vtCol); var norm = NormVt(raw, Above());
+                    if (norm != raw.Trim()) Set(vtCol, norm);
+                }
+                else if (Get(vtCol).Trim().Length == 0 && userChanged.Any(c => !Derived(cols[c]))
+                         && Enumerable.Range(0, cols.Count).Where(c => !Derived(cols[c])).All(c => (before.TryGetValue(c, out var b) ? b : Get(c)).Trim().Length == 0)
+                         && Above() is { } up && SoDoCore.Parse(up) is not null)
+                    Set(vtCol, up);
             }
 
             // 2a. (1.116) gõ lô → chuẩn hóa ngày (22.05 → 22.05.2026, 22.05.25 → 22.05.2025)
