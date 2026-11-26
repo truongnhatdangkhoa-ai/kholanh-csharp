@@ -118,6 +118,22 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 | 1.43 | Giao diện mới bước 1 — nền móng: bảng màu Tối thiết kế riêng (`AppTheme.DesignedDark`), tài nguyên mới (Text, Surface2, BorderStrong, Ok/Warn/Bad/Info + Soft, NavFg…), kiểu nút primary / thường / ghost / danger, ô nhập 32 px, tab gạch chân, `Border.pill.*`, bộ biểu tượng nét mảnh `Controls/Icon.cs` | `AppTheme.cs`, `Styles.axaml`, `Controls/Icon.cs` |
 | 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ · sắp lại nhóm menu (Chức năng, Chứng từ) | `AppUpdater.cs`, `Services/UpdateScript.cs` |
 
+## ĐANG CHỜ: phát hành 1.121.0 (bàn giao 26/11/2026 — phiên trước hết token)
+- **Code XONG, chưa gộp**: PR #81 (nhánh `claude/confident-bardeen-fhu6c6`, head c651787) — máy chủ tự động (LAN trước / Internet dự phòng / máy đơn + tự tải bản Drive cá nhân mới hơn),
+  tab Máy chủ (`MayChuView`, mẫu người dùng đã duyệt https://claude.ai/artifact/GC7duN9rK2i2HAehNG2M9U), bỏ Drive dùng chung (`DriveRetire`), email lịch xuất chỉ tải thư mới (`MailCache`).
+  Kiểm ở cloud: 450 test đạt, build App đạt, `SHOTS_ONLY=v213` đạt. Version đã nâng 1.121.0, README / bảng ở trên đã ghi.
+- **VƯỚNG**: CI GitHub Actions bị DỪNG vì hết phần miễn phí tháng 11 (người dùng chụp Billing: phát sinh 13,15 USD, chưa có thẻ) → job `build` / `tu-kiem-windows`
+  tắt sau 1–2 giây, không log (không phải lỗi code; đã chạy lại 1 lần, đã comment PR #81). Mỗi bản tốn CI 2 lượt (PR + push main), job Windows tính ×2.
+- **Người dùng CHƯA chọn** cách gỡ (đã hỏi 3 phương án): (1) đề xuất — self-hosted runner trên KHOLANH-PC (máy chủ, luôn bật, Windows; không tốn phút; sửa
+  `.github/workflows/build.yml` `runs-on: [self-hosted, Windows]`, job build cần setup-node cho `CodeGsThatTests`, phat-hanh chạy `shell: bash`); (2) repo công khai
+  (phút không giới hạn; rà file nhạy cảm trước; máy cập nhật không cần mã GitHub); (3) thêm thẻ + ngân sách Actions, đồng thời bỏ job Windows khỏi PR (chỉ chạy khi push main).
+  Khi CI xanh: gộp PR #81 (người dùng đã dặn "làm xong rồi gộp và phát hành") → Release v1.121.0.
+- **Nhắc người dùng sau khi lên 1.120 / 1.121**: nạp lại file mới nhất ở Tồn kho gửi + Tồn theo vị trí (xóa dữ liệu bị nhân đôi do lỗi gộp LAN cũ, sửa ở 1.120);
+  máy đang bật Drive dùng chung → chọn "Tắt" (1.121 tự làm); đổi mã cài Cloudflare tunnel (Rotate token — mã từng lộ trong ảnh chat).
+- **Việc người dùng đã hỏi, chưa làm**: bản web điện thoại dùng tên miền riêng (vd `app.kcenter.xyz` — CNAME DNS only + GitHub Pages Custom domain, sửa `GOOGLE_WEB_OK`
+  trong `kholanh-csharp-mobile/www/app.js` + thêm origin ở GCP) — người dùng "hỏi trước chứ không làm". Bản web iPhone đã chạy: https://truongnhatdangkhoa-ai.github.io/kholanh-csharp-mobile/
+- Còn mở nhỏ: `LanService.Write` vẫn kiểm quyền `drivepush` cho vai "xa" (vô hại vì máy vai xa đã tự chuyển; test `Bo_quyen_drivepush_…` dựa vào nó); chưa có ảnh chụp máy con đang nối.
+
 ## Việc tạm hoãn / còn mở
 - Drive cá nhân (sao lưu database module lên Drive riêng) / Kho dữ liệu cá nhân / Dọn rác (app cũ: `core/drive-ca-nhan.js`, `core/kho-ca-nhan.js`, `core/don-rac.js`) — chưa làm. Lưu trữ cá nhân (`core/luu-tru.js`) ĐÃ làm ở 1.60 (chưa có: đồng bộ điện thoại qua LAN như app cũ).
 - Bản điện thoại MỚI: repo `truongnhatdangkhoa-ai/kholanh-csharp-mobile` (tách từ app cũ 24/11/2026, Google Sheet mới riêng; repo cũ giữ nguyên cho hệ thống đang dùng). Trước đó: dùng nguyên app `truongnhatdangkhoa-ai/kholanh-anan-mobile` (Capacitor, Google Sheet + Apps Script `Code.gs`). Giai đoạn sau (khi cần dữ liệu tức thì / chung tài khoản): cổng API HTTPS trên `KhoLanh.Server`, điện thoại đăng nhập bằng tài khoản PC — chưa làm. Icon mới đã dùng ở repo điện thoại mới.
@@ -136,6 +152,7 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 
 ## Nhật ký tiến độ
 (Ghi theo mẫu: ngày · việc · bản · đã làm · còn thiếu / lưu ý · file chính.)
+- 26/11/2026 · Máy chủ tự động + bỏ Drive dùng chung + email chỉ tải thư mới · 1.121.0 (PR #81, CHƯA phát hành — CI hết phút Actions, xem mục ĐANG CHỜ) · làm 2 luồng (luồng 2 = agent worktree, commit a3fde67). 1.117–1.120 đã phát hành cùng ngày: Trợ lý bớt báo nhầm + Nhập liệu (1.117), máy nối LAN / Internet (1.118), chép chữ (1.119), sửa nhân đôi dữ liệu khi gộp LAN (1.120).
 - 26/11/2026 · Máy chủ ở nhà qua Cloudflare Tunnel — XONG · 1.113 (app) + người dùng tự làm: kcenter.xyz Active trên Cloudflare (DNS only cho trang giới thiệu), tunnel `kholanh` (Healthy, cloudflared dịch vụ Windows trên KHOLANH-PC), route `kho.kcenter.xyz` → `http://localhost:47821`, app máy chủ Lưu địa chỉ + đường hầm thông. Lưu ý: mã cài tunnel từng lộ trong ảnh chat → đã nhắc người dùng Rotate token (Cloudflare › tunnel › Refresh token) rồi cài lại dịch vụ. Lỗi 403 qua đường hầm = sai khóa LAN / đồng hồ lệch > 5 phút; 502 / 530 = app máy chủ không trả lời.
 - 25/11/2026 · Chỉ cần đăng nhập + bỏ vai theo máy · 1.108.0 · máy kia 1.107 đã nối Sheet nhưng giữ mã đọc tài khoản cũ → "Sai mã kết nối" (lệnh list); nay đăng nhập hỏi lại `pcDangNhap` (không cần mã). Máy riêng không có Sheet chung thì không còn cách bật LAN (LAN chỉ theo tài khoản dùng chung) — máy cũ đã cài vai tay vẫn chạy vai đó.
 - 25/11/2026 · Đăng nhập máy khác · 1.107.0 · ảnh: máy khác 1.106 đăng nhập "khoa" báo "Sai tên đăng nhập hoặc mật khẩu" (màn Đăng nhập thường = máy đã có tài khoản riêng → 1.106 chỉ chạy bước máy mới khi máy CHƯA có tài khoản). Nguyên nhân phía người dùng có thể thêm: máy chính chưa bật tài khoản dùng chung / "khoa" chưa lên tab TaiKhoan / Code.gs mới chưa dán. Code.gs bản 1.107 (thư mục chia sẻ) cần dán lại để báo "chưa có trên Sheet" (bản 1.106 vẫn chạy, chỉ báo chung "sai mật khẩu").
