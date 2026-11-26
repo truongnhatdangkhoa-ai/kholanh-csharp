@@ -48,6 +48,10 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private void Touch(string db, string sheet) => _touched[K(db, sheet)] = Interlocked.Increment(ref _touchSeq);
     /// <summary>Kiểm thử: chạy sau khi Pull nhận phản hồi, trước khi áp (để chen một lần ghi vào giữa).</summary>
     internal Func<Task>? TestAfterPullResponse;
+    /// <summary>Test: chạy trước mỗi lần gọi máy khác (giả lập mạng chập chờn / máy chủ trả lời chậm).</summary>
+    internal Func<JsonObject, Task>? TestBeforeCall;
+    /// <summary>Test: số lượt tìm máy chủ đã chạy.</summary>
+    internal int FindRounds;
     private int _pullsApplied;
     internal int PullsApplied => Volatile.Read(ref _pullsApplied);
     private readonly ConcurrentDictionary<string, ILanConn> _conns = new();
@@ -77,6 +81,10 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private long _maxSeenEpoch;
     public bool Online { get; private set; }
     private DateTime _failSince = DateTime.MinValue;
+    /// <summary>1.129: số lượt tìm máy chủ hụt LIÊN TIẾP — máy dự phòng chỉ lên làm chủ khi đủ <see cref="PromoteAfterMisses"/> lượt
+    /// (trước chỉ xét thời gian: 1 lần hỏi chậm (máy bận) quá ngưỡng là lên làm chủ dù máy chủ chính còn sống → 2 máy chủ).</summary>
+    private int _findMisses;
+    private const int PromoteAfterMisses = 3;
     private DateTime _lastPull = DateTime.MinValue, _lastBeat = DateTime.MinValue, _lastPeerCheck = DateTime.MinValue, _lastTry = DateTime.MinValue, _lastLanProbe = DateTime.MinValue;
     private readonly DateTime _startedAt = DateTime.Now;
     public string LastSync { get; private set; } = "";
@@ -813,6 +821,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     private async Task<JsonObject> CallNode(Node n, JsonObject req, TimeSpan timeout, CancellationToken ct)
     {
+        if (TestBeforeCall is { } before) await before(req);
         LanUnreachableException? last = null;
         var key = string.Join(";", n.Addrs);
         var order = _goodEp.TryGetValue(key, out var good) && n.Addrs.Contains(good) ? n.Addrs.OrderBy(a => a == good ? 0 : 1).ToList() : n.Addrs;
@@ -953,6 +962,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private async Task<bool> FindServer(CancellationToken ct)
     {
         Node? best = null; long bestEpoch = -1;
+        Interlocked.Increment(ref FindRounds);
         foreach (var n in KnownNodes())
         {
             try
@@ -971,9 +981,10 @@ public sealed partial class LanService : ISheetSource, IDisposable
         }
         if (best is null)
         {
-            lock (_state) { if (_failSince == DateTime.MinValue) _failSince = DateTime.Now; }
+            lock (_state) { if (_failSince == DateTime.MinValue) _failSince = DateTime.Now; _findMisses++; }
             return false;
         }
+        lock (_state) _findMisses = 0;
         if (_settings.Get("lan_serving") == "1" && !Serving)
         {
             // Mình làm chủ trước khi tắt máy mà giờ đã có máy khác làm chủ: gửi phần mình đã sửa lên để gộp.
@@ -1057,6 +1068,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
             { Promote("máy chủ chính mở máy", Math.Max(Epoch, _maxSeenEpoch) + 1); return; }
         }
         if (_failSince == DateTime.MinValue || DateTime.Now - _failSince < T(PromoteAfterSeconds)) return;
+        if (_findMisses < PromoteAfterMisses) return;   // 1.129: thêm điều kiện số lượt hỏi hụt liên tiếp, không chỉ thời gian
         // Đếm phiếu của máy con.
         var active = _seen.Values.Where(s => s.Role == RoleClient && DateTime.Now - s.At < T(60)).ToList();
         var down = active.Count(s => s.ServerDown && DateTime.Now - s.At < T(15));
@@ -1156,7 +1168,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
             SetEpoch(epoch, winnerStart);
             _settings.Set("lan_last_seq", "0");
             _settings.Set("lan_sync_epoch", "");
-            _server = winner; _serverEpoch = epoch; Online = true; _failSince = DateTime.MinValue;
+            _server = winner; _serverEpoch = epoch; Online = true; _failSince = DateTime.MinValue; _findMisses = 0;
         }
         Log("Nhường vai máy chủ", $"cho {winner.Name} (nhiệm kỳ {epoch}), {queue.Count} bảng gửi lên gộp");
         Raise();
