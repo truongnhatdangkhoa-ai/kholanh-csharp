@@ -29,6 +29,7 @@ public static class Perm
         new("m7ck", "Số liệu cuối kỳ (đối chiếu kế toán - kho)", "Chức năng", new[] { View, Export, Edit }, "Sửa = nạp file, xác nhận nguyên nhân, sửa mã / điều chỉnh, hoàn tác, xóa dữ liệu kỳ"),
         new("m3", "Tổng hợp", "Chức năng", new[] { View, Export, Edit }, "Sửa = nạp file, sửa danh mục mã hóa, ánh xạ tên"),
         new("m3dm", "Danh mục mã hàng", "Chức năng", new[] { View, Export, Edit }, "Sửa = thêm / sửa / xóa mã trong Danh sách mã hàng dùng chung (Tổng hợp), thêm mã đang dùng chưa có"),
+        new("m24cc", "Chấm công", "Chức năng", new[] { View, Export, Edit }, "Nạp file máy chấm công, sửa giờ / nhân viên / quy tắc tính giờ (Sửa); xem / xuất Excel bảng công tháng"),
         new("m10", "Kết quả kháng sinh", "Chức năng", new[] { View, Export, Edit }, "Sửa = nhập kết quả (theo lô, Excel), xóa dữ liệu, sửa quy định kháng sinh"),
         new("m12", "In chứng từ kho", "Chứng từ", new[] { View, Export, Edit }, "Xem + xuất file = in / xuất Excel phiếu; Sửa = nạp file, gộp / tách phiếu, người ký, bổ sung tên hàng"),
         new("m11", "Phiếu xuất hệ thống", "Chứng từ", new[] { View, Export }, "Chỉ xem phiếu xuất của mọi module; Xem + xuất file = xuất Excel danh sách"),
@@ -74,6 +75,7 @@ public static class Perm
         if (role == Roles.Staff)
         {
             d["backup"] = None; d["audit"] = None; d["phone"] = None;
+            d["m24cc"] = None;   // 1.129: chấm công là dữ liệu nhân sự — nhân viên mặc định không xem
             d["m1"] = Export; d["m2"] = Export; d["m7"] = Export; d["m8"] = Export;
             d["m3"] = Export; d["m3dm"] = Export; d["m4"] = Export; d["m5"] = Export; d["m9"] = Export; d["m7ck"] = Export; d["m10"] = Export; d["m11"] = Export; d["m12"] = Export; d["m13"] = Export; // nhân viên: nhập liệu được sửa (m6 mặc định Sửa)
         }
