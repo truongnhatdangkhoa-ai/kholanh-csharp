@@ -446,6 +446,7 @@ public partial class MainWindow : Window
     /// <summary>Mở một màn hình; nếu truyền sẵn control thì dùng control đó.</summary>
     public void Show(string key, Control? page)
     {
+        Controls.TextSelect.Clear();   // 1.133: chuyển trang → bỏ vùng bôi đen
         // 1.68: Mạng LAN / Đồng bộ Google Drive / sao lưu gom vào "Dữ liệu & sao lưu" — giữ khóa cũ để các nút / Trợ lý mở đúng tab
         // 1.105: Dữ liệu & sao lưu + Đồng bộ điện thoại gộp vào "Đồng bộ & sao lưu" — khóa cũ mở đúng tab
         // 1.121: 3 tab Máy chủ · Điện thoại · Sao lưu — "lan" / "drive" / "dulieu" → Máy chủ

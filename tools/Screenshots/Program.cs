@@ -2016,6 +2016,67 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v232")
     if (tabs.SelectedIndex != 1) Bad("bấm đúp không mở tab Phiếu xuất");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v232) — ĐẠT: " : "Xong (v232) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.133: bôi đen + chép chữ như web (chuột thật: kéo 1 dòng, Ctrl+C, kéo qua nhiều dòng, bấm đúp 1 từ, nút vẫn bấm được). SHOTS_ONLY=v233; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v233")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V233] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    const Avalonia.Input.RawInputModifiers No = Avalonia.Input.RawInputModifiers.None;
+    main.Navigate("dongbo"); P(40);
+    var mc = (main.PageHost.Content as DongBoView)!.MayChu;
+    string T(TextBlock t) => KhoLanh.App.Controls.TextSelect.TextOf(t);
+    var tbs = mc.GetVisualDescendants().OfType<TextBlock>().Where(t => KhoLanh.App.Controls.TextSelect.Selectable(t) && T(t).Length >= 20).ToList();
+    Console.WriteLine($"[V233] ô chữ bôi đen được trên tab Máy chủ: {tbs.Count} (vd “{(tbs.Count > 0 ? T(tbs[0]) : "")}”)");
+    if (tbs.Count < 2) { Bad("không đủ ô chữ để thử"); s.Lan.Dispose(); Environment.Exit(1); return; }
+    Avalonia.Point At(TextBlock t, double fx) => t.TranslatePoint(new Avalonia.Point(t.Padding.Left + Math.Max(4, t.TextLayout.Width * fx), t.Padding.Top + 8), main)!.Value;
+    void Drag(Avalonia.Point a, Avalonia.Point b)
+    {
+        main.MouseMove(a, No); main.MouseDown(a, Avalonia.Input.MouseButton.Left, No); P(2);
+        main.MouseMove(new Avalonia.Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), No); P(2);
+        main.MouseMove(b, No); main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(5);
+    }
+    string Sel() => KhoLanh.App.Controls.TextSelect.SelectedText();
+    // 1) kéo trong 1 dòng chữ
+    var t1 = tbs[0]; var t2 = tbs[1];
+    Drag(At(t1, 0.01), At(t1, 0.6));
+    Console.WriteLine($"[V233] kéo 1 dòng → “{Sel()}”");
+    if (Sel().Length < 5 || !T(t1).Contains(Sel())) Bad("kéo trong 1 dòng không bôi đen đúng chữ");
+    Snap(main, "v233-boi-den-1-dong");
+    // 2) Ctrl+C → khay chép
+    var want = Sel();
+    main.KeyPress(Avalonia.Input.Key.C, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.C, "c");
+    main.KeyRelease(Avalonia.Input.Key.C, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.C, "c"); P(10);
+    string? clip = null;
+    try { var task = main.Clipboard!.GetTextAsync(); for (var i = 0; i < 50 && !task.IsCompleted; i++) P(1); clip = task.Result; } catch (Exception e) { Console.WriteLine("[V233] (không đọc được khay chép ở chế độ không màn hình: " + e.GetType().Name + ")"); }
+    Console.WriteLine($"[V233] Ctrl+C → khay chép “{clip}”");
+    if (clip is not null && clip != want) Bad("Ctrl+C chưa chép đúng phần bôi đen");
+    // tab Máy chủ tự vẽ lại theo chu kỳ (ô chữ mới) → lấy lại ô trước mỗi bước
+    void Fresh() { var l = mc.GetVisualDescendants().OfType<TextBlock>().Where(t => KhoLanh.App.Controls.TextSelect.Selectable(t) && T(t).Length >= 20).ToList(); t1 = l[0]; t2 = l[1]; }
+    // 3) kéo qua 2 dòng
+    Fresh();
+    Drag(At(t1, 0.3), At(t2, 0.5));
+    Console.WriteLine($"[V233] kéo qua 2 dòng → “{Sel().Replace("\n", " ⏎ ")}”");
+    if (!Sel().Contains('\n')) Bad("kéo qua 2 dòng chưa chọn được cả 2");
+    Snap(main, "v233-boi-den-nhieu-dong");
+    // 4) bấm đúp = 1 từ
+    Fresh();
+    var pw = At(t1, 0.3);
+    main.MouseMove(pw, No);
+    for (var k = 0; k < 2; k++) { main.MouseDown(pw, Avalonia.Input.MouseButton.Left, No); main.MouseUp(pw, Avalonia.Input.MouseButton.Left, No); }
+    P(5);
+    Console.WriteLine($"[V233] bấm đúp → “{Sel()}”");
+    if (Sel().Length == 0 || Sel().Contains(' ')) Bad("bấm đúp chưa chọn đúng 1 từ");
+    // 5) bấm nút vẫn chạy + bỏ vùng chọn
+    var more = mc.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "⋯ Thêm");
+    var pm = more.TranslatePoint(new Avalonia.Point(more.Bounds.Width / 2, more.Bounds.Height / 2), main)!.Value;
+    main.MouseMove(pm, No); main.MouseDown(pm, Avalonia.Input.MouseButton.Left, No); main.MouseUp(pm, Avalonia.Input.MouseButton.Left, No); P(15);
+    var open = more.Flyout is { } fl && fl.IsOpen;
+    Console.WriteLine($"[V233] bấm nút ⋯ Thêm → menu mở {open} · vùng chọn còn “{Sel()}”");
+    if (!open) Bad("bấm nút không còn chạy");
+    if (Sel().Length > 0) Bad("bấm chỗ khác chưa bỏ vùng chọn");
+    more.Flyout?.Hide(); P(5);
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v233) — ĐẠT: " : "Xong (v233) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
 {
