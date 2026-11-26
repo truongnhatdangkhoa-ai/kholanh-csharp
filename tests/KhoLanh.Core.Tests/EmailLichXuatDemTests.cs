@@ -32,4 +32,20 @@ public class EmailLichXuatDemTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    /// <summary>1.124 (người dùng: "app đọc tất cả thư, chỉ cần lọc thư cần thiết"): Gmail tự lọc như app cũ (mail.js emScan), theo số ngày đã cài — không cộng thêm 30 ngày.</summary>
+    [Fact]
+    public void Gmail_chi_loc_thu_lich_xuat_theo_so_ngay_cai()
+    {
+        var cfg = new MailConfig { Days = 5 };
+        var q = ImapMailSource.GmailRaw(cfg);
+        Assert.StartsWith("newer_than:5d (", q);
+        foreach (var k in new[] { "LSX", "LOADING", "\"kéo đóng\"", "\"thông tin xe\"" }) Assert.Contains(k, q);
+        Assert.DoesNotContain("from:", q);
+        cfg.Allow = "a@x.vn, b@y.vn";
+        q = ImapMailSource.GmailRaw(cfg);
+        Assert.Contains("(from:a@x.vn OR from:b@y.vn)", q);
+        Assert.StartsWith("newer_than:1d", ImapMailSource.GmailRaw(new MailConfig { Days = 0 }));
+        Assert.Equal(150, ImapMailSource.MaxMsgs);
+    }
 }

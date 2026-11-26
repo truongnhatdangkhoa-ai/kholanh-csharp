@@ -87,10 +87,26 @@ public sealed class ImapMailSource : IMailSource
         return (c.Inbox, $"không có thư mục «{cfg.Folder}» → đọc Hộp thư đến");
     }
 
-    /// <summary>Tìm thư theo ngày, và theo người gửi NGAY TRÊN MÁY CHỦ nếu có ô "Chỉ nhận thư từ" (đỡ tải cả hộp thư).</summary>
-    private static SearchQuery Query(MailConfig cfg, int extraDays)
+    /// <summary>1.124: tối đa số thư mới nhất mỗi lượt quét (như app cũ: 150).</summary>
+    public const int MaxMsgs = 150;
+
+    /// <summary>
+    /// 1.124 (như app cũ core/mail.js › emScan): lệnh tìm Gmail (X-GM-RAW) — CHỈ thư trong số ngày cài có LSX / LOADING / kéo đóng / Thông tin xe,
+    /// thêm người gửi ở ô «Chỉ nhận thư từ» nếu có. Gmail tự lọc, app không phải đọc cả hộp thư.
+    /// </summary>
+    public static string GmailRaw(MailConfig cfg)
     {
-        SearchQuery q = SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - extraDays));
+        var q = $"newer_than:{Math.Max(cfg.Days, 1)}d (LSX OR LOADING OR \"kéo đóng\" OR \"keo dong\" OR \"thông tin xe\")";
+        var allow = cfg.AllowList;
+        if (allow.Count > 0) q += " (" + string.Join(" OR ", allow.Select(a => "from:" + a.Replace("\"", ""))) + ")";
+        return q;
+    }
+
+    /// <summary>Máy chủ thư không phải Gmail: theo ngày + tiêu đề có LSX / LOADING hoặc nội dung có "Thông tin xe", và người gửi nếu có.</summary>
+    private static SearchQuery Query(MailConfig cfg)
+    {
+        SearchQuery q = SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1)))
+            .And(SearchQuery.SubjectContains("LSX").Or(SearchQuery.SubjectContains("LOADING")).Or(SearchQuery.BodyContains("Thông tin xe")));
         var allow = cfg.AllowList;
         if (allow.Count > 0)
         {
@@ -100,6 +116,10 @@ public sealed class ImapMailSource : IMailSource
         }
         return q;
     }
+    private static SearchQuery QueryFor(ImapClient c, MailConfig cfg) => c.Capabilities.HasFlag(ImapCapabilities.GMailExt1) ? SearchQuery.GMailRawSearch(GmailRaw(cfg)) : Query(cfg);
+
+    /// <summary>1.124: mã các thư đã duyệt / bỏ qua (sheet LX_EmailXuLy) — không tải lại nội dung, chỉ giữ tiêu đề để ghép chuỗi thư.</summary>
+    public Func<HashSet<string>>? Done { get; set; }
 
     /// <summary>Kiểm tra kết nối (nút "Kiểm tra kết nối"): đăng nhập, mở thư mục, đếm thư — không tải nội dung, không ghi gì.</summary>
     public async Task<string> CheckAsync(MailConfig cfg, CancellationToken ct = default)
@@ -109,10 +129,10 @@ public sealed class ImapMailSource : IMailSource
         await folder.OpenAsync(FolderAccess.ReadOnly, ct);
         Progress?.Invoke("Đang đếm thư…");
         var all = await folder.SearchAsync(SearchQuery.DeliveredAfter(DateTime.Today.AddDays(-Math.Max(cfg.Days, 1))), ct);
-        var mine = cfg.AllowList.Count > 0 ? (await folder.SearchAsync(Query(cfg, 0), ct)).Count : all.Count;
+        var mine = (await folder.SearchAsync(QueryFor(c, cfg), ct)).Count;
         await c.DisconnectAsync(true, ct);
         return $"✓ Đã kết nối {cfg.Email} · thư mục «{folder.FullName}»" + (note.Length > 0 ? $" ({note})" : "") +
-               $" · {all.Count} thư trong {Math.Max(cfg.Days, 1)} ngày" + (cfg.AllowList.Count > 0 ? $", trong đó {mine} thư từ người ở ô «Chỉ nhận thư từ»" : "") + ".";
+               $" · {all.Count} thư trong {Math.Max(cfg.Days, 1)} ngày, trong đó {mine} thư về lịch xuất / thông tin xe" + (cfg.AllowList.Count > 0 ? " (từ người ở ô «Chỉ nhận thư từ»)" : "") + ".";
     }
 
     public async Task<List<LichXuatEmail.Msg>> FetchAsync(MailConfig cfg, CancellationToken ct = default)
@@ -120,44 +140,57 @@ public sealed class ImapMailSource : IMailSource
         using var c = await ConnectAsync(cfg, ct);
         var (folder, _) = await FolderAsync(c, cfg, ct);
         await folder.OpenAsync(FolderAccess.ReadOnly, ct);
-        Progress?.Invoke("Đang tìm thư trong «" + folder.FullName + "»…");
-        // thêm 30 ngày để lấy thư gốc của chuỗi (nhận diện LSX / ngày ETD từ thư đầu)
-        var uids = await folder.SearchAsync(Query(cfg, 30), ct);
+        Progress?.Invoke("Đang tìm thư lịch xuất trong «" + folder.FullName + "»…");
+        // 1.124: Gmail tự lọc thư lịch xuất / thông tin xe trong số ngày cài (trước: mọi thư 37 ngày rồi app tự lọc → 815 thư, quá 3 phút)
+        var found = await folder.SearchAsync(QueryFor(c, cfg), ct);
+        var uids = found.OrderByDescending(u => u.Id).Take(MaxMsgs).ToList();
         var res = new List<LichXuatEmail.Msg>();
-        LastStats = (folder.FullName, uids.Count, 0);
+        LastStats = (folder.FullName, found.Count, 0);
         if (uids.Count == 0) { await c.DisconnectAsync(true, ct); return res; }
         var items = MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.InternalDate;
         if (c.Capabilities.HasFlag(ImapCapabilities.GMailExt1)) items |= MessageSummaryItems.GMailThreadId | MessageSummaryItems.GMailMessageId;
         Progress?.Invoke($"Đang đọc tiêu đề {uids.Count} thư…");
         var sums = await folder.FetchAsync(uids, items, ct);
-        // chỉ tải nội dung của thư thuộc chuỗi có LSX trên tiêu đề (đỡ tải cả hộp thư)
+        // chỉ chuỗi có LSX trên tiêu đề
         var keepThreads = sums.Where(s => System.Text.RegularExpressions.Regex.IsMatch(s.Envelope?.Subject ?? "", @"\d{2}\.\d{2}\.\d{2,3}"))
             .Select(s => ThreadOf(s)).ToHashSet();
         var want = sums.Where(s => keepThreads.Contains(ThreadOf(s))).ToList();
-        // 1.121 (người dùng: "vì sao app tải toàn bộ thư" — 813 thư mỗi lượt, quá 3 phút): thư đã đọc ở lượt trước lấy từ bộ nhớ đệm trên máy
-        // (MailCache, theo mã thư Gmail), chỉ tải thư MỚI; và chỉ tải PHẦN CHỮ của thư (không tải file đính kèm PDF / ảnh).
+        // thư đã đọc ở lượt trước (MailCache) hoặc đã duyệt / bỏ qua (Done) → không tải lại nội dung
         var cache = MailCache.Load(CachePath);
-        var fresh = want.Where(s => !cache.ContainsKey(KeyOf(s, folder))).ToList();
+        var done = Done?.Invoke() ?? new HashSet<string>();
+        var fresh = want.Where(s => !cache.ContainsKey(KeyOf(s, folder)) && !done.Contains(IdOf(s))).ToList();
         if (fresh.Count > 0 && !items.HasFlag(MessageSummaryItems.BodyStructure))
         {
             Progress?.Invoke($"Đang đọc cấu trúc {fresh.Count} thư mới…");
             var withBody = await folder.FetchAsync(fresh.Select(s => s.UniqueId).ToList(), items | MessageSummaryItems.BodyStructure, ct);
             fresh = withBody.ToList();
         }
+        var keepFrom = DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - 45);
         var k = 0;
         foreach (var s in fresh)
         {
             ct.ThrowIfCancellationRequested();
             Progress?.Invoke($"Đang tải thư mới {++k}/{fresh.Count} (bỏ qua {want.Count - fresh.Count} thư đã đọc)…");
             cache[KeyOf(s, folder)] = await ReadAsync(folder, s, ct);
+            if (k % 20 == 0) MailCache.Save(CachePath, cache, keepFrom);   // 1.124: nhớ dần — lượt bị dừng giữa chừng thì lượt sau đọc tiếp, không lại từ 0
         }
         foreach (var s in want)
+        {
             if (cache.TryGetValue(KeyOf(s, folder), out var m)) res.Add(m with { ThreadId = ThreadOf(s) });
-        MailCache.Save(CachePath, cache, DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - 45));
-        LastStats = (folder.FullName, uids.Count, want.Count);
+            else res.Add(Bare(s));   // đã duyệt / bỏ qua: chỉ tiêu đề (đủ để ghép chuỗi, thư không xử lý lại)
+        }
+        MailCache.Save(CachePath, cache, keepFrom);
+        LastStats = (folder.FullName, found.Count, want.Count);
         LastFresh = fresh.Count;
         await c.DisconnectAsync(true, ct);
         return res;
+    }
+
+    private static string IdOf(IMessageSummary s) => s.GMailMessageId is { } gm ? gm.ToString() : (s.Envelope?.MessageId ?? s.UniqueId.ToString());
+    private static LichXuatEmail.Msg Bare(IMessageSummary s)
+    {
+        var from = s.Envelope?.From?.Mailboxes.FirstOrDefault() is { } mb ? (mb.Name is { Length: > 0 } ? mb.Name + " <" + mb.Address + ">" : mb.Address) : "";
+        return new LichXuatEmail.Msg(IdOf(s), ThreadOf(s), (s.InternalDate ?? s.Envelope?.Date ?? DateTimeOffset.Now).LocalDateTime, from, s.Envelope?.Subject ?? "", "");
     }
 
     /// <summary>1.121: file đệm thư đã đọc (null = không đệm). AppServices đặt cạnh database.</summary>
@@ -187,8 +220,7 @@ public sealed class ImapMailSource : IMailSource
             if (subject.Length == 0) subject = msg.Subject ?? "";
             if (from.Length == 0 && msg.From.Mailboxes.FirstOrDefault() is { } mb) from = mb.Name.Length > 0 ? mb.Name + " <" + mb.Address + ">" : mb.Address;
         }
-        var id = s.GMailMessageId is { } gm ? gm.ToString() : (s.Envelope?.MessageId ?? s.UniqueId.ToString());
-        return new LichXuatEmail.Msg(id, ThreadOf(s), date, from, subject, text);
+        return new LichXuatEmail.Msg(IdOf(s), ThreadOf(s), date, from, subject, text);
     }
 
     private static string HtmlToText(string h) => System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(
