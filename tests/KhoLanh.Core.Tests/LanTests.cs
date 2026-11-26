@@ -207,6 +207,57 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void May_don_tu_dung_ban_Drive_moi_hon_roi_noi_lai_may_chu()
+    {
+        // 1.121: máy chủ tắt → máy con thành máy đơn; bản sao lưu Drive của máy chủ mới hơn lần đồng bộ cuối → tự nạp (không có chờ gửi)
+        var (srv, cli, ms, _) = Pair();
+        srv.Lan.Write(Db, One("S", Rows("a")));
+        Until(() => Local(cli, "S") == "a", "máy con nhận dữ liệu");
+        Until(() => cli.Lan.LastSyncedAt is not null, "ghi lần đồng bộ cuối");
+        srv.Lan.Write(Db, One("S", Rows("a", "b")));                  // máy chủ sửa tiếp rồi sao lưu lên Drive…
+        var snapDir = System.IO.Path.Combine(_root, "drive"); System.IO.Directory.CreateDirectory(snapDir);
+        var snap = System.IO.Path.Combine(snapDir, "ban-may-chu.db");
+        srv.Backup.BackupTo(snap);
+        var asked = 0;
+        cli.Lan.OfflineSnapshot = (server, since, ct) =>
+        {
+            Interlocked.Increment(ref asked);
+            Assert.Equal("chu", server);
+            var copy = snap + "." + Guid.NewGuid().ToString("N") + ".db"; System.IO.File.Copy(snap, copy);
+            return Task.FromResult<(string, string, DateTime)?>((copy, "chu · sao lưu thử", DateTime.Now));
+        };
+        Stop(srv);                                                     // …rồi tắt máy
+        Until(() => cli.Lan.OfflineSource.Length > 0, "máy đơn tự dùng bản Drive", 30);
+        Assert.False(cli.Lan.Online);
+        Assert.Equal("a,b", Local(cli, "S"));
+            Assert.Contains(System.IO.Directory.GetFiles(cli.Backup.AutoBackupFolder), f => System.IO.Path.GetFileName(f).StartsWith("truoc-tai-drive_"));
+        cli.Lan.Write(Db, One("T", Rows("c")));                        // sửa trên máy đơn → chờ gửi
+        Assert.Single(cli.Lan.PendingList());
+        var srv2 = Boot(ms);                                           // máy chủ bật lại → tự nối, gửi phần sửa, bỏ nhãn bản Drive
+        Until(() => cli.Lan.Online && cli.Lan.PendingCount() == 0, "nối lại và gửi phần sửa", 30);
+        Until(() => cli.Lan.OfflineSource.Length == 0, "nhận dữ liệu thật của máy chủ", 30);
+        Assert.Equal("c", Local(srv2, "T"));
+        Assert.Equal("a,b", Local(cli, "S"));
+    }
+
+    [Fact]
+    public void May_don_co_thay_doi_cho_gui_khong_tai_ban_Drive()
+    {
+        var (srv, cli, _, _) = Pair();
+        srv.Lan.Write(Db, One("S", Rows("a")));
+        Until(() => Local(cli, "S") == "a", "máy con nhận dữ liệu");
+        var asked = 0;
+        cli.Lan.OfflineSnapshot = (_, _, _) => { Interlocked.Increment(ref asked); return Task.FromResult<(string, string, DateTime)?>(null); };
+        Stop(srv);
+        Until(() => !cli.Lan.Online, "máy con mất máy chủ");
+        cli.Lan.Write(Db, One("S", Rows("a", "x")));                   // có phần sửa chờ gửi
+        Thread.Sleep(5000);                                            // quá ngưỡng máy đơn (60 s × 0,05)
+        Assert.Equal(0, asked);
+        Assert.Equal("", cli.Lan.OfflineSource);
+        Assert.Equal("a,x", Local(cli, "S"));
+    }
+
+    [Fact]
     public async Task Duong_ham_chan_sai_ma_lan_va_goi_lai_goi_tin_cu()
     {
         var key = "khoa-that"; var guard = new LanHttp.ReplayGuard();

@@ -115,6 +115,12 @@ public class AppServices
         Accounts.Phone = Phone;   // 1.105: mã kết nối máy mang theo PC_TOKEN
         // 1.112: Client OAuth Google dùng chung qua Sheet chung — máy thiếu secret tự lấy về trước khi đăng nhập Gmail.
         DriveCaNhan.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
+        // 1.121: máy đơn (không nối được máy chủ, không có thay đổi chờ gửi) tự dùng bản sao lưu Drive cá nhân của máy chủ nếu mới hơn
+        Lan.OfflineSnapshot = (server, since, ct) => DriveCaNhan.NewerServerBackupAsync(server, since, ct);
+        Lan.BeforeOfflineSnapshot = () =>
+        {
+            try { Backup.BackupTo(Path.Combine(Backup.AutoBackupFolder, $"truoc-tai-drive_{DateTime.Now:yyyy-MM-dd_HHmmss}.db")); } catch { }
+        };
         LuuTru.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
