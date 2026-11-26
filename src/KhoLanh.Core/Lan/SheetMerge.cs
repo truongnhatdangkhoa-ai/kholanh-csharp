@@ -26,6 +26,10 @@ public static class SheetMerge
         var delM = Minus(b, m); var addM = Minus(m, b);
         var delT = Minus(b, t); var addT = Minus(t, b);
         if (Within(addM, addT) && Within(delM, delT)) return new(true, theirsJson, "máy chủ đã có sẵn các thay đổi này");
+        // 1.120 (báo cáo Trợ lý 26/11: Tồn kho gửi / Tồn vị trí gần như mọi dòng ×2): chưa có bản chung (máy con chưa từng có bảng này khi
+        // bắt đầu sửa riêng) mà hai bên đều có dữ liệu khác nhau = hai bên cùng NẠP / tạo bảng. Trước đây coi mọi dòng máy con là "thêm mới"
+        // rồi nối vào bản máy chủ → dòng giống nhau giữa 2 file thành 2 lần. Nay giữ bản máy chủ, bản máy con vào Trùng sửa cho Quản trị chọn.
+        if (b.Count == 0 && t.Count > 0 && m.Count > 0) return new(false, null, "hai bên cùng nạp / tạo bảng khi chưa có bản chung");
         if (b.Count > 0 && Total(delM) == b.Count) return new(false, null, "máy con nạp lại / thay cả bảng");
         if (b.Count > 0 && Total(delT) == b.Count) return new(false, null, "máy chủ nạp lại / thay cả bảng");
         foreach (var r in delM.Keys)
