@@ -157,7 +157,7 @@ public sealed partial class KiemKeView : UserControl, IPage
         var top = new StackPanel { Spacing = 2 }; top.Children.Add(row); top.Children.Add(_lockBar);
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(_tabs);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     // =====================================================================================

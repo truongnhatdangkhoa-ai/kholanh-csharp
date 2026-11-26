@@ -793,6 +793,57 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
         Console.WriteLine($"[PERF] {k,-6} mở lần đầu {firstMs[k],7:0} ms · mở lại {again,6:0} ms");
         for (var i = 0; i < 5; i++) { Thread.Sleep(20); Pump(); }
     }
+    // 1.136: sửa database KHÁC → quay lại Tồn kho An An vẫn giữ màn hình cũ (không dựng lại / không đọc lại); sửa chính database của nó → dựng lại
+    {
+        main.Navigate("m1"); Pump(); var pg = main.PageHost.Content; main.Navigate("lx"); Pump();
+        s.Modules.WriteSheets("thu-hieu-nang", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["A"] = new() { new System.Text.Json.Nodes.JsonObject { ["x"] = 1 } } });
+        var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate("m1"); Pump(); var t1 = sw.Elapsed.TotalMilliseconds;
+        var keep = ReferenceEquals(pg, main.PageHost.Content);
+        main.Navigate("lx"); Pump();
+        s.Modules.WriteSheets("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["ThuHieuNang"] = new() });
+        main.Navigate("m1"); Pump(); var rebuilt = !ReferenceEquals(pg, main.PageHost.Content);
+        Console.WriteLine($"[PERF-GIU] sửa db khác → giữ trang: {keep} ({t1:0} ms) · sửa db của trang → dựng lại: {rebuilt}");
+        if (!keep || !rebuilt) { Console.WriteLine("[PERF-GIU] SAI"); Environment.ExitCode = 1; }
+    }
+    long busyAt = 0;
+    if (Environment.GetEnvironmentVariable("PERF_STACK") == "1")
+        new Thread(() =>
+        {
+            var pid = Environment.ProcessId; var done = 0L;
+            while (true)
+            {
+                Thread.Sleep(100);
+                var b = Interlocked.Read(ref busyAt);
+                if (b == 0 || b == done || Environment.TickCount64 - b < 600) continue;
+                done = b;
+                var psi = new System.Diagnostics.ProcessStartInfo(Environment.GetEnvironmentVariable("HOME") + "/.dotnet/tools/dotnet-stack", $"report -p {pid}") { RedirectStandardOutput = true, RedirectStandardError = true };
+                using var pr2 = System.Diagnostics.Process.Start(psi)!; var o = pr2.StandardOutput.ReadToEnd() + pr2.StandardError.ReadToEnd(); pr2.WaitForExit();
+                File.WriteAllText(System.IO.Path.Combine(outDir, $"stack-{b}.txt"), o);
+                Console.WriteLine("[PERF-STACK] đã ghi stack-" + b);
+            }
+        }) { IsBackground = true }.Start();
+    void Jobs() { Interlocked.Exchange(ref busyAt, Environment.TickCount64); Dispatcher.UIThread.RunJobs(); Interlocked.Exchange(ref busyAt, 0); }
+    if (Environment.GetEnvironmentVariable("PERF_M1") == "1")
+        for (var r = 0; r < 8; r++)
+        {
+            main.Navigate("lx"); Pump();
+            var gp = GC.GetTotalPauseDuration().TotalMilliseconds; var g2 = GC.CollectionCount(2);
+            var sw = System.Diagnostics.Stopwatch.StartNew(); var v = new KhoLanh.App.Views.AnAnView(); var ctor = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); main.Show("m1", v); var show = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); Jobs(); var j1 = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); for (var i = 0; i < 20; i++) { Thread.Sleep(25); Jobs(); } var j2 = sw.Elapsed.TotalMilliseconds - 500;
+            Console.WriteLine($"[PERF-M1] dựng {ctor:0} ms · gắn {show:0} ms · việc chờ {j1:0} ms · sau đó {j2:0} ms · GC dừng {GC.GetTotalPauseDuration().TotalMilliseconds - gp:0} ms, GC2 +{GC.CollectionCount(2) - g2}");
+        }
+    // 1.136: dò lần đứng ~1,2 s (đồng hồ từ lúc mở + số lần GC thế hệ 2) — chạy thêm PERF_ROUNDS lượt mở lại
+    var t0 = System.Diagnostics.Stopwatch.StartNew();
+    var rounds = int.TryParse(Environment.GetEnvironmentVariable("PERF_ROUNDS"), out var pr) ? pr : 0;
+    for (var r = 0; r < rounds; r++)
+        foreach (var k in keysP)
+        {
+            var g2 = GC.CollectionCount(2); var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Jobs(); var ms = sw.Elapsed.TotalMilliseconds;
+            if (ms > 150) Console.WriteLine($"[PERF-DUNG] t={t0.Elapsed.TotalSeconds,5:0.0}s {k,-6} {ms,6:0} ms · GC2 +{GC.CollectionCount(2) - g2}");
+            for (var i = 0; i < 10; i++) { Thread.Sleep(50); var sw2 = System.Diagnostics.Stopwatch.StartNew(); Jobs(); var j = sw2.Elapsed.TotalMilliseconds; if (j > 150) Console.WriteLine($"[PERF-DUNG] t={t0.Elapsed.TotalSeconds,5:0.0}s (việc chờ trên luồng giao diện) {j,6:0} ms sau {k}"); }
+        }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
 // 1.90: SHOTS_ONLY=lxtrung — LSX trùng lịch: cảnh báo ở tab Việc cần làm, hộp giữ 1 lịch / trùng hợp lệ; gộp xong hết báo. Thoát mã 1 nếu hỏng.
@@ -2065,6 +2116,67 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v232")
     Console.WriteLine($"[V232] bấm đúp phiếu {b.Id} → tab {tabs.SelectedIndex}");
     if (tabs.SelectedIndex != 1) Bad("bấm đúp không mở tab Phiếu xuất");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v232) — ĐẠT: " : "Xong (v232) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
+// 1.135: bôi đen + chép chữ như web (chuột thật: kéo 1 dòng, Ctrl+C, kéo qua nhiều dòng, bấm đúp 1 từ, nút vẫn bấm được). SHOTS_ONLY=v233; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v233")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V233] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    const Avalonia.Input.RawInputModifiers No = Avalonia.Input.RawInputModifiers.None;
+    main.Navigate("dongbo"); P(40);
+    var mc = (main.PageHost.Content as DongBoView)!.MayChu;
+    string T(TextBlock t) => KhoLanh.App.Controls.TextSelect.TextOf(t);
+    var tbs = mc.GetVisualDescendants().OfType<TextBlock>().Where(t => KhoLanh.App.Controls.TextSelect.Selectable(t) && T(t).Length >= 20).ToList();
+    Console.WriteLine($"[V233] ô chữ bôi đen được trên tab Máy chủ: {tbs.Count} (vd “{(tbs.Count > 0 ? T(tbs[0]) : "")}”)");
+    if (tbs.Count < 2) { Bad("không đủ ô chữ để thử"); s.Lan.Dispose(); Environment.Exit(1); return; }
+    Avalonia.Point At(TextBlock t, double fx) => t.TranslatePoint(new Avalonia.Point(t.Padding.Left + Math.Max(4, t.TextLayout.Width * fx), t.Padding.Top + 8), main)!.Value;
+    void Drag(Avalonia.Point a, Avalonia.Point b)
+    {
+        main.MouseMove(a, No); main.MouseDown(a, Avalonia.Input.MouseButton.Left, No); P(2);
+        main.MouseMove(new Avalonia.Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), No); P(2);
+        main.MouseMove(b, No); main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(5);
+    }
+    string Sel() => KhoLanh.App.Controls.TextSelect.SelectedText();
+    // 1) kéo trong 1 dòng chữ
+    var t1 = tbs[0]; var t2 = tbs[1];
+    Drag(At(t1, 0.01), At(t1, 0.6));
+    Console.WriteLine($"[V233] kéo 1 dòng → “{Sel()}”");
+    if (Sel().Length < 5 || !T(t1).Contains(Sel())) Bad("kéo trong 1 dòng không bôi đen đúng chữ");
+    Snap(main, "v233-boi-den-1-dong");
+    // 2) Ctrl+C → khay chép
+    var want = Sel();
+    main.KeyPress(Avalonia.Input.Key.C, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.C, "c");
+    main.KeyRelease(Avalonia.Input.Key.C, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.C, "c"); P(10);
+    string? clip = null;
+    try { var task = main.Clipboard!.GetTextAsync(); for (var i = 0; i < 50 && !task.IsCompleted; i++) P(1); clip = task.Result; } catch (Exception e) { Console.WriteLine("[V233] (không đọc được khay chép ở chế độ không màn hình: " + e.GetType().Name + ")"); }
+    Console.WriteLine($"[V233] Ctrl+C → khay chép “{clip}”");
+    if (clip is not null && clip != want) Bad("Ctrl+C chưa chép đúng phần bôi đen");
+    // tab Máy chủ tự vẽ lại theo chu kỳ (ô chữ mới) → lấy lại ô trước mỗi bước
+    void Fresh() { var l = mc.GetVisualDescendants().OfType<TextBlock>().Where(t => KhoLanh.App.Controls.TextSelect.Selectable(t) && T(t).Length >= 20).ToList(); t1 = l[0]; t2 = l[1]; }
+    // 3) kéo qua 2 dòng
+    Fresh();
+    Drag(At(t1, 0.3), At(t2, 0.5));
+    Console.WriteLine($"[V233] kéo qua 2 dòng → “{Sel().Replace("\n", " ⏎ ")}”");
+    if (!Sel().Contains('\n')) Bad("kéo qua 2 dòng chưa chọn được cả 2");
+    Snap(main, "v233-boi-den-nhieu-dong");
+    // 4) bấm đúp = 1 từ
+    Fresh();
+    var pw = At(t1, 0.3);
+    main.MouseMove(pw, No);
+    for (var k = 0; k < 2; k++) { main.MouseDown(pw, Avalonia.Input.MouseButton.Left, No); main.MouseUp(pw, Avalonia.Input.MouseButton.Left, No); }
+    P(5);
+    Console.WriteLine($"[V233] bấm đúp → “{Sel()}”");
+    if (Sel().Length == 0 || Sel().Contains(' ')) Bad("bấm đúp chưa chọn đúng 1 từ");
+    // 5) bấm nút vẫn chạy + bỏ vùng chọn
+    var more = mc.GetVisualDescendants().OfType<Button>().First(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "⋯ Thêm");
+    var pm = more.TranslatePoint(new Avalonia.Point(more.Bounds.Width / 2, more.Bounds.Height / 2), main)!.Value;
+    main.MouseMove(pm, No); main.MouseDown(pm, Avalonia.Input.MouseButton.Left, No); main.MouseUp(pm, Avalonia.Input.MouseButton.Left, No); P(15);
+    var open = more.Flyout is { } fl && fl.IsOpen;
+    Console.WriteLine($"[V233] bấm nút ⋯ Thêm → menu mở {open} · vùng chọn còn “{Sel()}”");
+    if (!open) Bad("bấm nút không còn chạy");
+    if (Sel().Length > 0) Bad("bấm chỗ khác chưa bỏ vùng chọn");
+    more.Flyout?.Hide(); P(5);
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v233) — ĐẠT: " : "Xong (v233) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")

@@ -94,7 +94,7 @@ public sealed class DanhMucMaView : UserControl, IPage
         _mg = new SheetGrid(_mm) { SpareRows = 0 }; _ng = new SheetGrid(_nm) { SpareRows = 0 }; _dg = new SheetGrid(_dm) { SpareRows = 0 };
         _xlTab.Content = BuildXl(); _tabs.Items.Add(_xlTab);
         Content = _tabs;
-        AttachedToVisualTree += async (_, _) => await Reload();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await Reload(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
         DetachedFromVisualTree += (_, _) => { if (_save.IsEnabled) { _save.Stop(); Save(); } };
     }
 

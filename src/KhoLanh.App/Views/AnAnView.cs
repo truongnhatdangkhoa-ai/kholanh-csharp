@@ -61,7 +61,7 @@ public sealed class AnAnView : UserControl, IPage
         DockPanel.SetDock(top, Dock.Top);
         root.Children.Add(top); root.Children.Add(_tabs);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     // =====================================================================================

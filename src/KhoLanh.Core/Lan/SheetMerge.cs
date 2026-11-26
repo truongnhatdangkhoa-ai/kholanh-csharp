@@ -44,7 +44,11 @@ public static class SheetMerge
                 if (at >= 0) result.RemoveAt(at);
             }
         // Chèn dòng máy con thêm vào sau dòng đứng trước nó (theo thứ tự bên máy con).
-        var pendingAdd = new Dictionary<string, int>(addM);
+        // 1.134: dòng hai bên CÙNG thêm (vd hai máy cùng nạp / cùng trừ ra đúng dòng đó) chỉ lấy một lần — bản máy chủ đã có,
+        // chỉ chèn phần máy con thêm NHIỀU HƠN máy chủ. Trước đây chèn thêm cả phần trùng → dòng ×2.
+        var pendingAdd = new Dictionary<string, int>();
+        foreach (var (row, n) in addM) { var k = n - addT.GetValueOrDefault(row); if (k > 0) pendingAdd[row] = k; }
+        var addedM = Total(pendingAdd);
         var anchor = -1;
         var used = new HashSet<int>();
         foreach (var row in m)
@@ -62,8 +66,12 @@ public static class SheetMerge
             for (var i = 0; i < result.Count; i++)
                 if (!used.Contains(i) && result[i] == row) { used.Add(i); anchor = i; break; }
         }
+        // 1.134: chốt chặn cuối — kết quả tự gộp to hơn hẳn cả hai bên (≥ 1,5 lần bên lớn hơn, từ 20 dòng) gần như chắc là hai bảng
+        // khác nhau bị nối vào nhau (kiểu Tồn theo vị trí ×2) → không tự gộp, để Quản trị chọn ở Trùng sửa.
+        if (result.Count >= 20 && result.Count > 1.5 * Math.Max(m.Count, t.Count))
+            return new(false, null, $"kết quả gộp {result.Count} dòng lớn hơn hẳn cả hai bên ({m.Count} / {t.Count}) — nghi nhân đôi");
         var arr = new JsonArray(result.Select(x => JsonNode.Parse(x)).ToArray());
-        return new(true, arr.ToJsonString(), $"tự gộp: máy con bỏ {Total(delM)} dòng, thêm {Total(addM)} dòng");
+        return new(true, arr.ToJsonString(), $"tự gộp: máy con bỏ {Total(delM)} dòng, thêm {addedM} dòng");
     }
 
     private static bool Same(string? a, string? b)

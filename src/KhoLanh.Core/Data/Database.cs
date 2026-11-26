@@ -40,10 +40,50 @@ public class Database
 
     public SqliteConnection Open()
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var c = new SqliteConnection(_connectionString);
         c.Open();
+        var t1 = sw.ElapsedMilliseconds;
         c.Execute("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+        if (!OperatingSystem.IsWindows() && BusyOk)
+            try { sqlite3_busy_handler(c.Handle!.DangerousGetHandle(), Busy, IntPtr.Zero); } catch { BusyOk = false; }
+        if (Diag) lock (Recent) { Recent.Enqueue((Environment.TickCount64, Environment.CurrentManagedThreadId, new System.Diagnostics.StackTrace(1, false).ToString())); while (Recent.Count > 60) Recent.Dequeue(); }
+        if (Diag && sw.ElapsedMilliseconds > 100) Console.WriteLine($"[SQLDIAG] Open chậm {t1}/{sw.ElapsedMilliseconds} ms luồng {Environment.CurrentManagedThreadId} {System.IO.Path.GetFileName(FilePath)}\n{Environment.StackTrace}");
         return c;
+    }
+
+    // 1.136 (hiệu năng): bản SQLite đóng gói cho Linux (máy chạy test / công cụ chụp, KhoLanh.Server) chờ CSDL bận theo bước 1 GIÂY
+    // (đo: luồng giao diện đứng đúng 1000 ms mỗi lần 2 kết nối chạm nhau) → thay bằng 1, 2, 5, 10… ms như bản Windows (Windows vốn đã vậy), tối đa ~5 s.
+    private static readonly int[] BusyDelays = { 1, 2, 5, 10, 15, 20, 25, 25, 25, 50, 50, 100 };
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private delegate int BusyFn(IntPtr arg, int count);
+    private static readonly BusyFn Busy = (_, count) =>
+    {
+        var waited = 0;
+        for (var i = 0; i < count; i++) waited += i < BusyDelays.Length ? BusyDelays[i] : 100;
+        if (waited >= 5000) return 0;
+        Thread.Sleep(count < BusyDelays.Length ? BusyDelays[count] : 100);
+        return 1;
+    };
+    private static bool BusyOk = true;
+    [System.Runtime.InteropServices.DllImport("e_sqlite3", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private static extern int sqlite3_busy_handler(IntPtr db, BusyFn fn, IntPtr arg);
+    public static readonly Queue<(long At, int Th, string St)> Recent = new();
+    public static string RecentText(long ms) { lock (Recent) { var now = Environment.TickCount64; return string.Join("\n----\n", Recent.Where(r => now - r.At < ms).Select(r => $"t-{now - r.At} th{r.Th}\n" + string.Join("\n", r.St.Split('\n').Where(l => l.Contains("KhoLanh")).Take(6)))); } }
+    public static readonly bool Diag = Environment.GetEnvironmentVariable("KL_SQL_DIAG") == "1";
+    private static readonly Dictionary<string, SqliteConnection> Keepers = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>
+    /// 1.136 (hiệu năng): giữ 1 kết nối mở suốt lúc app chạy. Không có nó, mỗi lần kết nối CUỐI CÙNG đóng (Pooling = false) SQLite gộp
+    /// nhật ký WAL vào file + xóa WAL / bộ nhớ chia sẻ (khóa độc quyền), kết nối mở ngay sau đó phải dựng lại và có thể phải chờ.
+    /// Kết nối này không dùng để đọc / ghi.
+    /// </summary>
+    public void KeepAlive()
+    {
+        lock (Keepers)
+        {
+            if (Keepers.ContainsKey(FilePath)) return;
+            try { Keepers[FilePath] = Open(); } catch { /* không giữ được: chạy như cũ */ }
+        }
     }
 
     public void Initialize()
@@ -104,6 +144,8 @@ public class Database
             c.Execute("PRAGMA user_version = 6;", transaction: tx);
             tx.Commit();
         }
+        // 1.136 (hiệu năng): mốc phiên bản theo database đọc mỗi lần chuyển trang — chỉ mục nhỏ, không phải lướt cột data (bảng lớn nhiều MB)
+        try { c.Execute("CREATE INDEX IF NOT EXISTS ix_module_sheets_ver ON module_sheets(db_key, version);"); } catch { /* CSDL chỉ đọc / đang khóa: chạy như cũ */ }
     }
 
     /// <summary>
