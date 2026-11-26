@@ -111,6 +111,27 @@ public static class EntryRules
         var v = CongThuc.Eval("=" + expr, NoRow.Instance);
         return CongThuc.IsError(v) || !double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out _) ? null : v;
     }
+    /// <summary>1.130: ô người dùng gõ (cột số: mọi phép; cột chữ: chỉ + / * hoặc "=" đầu — "10/12", "1-2" ở cột chữ thường là ngày / khoảng, giữ nguyên).</summary>
+    public static string? CalcCell(string? text, bool numberCol)
+    {
+        var s = (text ?? "").Trim();
+        if (s.StartsWith('=') && s.Length > 1 && ReCalc.IsMatch(s[1..]))
+        {
+            var e = s[1..].Trim();
+            if (Calc(e) is { } r) return r;
+            return EntryService.TryNumber(e, out var d) && double.IsFinite(d) ? CongThuc.Num(d) : null;   // "=15" → 15
+        }
+        if (numberCol) return Calc(s);
+        return s.IndexOfAny(new[] { '+', '*' }) >= 0 ? Calc(s) : null;
+    }
+    private static bool CalcAllowed(IReadOnlyList<GridColumn> cols, int c, int code, int vt, int lo)
+    {
+        var col = cols[c];
+        if (c == code || c == vt || c == lo || col.Type == "date" || col.Formula.Length > 0) return false;
+        if (col.Auto.Length > 0 || ImplicitAuto(col).Length > 0) return false;
+        return true;
+    }
+
     private sealed class NoRow : CongThuc.IRow { public static readonly NoRow Instance = new(); public string? ByName(string h) => null; public string? ByIndex(int c) => null; }
 
     /// <summary>1.115: cột Lô (Lô / Số lô / Lô batch).</summary>
@@ -206,9 +227,10 @@ public static class EntryRules
                 }
             }
 
-            // 1b. (1.130) ô số gõ phép tính → kết quả ("10+5" → 15, "3x12" → 36)
+            // 1b. (1.130) gõ phép tính như Excel → kết quả: cột số mọi phép ("10+5" → 15, "3x12" → 36); cột chữ / trang trống "5+5+5", "4*3"
+            //     hoặc có "=" đầu ("=10/2"); KHÔNG đụng Mã hàng / Vị trí / Lô / ngày / cột công thức / tự điền
             foreach (var c in userChanged)
-                if (cols[c].Type == "number" && cols[c].Formula.Length == 0 && Calc(Get(c)) is { } kq) Set(c, kq);
+                if (CalcAllowed(cols, c, code, vtCol, loAny) && CalcCell(Get(c), cols[c].Type == "number") is { } kq) Set(c, kq);
 
             // 1c. (1.130) vị trí: gõ tắt → đủ dạng ("a0112" → TG1.A.01.1.2, kho / khu theo dòng trên); dòng mới để trống vị trí → lấy vị trí dòng trên
             if (vtCol >= 0)

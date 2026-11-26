@@ -45,6 +45,38 @@ public class NhapLieu130Tests
     }
 
     [Fact]
+    public void Go_phep_tinh_o_bat_ky_o_nao_nhu_Excel()
+    {
+        // người dùng: "nhập 5+5+5 = 15 ở bất cứ ô nào (file trống và các cột mẫu không có điều kiện sẵn)"
+        Assert.Equal("15", EntryRules.CalcCell("5+5+5", numberCol: false));
+        Assert.Equal("12", EntryRules.CalcCell("4*3", numberCol: false));
+        Assert.Equal("5", EntryRules.CalcCell("=10/2", numberCol: false));
+        Assert.Equal("15", EntryRules.CalcCell("= 20 - 5", numberCol: false));
+        Assert.Equal("15", EntryRules.CalcCell("=15", numberCol: false));
+        Assert.Null(EntryRules.CalcCell("10/12", numberCol: false));       // cột chữ: ngày tháng → giữ nguyên
+        Assert.Null(EntryRules.CalcCell("1-2", numberCol: false));         // khoảng số → giữ nguyên
+        Assert.Null(EntryRules.CalcCell("3x12", numberCol: false));        // quy cách → giữ nguyên ở cột chữ
+        Assert.Null(EntryRules.CalcCell("2+3 kiện", numberCol: false));    // có chữ → giữ nguyên
+        Assert.Equal("36", EntryRules.CalcCell("3x12", numberCol: true));
+        Assert.Equal("0.83", Math.Round(double.Parse(EntryRules.CalcCell("10/12", numberCol: true)!, System.Globalization.CultureInfo.InvariantCulture), 2).ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        // trang trống (cột chữ tự đặt): gõ 5+5+5 ở cột bất kỳ → 15; cột Mã hàng / Vị trí / Lô / ngày không tính
+        var cols = new List<GridColumn> { new("c0", "Cột A", 100), new("c1", "Mã hàng", 100), new("c2", "Ghi chú", 100), new("c3", "Lô", 100), new("c4", "Ngày", 100, "date") };
+        var cells = new Dictionary<(int, int), string>();
+        string Get(int r, int c) => cells.TryGetValue((r, c), out var v) ? v : "";
+        string Edit(int c, string v)
+        {
+            var before = Get(0, c); cells[(0, c)] = v;
+            foreach (var (rr, cc, vv) in EntryRules.Derive(cols, Get, new[] { (0, c, before, v) }, _ => null, new DateTime(2026, 11, 26))) cells[(rr, cc)] = vv;
+            return Get(0, c);
+        }
+        Assert.Equal("15", Edit(0, "5+5+5"));
+        Assert.Equal("7", Edit(2, "=3+4"));
+        Assert.Equal("1+2", Edit(1, "1+2"));       // Mã hàng
+        Assert.Equal("1+2", Edit(4, "1+2"));       // cột ngày
+    }
+
+    [Fact]
     public void Trang_kiem_ke_tu_doi_vi_tri_va_phep_tinh()
     {
         var cols = KiemKe();

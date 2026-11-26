@@ -1923,6 +1923,69 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     Console.WriteLine("[CC] xuất " + xl);
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (cc) — ĐẠT: " : "Xong (cc) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.130: Nhập liệu gõ vị trí nhanh + phép tính như Excel · Đối chiếu kiểm kê chỉ ra lệch ở vị trí nào. SHOTS_ONLY=v230; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v230")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V230] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.SoDo.Load();
+    // ---- (1)(2) Nhập liệu: trang kiểm kê mới, gõ tắt vị trí / để trống vị trí / phép tính
+    var kk = KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke");
+    var pg = s.Entry.Create("Kiểm kê thử gõ nhanh " + DateTime.Today.ToString("dd-MM-yyyy"), kk);
+    main.Navigate("m6"); P(30);
+    var ev = main.PageHost.GetVisualDescendants().OfType<EntryView>().First();
+    ev.OpenAt(pg.Id, 0); P(30);
+    var g = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    var m = g.Model; var cSl = Enumerable.Range(0, m.ColCount).First(c => m.Columns[c].Header == "Số lượng"); var cGc = Enumerable.Range(0, m.ColCount).First(c => m.Columns[c].Header == "Ghi chú");
+    var ma = s.ViTri.Rows.Select(r => r.Ma).First(x => x.Length > 0);
+    m.SetCells(new[] { (0, 0, "TG1.A.01.1.1"), (0, 1, ma), (0, cSl, "10") }); P(5);
+    m.SetCells(new[] { (1, 0, "a0112"), (1, 1, ma) }); P(5);
+    m.SetCells(new[] { (2, 1, ma) }); P(5);
+    m.SetCells(new[] { (2, cSl, "5+5+5") }); P(5);
+    m.SetCells(new[] { (1, cSl, "3x12"), (1, cGc, "=2+3") }); P(10);
+    Console.WriteLine($"[V230] Nhập liệu: dòng 2 vị trí “{m.Get(1, 0)}” · dòng 3 vị trí “{m.Get(2, 0)}” · SL 5+5+5 → {m.Get(2, cSl)} · 3x12 → {m.Get(1, cSl)} · Ghi chú =2+3 → {m.Get(1, cGc)}");
+    if (m.Get(1, 0) != "TG1.A.01.1.2") Bad("gõ tắt a0112 chưa thành TG1.A.01.1.2");
+    if (m.Get(2, 0) != "TG1.A.01.1.2") Bad("dòng mới chưa lấy vị trí dòng trên");
+    if (m.Get(2, cSl) != "15" || m.Get(1, cSl) != "36" || m.Get(1, cGc) != "5") Bad("phép tính chưa ra kết quả");
+    g.Select(2, cSl); P(10);
+    Snap(main, "v230-nhap-lieu-go-nhanh");
+    // ---- (3) Đối chiếu kiểm kê: 1 mã thiếu ở 1 ô, đúng số đó thừa ở ô trống bên cạnh → nghi để nhầm chỗ
+    var pos = s.SoDo.B.Pos.First(p => !p.Z && p.It.Count == 1 && p.It[0].Sl >= 4);
+    var empty = s.SoDo.B.Pos.First(p => !p.Z && p.It.Count == 0 && p.Kho == pos.Kho && p.Khu == pos.Khu);
+    var it0 = pos.It[0];
+    var rows = new List<IReadOnlyList<string>>
+    {
+        new[] { pos.Code, it0.Ma, "", "", (it0.Sl - 2).ToString(System.Globalization.CultureInfo.InvariantCulture) },
+        new[] { empty.Code, it0.Ma, "", "", "2" },
+    };
+    var kp = s.Entry.Create("Kiểm kê thử lệch vị trí " + DateTime.Today.ToString("dd-MM-yyyy"), kk);
+    var cols = kp.Columns; var full = rows.Select(r => (IReadOnlyList<string>)r.Concat(Enumerable.Repeat("", cols.Count - r.Count)).ToArray()).ToList();
+    s.Entry.Save(kp, cols, full);
+    s.KiemKe.Load(); s.KiemKe.SetChosen(new[] { kp.Id }, false); s.KiemKe.Load();
+    main.Navigate("m9"); P(60);
+    var kv = main.PageHost.GetVisualDescendants().OfType<KiemKeView>().First();
+    kv._tabs.SelectedIndex = 1; P(20);
+    var key = KhoLanh.Core.SoDo.SoDoCore.KeyMa(it0.Ma);
+    var ri = kv._aRows.FindIndex(r => KhoLanh.Core.SoDo.SoDoCore.KeyMa(r.Ma) == key);
+    if (ri < 0) Bad("không thấy mã ở Đối chiếu An An");
+    else { kv._ag.Select(ri, 0); P(20); }
+    var det = string.Join("\n", kv._det.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").Where(t => t.Length > 0));
+    Console.WriteLine("[V230] chi tiết mã:\n  " + string.Join("\n  ", det.Split('\n').Where(l => l.Contains("vị trí") || l.Contains("nhầm") || l.Contains("TG"))));
+    if (!det.Contains("Nghi để nhầm chỗ")) Bad("thiếu dòng nghi để nhầm chỗ");
+    if (!det.Contains(pos.Code) || !det.Contains(empty.Code)) Bad("thiếu vị trí lệch");
+    Snap(main, "v230-doi-chieu-lech-vi-tri");
+    var go = kv._det.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => (b.Content as string ?? "").StartsWith(empty.Code));
+    if (go is null) Bad("thiếu nút mở vị trí thừa");
+    else
+    {
+        go.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(40);
+        var ev2 = main.PageHost.GetVisualDescendants().OfType<EntryView>().FirstOrDefault();
+        var g2 = ev2?.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().FirstOrDefault(x => x.IsEffectivelyVisible);
+        Console.WriteLine($"[V230] bấm {empty.Code} → Nhập liệu dòng {(g2?.Row ?? -1) + 1}: “{(g2 is null ? "" : g2.Model.Get(g2.Row, 0))}”");
+        if (g2 is null || g2.Model.Get(g2.Row, 0) != empty.Code) Bad("bấm vị trí không mở đúng dòng Nhập liệu");
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v230) — ĐẠT: " : "Xong (v230) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
 {
