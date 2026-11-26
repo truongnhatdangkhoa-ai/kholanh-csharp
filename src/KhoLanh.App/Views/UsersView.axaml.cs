@@ -194,38 +194,6 @@ public partial class UsersView : UserControl, IPage
         if (ok) { Load(); Tabs.SelectedIndex = 0; Edit(new User()); }
     }
 
-    /// <summary>Mã OAuth cho "Đăng nhập bằng Google" trên máy này (Client ID cài sẵn = mã Desktop của dự án kholanhcloud; Client secret quản trị dán 1 lần).</summary>
-    private async void OnGoogleConfig(object? sender, RoutedEventArgs e) => await GoogleConfigDialog(this);
-
-    /// <summary>1.105: dùng chung với Hệ thống › Kết nối › Đăng nhập bằng Google.</summary>
-    internal static async Task GoogleConfigDialog(Control owner)
-    {
-        var g = App.Services.Google;
-        var id = new TextBox { Text = g.ClientId };
-        var sec = new TextBox { PasswordChar = '•', Watermark = g.ClientSecret.Length > 0 ? "(đã lưu — để trống = giữ nguyên)" : "GOCSPX-…" };
-        var msg = new TextBlock { FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap, Tag = "keep" };
-        var body = new StackPanel { Spacing = 6 };
-        body.Children.Add(new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12.5, Tag = "keep",
-            Text = "Mã OAuth loại Desktop trong Google Cloud (dự án kholanhcloud › APIs & Services › Credentials › kholanhanan). Client ID đã cài sẵn; chỉ cần dán Client secret một lần trên mỗi máy. Sau đó gán Email Google cho từng tài khoản." });
-        body.Children.Add(new TextBlock { Text = "Client ID", Classes = { "label" } }); body.Children.Add(id);
-        body.Children.Add(new TextBlock { Text = "Client secret", Classes = { "label" } }); body.Children.Add(sec);
-        body.Children.Add(msg);
-        var test = new Button { Content = "Thử đăng nhập Google" }; var ok = new Button { Content = "Lưu", Classes = { "primary" }, IsDefault = true }; var close = new Button { Content = "Đóng", IsCancel = true };
-        body.Children.Add(Ui.Buttons(test, close, ok));
-        var w = Ui.Dialog("Đăng nhập Google", body, 540);
-        bool Apply() { try { g.SaveConfig(id.Text ?? "", sec.Text ?? ""); sec.Text = ""; return true; } catch (Exception ex) { msg.Foreground = AppTheme.Danger; msg.Text = ex.Message; return false; } }
-        ok.Click += (_, _) => { if (Apply()) w.Close(); };
-        close.Click += (_, _) => w.Close();
-        test.Click += async (_, _) =>
-        {
-            if (!Apply()) return;
-            msg.Foreground = AppTheme.Muted; msg.Text = "Đang mở trình duyệt — chọn tài khoản Google…";
-            try { var r = await g.SignInAsync(Ui.OpenExternal); msg.Foreground = AppTheme.Brush("#1E7B4A"); msg.Text = $"✔ Đăng nhập được: {r.Email}" + (r.Name.Length > 0 ? $" ({r.Name})" : ""); }
-            catch (Exception ex) { msg.Foreground = AppTheme.Danger; msg.Text = ex.Message; }
-        };
-        await Ui.Show(owner, w);
-    }
-
     private async void OnReset(object? sender, RoutedEventArgs e)
     {
         if (!await EnsureWrite()) return;

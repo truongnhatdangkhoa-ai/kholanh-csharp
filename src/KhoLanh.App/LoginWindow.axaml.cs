@@ -35,7 +35,6 @@ public partial class LoginWindow : Window
             UserBox.Text = m.Username;
             if (m.Remember) { PassBox.Text = m.Password; RememberBox.IsChecked = true; AutoBox.IsChecked = m.Auto; }
             Opened += async (_, _) => await StartupAsync();
-            GoogleButton.IsVisible = s.Google.Ready;   // máy đã cài mã OAuth (Hệ thống › Tài khoản › Đăng nhập Google)
         }
         Opened += (_, _) => (_firstRun && _setupAdmin ? FullNameBox : (UserBox.Text ?? "").Length > 0 ? PassBox : UserBox).Focus();
         // Bộ cài cho máy mới (KhoLanh.exe + ket-noi.txt): tự nhận tài khoản từ Google Sheet, chỉ cần đăng nhập.
@@ -126,32 +125,7 @@ public partial class LoginWindow : Window
 
     private async void OnLogin(object? sender, RoutedEventArgs e) => await DoLogin(auto: false);
 
-    /// <summary>1.70: đăng nhập bằng tài khoản Google đang đăng nhập trên trình duyệt → email đã xác minh → tài khoản được gán email đó.</summary>
-    private async void OnGoogle(object? sender, RoutedEventArgs e)
-    {
-        ErrorText.Text = "";
-        var s = App.Services;
-        GoogleButton.IsEnabled = LoginButton.IsEnabled = false;
-        GoogleButton.Content = "Đang chờ chọn tài khoản Google trên trình duyệt…";
-        try
-        {
-            var r = await s.Google.SignInAsync(Ui.OpenExternal);
-            Activate();
-            if (s.Accounts.Enabled)
-            {
-                try { await s.Accounts.PullAsync(); }
-                catch (Exception ex) { DataPathText.Text = "Không lấy được danh sách mới (" + ex.Message.TrimEnd('.') + ") — dùng bản lưu trong máy."; }
-            }
-            var u = s.Auth.LoginGoogle(r.Email);
-            try { App.LanNote = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s) ?? ""; } catch (Exception ex) { App.LanNote = "Không tự đổi vai LAN được: " + ex.Message; }
-            UserBox.Text = u.Username;
-            Succeeded = true;
-            LoggedIn?.Invoke();
-        }
-        catch (BusinessException ex) { Activate(); ErrorText.Text = ex.Message; }
-        catch (Exception ex) { Activate(); ErrorText.Text = "Đăng nhập Google lỗi: " + ex.Message; }
-        finally { GoogleButton.IsEnabled = LoginButton.IsEnabled = true; GoogleButton.Content = "Đăng nhập bằng Google"; }
-    }
+    // 1.122: bỏ "Đăng nhập bằng Google" (người dùng yêu cầu) — chỉ còn tên + mật khẩu.
 
     private async Task DoLogin(bool auto)
     {
