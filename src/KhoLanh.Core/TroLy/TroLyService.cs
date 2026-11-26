@@ -364,7 +364,7 @@ public sealed partial class TroLyService
             sheets = c.Query<(string, string, long)>("SELECT db_key, sheet, row_count FROM module_sheets ORDER BY db_key, sheet").ToList();
         foreach (var (db, sheet, n) in sheets)
         {
-            if (n < 2 || n > MaxSheetRows || SkipSheet.IsMatch(sheet)) continue;
+            if (n < 2 || n > MaxSheetRows || SkipSheet.IsMatch(sheet) || SkipDupSheet(db, sheet)) continue;
             var rows = Read(db, sheet);
             if (rows.Count < 2 || rows.Count > MaxSheetRows) continue;
             o.AddRange(FindDupKeys(DbLabel(db), sheet, rows));

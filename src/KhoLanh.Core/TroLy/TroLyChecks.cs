@@ -166,6 +166,13 @@ public static class TroLyChecks
         return found;
     }
 
+    /// <summary>
+    /// 1.120: bảng không dò trùng — bản chép NGUYÊN file đã nạp (FileNap…: dòng tiêu đề / chân trang lặp lại là của file gốc, "lỗi từ nguồn")
+    /// và trang Nhập liệu (người dùng gõ cùng một mã nhiều dòng là bình thường: nhiều pallet / nhiều lần đếm).
+    /// </summary>
+    public static bool SkipDupSheet(string db, string sheet) =>
+        db == "nhap-lieu" || sheet.StartsWith("FileNap", StringComparison.OrdinalIgnoreCase);
+
     public static List<Finding> FindDupKeys(string modLabel, string sheetName, JsonArray? rows)
     {
         var o = new List<Finding>();
@@ -184,7 +191,10 @@ public static class TroLyChecks
         }
         var same = sig.Values.Where(x => x.N > 1).ToList();
         var sameRows = same.Sum(x => x.N);
-        if (same.Count > 0) o.Add(Mk("trung-khoa", "vang", where, "Dòng trùng hoàn toàn", $"{same.Count} nhóm dòng giống hệt nhau (tổng {sameRows} dòng).",
+        // 1.120: gần nửa bảng trở lên là dòng lặp → nhiều khả năng cả bảng bị nhân đôi (gộp LAN cũ) — chỉ cách sửa
+        var doubled = sameRows * 2 >= objs.Count;
+        if (same.Count > 0) o.Add(Mk("trung-khoa", "vang", where, "Dòng trùng hoàn toàn", $"{same.Count} nhóm dòng giống hệt nhau (tổng {sameRows} dòng)."
+                + (doubled ? " Gần như cả bảng bị nhân đôi — thường do lần tự gộp LAN khi 2 máy cùng nạp file (đã sửa ở bản 1.120). Cách sửa: Đồng bộ & sao lưu › Giữa các máy › Máy chủ LAN › Trùng sửa › chọn mục \"Đã tự gộp\" của bảng này › Hoàn tác gộp, hoặc nạp lại file mới nhất của module." : ""),
             Cut(same.Select(x => "×" + x.N + " " + string.Join(" | ", x.Vals.Take(4))))));
         // (b) trùng KHÓA nhận diện: ≥ 3 cột nhận diện, có mã hàng và (lô hoặc số phiếu) — mã + size / mã + vị trí lặp là bình thường ở bảng tồn
         var cols = IdentCols(objs[0]);
