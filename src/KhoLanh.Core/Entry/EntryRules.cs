@@ -66,6 +66,24 @@ public static class EntryRules
         return -1;
     }
 
+    /// <summary>
+    /// 1.116: chuẩn hóa ngày trong ô Lô: "22.05 L16" → "22.05.2026 L16" (không gõ năm = năm hiện tại; ngày đó còn ở tương lai thì năm trước —
+    /// nguyên liệu không thể có ngày tương lai), "22.05.25" → "22.05.2025", "2/5/25" → "02.05.2025". Không có ngày / ngày sai → giữ nguyên.
+    /// </summary>
+    public static string NormLo(string? text, DateTime today)
+    {
+        var s = text ?? "";
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"(?<!\d)(\d{1,2})\s*[./\-]\s*(\d{1,2})(?:\s*[./\-]\s*(\d{4}|\d{2}))?(?!\d)");
+        if (!m.Success) return s;
+        int d = int.Parse(m.Groups[1].Value), mo = int.Parse(m.Groups[2].Value);
+        if (mo < 1 || mo > 12 || d < 1 || d > 31) return s;
+        int y;
+        if (m.Groups[3].Success) { y = int.Parse(m.Groups[3].Value); if (y < 100) y += 2000; }
+        else { y = today.Year; if (new DateTime(y, mo, Math.Min(d, DateTime.DaysInMonth(y, mo))) > today.Date) y--; }
+        if (d > DateTime.DaysInMonth(y, mo)) return s;
+        return s[..m.Index] + $"{d:00}.{mo:00}.{y}" + s[(m.Index + m.Length)..];
+    }
+
     /// <summary>Cột số lượng xuất (Số lượng xuất / SL xuất / Số kiện xuất).</summary>
     public static int XuatQtyCol(IReadOnlyList<GridColumn> cols)
     {
@@ -96,6 +114,7 @@ public static class EntryRules
         var hasToday = cols.Any(c => c.Auto == Today);
         var hasXuatDay = cols.Any(c => c.Auto == NgayXuat);
         var loCol = cols.Any(c => c.Auto == Dt) ? LoCol(cols) : -1;
+        var loAny = LoCol(cols);
         foreach (var g in byRow)
         {
             var r = g.Key;
@@ -130,6 +149,13 @@ public static class EntryRules
                     if (nv.Length > 0) { if (explicitKind.Length > 0 || wasAuto) Set(c, nv); }
                     else if (now.Length > 0 && ov.Length > 0 && now == ov) Set(c, "");   // mã mới không tra được → bỏ giá trị của mã cũ
                 }
+            }
+
+            // 2a. (1.116) gõ lô → chuẩn hóa ngày (22.05 → 22.05.2026, 22.05.25 → 22.05.2025)
+            if (loAny >= 0 && userChanged.Contains(loAny))
+            {
+                var raw = Get(loAny); var norm = NormLo(raw, today);
+                if (norm != raw) Set(loAny, norm);
             }
 
             // 2b. (1.115) đổi lô → Đặc tính = kết quả kháng sinh của lô (như phiếu xuất nội địa); lô không tra được → bỏ giá trị của lô cũ

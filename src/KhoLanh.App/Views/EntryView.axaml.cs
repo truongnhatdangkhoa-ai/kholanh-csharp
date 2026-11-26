@@ -45,6 +45,10 @@ public partial class EntryView : UserControl, IPage
         _grid.Suggest = SuggestFor;
         _grid.SuggestionPicked += OnSuggestionPicked;
         _grid.CellBackground = CellBg;
+        // 1.116: ô đã tự điền (Tên / Size / Trọng lượng / Ngày / Đặc tính…) khóa tạm — nhấn đúp mới sửa, chữ xám nhạt để nhận ra
+        _grid.SoftLock = (r, c) => c < _model.ColCount && IsAutoCol(_model.Columns[c]) && _model.Get(r, c).Trim().Length > 0;
+        _grid.CellForeground = (r, c) => c < _model.ColCount && r < _model.RowCount && IsAutoCol(_model.Columns[c]) && _model.Get(r, c).Trim().Length > 0 ? AutoFg : null;
+        _grid.SoftLockHit += () => { StatusText.Text = "Ô tự điền đang khóa — nhấn đúp để sửa."; StatusText.Foreground = AppTheme.Brush("#9A5B00"); };
         _model.Derive = DeriveCells;
         InitKkCheck();
         _grid.AddMenuItems(ColorMenu());
@@ -675,8 +679,12 @@ public partial class EntryView : UserControl, IPage
         return raw;
     }
 
+    private static bool IsAutoCol(GridColumn c) => c.Formula.Length == 0 && (c.Auto.Length > 0 || EntryRules.ImplicitAuto(c).Length > 0);
+    private static readonly IBrush AutoFg = AppTheme.Brush("#5D6B78");
+
     private void UpdateStatus()
     {
+        StatusText.ClearValue(TextBlock.ForegroundProperty);
         if (_page is null) { StatusText.Text = ""; return; }
         var sel = _grid.Selection;
         var used = _model.UsedRows();
