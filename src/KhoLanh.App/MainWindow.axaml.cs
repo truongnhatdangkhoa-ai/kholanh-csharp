@@ -180,6 +180,7 @@ public partial class MainWindow : Window
         _lanTimer.Start();
         Closed += (_, _) => _lanTimer.Stop();
         ShowLan();
+        ChayAn.Install(this);   // 1.129: máy chủ — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy
         // Lịch xuất: tự quét Gmail cập nhật lịch (tài khoản có quyền «Duyệt email Lịch xuất», đã khai báo Gmail, bật tự quét).
         s.LichXuat.StartAutoEmail();
         s.LichXuat.Auto = true; // tự tạo List (/ Phiếu) theo Lịch xuất — nhật ký PNX_AutoLog dùng chung app cũ
@@ -218,6 +219,7 @@ public partial class MainWindow : Window
     /// <summary>Dấu chấm trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
     private void ShowLan()
     {
+        ChayAn.Sync();   // 1.129: vừa nhận / trả vai máy chủ → thêm / bỏ biểu tượng khay
         var lan = App.Services.Lan;
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;

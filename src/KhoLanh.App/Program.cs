@@ -11,6 +11,8 @@ internal static class Program
     public static int Main(string[] args)
     {
         Args = args;
+        // 1.129: máy chủ đang chạy ẩn ở khay → mở KhoLanh.exe lần nữa chỉ hiện lại cửa sổ đó (không mở bản thứ 2 tranh cổng máy chủ)
+        if (args.Length == 0 && ChayAn.WakeExisting()) return 0;
         // Lỗi chưa bắt → logs/loi.log (Trợ lý hệ thống đọc lại để báo Quản trị).
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {

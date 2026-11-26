@@ -1923,6 +1923,53 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     Console.WriteLine("[CC] xuất " + xl);
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (cc) — ĐẠT: " : "Xong (cc) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[CHAYAN] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    const WindowCloseReason Nut = WindowCloseReason.WindowClosing;
+    // quy tắc: chỉ người dùng tự bấm đóng trên máy chủ (đang bật chạy ẩn) mới ẩn
+    var cases = new (string Ten, bool Ket, bool Can)[]
+    {
+        ("bấm ✕ trên máy chủ", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, true, false), true),
+        ("Close() trong mã", KhoLanh.App.ChayAn.ShouldHide(Nut, true, false, true, true, false), false),
+        ("đăng xuất", KhoLanh.App.ChayAn.ShouldHide(Nut, false, true, true, true, false), false),
+        ("máy không phải máy chủ", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, false, true, false), false),
+        ("đã tắt chạy ẩn", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, false, false), false),
+        ("Thoát hẳn ở khay", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, true, true), false),
+        ("tự cập nhật (tắt app)", KhoLanh.App.ChayAn.ShouldHide(WindowCloseReason.ApplicationShutdown, false, false, true, true, false), false),
+        ("tắt Windows", KhoLanh.App.ChayAn.ShouldHide(WindowCloseReason.OSShutdown, false, false, true, true, false), false),
+    };
+    foreach (var c in cases) { Console.WriteLine($"[CHAYAN] {c.Ten}: {(c.Ket ? "ẩn" : "thoát")}"); if (c.Ket != c.Can) Bad(c.Ten); }
+    KhoLanh.App.ChayAn.Install(main);   // công cụ chụp tạo nhiều cửa sổ chính (main, small…) — app thật chỉ 1
+    Console.WriteLine($"[CHAYAN] máy chủ = {KhoLanh.App.ChayAn.IsServer} · chạy ẩn bật = {KhoLanh.App.ChayAn.Enabled} · khay = {KhoLanh.App.ChayAn.TrayShown}");
+    if (!KhoLanh.App.ChayAn.IsServer) Bad("máy chụp phải là máy chủ");
+    if (!KhoLanh.App.ChayAn.Enabled) Bad("chạy ẩn phải bật mặc định");
+    if (!KhoLanh.App.ChayAn.TrayShown) Bad("máy chủ phải có biểu tượng ở khay");
+    s.Settings.Set("may_chu_chay_an_bao", "1");
+    KhoLanh.App.ChayAn.HideToTray(main).GetAwaiter().GetResult(); P();
+    Console.WriteLine($"[CHAYAN] sau khi đóng: cửa sổ hiện = {main.IsVisible}, máy chủ còn chạy = {s.Lan.Serving}");
+    if (main.IsVisible) Bad("đóng cửa sổ phải ẩn");
+    if (!s.Lan.Serving) Bad("ẩn cửa sổ không được tắt máy chủ");
+    KhoLanh.App.ChayAn.ShowMain(); P();
+    if (!main.IsVisible) Bad("bấm khay phải hiện lại cửa sổ");
+    // ⋯ Thêm ở tab Máy chủ có mục bật / tắt
+    main.Navigate("dongbo"); P(40);
+    var mc = (main.PageHost.Content as DongBoView)?.MayChu;
+    var more = mc?.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "⋯ Thêm" && b.Flyout is MenuFlyout);
+    var items = ((more?.Flyout as MenuFlyout)?.Items.OfType<MenuItem>().Select(i => i.Header?.ToString() ?? "").ToList()) ?? new();
+    Console.WriteLine("[CHAYAN] ⋯ Thêm: " + string.Join(" · ", items));
+    if (!items.Any(x => x.StartsWith("Tắt chạy ẩn"))) Bad("⋯ Thêm thiếu mục Tắt chạy ẩn");
+    if (more is not null) { more.Flyout!.ShowAt(more); P(10); SnapFlyout(main, more, "chayan-may-chu-them"); more.Flyout.Hide(); P(5); }
+    // tắt chạy ẩn → bỏ khay; bật lại → có khay
+    s.Settings.Set(KhoLanh.App.ChayAn.Key, "0"); KhoLanh.App.ChayAn.Sync();
+    if (KhoLanh.App.ChayAn.TrayShown) Bad("tắt chạy ẩn mà khay còn");
+    if (KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, KhoLanh.App.ChayAn.IsServer, KhoLanh.App.ChayAn.Enabled, false)) Bad("tắt chạy ẩn mà vẫn ẩn");
+    s.Settings.Set(KhoLanh.App.ChayAn.Key, "1"); KhoLanh.App.ChayAn.Sync();
+    if (!KhoLanh.App.ChayAn.TrayShown) Bad("bật lại chạy ẩn mà không có khay");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (chayan) — ĐẠT: " : "Xong (chayan) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)

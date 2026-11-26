@@ -154,6 +154,7 @@ public sealed class MayChuView : UserControl
                 + "Máy này trả vai sau khi máy mới chép đủ dữ liệu rồi thành máy con — không mất dữ liệu.", "Chuyển máy chủ"));
             Item(menu, "Nhật ký nối máy", ShowLog);
             Item(menu, "Địa chỉ Internet của máy chủ…", PublicUrlDialog);
+            Item(menu, ChayAn.Enabled ? "Tắt chạy ẩn (đóng cửa sổ = thoát hẳn)" : "Bật chạy ẩn (đóng cửa sổ = ẩn xuống khay)", ToggleChayAn);
             if (plan?.DuPhong is not null) Item(menu, "Bỏ máy dự phòng", DropStandby);
             more.Flyout = menu;
             var off = new Button { Content = "Tắt máy chủ", Classes = { "danger" } };
@@ -589,6 +590,18 @@ public sealed class MayChuView : UserControl
         var p = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         foreach (var x in c) p.Children.Add(x);
         return p;
+    }
+
+    /// <summary>1.129: máy chủ chạy ẩn — mặc định bật (đóng cửa sổ chỉ ẩn xuống khay, máy chủ vẫn chạy).</summary>
+    private async Task ToggleChayAn()
+    {
+        var on = !ChayAn.Enabled;
+        App.Services.Settings.Set(ChayAn.Key, on ? "1" : "0");
+        ChayAn.Sync();
+        await Ui.Message(this, on
+            ? "Đã BẬT chạy ẩn: trên máy chủ, đóng cửa sổ chỉ ẩn phần mềm xuống khay hệ thống (cạnh đồng hồ) — máy chủ vẫn chạy. Thoát hẳn: chuột phải biểu tượng ở khay › Thoát hẳn."
+            : "Đã TẮT chạy ẩn: đóng cửa sổ là thoát hẳn phần mềm (máy chủ tắt theo).", "Máy chủ chạy ẩn");
+        Render();
     }
 
     private static void Item(MenuFlyout m, string text, Func<Task> click)
