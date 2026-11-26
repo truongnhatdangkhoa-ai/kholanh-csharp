@@ -974,6 +974,32 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.115: SHOTS_ONLY=v208 — Nhập liệu: mẫu Kiểm kê có Lô · Đặc tính trước Ghi chú; nút "Đóng trang" đóng trang đang mở (không tự mở trang khác). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v208")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    var pg = s.Entry.Create("Kiểm kê thử 26-11-2026", KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    var heads = string.Join(" | ", pg.Columns.Select(c => c.Header));
+    Console.WriteLine("[v208] cột: " + heads);
+    if (!heads.Contains("Tổng Net(kg) | Lô | Đặc tính | Ghi chú")) ok = false;
+    main.Show("m6", new KhoLanh.App.Views.EntryView()); P(40);
+    var ev = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.EntryView>().First();
+    var combo = ev.GetVisualDescendants().OfType<ComboBox>().First(c => c.Name == "PageCombo");
+    var item = combo.ItemsSource!.Cast<object>().FirstOrDefault(i => i.ToString()!.Contains("Kiểm kê thử"));
+    if (item is not null) { combo.SelectedItem = item; P(30); }
+    var close = ev.GetVisualDescendants().OfType<Button>().First(b => b.Name == "CloseButton");
+    var grid = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    Console.WriteLine($"[v208] trang mở: lưới hiện {grid.IsVisible} · nút Đóng trang hiện {close.IsVisible}");
+    if (!grid.IsVisible || !close.IsVisible) ok = false;
+    Snap(main, "v208-kiem-ke-lo-dac-tinh");
+    close.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(30);
+    var empty = ev.GetVisualDescendants().OfType<TextBlock>().First(t => t.Name == "EmptyText");
+    Console.WriteLine($"[v208] sau Đóng trang: lưới hiện {grid.IsVisible} · ô trang = {combo.SelectedItem?.ToString() ?? "(trống)"} · {empty.Text}");
+    if (grid.IsVisible || combo.SelectedItem is not null || !empty.IsVisible || close.IsVisible) ok = false;
+    Snap(main, "v208-dong-trang");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v208) — ĐẠT: " : "Xong (v208) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.114: SHOTS_ONLY=v207 — khôi phục 2 chế độ: máy đã tách riêng thấy nút "Nối lại mạng LAN" (Giữa các máy › Chỉ máy này); máy chủ LAN bị khóa khôi phục. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v207")
 {

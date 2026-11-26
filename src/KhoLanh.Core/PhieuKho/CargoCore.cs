@@ -209,6 +209,22 @@ public static class CargoCore
     }
     /// <summary>Kết quả kháng sinh theo số thứ tự 1–83 (bảng mặc định) — dùng khi biết sẵn đặc tính từ mã hàng tồn kho.</summary>
     public static KsInfo? KsRule(int stt) => stt > 0 && RuleOf(stt) is { } r ? new KsInfo(stt, r.Ky, r.Dat, MarketFromDat(r.Dat), false, true) : null;
+    /// <summary>1.115: Đặc tính theo lô (Nhập liệu › Kiểm kê) — cùng cách tra như phiếu xuất nội địa; không tra được → null.</summary>
+    public static string? DacTinhOfLo(KsIndex? ix, string? lo) => LookupKs(ix, ParseLo(lo)) is { } k ? KsLabel(k) : null;
+
+    /// <summary>Chỉ mục kết quả kháng sinh từ các dòng sheet kết quả (key "s:batch:…" / "l:batch:…", value = JSON).</summary>
+    public static KsIndex KsFromRows(System.Text.Json.Nodes.JsonArray rows)
+    {
+        var recs = new List<KhangSinhCore.Rec>();
+        foreach (var o in rows.OfType<System.Text.Json.Nodes.JsonObject>())
+        {
+            var k = o["key"]?.ToString() ?? "";
+            if (!(k.StartsWith("s:batch:") || k.StartsWith("l:batch:"))) continue;
+            try { if (System.Text.Json.Nodes.JsonNode.Parse(o["value"]?.ToString() ?? "") is System.Text.Json.Nodes.JsonObject j) recs.Add(new KhangSinhCore.Rec { Key = k, J = j }); } catch { }
+        }
+        return KsIndex.From(recs);
+    }
+
     public static string KsLabel(KsInfo? k) => k is null ? "" : (k.KyHieu.Length > 0 ? k.KyHieu : k.Stt.ToString()) + (k.Lan2 ? " - L2" : "");
 
     // ------------------------------------------------------------------ danh mục loại hàng / quy cách

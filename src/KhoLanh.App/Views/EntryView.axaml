@@ -11,6 +11,7 @@
               <TextBlock Text="Trang" Classes="muted" VerticalAlignment="Center"/>
               <ComboBox x:Name="PageCombo" Width="300" PlaceholderText="(chưa có trang)" SelectionChanged="OnComboSelected"/>
               <Button x:Name="NewButton" Content="+ Trang mới" Click="OnNew"/>
+              <Button x:Name="CloseButton" Content="✕ Đóng trang" Click="OnClosePage" ToolTip.Tip="Lưu (nếu có sửa) rồi đóng trang đang mở"/>
               <TextBlock x:Name="SaveState" Classes="muted" FontSize="12" VerticalAlignment="Center"/>
             </StackPanel>
             <WrapPanel Grid.Column="1" ItemSpacing="6" LineSpacing="6" HorizontalAlignment="Right" VerticalAlignment="Center">

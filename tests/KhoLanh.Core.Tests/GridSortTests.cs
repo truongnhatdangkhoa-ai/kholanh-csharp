@@ -73,9 +73,14 @@ public class GridSortTests
             new("c5", "Net(kg)", 100, "number") { Formula = "=[Số lượng]*[Trọng lượng]" }, new("c6", "Ghi chú"), new("c7", "Ngày nhập", 100, "date"),
         };
         var up = KhoLanh.Core.Entry.EntryService.UpgradeKiemKe(old);
-        Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Ghi chú", "Ngày nhập", "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" }, up.Select(c => c.Header));
-        Assert.Equal(new[] { "c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11" }, up.Select(c => c.Key));
-        Assert.Equal(12, KhoLanh.Core.Entry.EntryService.UpgradeKiemKe(up).Count);   // chạy lại không thêm nữa
+        // 1.115: thêm Lô · Đặc tính trước Ghi chú (khóa mới c12 / c13, khóa cột cũ giữ nguyên)
+        Assert.Equal(new[] { "Vị trí", "Mã hàng", "Size", "Trọng lượng", "Số lượng", "Tổng Net(kg)", "Lô", "Đặc tính", "Ghi chú", "Ngày nhập", "Số lượng xuất", "Số lượng còn lại", "Tổng Net(kg) còn lại", "Ngày xuất" }, up.Select(c => c.Header));
+        Assert.Equal(new[] { "c0", "c1", "c2", "c3", "c4", "c5", "c12", "c13", "c6", "c7", "c8", "c9", "c10", "c11" }, up.Select(c => c.Key));
+        Assert.Equal(KhoLanh.Core.Entry.EntryRules.Dt, up.Single(c => c.Header == "Đặc tính").Auto);
+        Assert.Equal(14, KhoLanh.Core.Entry.EntryService.UpgradeKiemKe(up).Count);   // chạy lại không thêm nữa
+        // mẫu có sẵn: cùng thứ tự + khóa như trang cũ đã nâng
+        var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke").Columns;
+        Assert.Equal(up.Select(c => c.Header + "=" + c.Key), tpl.Select(c => c.Header + "=" + c.Key));
     }
 
     [Fact]

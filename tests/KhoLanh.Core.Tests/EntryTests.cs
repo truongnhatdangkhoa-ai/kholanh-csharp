@@ -82,19 +82,19 @@ public class EntryTests : IDisposable
 
         // trang tạo từ mẫu: lưu tính lại công thức, giữ màu ô (bỏ màu của cột không còn)
         var p = e.Create("KK", edited);
-        var row = new[] { "A1", "MA", "", "10", "3", "", "", "", "", "", "", "", "", "c1:y,c5:r,c99:g" };
+        var row = new[] { "A1", "MA", "", "10", "3", "", "", "", "", "", "", "", "", "", "", "c1:y,c5:r,c99:g" };   // 1.115: + Lô, Đặc tính
         p = e.Save(p, p.Columns, new List<string[]> { row });
         var back = e.LoadWithColors(p)[0];
         Assert.Equal("30", back[5]);
-        Assert.Equal("3", back[9]);       // số lượng còn lại
-        Assert.Equal("30", back[10]);     // net còn lại
-        Assert.Equal("60", back[12]);
-        Assert.Equal("c1:y,c5:r", back[13]);
-        Assert.Equal(13, e.Load(p)[0].Length);
+        Assert.Equal("3", back[11]);      // số lượng còn lại
+        Assert.Equal("30", back[12]);     // net còn lại
+        Assert.Equal("60", back[14]);
+        Assert.Equal("c1:y,c5:r", back[15]);
+        Assert.Equal(15, e.Load(p)[0].Length);
 
         e.DeleteTemplate("kiem-ke");                    // về mặc định
         Assert.False(e.Templates().Single(t => t.Id == "kiem-ke").Edited);
-        Assert.Equal(12, e.Templates().Single(t => t.Id == "kiem-ke").Columns.Count);
+        Assert.Equal(14, e.Templates().Single(t => t.Id == "kiem-ke").Columns.Count);
     }
 
     [Fact]
