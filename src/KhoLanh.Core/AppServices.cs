@@ -127,6 +127,8 @@ public class AppServices
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
         Auth.PasswordSeen = PhoneAccounts.RememberPassword;   // 1.76: tài khoản PC dùng chung trên điện thoại
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
+        // 1.121: đệm thư lịch xuất đã đọc cạnh database (lượt quét sau chỉ tải thư mới)
+        if (LichXuat.Mail is KhoLanh.Core.LichXuat.ImapMailSource ims) ims.CachePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "email-lich-xuat-dem.json");
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".") { Settings = Settings };
     }
 
