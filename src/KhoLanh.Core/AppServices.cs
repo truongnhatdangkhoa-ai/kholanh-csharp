@@ -48,6 +48,7 @@ public class AppServices
     public KhoLanh.Core.SaoLuu.DriveCaNhanService DriveCaNhan { get; }
     /// <summary>Chấm công (1.129): nạp file máy chấm công, tính giờ theo quy tắc kho, bảng công tháng.</summary>
     public KhoLanh.Core.ChamCong.ChamCongService ChamCong { get; }
+    public KhoLanh.Core.HenGio.HenGioService HenGio { get; }
     public SoDoService SoDo { get; }
     public KiemKeService KiemKe { get; }
     public KhangSinhService KhangSinh { get; }
@@ -106,6 +107,7 @@ public class AppServices
         LuuTru = new KhoLanh.Core.LuuTru.LuuTruService(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "luu-tru"), Session, Settings);
         DriveCaNhan = new KhoLanh.Core.SaoLuu.DriveCaNhanService(Settings, Session, Backup, () => Lan);
         ChamCong = new KhoLanh.Core.ChamCong.ChamCongService(() => Lan, Session, Audit);
+        HenGio = new KhoLanh.Core.HenGio.HenGioService(Settings, Session, Audit);
         PhieuKho = new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
         Cargo = new CargoService(() => Lan, Session, Audit);
         ChungTu = new ChungTuService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings));
