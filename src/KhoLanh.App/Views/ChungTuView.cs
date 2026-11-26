@@ -70,11 +70,11 @@ public sealed class ChungTuView : UserControl, IPage
         _sg = new SheetGrid(_sm) { SpareRows = 3 };
         _sm.Changed += () => { if (!_loading) _signDirty = true; };
 
-        var form = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, MaxWidth = 860 };
+        var form = new WrapPanel { ItemSpacing = 8, LineSpacing = 4 };
         (string Key, string Label, double W)[] fields =
         {
             ("fSoPhieu", "Số phiếu (nhãn)", 130), ("fNgayLap", "Ngày lập (yyyy-mm-dd)", 150), ("fKho", "Bộ phận", 190), ("fLoaiChungTu", "Loại chứng từ", 200),
-            ("fMaBieuMau", "Mã biểu mẫu", 110), ("fSoBanMoiNgay", "Số bản / ngày", 80), ("fGhiChu", "Ghi chú", 260),
+            ("fMaBieuMau", "Mã biểu mẫu", 110), ("fSoBanMoiNgay", "Số bản / ngày", 80), ("fGhiChu", "Ghi chú", 400),
         };
         foreach (var (key, label, w) in fields)
         {
@@ -85,7 +85,8 @@ public sealed class ChungTuView : UserControl, IPage
             form.Children.Add(st);
         }
         // 1.84 (mẫu chuẩn kiểu 3): 7 ô thông tin + Người ký thu thành 1 dòng tóm tắt, bấm "Sửa thông tin" mới mở
-        var editor = new StackPanel { Spacing = 10, Width = 860 };
+        // 1.127: rộng 780 (vừa 1366×768): ô thông tin xếp 2 hàng, 5 cột người ký 134 px
+        var editor = new StackPanel { Spacing = 10, Width = 780 };
         editor.Children.Add(form);
         editor.Children.Add(BuildSigners());
         _info = new InfoLine("Thông tin phiếu", InfoItems, editor);
@@ -501,7 +502,7 @@ public sealed class ChungTuView : UserControl, IPage
         var k = K(_mod);
         _loading = true;
         _sm.ReadOnly = !_edit;
-        _sm.Load(k.Roles.Select((r, i) => new GridColumn(k.SignCols[i], r, 170)),
+        _sm.Load(k.Roles.Select((r, i) => new GridColumn(k.SignCols[i], r, 134)),
             Svc.Signers[_mod].Select(row => k.SignCols.Select(c => row.GetValueOrDefault(c) ?? "").ToArray()));
         _sg.Refresh();
         _loading = false;

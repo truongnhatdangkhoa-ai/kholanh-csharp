@@ -23,10 +23,22 @@ public sealed class InfoLine : Border
         _items = items;
         Classes.Add("infoline");
         Margin = new Thickness(0, 0, 0, 6);
-        _fly = new Flyout
+        // 1.127: FlyoutPresenter mặc định MaxWidth 456 → khung bị cắt, ô / bảng tràn phải phải cuộn ngang (ảnh In chứng từ kho 1366×768).
+        // Nay class "wide" bỏ giới hạn đó (Styles.axaml), khung tự co theo chiều rộng / cao cửa sổ lúc mở, không cuộn ngang.
+        var sv = new ScrollViewer
         {
-            Placement = PlacementMode.BottomEdgeAlignedRight,
-            Content = new ScrollViewer { MaxHeight = 560, MaxWidth = 900, Content = new Border { Padding = new Thickness(6), Child = editor } },
+            MaxHeight = 560, MaxWidth = 900,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = new Border { Padding = new Thickness(6), Child = editor },
+        };
+        _fly = new Flyout { Placement = PlacementMode.BottomEdgeAlignedRight, Content = sv };
+        _fly.FlyoutPresenterClasses.Add("wide");
+        _fly.Opening += (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this) is not { } top) return;
+            var sz = top.ClientSize;
+            sv.MaxWidth = Math.Max(320, Math.Min(900, sz.Width - 48));
+            sv.MaxHeight = Math.Max(240, Math.Min(560, sz.Height - 160));
         };
         _fly.Closed += (_, _) => { Refresh(); Closed?.Invoke(); };
         _edit = new Button { Content = editText + " ▾", Padding = new Thickness(10, 2), FontSize = 12, MinHeight = 24, Height = 26, VerticalAlignment = VerticalAlignment.Center, Flyout = _fly };
