@@ -120,6 +120,7 @@ public partial class MainWindow : Window
                 new NavItem("m3", "Tổng hợp", () => new TongHopView()),
                 new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
+                new NavItem("m24cc", "Chấm công", () => new ChamCongView()),
             }),
             ("CHỨNG TỪ", new[]
             {
@@ -179,6 +180,7 @@ public partial class MainWindow : Window
         _lanTimer.Start();
         Closed += (_, _) => _lanTimer.Stop();
         ShowLan();
+        ChayAn.Install(this);   // 1.129: máy chủ — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy
         // Lịch xuất: tự quét Gmail cập nhật lịch (tài khoản có quyền «Duyệt email Lịch xuất», đã khai báo Gmail, bật tự quét).
         s.LichXuat.StartAutoEmail();
         s.LichXuat.Auto = true; // tự tạo List (/ Phiếu) theo Lịch xuất — nhật ký PNX_AutoLog dùng chung app cũ
@@ -217,6 +219,7 @@ public partial class MainWindow : Window
     /// <summary>Dấu chấm trạng thái LAN trên thanh menu: xanh = nối tốt / đang làm máy chủ, cam = làm riêng (mất máy chủ) hoặc đang chuyển.</summary>
     private void ShowLan()
     {
+        ChayAn.Sync();   // 1.129: vừa nhận / trả vai máy chủ → thêm / bỏ biểu tượng khay
         var lan = App.Services.Lan;
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
@@ -322,7 +325,7 @@ public partial class MainWindow : Window
     {
         ["lx"] = "home", ["m6"] = "edit",
         ["m1"] = "box", ["m2"] = "warehouse", ["m7"] = "pin", ["m3sk"] = "list", ["m1vtb"] = "map", ["m8"] = "grid",
-        ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
+        ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m24cc"] = "calendar", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
         ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
         ["users"] = "users", ["backup"] = "gear", ["ketnoi"] = "network", ["dongbo"] = "cloud", ["audit"] = "history", ["troly"] = "assist",

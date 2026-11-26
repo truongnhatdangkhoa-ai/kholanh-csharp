@@ -1805,6 +1805,171 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
     w.Close();
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v205) — ĐẠT: " : "Xong (v205) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.129: Chấm công — dữ liệu GIẢ (tên giả) theo đúng dạng file "Chi tiết chấm công" của máy chấm công; tự kiểm tính giờ + sửa tay qua lưới.
+// SHOTS_ONLY=cc; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[CC] SAI: " + m); }
+    void W(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(20); Pump(); } }
+    var fp = System.IO.Path.Combine(outDir, "cham-cong-mau.xlsx");
+    using (var wbk = new ClosedXML.Excel.XLWorkbook())
+    {
+        var ws = wbk.AddWorksheet("Sheet1");
+        ws.Cell(1, 1).Value = "CHI TIẾT CHẤM CÔNG"; ws.Cell(2, 1).Value = "Từ ngày 01/10/2026 đến ngày 31/10/2026";
+        var hh = new[] { "Mã nhân viên", "Tên nhân viên", "Phòng ban", "Chức vụ", "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Công", "Giờ", "Tên ca" };
+        for (var c = 0; c < hh.Length; c++) ws.Cell(3, c + 1).Value = hh[c];
+        var ten = new[] { ("9001", "Trần Văn An"), ("9002", "Lê Thị Bình"), ("9003", "Phạm Minh Cường"), ("9004", "Võ Thanh Dũng"), ("9005", "Đặng Hữu Em"), ("9006", "Bùi Quốc Phong"), ("9007", "Ngô Văn Giàu") };
+        var rnd = new Random(7); var r = 4;
+        foreach (var (ma, tn) in ten)
+            for (var d = 1; d <= 31; d++)
+            {
+                var day = new DateTime(2026, 10, d);
+                ws.Cell(r, 1).Value = ma; ws.Cell(r, 2).Value = tn; ws.Cell(r, 3).Value = "Kho"; ws.Cell(r, 5).Value = day; ws.Cell(r, 5).Style.DateFormat.Format = "M/d/yy";
+                ws.Cell(r, 6).Value = day.DayOfWeek == DayOfWeek.Sunday ? "CN" : "T." + ((int)day.DayOfWeek + 1); ws.Cell(r, 11).Value = "HC";
+                if (rnd.Next(10) > 0)
+                {
+                    ws.Cell(r, 7).Value = $"{6 + rnd.Next(2):00}:{rnd.Next(60):00}";
+                    var ra = rnd.Next(5) == 0 ? 19 * 60 + rnd.Next(60) : 16 * 60 + 25 + rnd.Next(40);
+                    if (!(ma == "9003" && d == 9)) ws.Cell(r, 8).Value = $"{ra / 60:00}:{ra % 60:00}";   // quên bấm ra
+                }
+                if (ma == "9004" && d == 1) ws.Cell(r, 7).Value = "00:51";                               // lần bấm ra của đêm trước
+                r++;
+            }
+        for (var d = 1; d <= 31; d++) { ws.Cell(r, 1).Value = "8001"; ws.Cell(r, 2).Value = "Công nhân khác"; ws.Cell(r, 3).Value = "Công Nhân"; ws.Cell(r, 5).Value = new DateTime(2026, 10, d); ws.Cell(r, 7).Value = "06:00"; ws.Cell(r, 8).Value = "14:00"; r++; }
+        wbk.SaveAs(fp);
+    }
+    var cc = s.ChamCong; cc.Load();
+    var kq = cc.Commit(KhoLanh.Core.ChamCong.ChamCongService.ReadFile(fp), new[] { "Kho" });
+    if (kq.Dong != 7 * 31 || kq.NvMoi != 7) Bad($"nạp {kq.Dong} dòng / {kq.NvMoi} người");
+    var nvl = cc.NhanVien.ToList();
+    for (var i = 0; i < nvl.Count; i++) nvl[i].Nhom = i < 3 ? "XUẤT" : i < 6 ? "NHẬP" : "VP";
+    nvl.Add(new KhoLanh.Core.ChamCong.CcNhanVien { Ten = "Lý Văn Lộc (làm thay)", Nhom = "XUẤT", PhongBan = "Kho" });
+    cc.SaveNhanVien(nvl); cc.Load();
+    var loc = cc.NhanVien[^1];
+    cc.SaveSua("2026-10", new[] { 5, 6, 7 }.Select(d => new KhoLanh.Core.ChamCong.CcSua { Nv = loc.Id, Ngay = new DateOnly(2026, 10, d), ChepTu = cc.NhanVien[0].Id })
+        .Append(new KhoLanh.Core.ChamCong.CcSua { Nv = cc.NhanVien[0].Id, Ngay = new DateOnly(2026, 10, 2), VSom = 1, GhiChu = "đóng cont trưa" }));
+    main.Navigate("m24cc"); W(60);
+    var v = main.PageHost.GetVisualDescendants().OfType<ChamCongView>().FirstOrDefault();
+    if (v is null) { Bad("không mở được trang Chấm công"); s.Lan.Dispose(); Environment.Exit(1); }
+    var t = cc.Tinh("2026-10");
+    var a1 = t.Dong[(cc.NhanVien[0].Id, new DateOnly(2026, 10, 5))]; var l1 = t.Dong[(loc.Id, new DateOnly(2026, 10, 5))];
+    if (l1.Vao != a1.Vao || l1.Chot != a1.Chot) Bad($"chép giờ: {l1.Vao}/{l1.Chot} ≠ {a1.Vao}/{a1.Chot}");
+    var c9 = t.Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
+    if (!c9.CanhBao.StartsWith("Chỉ có 1 lần chấm")) Bad("thiếu cảnh báo quên bấm ra: " + c9.CanhBao);
+    // nghỉ có phép: chọn 1 ngày nghỉ (0 giờ chốt) đang được bù của người thứ 2 → đánh dấu phép → ngày đó không còn được bù
+    var nv2 = cc.NhanVien[1];
+    var bu = t.Ngays.FirstOrDefault(d => t.Dong[(nv2.Id, d)].Chot == 0 && t.Dong[(nv2.Id, d)].Nhan.Count > 0);
+    if (bu != default)
+    {
+        cc.SaveSua("2026-10", new[] { new KhoLanh.Core.ChamCong.CcSua { Nv = nv2.Id, Ngay = bu, Loai = "P" } });
+        t = cc.Tinh("2026-10");
+        var dp = t.Dong[(nv2.Id, bu)];
+        Console.WriteLine($"[CC] nghỉ phép {bu:dd/MM}: sau sang {dp.SauSang} giờ, nhận {dp.Nhan.Count} lần");
+        if (dp.SauSang != 0 || dp.Nhan.Count > 0) Bad("ngày nghỉ có phép vẫn được bù");
+    }
+    else Bad("dữ liệu mẫu không có ngày nghỉ được bù để thử nghỉ phép");
+    Console.WriteLine($"[CC] {t.Nvs.Count} người · tổng {t.Nvs.Sum(t.TongGio):0.##} giờ · cần xem {t.Rows.Count(x => x.CanhBao.Length > 0)} · đã sửa {t.Rows.Count(x => x.DaSua)} · sang công {t.SangList.Count} lần / {t.SangList.Sum(x => x.Lan.Gio):0.##} giờ");
+    if (t.SangList.Count == 0) Bad("không có lần sang công nào");
+    // sang công chỉ dời giờ giữa các ngày: tổng giờ không đổi; giờ dư chưa dùng vẫn nằm trên ngày làm dư (> 8 tiếng = tăng ca)
+    foreach (var n in t.Nvs)
+    {
+        if (Math.Abs(t.TongSau(n) - t.TongGio(n)) > 1e-6) Bad($"sang công làm đổi tổng giờ: {n.Ten} {t.TongSau(n)} ≠ {t.TongGio(n)}");
+        var du = t.Ngays.Sum(d => Math.Max(0, t.Dong[(n.Id, d)].SauSang - 8));
+        if (Math.Abs(du - t.DuCon[n.Id]) > 1e-6) Bad($"giờ dư còn lại lệch: {n.Ten} {du} ≠ {t.DuCon[n.Id]}");
+        if (t.DuCon[n.Id] > 0 && t.Ngays.Any(d => t.Dong[(n.Id, d)].SauSang < 8)) Bad($"{n.Ten} còn giờ dư mà vẫn có ngày chưa đủ 8 tiếng");
+    }
+    // 1.129 lễ / Tết / công tác: ngày 20/10 = lễ chung (Cấu hình), người thứ 4 công tác ngày 21 + 22 (không giờ chấm)
+    {
+        var cfg = cc.CauHinh; cfg.NgayLe[new DateOnly(2026, 10, 20)] = ("L", "Lễ thử (dữ liệu giả)"); cc.SaveCauHinh(cfg);
+        var nv4 = cc.NhanVien[3];
+        cc.SaveSua("2026-10", new[] { 21, 22 }.Select(d => new KhoLanh.Core.ChamCong.CcSua { Nv = nv4.Id, Ngay = new DateOnly(2026, 10, d), Loai = "CT", Vao = "", Ra = "" }));
+        t = cc.Tinh("2026-10");
+        var le = new DateOnly(2026, 10, 20);
+        foreach (var n in t.Nvs)
+        {
+            var dl = t.Dong[(n.Id, le)];
+            if (dl.Loai != "L" || dl.TenLe.Length == 0) Bad($"{n.Ten} ngày 20 chưa là lễ chung ({dl.Loai})");
+            if (dl.Nhan.Count > 0 || dl.Cho.Count > 0) Bad($"{n.Ten} ngày lễ vẫn sang công");
+            if (dl.DuCong && (Math.Abs(dl.SauSang - 8) > 1e-9 || dl.GioLe != 0)) Bad($"{n.Ten} nghỉ lễ: sau sang {dl.SauSang} (cần 8), giờ lễ {dl.GioLe} (cần 0)");
+            if (!dl.DuCong && Math.Abs(dl.GioLe - dl.Chot) > 1e-9) Bad($"{n.Ten} đi làm ngày lễ: giờ lễ {dl.GioLe} ≠ chốt {dl.Chot}");
+        }
+        foreach (var d in new[] { 21, 22 })
+        {
+            var dc = t.Dong[(nv4.Id, new DateOnly(2026, 10, d))];
+            if (dc.Loai != "CT" || !dc.DuCong || Math.Abs(dc.SauSang - 8) > 1e-9 || dc.Nhan.Count > 0 || dc.CanhBao.Length > 0) Bad($"công tác ngày {d}: loại {dc.Loai} đủ công {dc.DuCong} sau sang {dc.SauSang} nhận {dc.Nhan.Count} cảnh báo \"{dc.CanhBao}\"");
+        }
+        Console.WriteLine($"[CC] lễ 20/10: {t.Nvs.Count(n => !t.Dong[(n.Id, le)].DuCong)} người đi làm, {t.Nvs.Count(n => t.Dong[(n.Id, le)].DuCong)} người nghỉ đủ công (giờ lễ {t.Nvs.Sum(t.GioLe):0.##}) · công tác {t.NgayLoai(nv4, "CT")} ngày · nghỉ phép {t.Nvs.Sum(t.NgayPhep)} ngày");
+        v!.Reload(); W();
+    }
+    Snap(main, "cc1-bang-cong");
+    // sửa tay qua lưới Chi tiết: ngày 9 người thứ 3 quên bấm ra → gõ 17:00
+    v!._tabs.SelectedIndex = 1; W();
+    var cbo = v.GetVisualDescendants().OfType<ComboBox>().First(x => x.ItemCount == t.Nvs.Count + 1);
+    cbo.SelectedIndex = 3; W();
+    var row = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "09/10/2026");
+    v._cm.SetCells(new[] { (row, 9, "17:00") }); W(5);
+    v.SaveChiTiet().GetAwaiter().GetResult(); W(10);
+    var c9b = cc.Tinh("2026-10").Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
+    Console.WriteLine($"[CC] sửa giờ ra ngày 9: {c9b.Vao}-{c9b.Ra} → chốt {c9b.Chot} (sửa tay {c9b.SuaRa})");
+    if (!c9b.SuaRa || c9b.Ra != "17:00" || c9b.Chot <= 0) Bad("sửa giờ ra qua lưới không lưu");
+    Snap(main, "cc2-chi-tiet");
+    cbo.SelectedIndex = 4; W();   // người thứ 4: công tác 21–22, lễ chung 20
+    var r21 = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "21/10/2026");
+    v._cg.Select(r21, 0); W(); Snap(main, "cc2b-chi-tiet-le-cong-tac");
+    v._tabs.SelectedIndex = 2; W(); Snap(main, "cc3-nhan-vien");
+    v._tabs.SelectedIndex = 3; W(); Snap(main, "cc4-cau-hinh");
+    var xl = System.IO.Path.Combine(outDir, "ChamCong_2026-10.xlsx");
+    KhoLanh.Core.ChamCong.ChamCongService.Export(cc.Tinh("2026-10"), xl);
+    Console.WriteLine("[CC] xuất " + xl);
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (cc) — ĐẠT: " : "Xong (cc) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
+// 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[CHAYAN] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    const WindowCloseReason Nut = WindowCloseReason.WindowClosing;
+    // quy tắc: chỉ người dùng tự bấm đóng trên máy chủ (đang bật chạy ẩn) mới ẩn
+    var cases = new (string Ten, bool Ket, bool Can)[]
+    {
+        ("bấm ✕ trên máy chủ", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, true, false), true),
+        ("Close() trong mã", KhoLanh.App.ChayAn.ShouldHide(Nut, true, false, true, true, false), false),
+        ("đăng xuất", KhoLanh.App.ChayAn.ShouldHide(Nut, false, true, true, true, false), false),
+        ("máy không phải máy chủ", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, false, true, false), false),
+        ("đã tắt chạy ẩn", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, false, false), false),
+        ("Thoát hẳn ở khay", KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, true, true, true), false),
+        ("tự cập nhật (tắt app)", KhoLanh.App.ChayAn.ShouldHide(WindowCloseReason.ApplicationShutdown, false, false, true, true, false), false),
+        ("tắt Windows", KhoLanh.App.ChayAn.ShouldHide(WindowCloseReason.OSShutdown, false, false, true, true, false), false),
+    };
+    foreach (var c in cases) { Console.WriteLine($"[CHAYAN] {c.Ten}: {(c.Ket ? "ẩn" : "thoát")}"); if (c.Ket != c.Can) Bad(c.Ten); }
+    KhoLanh.App.ChayAn.Install(main);   // công cụ chụp tạo nhiều cửa sổ chính (main, small…) — app thật chỉ 1
+    Console.WriteLine($"[CHAYAN] máy chủ = {KhoLanh.App.ChayAn.IsServer} · chạy ẩn bật = {KhoLanh.App.ChayAn.Enabled} · khay = {KhoLanh.App.ChayAn.TrayShown}");
+    if (!KhoLanh.App.ChayAn.IsServer) Bad("máy chụp phải là máy chủ");
+    if (!KhoLanh.App.ChayAn.Enabled) Bad("chạy ẩn phải bật mặc định");
+    if (!KhoLanh.App.ChayAn.TrayShown) Bad("máy chủ phải có biểu tượng ở khay");
+    s.Settings.Set("may_chu_chay_an_bao", "1");
+    KhoLanh.App.ChayAn.HideToTray(main).GetAwaiter().GetResult(); P();
+    Console.WriteLine($"[CHAYAN] sau khi đóng: cửa sổ hiện = {main.IsVisible}, máy chủ còn chạy = {s.Lan.Serving}");
+    if (main.IsVisible) Bad("đóng cửa sổ phải ẩn");
+    if (!s.Lan.Serving) Bad("ẩn cửa sổ không được tắt máy chủ");
+    KhoLanh.App.ChayAn.ShowMain(); P();
+    if (!main.IsVisible) Bad("bấm khay phải hiện lại cửa sổ");
+    // ⋯ Thêm ở tab Máy chủ có mục bật / tắt
+    main.Navigate("dongbo"); P(40);
+    var mc = (main.PageHost.Content as DongBoView)?.MayChu;
+    var more = mc?.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "⋯ Thêm" && b.Flyout is MenuFlyout);
+    var items = ((more?.Flyout as MenuFlyout)?.Items.OfType<MenuItem>().Select(i => i.Header?.ToString() ?? "").ToList()) ?? new();
+    Console.WriteLine("[CHAYAN] ⋯ Thêm: " + string.Join(" · ", items));
+    if (!items.Any(x => x.StartsWith("Tắt chạy ẩn"))) Bad("⋯ Thêm thiếu mục Tắt chạy ẩn");
+    if (more is not null) { more.Flyout!.ShowAt(more); P(10); SnapFlyout(main, more, "chayan-may-chu-them"); more.Flyout.Hide(); P(5); }
+    // tắt chạy ẩn → bỏ khay; bật lại → có khay
+    s.Settings.Set(KhoLanh.App.ChayAn.Key, "0"); KhoLanh.App.ChayAn.Sync();
+    if (KhoLanh.App.ChayAn.TrayShown) Bad("tắt chạy ẩn mà khay còn");
+    if (KhoLanh.App.ChayAn.ShouldHide(Nut, false, false, KhoLanh.App.ChayAn.IsServer, KhoLanh.App.ChayAn.Enabled, false)) Bad("tắt chạy ẩn mà vẫn ẩn");
+    s.Settings.Set(KhoLanh.App.ChayAn.Key, "1"); KhoLanh.App.ChayAn.Sync();
+    if (!KhoLanh.App.ChayAn.TrayShown) Bad("bật lại chạy ẩn mà không có khay");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (chayan) — ĐẠT: " : "Xong (chayan) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
