@@ -191,6 +191,34 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Duong_ham_nen_du_lieu_va_chia_dot_so_cho()
+    {
+        // 1 bảng ~ 20 MB JSON (giống bảng tồn lớn) → sau nén nhỏ hơn nhiều, dưới giới hạn 100 MB / yêu cầu của Cloudflare
+        var rows = new JsonArray(Enumerable.Range(0, 120_000).Select(i => (JsonNode)new JsonObject
+        { ["ma"] = $"VRHLBTNXECR00{i % 900:000}IMA1", ["ten"] = "Tôm PD BTP (2 kg x 5 gói) - Semi - HD-2614", ["vt"] = $"A{i % 30:00}-{i % 7}", ["sl"] = i % 50, ["kg"] = 10.5 }).ToArray());
+        var req = new JsonObject { ["op"] = "write", ["k"] = "k", ["sheets"] = new JsonObject { ["S"] = rows.ToJsonString() } };
+        var plain = System.Text.Encoding.UTF8.GetByteCount(req.ToJsonString());
+        var (body, _) = LanHttp.SealRequest("k", req);
+        Assert.True(body.Length * 5 < plain, $"nén {plain / 1048576} MB → {body.Length / 1048576.0:0.0} MB");
+        Assert.Equal(rows.Count, JsonNode.Parse(LanHttp.OpenRequest("k", body, new LanHttp.ReplayGuard())!.Value.Req["sheets"]!["S"]!.ToString())!.AsArray().Count);
+
+        // sổ chờ nhiều bảng lớn: gửi theo đợt (ở đây mỗi đợt ≤ 1 bảng), cuối cùng đủ cả lên máy chủ
+        var old = LanService.SyncBatchChars;
+        try
+        {
+            LanService.SyncBatchChars = 10;
+            var (srv, cli, ms, _) = Pair();
+            Stop(srv);
+            Until(() => !cli.Lan.Online, "máy con mất máy chủ");
+            cli.Lan.Write(Db, One("A", Rows("a1"))); cli.Lan.Write(Db, One("B", Rows("b1"))); cli.Lan.Write(Db, One("C", Rows("c1")));
+            Assert.Equal(3, cli.Lan.PendingCount());
+            var srv2 = Boot(ms);
+            Until(() => cli.Lan.PendingCount() == 0 && Local(srv2, "A") == "a1" && Local(srv2, "B") == "b1" && Local(srv2, "C") == "c1", "sổ chờ gửi hết theo đợt");
+        }
+        finally { LanService.SyncBatchChars = old; }
+    }
+
+    [Fact]
     public void Client_reads_and_writes_the_server_directly()
     {
         var (srv, cli, _, _) = Pair();

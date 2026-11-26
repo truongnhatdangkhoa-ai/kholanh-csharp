@@ -45,6 +45,21 @@ public static class LanHttp
         return h.ComputeHash(Encoding.ASCII.GetBytes(label).Concat(n.ToArray()).ToArray());
     }
 
+    /// <summary>Nén gzip trước khi mã hóa: JSON bảng dữ liệu nén 5–15 lần → bảng lớn vẫn dưới giới hạn 100 MB / yêu cầu của Cloudflare gói Free.</summary>
+    public static byte[] Zip(byte[] b)
+    {
+        using var ms = new MemoryStream();
+        using (var gz = new System.IO.Compression.GZipStream(ms, System.IO.Compression.CompressionLevel.Fastest)) gz.Write(b);
+        return ms.ToArray();
+    }
+    public static byte[] Unzip(byte[] b)
+    {
+        using var gz = new System.IO.Compression.GZipStream(new MemoryStream(b), System.IO.Compression.CompressionMode.Decompress);
+        using var o = new MemoryStream(); gz.CopyTo(o); return o.ToArray();
+    }
+    /// <summary>Giới hạn thân 1 yêu cầu (sau nén) — dưới 100 MB của Cloudflare gói Free, chừa khoảng an toàn.</summary>
+    public const int MaxRequest = 90 * 1024 * 1024;
+
     private static byte[] Enc(byte[] key, byte[] plain)
     {
         var c = new byte[plain.Length]; var tag = new byte[16];
@@ -65,13 +80,16 @@ public static class LanHttp
     {
         var o = (JsonObject)req.DeepClone(); o["ts"] = new DateTimeOffset(now ?? DateTime.UtcNow).ToUnixTimeMilliseconds();
         var n = RandomNumberGenerator.GetBytes(16);
-        return (Magic.Concat(n).Concat(Enc(Key(lanKey, "http-c2s", n), Encoding.UTF8.GetBytes(o.ToJsonString()))).ToArray(), n);
+        var body = Magic.Concat(n).Concat(Enc(Key(lanKey, "http-c2s", n), Zip(Encoding.UTF8.GetBytes(o.ToJsonString())))).ToArray();
+        if (body.Length > MaxRequest)
+            throw new BusinessException($"Dữ liệu gửi một lần quá lớn ({body.Length / 1048576} MB sau khi nén) — vượt giới hạn 100 MB của đường hầm Cloudflare. Báo người quản lý app.");
+        return (body, n);
     }
 
     public static JsonObject? OpenResponse(string lanKey, byte[] nonce, byte[] body)
     {
         var p = Dec(Key(lanKey, "http-s2c", nonce), body);
-        return p is null ? null : JsonNode.Parse(Encoding.UTF8.GetString(p)) as JsonObject;
+        return p is null ? null : JsonNode.Parse(Encoding.UTF8.GetString(Unzip(p))) as JsonObject;
     }
 
     /// <summary>Phía máy chủ: mở yêu cầu. null = sai khóa / hỏng / quá hạn / phát lại.</summary>
@@ -81,7 +99,8 @@ public static class LanHttp
         var n = body.AsSpan(4, 16).ToArray();
         var p = Dec(Key(lanKey, "http-c2s", n), body.AsSpan(20));
         if (p is null) return null;
-        if (JsonNode.Parse(Encoding.UTF8.GetString(p)) is not JsonObject o) return null;
+        byte[] raw; try { raw = Unzip(p); } catch (InvalidDataException) { return null; }
+        if (JsonNode.Parse(Encoding.UTF8.GetString(raw)) is not JsonObject o) return null;
         var t = now ?? DateTime.UtcNow;
         var ts = o["ts"]?.GetValue<long>() ?? 0;
         if (Math.Abs((DateTimeOffset.FromUnixTimeMilliseconds(ts).UtcDateTime - t).TotalMinutes) > MaxSkew.TotalMinutes) return null;
@@ -90,7 +109,7 @@ public static class LanHttp
         return (o, n);
     }
 
-    public static byte[] SealResponse(string lanKey, byte[] nonce, JsonObject res) => Enc(Key(lanKey, "http-s2c", nonce), Encoding.UTF8.GetBytes(res.ToJsonString()));
+    public static byte[] SealResponse(string lanKey, byte[] nonce, JsonObject res) => Enc(Key(lanKey, "http-s2c", nonce), Zip(Encoding.UTF8.GetBytes(res.ToJsonString())));
 
     /// <summary>Nhớ số ngẫu nhiên đã dùng (gấp đôi hạn lệch giờ) để chặn gửi lại đúng gói tin cũ.</summary>
     public sealed class ReplayGuard
@@ -122,7 +141,8 @@ public sealed class HttpLanConnection : ILanConn
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         // qua Internet chậm hơn LAN: lệnh "hello" 2 giây ở LAN → cho tối thiểu 8 giây
-        cts.CancelAfter(timeout < TimeSpan.FromSeconds(8) ? TimeSpan.FromSeconds(8) : timeout);
+        // lệnh nhỏ ("hello" 2 giây ở LAN) → tối thiểu 8 giây; lệnh dữ liệu (≥ 30 giây ở LAN: tải lại toàn bộ, gửi sổ chờ) → 5 phút
+        cts.CancelAfter(timeout < TimeSpan.FromSeconds(8) ? TimeSpan.FromSeconds(8) : timeout >= TimeSpan.FromSeconds(30) ? TimeSpan.FromMinutes(5) : timeout);
         try
         {
             var (body, nonce) = LanHttp.SealRequest(_key, req);
@@ -133,6 +153,7 @@ public sealed class HttpLanConnection : ILanConn
             if (!res.IsSuccessStatusCode)
                 throw new IOException(res.StatusCode switch
                 {
+                    HttpStatusCode.RequestEntityTooLarge => "dữ liệu gửi một lần quá lớn cho đường hầm",
                     HttpStatusCode.Forbidden => "máy chủ từ chối (sai mã LAN / giờ máy lệch > 5 phút)",
                     HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout or (HttpStatusCode)530
                         => "đường hầm chạy nhưng máy chủ ở nhà không trả lời (máy tắt / app chưa mở / chưa làm máy chủ)",
@@ -140,7 +161,7 @@ public sealed class HttpLanConnection : ILanConn
                 });
             return LanHttp.OpenResponse(_key, nonce, bytes) ?? throw new IOException("Trả lời không giải mã được (sai mã LAN?).");
         }
-        catch (Exception e) when (e is IOException or HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
+        catch (Exception e) when (e is IOException or InvalidDataException or HttpRequestException or OperationCanceledException or System.Text.Json.JsonException)
         {
             if (ct.IsCancellationRequested) throw;
             throw new LanUnreachableException($"Không nối được {Endpoint}: {e.Message}", e);

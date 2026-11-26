@@ -1061,6 +1061,23 @@ public sealed partial class LanService : ISheetSource, IDisposable
     }
 
     /// <summary>1 mục sổ chờ dạng gửi lên máy chủ / máy chính (kèm các lần gửi trước chưa được xác nhận).</summary>
+    /// <summary>
+    /// Gửi sổ chờ theo từng đợt ≤ <see cref="SyncBatchChars"/> ký tự (theo thứ tự ghi, ít nhất 1 mục) — mất kết nối lâu, sửa nhiều bảng lớn thì
+    /// không dồn thành 1 yêu cầu khổng lồ (đường hầm Cloudflare giới hạn 100 MB / yêu cầu); phần còn lại gửi ở lượt kế tiếp.
+    /// </summary>
+    public static long SyncBatchChars { get; set; } = 40_000_000;
+    internal static List<T> Batch<T>(List<T> rows) where T : struct, System.Runtime.CompilerServices.ITuple
+    {
+        var res = new List<T>(); long sum = 0;
+        foreach (var r in rows)
+        {
+            long n = 0; for (var i = 0; i < r.Length; i++) if (r[i] is string str) n += str.Length;
+            if (res.Count > 0 && sum + n > SyncBatchChars) break;
+            res.Add(r); sum += n;
+        }
+        return res;
+    }
+
     private static JsonObject ItemOf((string db_key, string sheet, string op_id, string? data, long base_version, string? base_data, string username, string prev_ops) p)
     {
         var o = new JsonObject { ["op"] = p.op_id, ["db"] = p.db_key, ["sheet"] = p.sheet, ["bv"] = p.base_version, ["bd"] = p.base_data, ["d"] = p.data, ["u"] = p.username };
@@ -1095,7 +1112,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private async Task Flush(CancellationToken ct)
     {
         if (_server is not { } n) return;
-        var rows = PendingRows();
+        var rows = Batch(PendingRows());
         if (rows.Count == 0) return;
         var req = Req("sync");
         req["items"] = new JsonArray(rows.Select(p => (JsonNode)ItemOf(p)).ToArray());

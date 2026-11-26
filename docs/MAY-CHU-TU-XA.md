@@ -12,6 +12,9 @@ Máy cùng mạng nhà ───────────────────
 ## An toàn
 - Gói tin vẫn **mã hóa AES-256-GCM bằng khóa LAN** (lưu trong Google Sheet chung, chỉ máy đăng nhập được mới có) — Cloudflare / mạng giữa đường không đọc, không sửa được; gửi lại gói cũ bị chặn.
 - PC máy chủ **không mở cổng** trên modem; cổng 47821 chỉ nghe trong máy (127.0.0.1).
+- **Dung lượng**: app không gửi nguyên file database mà gửi từng bảng dữ liệu module, **nén trước khi gửi** (JSON nén 5–15 lần) — giới hạn
+  100 MB / lần gửi của Cloudflare gói Free chỉ chạm khi MỘT bảng vượt khoảng 1 GB chữ. Sổ chờ (sửa lúc mất kết nối) gửi theo từng đợt nhỏ;
+  tải lại toàn bộ (máy mới) chờ tối đa 5 phút. Phần lịch sử phiên bản / nhật ký / sao lưu của database không đi qua đường hầm.
 - Giờ trên các máy phải đúng (lệch quá 5 phút bị từ chối) — Windows mặc định tự chỉnh giờ.
 
 ## Bước 1 — Chuyển DNS kcenter.xyz từ Mắt Bão sang Cloudflare (làm 1 lần)
