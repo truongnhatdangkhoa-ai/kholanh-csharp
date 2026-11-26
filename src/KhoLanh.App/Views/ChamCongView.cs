@@ -35,7 +35,7 @@ public sealed class ChamCongView : UserControl, IPage
     private readonly GridModel _bm = new() { ReadOnly = true };
     private readonly SheetGrid _bg;
     private readonly ComboBox _bView = new() { ItemsSource = new[] { "Giờ sau sang công", "Giờ chốt (trước sang công)" }, SelectedIndex = 0, MinWidth = 210 };
-    private readonly CheckBox _buTruoc = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly CheckBox _buTruoc = new() { VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
     private bool SauSangView => _bView.SelectedIndex != 1;
     // Chi tiết
     internal readonly GridModel _cm = new();
@@ -136,9 +136,17 @@ public sealed class ChamCongView : UserControl, IPage
     {
         if (CurKy is not { } ky)
         {
+            // 26/11: nạp bảng trống KHÔNG được coi là người dùng sửa (trước: báo "Chưa lưu…" + hẹn lưu); ô "Bù giờ dư" (chưa có chữ) ẩn
             _t = null; _st.Text = Svc.CanEdit ? "Chưa có dữ liệu — bấm “Nạp file máy chấm công…”." : "Chưa có dữ liệu chấm công.";
-            _bm.Load(new[] { new GridColumn("x", "", 300) }, Array.Empty<string[]>()); _bg.Refresh();
-            _cm.Load(new[] { new GridColumn("x", "", 300) }, Array.Empty<string[]>()); _cg.Refresh();
+            _loading = true;
+            try
+            {
+                _buTruoc.IsVisible = false;
+                _bm.Load(new[] { new GridColumn("x", "Chưa có dữ liệu", 300) }, Array.Empty<string[]>()); _bg.Refresh();
+                _cm.Load(new[] { new GridColumn("x", "Chưa có dữ liệu", 300) }, Array.Empty<string[]>()); _cg.Refresh();
+            }
+            finally { _loading = false; }
+            _cSave.Stop();
             return;
         }
         _t = Svc.Tinh(ky);

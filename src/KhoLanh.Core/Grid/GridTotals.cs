@@ -18,6 +18,8 @@ public static class GridTotals
         if (h.Length == 0) return false;
         // "Trọng lượng (kg)" / "Tổng trọng lượng" là tổng → cộng; "Trọng lượng" trơn hay "T.Lượng" là kg / đơn vị → không
         if (Regex.IsMatch(h, @"trong luong") && !Regex.IsMatch(h, @"^t\.") && (h.Contains("(kg)") || h.Contains("tong") || h.Contains("ton") || h.Contains("xuat") || h.Contains("nhap"))) return !Regex.IsMatch(h, @"kg\s*/|/\s*(don vi|dv)\b");
+        // 26/11: cột số liệu theo kg ghi đơn vị trong ngoặc ("Kiểm kê (kg)", "Kế toán (kg)", "Kho gửi (kg)", "Chênh (kg)") là tổng kg → cộng
+        if (Regex.IsMatch(h, @"\((kg|kien|thung|bao)\)") && !Regex.IsMatch(h, @"kg\s*/|/\s*(don vi|dv)\b|don gia|gia\b|%|ty le|ti le")) return true;
         return Include.IsMatch(h) && !Exclude.IsMatch(h);
     }
 

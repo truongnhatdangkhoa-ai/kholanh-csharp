@@ -204,16 +204,17 @@ public sealed partial class KhangSinhView : UserControl, IPage
             Btn("‹ Ngày trước", () => Step(+1)), _day, Btn("Ngày sau ›", () => Step(-1)), _allDays, _hInfo);
         var search = Wrap(_q, Btn("Xóa bộ lọc", ClearFilters));
         var cols = Wrap(new Control[] { Label("Lọc cột:") }.Concat(_colF).ToArray());
+        // 26/11: lệnh xóa ít dùng (theo phiếu / tháng / lỗi ngày / toàn bộ) luôn nằm trong "⋯ Thêm" — thanh còn Xuất + 2 lệnh xóa hay dùng
         var acts = new ToolRow { };
         if (_export) acts.Children.Add(Btn("Xuất Excel (đang lọc)", async () => await ExportAsync()));
         if (_edit)
         {
             acts.Children.Add(Btn("Xóa dòng đang chọn…", async () => await DeleteSelected(), danger: true));
             acts.Children.Add(Btn("Xóa dữ liệu ngày này…", async () => await DeleteDay(), danger: true, tip: "Xóa mọi bản ghi của ngày đang xem để nhập lại file ngày đó"));
-            acts.Children.Add(Btn("Xóa theo phiếu…", async () => await DeletePhieu(), tip: "Xóa đúng phần dữ liệu đã nhập từ 1 phiếu PDF (lần 1 hoặc lần 2)"));
-            acts.Children.Add(Btn("Xóa theo tháng…", async () => await DeleteMonth()));
-            acts.Children.Add(Btn("Xóa dòng lỗi ngày", async () => await DeleteBad(), tip: "Xóa các bản ghi có Ngày không hợp lệ"));
-            acts.Children.Add(Btn("Xóa toàn bộ dữ liệu…", async () => await ClearAll(), danger: true));
+            acts.Children.Add(ToolRow.More(Btn("Xóa theo phiếu…", async () => await DeletePhieu(), tip: "Xóa đúng phần dữ liệu đã nhập từ 1 phiếu PDF (lần 1 hoặc lần 2)")));
+            acts.Children.Add(ToolRow.More(Btn("Xóa theo tháng…", async () => await DeleteMonth())));
+            acts.Children.Add(ToolRow.More(Btn("Xóa dòng lỗi ngày", async () => await DeleteBad(), tip: "Xóa các bản ghi có Ngày không hợp lệ")));
+            acts.Children.Add(ToolRow.More(Btn("Xóa toàn bộ dữ liệu…", async () => await ClearAll(), danger: true)));
         }
         var head = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6, 0, 6) };
         head.Children.Add(nav); head.Children.Add(search); head.Children.Add(cols); head.Children.Add(acts);
