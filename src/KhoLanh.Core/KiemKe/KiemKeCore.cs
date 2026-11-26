@@ -537,6 +537,46 @@ public static class KiemKeCore
         return o;
     }
 
+    // ================================================================== 1.130: mã đang lệch → lệch ở vị trí nào (người dùng duyệt)
+
+    /// <summary>1 vị trí có mã đang xem: sổ (Tồn theo vị trí, kiện) · đếm · chênh (đếm − sổ) · dòng kiểm kê của mã ở vị trí đó.</summary>
+    public sealed class MaViTri
+    {
+        public string Code = "", St = ""; public double Exp, Cnt, Diff; public List<Line> Lines = new();
+        /// <summary>Ô chưa có dòng kiểm kê nào (chưa đếm cả ô) — không tính là lệch.</summary>
+        public bool ChuaDem => St == VtChua;
+        public bool Lech => !ChuaDem && Math.Abs(Diff) > VtTol;
+    }
+
+    /// <summary>Các vị trí có mã <paramref name="ma"/> (sổ hoặc đếm), vị trí lệch lên trước — để biết mã lệch ở ô nào.</summary>
+    public static List<MaViTri> ViTriCuaMa(VtCmp? c, string? ma)
+    {
+        var res = new List<MaViTri>(); var key = SoDoCore.KeyMa(ma);
+        if (c is null || key.Length == 0) return res;
+        foreach (var cell in c.Cells.Values)
+        {
+            var its = cell.Items.Where(i => i.Ma == key).ToList();
+            if (its.Count == 0) continue;
+            double exp = R2(its.Sum(i => i.Exp)), cnt = R2(its.Sum(i => i.Cnt));
+            res.Add(new MaViTri { Code = cell.P.Code, St = cell.St, Exp = exp, Cnt = cnt, Diff = R2(cnt - exp), Lines = cell.Lines.Where(l => SoDoCore.KeyMa(l.Ma) == key).ToList() });
+        }
+        return res.OrderByDescending(x => x.Lech).ThenBy(x => x.ChuaDem).ThenBy(x => x.Code, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>"Để nhầm chỗ": cùng mã, ô này thiếu đúng bằng số ô kia thừa (ghép cặp số kiện bằng nhau, mỗi ô 1 lần).</summary>
+    public static List<(MaViTri Thieu, MaViTri Thua, double Kien)> NhamCho(IEnumerable<MaViTri> list)
+    {
+        var res = new List<(MaViTri, MaViTri, double)>();
+        var thua = list.Where(x => x.Diff > VtTol).ToList();
+        foreach (var t in list.Where(x => x.Diff < -VtTol).OrderBy(x => x.Diff))
+        {
+            var m = thua.FirstOrDefault(x => Math.Abs(x.Diff + t.Diff) <= VtTol);
+            if (m is null) continue;
+            thua.Remove(m); res.Add((t, m, -t.Diff));
+        }
+        return res;
+    }
+
     // ================================================================== 1 trang Nhập liệu kiểm kê ↔ sơ đồ (1.72, Sơ đồ kho › chế độ "Kiểm kê")
 
     /// <summary>Trạng thái 1 ô vị trí so với 1 trang kiểm kê: khớp · lệch · thiếu (sổ có, đếm không / = 0) · thừa (đếm có, sổ trống) · chưa đếm (dãy không có trong trang).</summary>

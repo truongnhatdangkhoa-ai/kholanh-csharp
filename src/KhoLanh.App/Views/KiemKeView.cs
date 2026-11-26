@@ -39,7 +39,7 @@ public sealed partial class KiemKeView : UserControl, IPage
     private readonly TextBlock _status = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _info = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
     private readonly Border _lockBar = new() { Background = AppTheme.Brush("#FFF4CC"), BorderBrush = AppTheme.Brush("#E8C766"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 6, 0, 0), IsVisible = false };
-    private readonly TabControl _tabs;
+    internal readonly TabControl _tabs;
 
     // ---------- tab Số liệu kiểm kê
     private readonly StackPanel _pageList = new() { Spacing = 2 };
@@ -63,9 +63,9 @@ public sealed partial class KiemKeView : UserControl, IPage
     private readonly TextBox _q = new() { Watermark = "Tìm mã, tên…", Width = 240 };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _am = new() { ReadOnly = true };
-    private readonly SheetGrid _ag;
-    private List<Row> _aRows = new();
-    private readonly StackPanel _det = new() { Spacing = 6 };
+    internal readonly SheetGrid _ag;
+    internal List<Row> _aRows = new();
+    internal readonly StackPanel _det = new() { Spacing = 6 };
     private string _fltKey = "LECH";
     private static readonly (string Key, string Text)[] Flts =
         { ("LECH", "Đang lệch (cần xử lý)"), ("ALL", "Tất cả mã"), ("LSX", "Lệch theo LSX"), (Khop, Khop), (Thua, Thua), (Thieu, Thieu), (LechKg, LechKg), (ChiKK, ChiKK), (ChuaKK, ChuaKK) };
@@ -458,6 +458,7 @@ public sealed partial class KiemKeView : UserControl, IPage
             foreach (var l in r.Lsx) _det.Children.Add(Muted($"{(l.Lech ? "✗" : "✓")} {l.Lsx}: kiểm kê {Q(l.KkKien)} kiện / {Kg(l.KkKg)} kg · tồn {Q(l.TonKien)} kiện / {Kg(l.TonKg)} kg"));
         }
         if (r.DKien is not null || r.DKg is not null) _det.Children.Add(Label($"Chênh: {D(r.DKien)} kiện · {D(r.DKg, true)} kg", true, fg: KiemKeCore.Lech.Contains(r.Status) ? Warn : null));
+        ShowViTri(r);
         if (r.Nn is { } n)
         {
             _det.Children.Add(Label((n.Level == "xd" ? "✔ " : n.Level == "ng" ? "? " : "") + n.Label + (n.Level == "xd" ? " (xác định)" : n.Level == "ng" ? " (nghi ngờ — cần xác nhận)" : ""), true, 13.5));
@@ -482,6 +483,33 @@ public sealed partial class KiemKeView : UserControl, IPage
             foreach (var h in hd) _det.Children.Add(Label($"{h.Hd}: {Q(h.Kk)} ↔ {Q(h.Ton)} kiện" + (Math.Abs(h.D) > 1e-9 ? $" (chênh {D(h.D)})" : ""), size: 12, fg: Math.Abs(h.D) > 1e-9 ? Warn : null));
         }
     }
+    /// <summary>1.130 (người dùng duyệt "Chỉ ra lệch ở vị trí nào"): mã đang xem ở từng ô vị trí — sổ (Tồn theo vị trí) · đếm · chênh,
+    /// nghi để nhầm chỗ (ô thiếu đúng bằng ô thừa); bấm vị trí có dòng kiểm kê → mở đúng dòng ở Nhập liệu.</summary>
+    private void ShowViTri(Row r)
+    {
+        var list = KiemKeCore.ViTriCuaMa(Svc.Vt, r.Ma);
+        if (list.Count == 0) return;
+        var lech = list.Count(x => x.Lech); var chua = list.Where(x => x.ChuaDem).ToList();
+        _det.Children.Add(Label(lech > 0 ? $"Lệch ở {lech} vị trí (sổ theo vị trí ↔ đếm)" : list.Count > chua.Count ? "Theo vị trí: các ô đã đếm đều khớp" : "Theo vị trí: chưa đếm ô nào có mã này", true, 13.5, fg: lech > 0 ? Warn : null));
+        foreach (var (t, h, k) in KiemKeCore.NhamCho(list))
+            _det.Children.Add(Label($"⇄ Nghi để nhầm chỗ: thiếu {Q(k)} kiện ở {t.Code}, thừa {Q(k)} kiện ở {h.Code}", size: 12, fg: Warn));
+        foreach (var x in list.Where(x => !x.ChuaDem).Take(30))
+        {
+            var text = $"{x.Code} · sổ {Q(x.Exp)} · đếm {Q(x.Cnt)}" + (x.Lech ? (x.Diff < 0 ? $" · thiếu {Q(-x.Diff)}" : $" · thừa {Q(x.Diff)}") : " · khớp")
+                + (x.Lines.Count == 0 ? " (chưa có dòng kiểm kê)" : "");
+            var line = x.Lines.FirstOrDefault();
+            if (line is null || !App.Services.Session.Can("m6")) { _det.Children.Add(Label(text, size: 12, fg: x.Lech ? Warn : null)); continue; }
+            var b = new Button { Content = text + " ↗", Classes = { "ghost" }, Padding = new Thickness(4, 1), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Left };
+            if (x.Lech) b.Foreground = Warn;
+            ToolTip.SetTip(b, $"Mở Nhập liệu › {line.Page}, dòng {line.Row}");
+            b.Click += (_, _) => { var ev = new EntryView(); ev.OpenAt(line.PageId, Math.Max(0, line.Row - 1)); MainWindow.Of(this)?.Show("m6", ev); };
+            _det.Children.Add(b);
+        }
+        if (list.Count - chua.Count > 30) _det.Children.Add(Muted($"… và {list.Count - chua.Count - 30} vị trí nữa"));
+        if (chua.Count > 0)
+            _det.Children.Add(Muted($"Chưa đếm {chua.Count} ô có mã này theo sổ ({Q(chua.Sum(x => x.Exp))} kiện): " + string.Join(", ", chua.Take(12).Select(x => x.Code)) + (chua.Count > 12 ? "…" : "")));
+    }
+
     private async Task FixAll()
     {
         var list = Svc.T.Rows.Where(r => r.Nn is { Code: "sai-ma", Side: "kk", Strong: true, FixTo: not null }).Select(r => (r.Key, To: r.Nn!.FixTo!, r.Ma)).ToList();
