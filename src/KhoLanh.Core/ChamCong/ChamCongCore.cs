@@ -75,6 +75,23 @@ public static class CcCore
         return m < c.RaTronGio ? h * 60 : m < c.RaNuaGio ? h * 60 + 30 : (h + 1) * 60;
     }
 
+    /// <summary>Loại ngày đặc biệt: P nghỉ có phép · L nghỉ lễ · T nghỉ Tết · CT công tác ("" = ngày thường).</summary>
+    public static readonly (string Ma, string Ten)[] Loais = { ("P", "Nghỉ có phép"), ("L", "Nghỉ lễ"), ("T", "Nghỉ Tết"), ("CT", "Công tác") };
+    public static string NormLoai(string? s)
+    {
+        var t = CcCoreText.Fold(s).Replace(".", "").Replace(" ", "");
+        return t switch
+        {
+            "" => "",
+            "p" or "phep" or "x" or "nghiphep" or "nghicophep" or "cophep" => "P",
+            "l" or "le" or "nghile" => "L",
+            "t" or "tet" or "nghitet" => "T",
+            "ct" or "congtac" => "CT",
+            _ => "?",
+        };
+    }
+    public static string TenLoai(string loai) => Loais.FirstOrDefault(x => x.Ma == loai).Ten ?? "";
+
     public sealed record Ket(int? VaoTron, int? RaTron, int Nghi, int Cong, string CanhBao)
     {
         public double Gio => Math.Round(Cong / 60.0, 2);
@@ -167,6 +184,10 @@ public sealed class CcCauHinh
     public bool SangCong = true;
     /// <summary>Các tháng (yyyy-MM) lấy thêm giờ dư còn lại của tháng trước để bù.</summary>
     public HashSet<string> BuThangTruoc = new();
+    /// <summary>Ngày lễ / Tết chung cả kho: ngày → (loại L / T, tên).</summary>
+    public SortedDictionary<DateOnly, (string Loai, string Ten)> NgayLe = new();
+    /// <summary>Loại ngày được tính đủ 1 công khi không có giờ chấm (mặc định lễ, Tết, công tác — nghỉ lễ / Tết hưởng lương).</summary>
+    public HashSet<string> DuCongKhiNghi = new() { "L", "T", "CT" };
 
     public int NghiTruaOf(string nhom) => NghiTrua.TryGetValue(CcCore.NormNhom(nhom), out var v) ? v : 0;
 
@@ -176,6 +197,8 @@ public sealed class CcCauHinh
         ["nghiTrua"] = new JsonObject(NghiTrua.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value))),
         ["nuaNgay"] = NuaNgayToiDa, ["nghiToiTu"] = NghiToiTu, ["nghiToi"] = NghiToiPhut, ["vaoSomNhat"] = VaoSomNhat,
         ["gioChuan"] = GioChuan, ["sangCong"] = SangCong ? "1" : "0",
+        ["ngayLe"] = new JsonArray(NgayLe.Select(p => (JsonNode)new JsonObject { ["ngay"] = p.Key.ToString("yyyy-MM-dd"), ["loai"] = p.Value.Loai, ["ten"] = p.Value.Ten }).ToArray()),
+        ["duCong"] = new JsonArray(DuCongKhiNghi.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()),
         ["buThangTruoc"] = new JsonArray(BuThangTruoc.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()),
     };
 
@@ -189,6 +212,10 @@ public sealed class CcCauHinh
         c.NuaNgayToiDa = I("nuaNgay", c.NuaNgayToiDa); c.NghiToiTu = I("nghiToiTu", c.NghiToiTu); c.NghiToiPhut = I("nghiToi", c.NghiToiPhut); c.VaoSomNhat = I("vaoSomNhat", c.VaoSomNhat);
         c.GioChuan = I("gioChuan", c.GioChuan); c.SangCong = o["sangCong"]?.ToString() != "0";
         if (o["buThangTruoc"] is JsonArray bt) foreach (var x in bt) if (x?.ToString() is { Length: 7 } k) c.BuThangTruoc.Add(k);
+        if (o["ngayLe"] is JsonArray nl)
+            foreach (var x in nl.OfType<JsonObject>())
+                if (CcCore.ParseDate(x["ngay"]?.ToString()) is DateOnly d) c.NgayLe[d] = (CcCore.NormLoai(x["loai"]?.ToString()) is "T" ? "T" : "L", x["ten"]?.ToString() ?? "");
+        if (o["duCong"] is JsonArray dc) { c.DuCongKhiNghi.Clear(); foreach (var x in dc) if (CcCore.NormLoai(x?.ToString()) is { Length: > 0 } l and not "?") c.DuCongKhiNghi.Add(l); }
         if (o["nghiTrua"] is JsonObject nt)
         {
             c.NghiTrua.Clear();
@@ -219,9 +246,10 @@ public sealed class CcSua
     public double? VSom, Chot;
     /// <summary>Giờ sau sang công sửa tay (ngày này không cho / nhận sang công tự động).</summary>
     public double? SauSang;
-    /// <summary>Nghỉ có phép (người dùng 26/11: "ngày nghỉ có phép thì không bù" — không nhận giờ sang công).</summary>
-    public bool Phep;
-    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && !Phep && GhiChu.Length == 0;
+    /// <summary>Loại ngày đánh dấu tay (P / L / T / CT; null = theo ngày lễ / Tết chung; "" = ngày thường dù là ngày lễ chung).
+    /// Người dùng 26/11: "nghỉ có phép thì không bù", "nghỉ lễ, nghỉ Tết, công tác".</summary>
+    public string? Loai;
+    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && Loai is null && GhiChu.Length == 0;
 }
 
 /// <summary>Kết quả 1 nhân viên × 1 ngày.</summary>
@@ -234,11 +262,17 @@ public sealed class CcDong
     public CcCore.Ket Ket = null!;
     /// <summary>Giờ chốt (ghi đè tay nếu có).</summary>
     public double Chot;
-    public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang, Phep;
+    public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang, SuaLoai;
+    /// <summary>Loại ngày (P / L / T / CT / ""), tên ngày lễ nếu có; <see cref="DuCong"/> = tính đủ 1 công vì nghỉ lễ / Tết / công tác không có giờ chấm.</summary>
+    public string Loai = "", TenLe = "";
+    public bool DuCong;
+    /// <summary>Giờ đi làm vào ngày lễ / Tết (tính riêng, không đem bù).</summary>
+    public double GioLe;
+    public bool Phep => Loai == "P";
     /// <summary>Giờ sau sang công (= <see cref="Chot"/> khi không sang).</summary>
     public double SauSang;
     /// <summary>Lần sang công nhận vào / cho đi của ngày này.</summary>
     public List<CcCore.Sang> Nhan = new(), Cho = new();
-    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || Phep || ChepTu.Length > 0;
+    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || SuaLoai || ChepTu.Length > 0;
     public bool CoMat => Chot > 0;
 }

@@ -160,7 +160,7 @@ public class ChamCongTests : IDisposable
         var bc = wb.Worksheet("Bảng công");
         Assert.Equal("Người Kho A", bc.Cell(4, 3).GetString());
         Assert.Equal(8, bc.Cell(4, 5).GetDouble());                  // ngày 1: 9 giờ → sang 1 giờ cho ngày nghỉ gần nhất
-        Assert.Equal(17.5, bc.Cell(4, 5 + 31 + 2).GetDouble());      // tổng giờ sau sang (không đổi)
+        Assert.Equal(17.5, bc.Cell(4, 5 + 31 + 5).GetDouble());      // tổng giờ sau sang (không đổi)
         Assert.Equal("Sang công", wb.Worksheet("Sang công").Cell(1, 1).GetString() == "Mã nhân viên" ? "Sang công" : "");
         Assert.Equal("Chốt", wb.Worksheet("Chi tiết").Cell(3, 14).GetString());
     }
@@ -230,7 +230,7 @@ public class ChamCongTests : IDisposable
         Assert.Equal(0, t.Dong[(a.Id, D(10, 8))].SauSang); Assert.Equal(4, t.Dong[(a.Id, D(10, 9))].SauSang);
 
         // ngày 9 nghỉ CÓ PHÉP → không bù; 4 giờ dư sang ngày nghỉ không phép gần nhất (ngày 4 và 10 cùng cách 3 ngày → ngày sớm hơn)
-        cc.SaveSua("2026-10", new[] { new CcSua { Nv = a.Id, Ngay = D(10, 9), Phep = true } });
+        cc.SaveSua("2026-10", new[] { new CcSua { Nv = a.Id, Ngay = D(10, 9), Loai = "P" } });
         t = cc.Tinh("2026-10");
         Assert.True(t.Dong[(a.Id, D(10, 9))].Phep); Assert.Equal(0, t.Dong[(a.Id, D(10, 9))].SauSang);
         Assert.Equal(4, t.Dong[(a.Id, D(10, 4))].SauSang); Assert.Equal(1, t.NgayPhep(a));
@@ -247,6 +247,43 @@ public class ChamCongTests : IDisposable
         Assert.Equal(8, t11.Dong[(a.Id, D(11, 1))].SauSang);
         Assert.Equal("nhận 4 giờ từ tháng trước", ChamCongService.SangText(t11.Dong[(a.Id, D(11, 1))]));
         Assert.Equal(t10.DuCon[a.Id], t11.DuTruoc[a.Id]);
+    }
+
+    [Fact]
+    public void Nghi_le_tet_cong_tac()
+    {
+        var s = Svc(); var cc = s.ChamCong; cc.Load();
+        cc.SaveNhanVien(new() { new CcNhanVien { Ten = "Người A", Nhom = "XUẤT" }, new CcNhanVien { Ten = "Người B", Nhom = "XUẤT" } });
+        cc.Load(); var a = cc.NhanVien[0]; var b = cc.NhanVien[1];
+        DateOnly D(int d) => new(2026, 10, d);
+        Assert.Equal("L", CcCore.NormLoai("lễ")); Assert.Equal("T", CcCore.NormLoai("Tết")); Assert.Equal("CT", CcCore.NormLoai("công tác")); Assert.Equal("P", CcCore.NormLoai("x"));
+        // ngày 2 = lễ chung cả kho (khai ở Cấu hình)
+        var cfg = cc.CauHinh; cfg.NgayLe[D(2)] = ("L", "Quốc khánh bù"); cc.SaveCauHinh(cfg); cc.Load();
+        Assert.Equal("Quốc khánh bù", cc.CauHinh.NgayLe[D(2)].Ten);
+        cc.SaveSua("2026-10", new[]
+        {
+            new CcSua { Nv = a.Id, Ngay = D(1), Chot = 12 },                 // ngày 1 làm 12 giờ → dư 4
+            new CcSua { Nv = b.Id, Ngay = D(2), Chot = 6 },                  // B đi làm ngày lễ 6 giờ → giờ làm lễ, không bù / không cho
+            new CcSua { Nv = a.Id, Ngay = D(3), Loai = "CT" },               // A công tác ngày 3 (không có giờ chấm) → đủ công
+            new CcSua { Nv = b.Id, Ngay = D(4), Loai = "T" },                // B nghỉ Tết (đánh dấu riêng)
+        });
+        var t = cc.Tinh("2026-10");
+        var a2 = t.Dong[(a.Id, D(2))];
+        Assert.Equal("L", a2.Loai); Assert.True(a2.DuCong); Assert.Equal(8, a2.SauSang); Assert.Empty(a2.Nhan);   // nghỉ lễ: đủ 1 công, không nhận bù
+        var b2 = t.Dong[(b.Id, D(2))];
+        Assert.Equal(6, b2.GioLe); Assert.Equal(6, b2.SauSang); Assert.Empty(b2.Nhan); Assert.Equal(6, t.GioLe(b));
+        Assert.True(t.Dong[(a.Id, D(3))].DuCong); Assert.Equal(8, t.Dong[(a.Id, D(3))].SauSang);
+        Assert.Equal(8, t.Dong[(b.Id, D(4))].SauSang); Assert.Equal(2, t.NgayLoai(b, "L", "T"));     // ngày 2 (lễ, có đi làm) + ngày 4 (Tết)
+        // 4 giờ dư của A (ngày 1) bù ngày nghỉ thường gần nhất (ngày 4) — bỏ qua ngày 2 lễ, ngày 3 công tác
+        Assert.Equal(4, t.Dong[(a.Id, D(4))].SauSang);
+        Assert.Equal(1, t.NgayLoai(a, "L", "T")); Assert.Equal(1, t.NgayLoai(a, "CT"));
+        // tắt "tính đủ công" cho lễ → nghỉ lễ còn 0 giờ, vẫn không nhận bù
+        cfg = cc.CauHinh; cfg.DuCongKhiNghi.Remove("L"); cc.SaveCauHinh(cfg);
+        t = cc.Tinh("2026-10");
+        Assert.Equal(0, t.Dong[(a.Id, D(2))].SauSang); Assert.Empty(t.Dong[(a.Id, D(2))].Nhan);
+        // đánh dấu tay "" = ngày thường dù là ngày lễ chung (vd người không được nghỉ lễ)
+        cc.SaveSua("2026-10", new[] { new CcSua { Nv = a.Id, Ngay = D(2), Loai = "" } });
+        Assert.Equal("", cc.Tinh("2026-10").Dong[(a.Id, D(2))].Loai);
     }
 
     [Fact]
