@@ -120,6 +120,7 @@ public partial class MainWindow : Window
                 new NavItem("m3", "Tổng hợp", () => new TongHopView()),
                 new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
+                new NavItem("m24cc", "Chấm công", () => new ChamCongView()),
             }),
             ("CHỨNG TỪ", new[]
             {
@@ -322,7 +323,7 @@ public partial class MainWindow : Window
     {
         ["lx"] = "home", ["m6"] = "edit",
         ["m1"] = "box", ["m2"] = "warehouse", ["m7"] = "pin", ["m3sk"] = "list", ["m1vtb"] = "map", ["m8"] = "grid",
-        ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m10"] = "ok",
+        ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m24cc"] = "calendar", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
         ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
         ["users"] = "users", ["backup"] = "gear", ["ketnoi"] = "network", ["dongbo"] = "cloud", ["audit"] = "history", ["troly"] = "assist",

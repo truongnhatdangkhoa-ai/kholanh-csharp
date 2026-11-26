@@ -1805,6 +1805,77 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
     w.Close();
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v205) — ĐẠT: " : "Xong (v205) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.129: Chấm công — dữ liệu GIẢ (tên giả) theo đúng dạng file "Chi tiết chấm công" của máy chấm công; tự kiểm tính giờ + sửa tay qua lưới.
+// SHOTS_ONLY=cc; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[CC] SAI: " + m); }
+    void W(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(20); Pump(); } }
+    var fp = System.IO.Path.Combine(outDir, "cham-cong-mau.xlsx");
+    using (var wbk = new ClosedXML.Excel.XLWorkbook())
+    {
+        var ws = wbk.AddWorksheet("Sheet1");
+        ws.Cell(1, 1).Value = "CHI TIẾT CHẤM CÔNG"; ws.Cell(2, 1).Value = "Từ ngày 01/10/2026 đến ngày 31/10/2026";
+        var hh = new[] { "Mã nhân viên", "Tên nhân viên", "Phòng ban", "Chức vụ", "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Công", "Giờ", "Tên ca" };
+        for (var c = 0; c < hh.Length; c++) ws.Cell(3, c + 1).Value = hh[c];
+        var ten = new[] { ("9001", "Trần Văn An"), ("9002", "Lê Thị Bình"), ("9003", "Phạm Minh Cường"), ("9004", "Võ Thanh Dũng"), ("9005", "Đặng Hữu Em"), ("9006", "Bùi Quốc Phong"), ("9007", "Ngô Văn Giàu") };
+        var rnd = new Random(7); var r = 4;
+        foreach (var (ma, tn) in ten)
+            for (var d = 1; d <= 31; d++)
+            {
+                var day = new DateTime(2026, 10, d);
+                ws.Cell(r, 1).Value = ma; ws.Cell(r, 2).Value = tn; ws.Cell(r, 3).Value = "Kho"; ws.Cell(r, 5).Value = day; ws.Cell(r, 5).Style.DateFormat.Format = "M/d/yy";
+                ws.Cell(r, 6).Value = day.DayOfWeek == DayOfWeek.Sunday ? "CN" : "T." + ((int)day.DayOfWeek + 1); ws.Cell(r, 11).Value = "HC";
+                if (rnd.Next(10) > 0)
+                {
+                    ws.Cell(r, 7).Value = $"{6 + rnd.Next(2):00}:{rnd.Next(60):00}";
+                    var ra = rnd.Next(5) == 0 ? 19 * 60 + rnd.Next(60) : 16 * 60 + 25 + rnd.Next(40);
+                    if (!(ma == "9003" && d == 9)) ws.Cell(r, 8).Value = $"{ra / 60:00}:{ra % 60:00}";   // quên bấm ra
+                }
+                if (ma == "9004" && d == 1) ws.Cell(r, 7).Value = "00:51";                               // lần bấm ra của đêm trước
+                r++;
+            }
+        for (var d = 1; d <= 31; d++) { ws.Cell(r, 1).Value = "8001"; ws.Cell(r, 2).Value = "Công nhân khác"; ws.Cell(r, 3).Value = "Công Nhân"; ws.Cell(r, 5).Value = new DateTime(2026, 10, d); ws.Cell(r, 7).Value = "06:00"; ws.Cell(r, 8).Value = "14:00"; r++; }
+        wbk.SaveAs(fp);
+    }
+    var cc = s.ChamCong; cc.Load();
+    var kq = cc.Commit(KhoLanh.Core.ChamCong.ChamCongService.ReadFile(fp), new[] { "Kho" });
+    if (kq.Dong != 7 * 31 || kq.NvMoi != 7) Bad($"nạp {kq.Dong} dòng / {kq.NvMoi} người");
+    var nvl = cc.NhanVien.ToList();
+    for (var i = 0; i < nvl.Count; i++) nvl[i].Nhom = i < 3 ? "XUẤT" : i < 6 ? "NHẬP" : "VP";
+    nvl.Add(new KhoLanh.Core.ChamCong.CcNhanVien { Ten = "Lý Văn Lộc (làm thay)", Nhom = "XUẤT", PhongBan = "Kho" });
+    cc.SaveNhanVien(nvl); cc.Load();
+    var loc = cc.NhanVien[^1];
+    cc.SaveSua("2026-10", new[] { 5, 6, 7 }.Select(d => new KhoLanh.Core.ChamCong.CcSua { Nv = loc.Id, Ngay = new DateOnly(2026, 10, d), ChepTu = cc.NhanVien[0].Id })
+        .Append(new KhoLanh.Core.ChamCong.CcSua { Nv = cc.NhanVien[0].Id, Ngay = new DateOnly(2026, 10, 2), VSom = 1, GhiChu = "đóng cont trưa" }));
+    main.Navigate("m24cc"); W(60);
+    var v = main.PageHost.GetVisualDescendants().OfType<ChamCongView>().FirstOrDefault();
+    if (v is null) { Bad("không mở được trang Chấm công"); s.Lan.Dispose(); Environment.Exit(1); }
+    var t = cc.Tinh("2026-10");
+    var a1 = t.Dong[(cc.NhanVien[0].Id, new DateOnly(2026, 10, 5))]; var l1 = t.Dong[(loc.Id, new DateOnly(2026, 10, 5))];
+    if (l1.Vao != a1.Vao || l1.Chot != a1.Chot) Bad($"chép giờ: {l1.Vao}/{l1.Chot} ≠ {a1.Vao}/{a1.Chot}");
+    var c9 = t.Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
+    if (!c9.CanhBao.StartsWith("Chỉ có 1 lần chấm")) Bad("thiếu cảnh báo quên bấm ra: " + c9.CanhBao);
+    Console.WriteLine($"[CC] {t.Nvs.Count} người · tổng {t.Nvs.Sum(t.TongGio):0.##} giờ · cần xem {t.Rows.Count(x => x.CanhBao.Length > 0)} · đã sửa {t.Rows.Count(x => x.DaSua)}");
+    Snap(main, "cc1-bang-cong");
+    // sửa tay qua lưới Chi tiết: ngày 9 người thứ 3 quên bấm ra → gõ 17:00
+    v!._tabs.SelectedIndex = 1; W();
+    var cbo = v.GetVisualDescendants().OfType<ComboBox>().First(x => x.ItemCount == t.Nvs.Count + 1);
+    cbo.SelectedIndex = 3; W();
+    var row = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "09/10/2026");
+    v._cm.SetCells(new[] { (row, 9, "17:00") }); W(5);
+    v.SaveChiTiet().GetAwaiter().GetResult(); W(10);
+    var c9b = cc.Tinh("2026-10").Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
+    Console.WriteLine($"[CC] sửa giờ ra ngày 9: {c9b.Vao}-{c9b.Ra} → chốt {c9b.Chot} (sửa tay {c9b.SuaRa})");
+    if (!c9b.SuaRa || c9b.Ra != "17:00" || c9b.Chot <= 0) Bad("sửa giờ ra qua lưới không lưu");
+    Snap(main, "cc2-chi-tiet");
+    v._tabs.SelectedIndex = 2; W(); Snap(main, "cc3-nhan-vien");
+    v._tabs.SelectedIndex = 3; W(); Snap(main, "cc4-cau-hinh");
+    var xl = System.IO.Path.Combine(outDir, "ChamCong_2026-10.xlsx");
+    KhoLanh.Core.ChamCong.ChamCongService.Export(cc.Tinh("2026-10"), xl);
+    Console.WriteLine("[CC] xuất " + xl);
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (cc) — ĐẠT: " : "Xong (cc) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "he")
 {
     // 1.68: "dulieu" = Dữ liệu & sao lưu (tab Đồng bộ: chỉ máy này / Drive dùng chung / LAN · tab Sao lưu: trên máy / Drive cá nhân Gmail)
