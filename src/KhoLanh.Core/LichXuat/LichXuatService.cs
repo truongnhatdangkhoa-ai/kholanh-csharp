@@ -853,7 +853,7 @@ public sealed partial class LichXuatService
         if (!CanAutoMail) throw new BusinessException("Tài khoản không có quyền sửa Lịch xuất.");
         var cfg = MailCfg();
         List<LichXuatEmail.Msg> msgs;
-        if (Mail is ImapMailSource imap) imap.Progress = progress;
+        if (Mail is ImapMailSource imap) { imap.Progress = progress; imap.Done = () => EmailRows().Where(r => r.TrangThai.Length > 0).Select(r => r.Id).ToHashSet(); }
         try { msgs = await Mail.FetchAsync(cfg, ct); }
         catch (BusinessException e) { throw SetMailStatus(e); }
         finally { if (Mail is ImapMailSource im) im.Progress = null; }
@@ -862,7 +862,7 @@ public sealed partial class LichXuatService
         {
             // số liệu từng bước — để biết thư bị loại ở đâu khi "quét không thấy thư"
             var (folder, found, down) = st.LastStats;
-            r.Notes.Insert(0, $"Đọc «{folder}»: {found} thư trong {Math.Max(cfg.Days, 1)} ngày (+30 ngày lấy thư gốc)" + (cfg.AllowList.Count > 0 ? " từ người ở ô «Chỉ nhận thư từ»" : "") +
+            r.Notes.Insert(0, $"Đọc «{folder}»: {found} thư về lịch xuất / thông tin xe trong {Math.Max(cfg.Days, 1)} ngày (Gmail tự lọc, tối đa {ImapMailSource.MaxMsgs} thư mới nhất)" + (cfg.AllowList.Count > 0 ? " từ người ở ô «Chỉ nhận thư từ»" : "") +
                 $" · {down} thư thuộc chuỗi có LSX trên tiêu đề (dạng 26.11.020) · {r.Recognized} thư nhận diện được (tạo / đổi / hủy lịch / thông tin xe)." +
                 (found > 0 && down == 0 ? " → Không thư nào có số LSX trên tiêu đề, nên không có gì để cập nhật lịch." : "") +
                 (down > 0 && r.Recognized == 0 ? " → Có chuỗi thư có LSX nhưng tiêu đề thiếu từ khóa (xem ô «Từ khóa») hoặc nội dung không nói về kéo đóng / xuất hàng." : ""));
