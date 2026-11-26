@@ -238,11 +238,12 @@ public sealed class LanHttpServer : IDisposable
                         else
                         {
                             JsonObject res;
-                            // remote là IP công khai của máy con — không dùng làm địa chỉ nối lại (máy con sau NAT), nên để trống
-                            try { res = _handle(open.Value.Req, ""); }
+                            // remote = IP công khai của máy con (Cloudflare gửi kèm) — chỉ để HIỆN trong danh sách "Máy nối qua Internet" (1.118),
+                            // không dùng làm địa chỉ nối lại (máy con sau NAT)
+                            try { res = _handle(open.Value.Req, remote); }
                             catch (BusinessException e) { res = new JsonObject { ["ok"] = false, ["error"] = e.Message }; }
                             catch (Exception e) { res = new JsonObject { ["ok"] = false, ["error"] = "Máy chủ lỗi: " + e.Message }; }
-                            LastOk = DateTime.Now; _ = remote;
+                            LastOk = DateTime.Now;
                             await Reply(s, 200, "application/octet-stream", LanHttp.SealResponse(key, open.Value.Nonce, res), keep);
                         }
                     }

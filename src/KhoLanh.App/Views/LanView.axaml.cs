@@ -13,7 +13,7 @@ public partial class LanView : UserControl, IPage
 
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
 
-    public record MachineRow(string Name, string RoleLabel, string Addr, DateTime At, int Pending);
+    public record MachineRow(string Name, string User, string RoleLabel, string Addr, DateTime At, int Pending);
     public record ConflictRow(LanService.Conflict C)
     {
         public string At => C.At; public string Machine => C.Machine; public string Username => C.Username;
@@ -147,7 +147,13 @@ public partial class LanView : UserControl, IPage
             SyncText.Text = lan.LastSync.Length > 0 ? "Lần gửi sổ chờ gần nhất: " + lan.LastSync : "";
         }
         if (App.Services.Accounts.Plan is { } plan) ShowPlanSlots(plan);
-        MachinesGrid.ItemsSource = lan.Machines().Select(m => new MachineRow(m.Name, LanService.RoleLabel(m.Role), m.Addr, m.At, m.Pending)).ToList();
+        // 1.118: 2 loại — nối trong mạng LAN / nối qua Internet (đường hầm)
+        var (lanM, netM) = lan.MachinesByWay();
+        MachineRow Row(LanService.Seen m, string addr) => new(m.Name, m.User, LanService.RoleLabel(m.Role), addr, m.At, m.Pending);
+        MachinesGrid.ItemsSource = lanM.Select(m => Row(m, m.Addr)).ToList();
+        NetMachinesGrid.ItemsSource = netM.Select(m => Row(m, m.NetIp.Length > 0 ? m.NetIp : "(không rõ)")).ToList();
+        LanMachinesTitle.Text = $"Máy nối trong mạng LAN · {lanM.Count} máy (5 phút gần nhất)";
+        NetMachinesTitle.Text = $"Máy nối qua Internet · {netM.Count} máy (5 phút gần nhất)";
         var sel = (ConflictsGrid.SelectedItem as ConflictRow)?.C.Id;
         var rows = lan.Conflicts(AllBox.IsChecked == true).Select(c => new ConflictRow(c)).ToList();
         ConflictsGrid.ItemsSource = rows;

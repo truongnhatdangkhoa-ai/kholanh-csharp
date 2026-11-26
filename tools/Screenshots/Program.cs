@@ -974,6 +974,27 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.118: SHOTS_ONLY=v211 — Máy chủ LAN › Máy đang nối: 2 bảng (trong mạng LAN / qua Internet), có cột Tài khoản. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v211")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    System.Text.Json.Nodes.JsonObject Beat(string id, string name, string user) => new()
+    { ["k"] = KhoLanh.Core.Lan.LanService.ParseCode(s.Lan.ConnectionCode()).Item2, ["op"] = "beat", ["m"] = id, ["mn"] = name, ["r"] = KhoLanh.Core.Lan.LanService.RoleClient, ["u"] = user, ["pend"] = 0,
+      ["a"] = new System.Text.Json.Nodes.JsonArray("192.168.1.20:47820") };
+    s.Lan.Handle(Beat("m-kho1", "MAY-KHO-1", "thang"));
+    s.Lan.Handle(Beat("m-kho2", "MAY-KETOAN", "lan"));
+    s.Lan.Handle(Beat("m-nha", "LAPTOP-NHA", "khoa"), "", netIp: "113.161.40.12");
+    var lv = new KhoLanh.App.Views.LanView();
+    main.Show("lan", lv); P(40);
+    var g1 = lv.FindControl<DataGrid>("MachinesGrid")!; var g2 = lv.FindControl<DataGrid>("NetMachinesGrid")!;
+    int N(DataGrid g) => (g.ItemsSource as System.Collections.IEnumerable)?.Cast<object>().Count() ?? 0;
+    var t2 = lv.FindControl<TextBlock>("NetMachinesTitle")!.Text;
+    Console.WriteLine($"[v211] LAN: {N(g1)} máy · Internet: {N(g2)} máy · {t2}");
+    if (N(g1) != 2 || N(g2) != 1 || t2?.Contains("1 máy") != true) ok = false;
+    Snap(main, "v211-may-dang-noi-2-loai");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v211) — ĐẠT: " : "Xong (v211) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.117: SHOTS_ONLY=v210 — Nhập liệu › Danh sách trang: viền từng dòng + ô tích / chọn tất cả; Mẫu: cột hệ thống (Size, Đặc tính…) khóa cứng, chỉ đổi tên. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v210")
 {
