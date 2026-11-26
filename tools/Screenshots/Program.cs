@@ -535,6 +535,56 @@ Snap(small, "03c-man-hinh-1366");
     gb.Flyout.Hide(); Pump();
 }
 small.Close();
+// Rà nghiệp vụ (26/11): SHOTS_ONLY=audit — mọi mục menu × mọi tab (mọi cấp) ở 1366×768: ảnh + danh sách nút
+// (nút trùng chữ cùng màn hình, nút bị cắt chữ, nút tràn ngoài cửa sổ) → audit.txt trong thư mục ảnh.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "audit")
+{
+    var aw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; aw.Show();
+    var rep = new System.Text.StringBuilder();
+    var keys = new[] { "lx", "m6", "m13", "m1", "m2", "m7", "m3sk", "m1vtb", "m8", "m4", "m5", "m9", "m7ck", "m3", "m3dm", "m10", "m24cc", "m12", "m11", "m14", "m15", "m19", "m21", "m22", "users", "ketnoi", "dongbo", "backup", "audit", "troly" };
+    if (Environment.GetEnvironmentVariable("SMALL_KEYS") is { Length: > 0 } ak) keys = ak.Split(',');
+    var seen = new HashSet<TabControl>();
+    void Wait(int n) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    void Report(string name)
+    {
+        Snap(aw, name); CheckUnderNav(aw, name);
+        var btns = aw.PageHost.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible && b.Bounds.Width > 0).ToList();
+        var labels = btns.Select(b => (b, t: (KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? (b.Content as string) ?? "").Trim())).Where(x => x.t.Length > 0).ToList();
+        rep.AppendLine($"== {name}: " + string.Join(" | ", labels.Select(x => x.t)));
+        foreach (var g in labels.GroupBy(x => x.t).Where(g => g.Count() > 1 && g.Key.Length > 1))
+            rep.AppendLine($"   [TRÙNG] '{g.Key}' x{g.Count()}");
+        foreach (var (b, t) in labels)
+        {
+            var pt = b.TranslatePoint(new Point(0, 0), aw);
+            if (pt is { } p0 && p0.X + b.Bounds.Width > aw.Bounds.Width + 1 && b.GetVisualAncestors().OfType<ScrollViewer>().All(sv => sv.Bounds.Width >= aw.Bounds.Width)) rep.AppendLine($"   [TRÀN] '{t}' x={p0.X:0} w={b.Bounds.Width:0}");
+            if (b.Content is Control cc && cc.DesiredSize.Width > b.Bounds.Width + 2) rep.AppendLine($"   [CẮT] '{t}' cần {cc.DesiredSize.Width:0} có {b.Bounds.Width:0}");
+        }
+    }
+    void Walk(string name, int depth)
+    {
+        Report(name);
+        if (depth > 3) return;
+        var tcs = aw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible && !seen.Contains(x)).ToList();
+        if (tcs.Count == 0) return;
+        var tc = tcs[0]; seen.Add(tc);
+        var start = tc.SelectedIndex;
+        for (var t = 0; t < tc.ItemCount; t++)
+        {
+            if (t == start) { Walk($"{name}.{t}", depth + 1); continue; }
+            try { tc.SelectedIndex = t; Wait(20); Walk($"{name}.{t}", depth + 1); }
+            catch (Exception e) { rep.AppendLine($"   [LỖI] {name}.{t}: {e.GetType().Name}: {e.Message}"); Console.WriteLine($"  [{name}.{t}] lỗi: {e}"); }
+        }
+        try { tc.SelectedIndex = start; Wait(5); } catch { }
+    }
+    foreach (var k in keys)
+    {
+        try { seen.Clear(); aw.Navigate(k); Wait(40); Walk("a-" + k, 0); }
+        catch (Exception e) { rep.AppendLine($"   [LỖI] {k}: {e.GetType().Name}: {e.Message}"); Console.WriteLine($"  [{k}] lỗi: {e}"); }
+    }
+    File.WriteAllText(Path.Combine(outDir, "audit.txt"), rep.ToString());
+    aw.Close(); s.Lan.Dispose(); Console.WriteLine("Xong (audit): " + outDir);
+    return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "small")
 {
     // rà màn hình nhỏ: mỗi module × mỗi tab cấp 1 (và tab cấp 2 trong tab đang mở)

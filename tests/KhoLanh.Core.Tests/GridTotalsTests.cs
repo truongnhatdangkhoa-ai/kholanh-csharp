@@ -12,7 +12,7 @@ public class GridTotalsTests
     [InlineData("Trọng Lượng (KG)", true)] [InlineData("Đã xuất", true)] [InlineData("Đã làm phiếu", true)] [InlineData("Tấn", true)]
     [InlineData("T.Lượng", false)] [InlineData("Trọng lượng", false)] [InlineData("Net (kg/đơn vị)", false)] [InlineData("Trọng lượng (kg) (kg/bao)", false)]
     [InlineData("Size", false)] [InlineData("Ngày nhập", false)] [InlineData("Mã hàng", false)] [InlineData("Lô", false)] [InlineData("Vị trí", false)]
-    [InlineData("Hợp đồng", false)] [InlineData("Đơn giá", false)] [InlineData("Tỷ lệ %", false)] [InlineData("Tên hàng", false)] [InlineData("Ghi chú kho", false)]
+    [InlineData("Kiểm kê (kg)", true)] [InlineData("Chênh (kg)", true)] [InlineData("Đơn giá (kg)", false)] [InlineData("Hợp đồng", false)] [InlineData("Đơn giá", false)] [InlineData("Tỷ lệ %", false)] [InlineData("Tên hàng", false)] [InlineData("Ghi chú kho", false)]
     public void Chon_cot_cong_theo_ten(string header, bool sum) => Assert.Equal(sum, GridTotals.DefaultSum(header));
 
     [Fact]

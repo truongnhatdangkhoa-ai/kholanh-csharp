@@ -68,15 +68,22 @@ public sealed class C3dView : UserControl, IPage
         _cv.Hovered += OnHover;
         _seq.PropertyChanged += (_, e) => { if (e.Property == RangeBase.ValueProperty && !_busySeq) SetSeq((int)Math.Round(_seq.Value), false); };
 
-        var tools = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        // 26/11: thanh trên = 1 hàng ToolRow (trước: WrapPanel + 2 dòng chữ được kéo lên hàng tên trang 36px → chữ bị cắt,
+        // nút "Lưu ảnh 3D" rớt dòng 2 nên không thấy ở 1366×768). Hết chỗ → nút cuối vào "⋯ Thêm".
+        var tools = new ToolRow { Margin = new Thickness(0, 0, 0, 6) };
+        _status.TextWrapping = TextWrapping.NoWrap; _status.TextTrimming = TextTrimming.CharacterEllipsis; _status.MaxWidth = 420;
+        _ctx.TextTrimming = TextTrimming.CharacterEllipsis; _ctx.MaxWidth = 360;
+        _status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) ToolTip.SetTip(_status, string.IsNullOrEmpty(_status.Text) ? null : _status.Text); };
+        var hl = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
+        hl.Children.Add(_ctx); hl.Children.Add(_status);
+        tools.Children.Add(hl);
+        tools.Children.Add(ToolRow.Gap());
         tools.Children.Add(Btn("Tính CBM / Pallet", OpenCbm, "Tính CBM từng mặt hàng, số thùng trên 1 pallet, số pallet cần và số pallet cont chứa được"));
-        tools.Children.Add(Btn("Tính toán xếp hàng", () => { Calc(); _tabs.SelectedIndex = 2; }, "Tính lại phương án (cũng tự tính khi bạn sửa số liệu)", true));
         if (Svc.CanEdit) tools.Children.Add(Btn("Lưu phương án", SavePlanDialog, "Lưu container + danh sách hàng + tuỳ chọn thành 1 phương án để mở lại sau"));
         tools.Children.Add(Btn("Phương án đã lưu", OpenPlans));
-        if (Svc.CanExport) { tools.Children.Add(Btn("Xuất Excel", ExportExcel)); tools.Children.Add(Btn("Lưu ảnh 3D", ExportPng)); }
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-        DockPanel.SetDock(tools, Dock.Right); head.Children.Add(tools);
-        var hl = new StackPanel { Spacing = 2 }; hl.Children.Add(_ctx); hl.Children.Add(_status); head.Children.Add(hl);
+        if (Svc.CanExport) { tools.Children.Add(Btn("Xuất Excel", ExportExcel)); tools.Children.Add(ToolRow.More(Btn("Lưu ảnh 3D", ExportPng))); }
+        tools.Children.Add(Btn("Tính toán xếp hàng", () => { Calc(); _tabs.SelectedIndex = 2; }, "Tính lại phương án (cũng tự tính khi bạn sửa số liệu)", true));
+        var head = tools;
 
         _tabs.ItemsSource = new[]
         {
