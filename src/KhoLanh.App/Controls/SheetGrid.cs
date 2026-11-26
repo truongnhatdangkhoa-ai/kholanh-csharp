@@ -658,8 +658,9 @@ public sealed class SheetGrid : UserControl
             if (free.Count > 0) Model.SetCells(free);
             return;
         }
-        if (_map is null) { Model.Clear(Selection); return; }
-        Model.SetCells(SelModelRows().Where(m => m < Model.RowCount).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c, ""))));
+        if (_map is null) Model.Clear(Selection);
+        else Model.SetCells(SelModelRows().Where(m => m < Model.RowCount).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c, ""))));
+        ReportHardLock();
     }
 
     /// <summary>
@@ -705,6 +706,7 @@ public sealed class SheetGrid : UserControl
         var keep = VSel.R1;
         if (_map is null) Model.DeleteRows(Selection.R1, Selection.R2);
         else foreach (var m in SelModelRows().Where(m => m < Model.RowCount).OrderByDescending(m => m).ToList()) Model.DeleteRows(m, m);
+        ReportHardLock();
         SelectV(keep, Col);
     }
 
@@ -741,6 +743,7 @@ public sealed class SheetGrid : UserControl
     {
         if (Model.ReadOnly || Col >= Model.ColCount || Model.Columns[Col].ReadOnly) return;
         if (!force && Locked(Col)) { SoftLockHit?.Invoke(); return; }
+        if (Model.IsLocked(Row, Col)) { SoftLockHit?.Invoke(); return; }   // 1.117: ô khóa cứng — nhấn đúp cũng không sửa
         VA = VR; AnchorCol = Col;
         HideFilterEditor(false);
         _editing = true; _typedEdit = initial is not null;
@@ -891,6 +894,14 @@ public sealed class SheetGrid : UserControl
     public async Task PasteAsync()
     {
         if (Model.ReadOnly) return;
+        try { await PasteCore(); } finally { ReportHardLock(); }
+    }
+
+    /// <summary>1.117: lần sửa vừa rồi chạm ô / dòng khóa cứng (<see cref="GridModel.CellLocked"/>) → báo qua <see cref="SoftLockHit"/>.</summary>
+    private void ReportHardLock() { if (Model.LockedHit) { Model.LockedHit = false; SoftLockHit?.Invoke(); } }
+
+    private async Task PasteCore()
+    {
         if (TopLevel.GetTopLevel(this)?.Clipboard is not { } cb) return;
         var text = await Avalonia.Input.Platform.ClipboardExtensions.TryGetTextAsync(cb);
         if (string.IsNullOrEmpty(text)) return;

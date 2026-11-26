@@ -86,6 +86,49 @@ public sealed class EntryService
         return res;
     }
 
+    /// <summary>
+    /// 1.117: cột HỆ THỐNG của mẫu có sẵn = cột tự điền / công thức do app đặt sẵn (Size, Trọng lượng, Đặc tính, Tổng Net…) — ở tab Mẫu
+    /// khóa cứng: chỉ đổi tên / độ rộng, không đổi kiểu / tự điền / công thức, không xóa (tránh xóa nhầm). Mẫu tự tạo / bản sao: không khóa.
+    /// </summary>
+    public static HashSet<string> SystemKeys(Template t)
+    {
+        var def = t.BuiltIn ? BuiltIn.FirstOrDefault(b => b.Id == t.Id) : null;
+        if (def is null) return new();
+        static bool Sys(GridColumn c) => c.Auto.Length > 0 || c.Formula.Length > 0;
+        return t.Columns.Where(c => Sys(c) && def.Columns.Any(d => d.Key == c.Key && Sys(d))).Select(c => c.Key).ToHashSet();
+    }
+
+    /// <summary>1.117: bộ cột vừa sửa của mẫu có sẵn — cột hệ thống giữ kiểu / tự điền / công thức như trước (chỉ nhận tên, độ rộng mới);
+    /// thiếu cột hệ thống → <paramref name="error"/>.</summary>
+    public static List<GridColumn> KeepSystemCols(Template t, List<GridColumn> cols, out string? error)
+    {
+        error = null;
+        var keys = SystemKeys(t);
+        if (keys.Count == 0) return cols;
+        var res = cols.Select(c => keys.Contains(c.Key) && t.Columns.FirstOrDefault(o => o.Key == c.Key) is { } o
+            ? new GridColumn(c.Key, c.Header, c.Width, o.Type) { Auto = o.Auto, Formula = o.Formula, ReadOnly = o.ReadOnly } : c).ToList();
+        var miss = t.Columns.Where(o => keys.Contains(o.Key) && !res.Any(c => c.Key == o.Key)).Select(o => o.Header).ToList();
+        if (miss.Count > 0)
+            error = $"Không xóa được cột hệ thống “{string.Join("”, “", miss)}” — cột tự điền / công thức có sẵn chỉ đổi tên được. Bấm Ctrl+Z hoặc chọn lại mẫu để lấy lại cột.";
+        return res;
+    }
+
+    /// <summary>1.117: đổi tên cột → công thức đang gọi <c>[tên cũ]</c> tự đổi theo tên mới (khớp theo mã cột, không phân biệt hoa / dấu).</summary>
+    public static List<GridColumn> RenameRefs(IReadOnlyList<GridColumn> before, List<GridColumn> after)
+    {
+        static string N(string h) => GridFilter.Fold(h).Trim();
+        if (!after.Any(a => before.FirstOrDefault(b => b.Key == a.Key) is { } b && N(b.Header) != N(a.Header))) return after;
+        string Fix(string fx) => System.Text.RegularExpressions.Regex.Replace(fx, @"\[([^\[\]]*)\]", m =>
+        {
+            var name = N(m.Groups[1].Value);
+            if (after.Any(a => N(a.Header) == name) && !before.Any(b => N(b.Header) == name)) return m.Value;   // đã gọi tên mới
+            var key = before.FirstOrDefault(b => N(b.Header) == name)?.Key;
+            var now = key is null ? null : after.FirstOrDefault(a => a.Key == key);
+            return now is null ? m.Value : "[" + now.Header.Trim() + "]";
+        });
+        return after.Select(c => c.Formula.Length == 0 ? c : new GridColumn(c.Key, c.Header, c.Width, c.Type) { Auto = c.Auto, Formula = Fix(c.Formula), ReadOnly = c.ReadOnly }).ToList();
+    }
+
     private static List<GridColumn> Cols(params (string h, string t, double w, string auto, string fx)[] cols) =>
         cols.Select((c, i) => new GridColumn("c" + i, c.h, c.w, c.t) { Auto = c.auto, Formula = c.fx }).ToList();
 
