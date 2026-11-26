@@ -153,6 +153,7 @@ public sealed class ViTriView : UserControl, IPage
                 new TabItem { Header = "Lưu trữ theo ngày", Content = BuildArchive() },
                 new TabItem { Header = "Thống kê Size", Content = BuildStats() },
                 new TabItem { Header = "Nạp file", Content = new ScrollViewer { Content = _filePanel } },
+                new TabItem { Header = "Tra cứu đã xuất", Content = BuildDaXuat() },   // 1.132: thêm cuối — giữ số thứ tự tab cũ
             },
         };
         _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
@@ -269,8 +270,74 @@ public sealed class ViTriView : UserControl, IPage
             case 2: RenderArchive(); break;
             case 3: RenderStats(); break;
             case 4: RenderFile(); break;
+            case 5: RenderDaXuat(); break;
         }
     }
+    // =====================================================================================
+    // 1.132 Tab Tra cứu đã xuất (người dùng: "thêm tìm mã hàng, size, vị trí đã xuất, để rà soát lại các mã hàng đã xuất")
+    // =====================================================================================
+
+    private readonly GridModel _xm = new() { ReadOnly = true };
+    internal SheetGrid? _xg;
+    internal readonly TextBox _xq = new() { Watermark = "Tìm mã / tên / size / vị trí / lô / số phiếu… (nhiều từ cách nhau dấu cách)", Width = 420 };
+    private readonly CheckBox _xTon = new() { Content = "Chỉ dòng file tồn còn hàng ở vị trí", FontSize = 12.5 };
+    private readonly TextBlock _xInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+    internal List<ViTriService.DaXuat> _xRows = new();
+    private const int XTonCol = 9;
+
+    private Control BuildDaXuat()
+    {
+        _xg = new SheetGrid(_xm) { SpareRows = 0, LargeTitle = "Tra cứu hàng đã xuất" };
+        _xg.CellTip = (r, c) => r < _xRows.Count && c == XTonCol ? "Tồn trong file đang nạp ở đúng Mã · Lô · Vị trí của dòng (trống = ô đã hết mã này)" : null;
+        _xg.DoubleTapped += async (_, _) => await OpenXuat();
+        _xq.TextChanged += (_, _) => RenderDaXuat();
+        _xTon.IsCheckedChanged += (_, _) => RenderDaXuat();
+        var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
+        bar.Children.Add(_xq); bar.Children.Add(_xTon); bar.Children.Add(_xInfo);
+        bar.Children.Add(ToolRow.Gap());
+        bar.Children.Add(Btn("Mở phiếu của dòng đang chọn", async () => await OpenXuat(), tip: "Hoặc bấm đúp vào dòng"));
+        var dock = new DockPanel();
+        DockPanel.SetDock(bar, Dock.Top); dock.Children.Add(bar);
+        dock.Children.Add(Framed(_xg));
+        return dock;
+    }
+
+    private void RenderDaXuat()
+    {
+        if (_xg is null) return;
+        var all = Svc.DaXuatList();
+        var toks = GridFilter.Fold(_xq.Text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        _xRows = all.Where(x => (_xTon.IsChecked != true || x.TonVt > 0)
+            && toks.All(t => GridFilter.Fold($"{x.Ma} {x.MaGoc} {x.Ten} {x.Size} {x.Vt} {x.Lo} {x.MaPhieu} {x.Loai} {x.NguoiTao}").Contains(t))).ToList();
+        _xm.Load(new[]
+        {
+            new GridColumn("ngay", "Ngày xuất", 90, "date"), new GridColumn("phieu", "Số phiếu", 120), new GridColumn("loai", "Loại", 120),
+            new GridColumn("ma", "Mã hàng", 190), new GridColumn("ten", "Tên hàng", 230), new GridColumn("size", "Size", 70), new GridColumn("lo", "Lô", 110),
+            new GridColumn("vt", "Vị trí", 100), new GridColumn("sl", "SL xuất", 80, "number"), new GridColumn("ton", "Tồn hiện tại ở vị trí", 130, "number"),
+            new GridColumn("tl", "Trọng lượng", 90, "number"), new GridColumn("net", "Net (kg)", 95, "number"), new GridColumn("tt", "Trạng thái", 110),
+            new GridColumn("nguoi", "Người lập", 110),
+        }, _xRows.Select(x => new[]
+        {
+            Dmy(x.Ngay), x.MaPhieu, x.Loai, x.Ma.Length > 0 ? x.Ma : x.MaGoc, x.Ten, x.Size, x.Lo, x.Vt, Raw(x.Sl), x.TonVt > 0 ? Raw(x.TonVt) : "", Raw(x.Tl), Raw(x.Sl * x.Tl),
+            (x.DaTru ? "Đã trừ tồn" : "Đang mở") + (x.DienThoai ? " · ĐT" : ""), x.NguoiTao,
+        }).ToList());
+        _xg.Refresh();
+        _xInfo.Text = $"{_xRows.Count:#,0} / {all.Count:#,0} dòng · {_xRows.Select(x => x.SlipId).Distinct().Count()} phiếu";
+    }
+
+    /// <summary>Mở phiếu của dòng đang chọn: phiếu đang mở → tab Phiếu xuất; đã lưu trữ → tab Lưu trữ theo ngày (đúng ngày + loại).</summary>
+    private async Task OpenXuat()
+    {
+        if (_xg is null || _xg.Row < 0 || _xg.Row >= _xRows.Count) return;
+        var id = _xRows[_xg.Row].SlipId;
+        _tabs.SelectedIndex = 1; await Task.Delay(50);
+        var i = _slipRows.FindIndex(x => x.Id == id);
+        if (i >= 0) { _sg.Select(i, 0); return; }
+        _tabs.SelectedIndex = 2; await Task.Delay(50);
+        var g = _arcRows.FindIndex(a => a.Slips.Any(x => x.Id == id));
+        if (g >= 0) _ag.Select(g, 0); else _status.Text = $"Không thấy phiếu {id} trong danh sách phiếu / lưu trữ.";
+    }
+
     private static string Nap(double? ms) => ms is > 0 ? DateTime.UnixEpoch.AddMilliseconds(ms.Value).ToLocalTime().ToString("dd/MM/yyyy HH:mm", Ui.Vi) : "—";
 
     // =====================================================================================
