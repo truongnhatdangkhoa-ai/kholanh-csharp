@@ -128,6 +128,14 @@ var login = new LoginWindow();
 login.Show();
 login.UserBox.Text = "admin";
 Snap(login, "02-dang-nhap");
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v222")
+{
+    // 1.122: bỏ "Đăng nhập bằng Google" — màn đăng nhập không còn nút / chữ Google nào (kể cả khi máy có mã OAuth).
+    var hasG = login.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Any(b => b.IsVisible && (b.Content?.ToString() ?? "").Contains("Google"));
+    Console.WriteLine($"[v222] nút Đăng nhập bằng Google: {(hasG ? "CÒN" : "không có")}");
+    if (hasG) { Console.WriteLine("        HỎNG: còn nút đăng nhập Google"); Environment.ExitCode = 1; }
+    login.Close(); return;
+}
 login.Close();
 
 // Chế độ LAN: máy này làm máy chủ chính (cổng ngẫu nhiên để không đụng máy thật) + một mục trùng sửa mẫu.

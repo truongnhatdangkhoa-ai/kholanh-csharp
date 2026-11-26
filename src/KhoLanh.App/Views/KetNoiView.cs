@@ -12,14 +12,14 @@ namespace KhoLanh.App.Views;
 /// KẾT NỐI (1.105 — người dùng chọn phương án A, mẫu anh-giao-dien/mau-he-thong/A1, A2): MỌI thứ "kết nối tài khoản / mã / đăng nhập Google"
 /// gom về 1 trang, mỗi kết nối 1 thẻ: tên dễ hiểu · Đã kết nối / Chưa / Lỗi · 1 nút chính, việc ít dùng vào "⋯ Thêm".
 ///  • Google Sheet chung (tài khoản dùng chung + điện thoại — 1 Sheet, 1 Apps Script từ 1.104) · Gmail sao lưu (Drive cá nhân) ·
-///    Đăng nhập bằng Google · Gmail nhận lịch xuất · Cập nhật phần mềm (GitHub).
+///    Gmail nhận lịch xuất (1.122: bỏ Đăng nhập bằng Google) · Cập nhật phần mềm (GitHub).
 ///  • 1.108: bỏ khung "Máy mới? Chỉ cần 2 bước" + nút "Chép mã cho máy khác" (máy mới chỉ cần đăng nhập, 1.106 / 1.107); mã KLKN1- còn ở ⋯ Thêm (dự phòng).
 /// Trước đây nằm rải ở Cài đặt máy (tài khoản dùng chung, GitHub), hộp "Kết nối điện thoại…", Tài khoản (Đăng nhập Google).
 /// </summary>
 public sealed class KetNoiView : UserControl, IPage, IKeepFresh
 {
     public string Title => "Kết nối";
-    public string Subtitle => "Mọi kết nối của máy này ở một chỗ: Google Sheet chung (tài khoản + điện thoại), Gmail sao lưu, đăng nhập Google, Gmail lịch xuất, cập nhật phần mềm. Máy khác chỉ cần đăng nhập bằng tài khoản được cấp — app tự kết nối.";
+    public string Subtitle => "Mọi kết nối của máy này ở một chỗ: Google Sheet chung (tài khoản + điện thoại), Gmail sao lưu, Gmail lịch xuất, cập nhật phần mềm. Máy khác chỉ cần đăng nhập bằng tài khoản được cấp — app tự kết nối.";
 
     private static KhoLanh.Core.AppServices S => App.Services;
     private static bool Admin => Roles.IsAdmin(S.Session.Role);
@@ -52,7 +52,6 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         _cards.Children.Clear(); Shown.Clear();
         _cards.Children.Add(SheetCard());
         if (S.DriveCaNhan.CanUse) _cards.Children.Add(GmailBackupCard());
-        if (Admin) _cards.Children.Add(GoogleLoginCard());
         if (S.LichXuat.CanMail) _cards.Children.Add(MailCard());
         if (Admin) _cards.Children.Add(GithubCard());
         var ok = Shown.Count(x => x.State == "ok"); var bad = Shown.Where(x => x.State == "bad").Select(x => x.Name).ToList();
@@ -413,15 +412,6 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
         var b = Btn(c.Linked ? "Xem bản sao lưu" : "Đăng nhập Gmail", () => { MainWindow.Of(this)?.Navigate("dcn"); return Task.CompletedTask; }, c.Linked ? null : "primary");
         return Card("Gmail sao lưu (Google Drive)", "cloud", "#FDEDE4", kind, PillText(kind, "Đã kết nối"),
             "Đăng nhập Gmail để app tự gửi bản sao lưu lên Google Drive của bạn. Máy hỏng vẫn lấy lại được dữ liệu.", detail, b);
-    }
-
-    private Border GoogleLoginCard()
-    {
-        var g = S.Google;
-        var kind = g.Ready ? "ok" : "off";
-        return Card("Đăng nhập bằng Google", "user", "#EEEBFC", kind, PillText(kind, "Đã bật"),
-            "Cho phép mọi người bấm \"Đăng nhập bằng Google\" ở màn hình đăng nhập (gán Email Google cho tài khoản ở Hệ thống › Tài khoản).", null,
-            Btn(g.Ready ? "Sửa" : "Bật…", () => UsersView.GoogleConfigDialog(this)));
     }
 
     private Border MailCard()

@@ -34,9 +34,6 @@
     <TextBlock x:Name="ErrorText" Foreground="{DynamicResource Danger}" TextWrapping="Wrap" IsVisible="False"/>
     <Button x:Name="LoginButton" Content="Đăng nhập" Classes="primary" IsDefault="True" MinHeight="36"
             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,8,0,0" Click="OnLogin"/>
-    <Button x:Name="GoogleButton" Content="Đăng nhập bằng Google" IsVisible="False" MinHeight="34"
-            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnGoogle"
-            ToolTip.Tip="Dùng tài khoản Google đang đăng nhập trên trình duyệt — Quản trị gán Gmail cho từng tài khoản ở Hệ thống › Tài khoản"/>
     <Button x:Name="JoinButton" Content="Dùng chung tài khoản với máy khác…" IsVisible="False"
             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Click="OnJoin"/>
     <Button x:Name="SetupButton" Content="Máy đầu tiên của công ty: tạo tài khoản Quản trị" IsVisible="False" Classes="ghost"

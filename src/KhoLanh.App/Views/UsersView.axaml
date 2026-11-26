@@ -8,7 +8,6 @@
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
           <Button Content="+ Tài khoản mới" Classes="primary" Click="OnNew"/>
           <Button x:Name="EditButton" Content="Sửa tài khoản đang chọn" Click="OnEdit"/>
-          <Button x:Name="GoogleButton" Content="Đăng nhập Google…" Click="OnGoogleConfig" ToolTip.Tip="Cài mã OAuth (Client ID / Client secret) cho nút Đăng nhập bằng Google trên máy này"/>
           <TextBlock x:Name="CountText" Classes="muted" VerticalAlignment="Center" Margin="8,0,0,0" Tag="keep"/>
         </StackPanel>
         <DataGrid x:Name="List" IsReadOnly="True" DoubleTapped="OnListDoubleTapped">
@@ -44,7 +43,7 @@
                 <ComboBoxItem Content="Quản trị" Tag="admin"/>
               </ComboBox>
             </StackPanel>
-            <StackPanel Width="240" Spacing="3" ToolTip.Tip="Gmail của người dùng — bấm “Đăng nhập bằng Google” với Gmail này là vào tài khoản này (để trống = không dùng)">
+            <StackPanel Width="240" Spacing="3" ToolTip.Tip="Gmail của người dùng (đưa lên Google Sheet chung / app điện thoại; để trống = không dùng). App PC không còn đăng nhập bằng Google.">
               <TextBlock Text="Email Google" Classes="label"/><TextBox x:Name="GoogleBox" Watermark="ten@gmail.com"/>
             </StackPanel>
             <StackPanel x:Name="PassPanel" Width="190" Spacing="3"><TextBlock Text="Mật khẩu * (≥ 6 ký tự)" Classes="label"/><TextBox x:Name="PassBox" PasswordChar="•"/></StackPanel>
