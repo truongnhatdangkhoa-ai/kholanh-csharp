@@ -1359,6 +1359,17 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     public string ServerName => Serving ? MachineName : _server?.Name ?? "";
 
+    /// <summary>1.121: máy con đang nối máy chủ bằng đường nào — "lan" (trong kho), "net" (Internet / đường hầm), "" (không nối / đang làm máy chủ).
+    /// App tự chọn: LAN trước, không được thì Internet, đang đi Internet thì cứ 60 giây dò lại LAN.</summary>
+    public string Via => Serving || !Online || ServerAddress is not { } a ? "" : LanHttp.IsUrl(a) ? "net" : "lan";
+
+    /// <summary>1.121: lần cuối nhận dữ liệu từ máy chủ (máy con) — settings <c>lan_synced_at</c>.</summary>
+    public DateTime? LastSyncedAt => DateTime.TryParse(_settings.Get("lan_synced_at"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    /// <summary>1.121: máy đơn đang dùng bản sao lưu Drive cá nhân của máy chủ — chữ mô tả ("KHOLANH-PC · sao lưu 26/11 22:00"), "" = dữ liệu của chính máy.
+    /// Xóa khi nối lại máy chủ.</summary>
+    public string OfflineSource => _settings.Get("lan_offline_src");
+
     /// <summary>Một dòng ngắn cho thanh menu.</summary>
     public string Short
     {
