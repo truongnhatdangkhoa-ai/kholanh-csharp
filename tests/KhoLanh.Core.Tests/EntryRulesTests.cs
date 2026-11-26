@@ -57,6 +57,25 @@ public class EntryRulesTests
     }
 
     [Fact]
+    public void Lo_tu_dien_nam_day_du()
+    {
+        var today = new DateTime(2026, 11, 26);
+        Assert.Equal("22.05.2026 L16", EntryRules.NormLo("22.05 L16", today));          // không gõ năm → năm hiện tại
+        Assert.Equal("22.05.2025 L16", EntryRules.NormLo("22.05.25 L16", today));       // năm 2 số
+        Assert.Equal("L3 02.05.2025", EntryRules.NormLo("L3 2/5/25", today));
+        Assert.Equal("22.05.2024", EntryRules.NormLo("22-05-2024", today));
+        Assert.Equal("25.12.2025 L1", EntryRules.NormLo("25.12 L1", today));             // ngày còn ở tương lai → năm trước
+        Assert.Equal("L16", EntryRules.NormLo("L16", today));                            // không có ngày → giữ nguyên
+        Assert.Equal("32.05 L1", EntryRules.NormLo("32.05 L1", today));                  // ngày sai → giữ nguyên
+        // gõ vào ô Lô của trang kiểm kê → ô tự đổi
+        var cols = KiemKe(); var lo = cols.FindIndex(c => c.Header == "Lô");
+        var cells = new Dictionary<(int, int), string> { [(0, 1)] = "MA", [(0, lo)] = "22.05 L16" };
+        string Get(int r, int c) => cells.TryGetValue((r, c), out var v) ? v : "";
+        var res = EntryRules.Derive(cols, Get, new[] { (0, lo, "", "22.05 L16") }, _ => null, today, _ => null);
+        Assert.Contains((0, lo, "22.05.2026 L16"), res);
+    }
+
+    [Fact]
     public void Kiem_ke_go_lo_thi_dac_tinh_lay_theo_ket_qua_khang_sinh()
     {
         var cols = KiemKe();

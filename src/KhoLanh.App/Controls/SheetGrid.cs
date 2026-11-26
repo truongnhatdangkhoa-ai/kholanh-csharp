@@ -649,10 +649,27 @@ public sealed class SheetGrid : UserControl
 
     private void ClearSelection()
     {
-        if (_map is null) { Model.Clear(Selection); return; }
         var s = VSel;
+        if (SoftLock is { } lk)
+        {   // 1.116: ô tự điền đang khóa tạm không bị Delete xóa nhầm (dòng hết phần nhập tay thì ô tự điền tự trống)
+            var cells = SelModelRows().Where(m => m < Model.RowCount).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c))).ToList();
+            var free = cells.Where(x => !lk(x.m, x.c)).Select(x => (x.m, x.c, "")).ToList();
+            if (free.Count < cells.Count) SoftLockHit?.Invoke();
+            if (free.Count > 0) Model.SetCells(free);
+            return;
+        }
+        if (_map is null) { Model.Clear(Selection); return; }
         Model.SetCells(SelModelRows().Where(m => m < Model.RowCount).SelectMany(m => Enumerable.Range(s.C1, s.Cols).Select(c => (m, c, ""))));
     }
+
+    /// <summary>
+    /// 1.116: ô "khóa tạm" (dòng dữ liệu, cột) — vd ô đã tự điền ở Nhập liệu: gõ / F2 / Backspace / Delete không sửa được, chỉ NHẤN ĐÚP mới sửa
+    /// (tránh gõ nhầm đè). Dán / điền xuống vẫn ghi được.
+    /// </summary>
+    public Func<int, int, bool>? SoftLock { get; set; }
+    /// <summary>Người dùng vừa chạm vào ô khóa tạm (để màn hình báo "nhấn đúp để sửa").</summary>
+    public event Action? SoftLockHit;
+    private bool Locked(int c) => SoftLock is { } lk && Row < Model.RowCount && c >= 0 && c < Model.ColCount && lk(Row, c);
 
     /// <summary>Ctrl+D như Excel: chép ô trên cùng của vùng chọn xuống các ô còn lại (chọn 1 ô → lấy ô ngay trên).
     /// 1.88: vùng chọn chỉ 1 dòng nhiều cột (vd hàng KIỆN / DÃY) → chép ô đầu tiên sang phải (= Ctrl+R).</summary>
@@ -720,9 +737,10 @@ public sealed class SheetGrid : UserControl
 
     // ------------------------------------------------------------------ sửa ô
 
-    public void BeginEdit(string? initial)
+    public void BeginEdit(string? initial, bool force = false)
     {
         if (Model.ReadOnly || Col >= Model.ColCount || Model.Columns[Col].ReadOnly) return;
+        if (!force && Locked(Col)) { SoftLockHit?.Invoke(); return; }
         VA = VR; AnchorCol = Col;
         HideFilterEditor(false);
         _editing = true; _typedEdit = initial is not null;
@@ -1391,7 +1409,7 @@ public sealed class SheetGrid : UserControl
                 _g.AnchorCol = 0; _g.VR = r; _g.Col = _g.Model.ColCount - 1;
                 _g.Redraw(); e.Pointer.Capture(this); return;
             }
-            if (e.ClickCount == 2) { _g.SelectV(r, c); _g.BeginEdit(null); return; }
+            if (e.ClickCount == 2) { _g.SelectV(r, c); _g.BeginEdit(null, force: true); return; }   // 1.116: nhấn đúp mở cả ô khóa tạm
             _g.SelectV(r, c, shift);
             _drag = Drag.Cells;
             e.Pointer.Capture(this);

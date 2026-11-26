@@ -974,6 +974,37 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.116: SHOTS_ONLY=v209 — Nhập liệu kiểm kê: gõ lô "22.05 L16" → "22.05.<năm> L16"; ô tự điền (Ngày nhập) khóa tạm: gõ không sửa, nhấn đúp mới sửa. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v209")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    s.Entry.Create("Kiểm kê khóa tạm", KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
+    main.Show("m6", new KhoLanh.App.Views.EntryView()); P(40);
+    var ev = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.EntryView>().First();
+    var combo = ev.GetVisualDescendants().OfType<ComboBox>().First(c => c.Name == "PageCombo");
+    combo.SelectedItem = combo.ItemsSource!.Cast<object>().First(i => i.ToString()!.Contains("khóa tạm")); P(30);
+    var grid = ev.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+    var m = grid.Model;
+    int Col(string h) => Enumerable.Range(0, m.ColCount).First(c => m.Columns[c].Header == h);
+    m.SetCells(new[] { (0, Col("Vị trí"), "TG1.A.01.1.1"), (0, Col("Mã hàng"), "VRHLBTNXECR00162IMA1"), (0, Col("Số lượng"), "5") }); P(5);
+    m.Set(0, Col("Lô"), "22.05 L16"); P(5);
+    var lo = m.Get(0, Col("Lô")); var ngay = m.Get(0, Col("Ngày nhập"));
+    Console.WriteLine($"[v209] lô: {lo} · ngày nhập tự điền: {ngay}");
+    if (lo != $"22.05.{(new DateTime(DateTime.Today.Year, 5, 22) > DateTime.Today ? DateTime.Today.Year - 1 : DateTime.Today.Year)} L16" || ngay.Length == 0) ok = false;
+    grid.Select(0, Col("Ngày nhập")); P(5);
+    grid.BeginEdit("x"); P(5);                       // như gõ phím
+    var editor = grid.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.IsVisible);
+    var status = ev.GetVisualDescendants().OfType<TextBlock>().First(t => t.Name == "StatusText").Text ?? "";
+    Console.WriteLine($"[v209] gõ vào ô tự điền: mở sửa = {editor is not null} · {status}");
+    if (editor is not null || !status.Contains("nhấn đúp")) ok = false;
+    Snap(main, "v209-o-tu-dien-khoa-tam");
+    grid.BeginEdit(null, force: true); P(5);           // như nhấn đúp
+    editor = grid.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.IsVisible);
+    Console.WriteLine($"[v209] nhấn đúp: mở sửa = {editor is not null} · nội dung {editor?.Text}");
+    if (editor is null || editor.Text != ngay) ok = false;
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v209) — ĐẠT: " : "Xong (v209) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.115: SHOTS_ONLY=v208 — Nhập liệu: mẫu Kiểm kê có Lô · Đặc tính trước Ghi chú; nút "Đóng trang" đóng trang đang mở (không tự mở trang khác). Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v208")
 {
