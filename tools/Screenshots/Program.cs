@@ -1861,7 +1861,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     var bu = t.Ngays.FirstOrDefault(d => t.Dong[(nv2.Id, d)].Chot == 0 && t.Dong[(nv2.Id, d)].Nhan.Count > 0);
     if (bu != default)
     {
-        cc.SaveSua("2026-10", new[] { new KhoLanh.Core.ChamCong.CcSua { Nv = nv2.Id, Ngay = bu, Phep = true } });
+        cc.SaveSua("2026-10", new[] { new KhoLanh.Core.ChamCong.CcSua { Nv = nv2.Id, Ngay = bu, Loai = "P" } });
         t = cc.Tinh("2026-10");
         var dp = t.Dong[(nv2.Id, bu)];
         Console.WriteLine($"[CC] nghỉ phép {bu:dd/MM}: sau sang {dp.SauSang} giờ, nhận {dp.Nhan.Count} lần");
@@ -1878,6 +1878,29 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
         if (Math.Abs(du - t.DuCon[n.Id]) > 1e-6) Bad($"giờ dư còn lại lệch: {n.Ten} {du} ≠ {t.DuCon[n.Id]}");
         if (t.DuCon[n.Id] > 0 && t.Ngays.Any(d => t.Dong[(n.Id, d)].SauSang < 8)) Bad($"{n.Ten} còn giờ dư mà vẫn có ngày chưa đủ 8 tiếng");
     }
+    // 1.129 lễ / Tết / công tác: ngày 20/10 = lễ chung (Cấu hình), người thứ 4 công tác ngày 21 + 22 (không giờ chấm)
+    {
+        var cfg = cc.CauHinh; cfg.NgayLe[new DateOnly(2026, 10, 20)] = ("L", "Lễ thử (dữ liệu giả)"); cc.SaveCauHinh(cfg);
+        var nv4 = cc.NhanVien[3];
+        cc.SaveSua("2026-10", new[] { 21, 22 }.Select(d => new KhoLanh.Core.ChamCong.CcSua { Nv = nv4.Id, Ngay = new DateOnly(2026, 10, d), Loai = "CT", Vao = "", Ra = "" }));
+        t = cc.Tinh("2026-10");
+        var le = new DateOnly(2026, 10, 20);
+        foreach (var n in t.Nvs)
+        {
+            var dl = t.Dong[(n.Id, le)];
+            if (dl.Loai != "L" || dl.TenLe.Length == 0) Bad($"{n.Ten} ngày 20 chưa là lễ chung ({dl.Loai})");
+            if (dl.Nhan.Count > 0 || dl.Cho.Count > 0) Bad($"{n.Ten} ngày lễ vẫn sang công");
+            if (dl.DuCong && (Math.Abs(dl.SauSang - 8) > 1e-9 || dl.GioLe != 0)) Bad($"{n.Ten} nghỉ lễ: sau sang {dl.SauSang} (cần 8), giờ lễ {dl.GioLe} (cần 0)");
+            if (!dl.DuCong && Math.Abs(dl.GioLe - dl.Chot) > 1e-9) Bad($"{n.Ten} đi làm ngày lễ: giờ lễ {dl.GioLe} ≠ chốt {dl.Chot}");
+        }
+        foreach (var d in new[] { 21, 22 })
+        {
+            var dc = t.Dong[(nv4.Id, new DateOnly(2026, 10, d))];
+            if (dc.Loai != "CT" || !dc.DuCong || Math.Abs(dc.SauSang - 8) > 1e-9 || dc.Nhan.Count > 0 || dc.CanhBao.Length > 0) Bad($"công tác ngày {d}: loại {dc.Loai} đủ công {dc.DuCong} sau sang {dc.SauSang} nhận {dc.Nhan.Count} cảnh báo \"{dc.CanhBao}\"");
+        }
+        Console.WriteLine($"[CC] lễ 20/10: {t.Nvs.Count(n => !t.Dong[(n.Id, le)].DuCong)} người đi làm, {t.Nvs.Count(n => t.Dong[(n.Id, le)].DuCong)} người nghỉ đủ công (giờ lễ {t.Nvs.Sum(t.GioLe):0.##}) · công tác {t.NgayLoai(nv4, "CT")} ngày · nghỉ phép {t.Nvs.Sum(t.NgayPhep)} ngày");
+        v!.Reload(); W();
+    }
     Snap(main, "cc1-bang-cong");
     // sửa tay qua lưới Chi tiết: ngày 9 người thứ 3 quên bấm ra → gõ 17:00
     v!._tabs.SelectedIndex = 1; W();
@@ -1890,6 +1913,9 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     Console.WriteLine($"[CC] sửa giờ ra ngày 9: {c9b.Vao}-{c9b.Ra} → chốt {c9b.Chot} (sửa tay {c9b.SuaRa})");
     if (!c9b.SuaRa || c9b.Ra != "17:00" || c9b.Chot <= 0) Bad("sửa giờ ra qua lưới không lưu");
     Snap(main, "cc2-chi-tiet");
+    cbo.SelectedIndex = 4; W();   // người thứ 4: công tác 21–22, lễ chung 20
+    var r21 = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "21/10/2026");
+    v._cg.Select(r21, 0); W(); Snap(main, "cc2b-chi-tiet-le-cong-tac");
     v._tabs.SelectedIndex = 2; W(); Snap(main, "cc3-nhan-vien");
     v._tabs.SelectedIndex = 3; W(); Snap(main, "cc4-cau-hinh");
     var xl = System.IO.Path.Combine(outDir, "ChamCong_2026-10.xlsx");

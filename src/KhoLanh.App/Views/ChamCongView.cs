@@ -39,7 +39,7 @@ public sealed class ChamCongView : UserControl, IPage
     private bool SauSangView => _bView.SelectedIndex != 1;
     // Chi tiết
     internal readonly GridModel _cm = new();
-    private readonly SheetGrid _cg;
+    internal readonly SheetGrid _cg;
     private readonly ComboBox _cNv = new() { MinWidth = 220 };
     private readonly CheckBox _cOnly = new() { Content = "Chỉ ngày cần xem / đã sửa", VerticalAlignment = VerticalAlignment.Center };
     private List<CcDong> _cRows = new();
@@ -84,7 +84,6 @@ public sealed class ChamCongView : UserControl, IPage
         var bar = new ToolRow { Margin = new Thickness(0, 4, 0, 6) };
         bar.Children.Add(new TextBlock { Text = "Tháng", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
         bar.Children.Add(_thang);
-        bar.Children.Add(_st);
         bar.Children.Add(ToolRow.Gap());
         if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", Export, "Bảng công (nhân viên × ngày, tổng giờ) + Chi tiết (cùng cột bảng Excel làm tay)"));
         if (edit) bar.Children.Add(Btn("Nạp file máy chấm công…", Import, "File \"Chi tiết chấm công\" xuất từ phần mềm máy chấm công (.xlsx / .xls / .csv)", primary: true));
@@ -94,7 +93,10 @@ public sealed class ChamCongView : UserControl, IPage
         _tabs.Items.Add(new TabItem { Header = "Nhân viên", Content = Pad(BuildNhanVien()) });
         _tabs.Items.Add(new TabItem { Header = "Cấu hình", Content = Pad(BuildCauHinh()) });
         var dock = new DockPanel();
-        DockPanel.SetDock(bar, Dock.Top); dock.Children.Add(bar); dock.Children.Add(_tabs);
+        // thanh Tháng + nút được MainWindow kéo lên hàng tên trang (chỗ hẹp, 1 dòng) → dòng tóm tắt _st để riêng dưới đáy trang
+        _st.TextTrimming = TextTrimming.CharacterEllipsis; _st.Margin = new Thickness(0, 4, 0, 0);
+        DockPanel.SetDock(bar, Dock.Top); dock.Children.Add(bar);
+        DockPanel.SetDock(_st, Dock.Bottom); dock.Children.Add(_st); dock.Children.Add(_tabs);
         Content = dock;
         AttachedToVisualTree += (_, _) => Reload();
     }
@@ -113,7 +115,7 @@ public sealed class ChamCongView : UserControl, IPage
 
     // ================================================================== nạp / tính
 
-    private void Reload(string? chon = null)
+    internal void Reload(string? chon = null)
     {
         Svc.Load();
         _loading = true;
@@ -534,7 +536,8 @@ public sealed class ChamCongView : UserControl, IPage
         right.Children.Add(new TextBlock { Text = "Ngày lễ / Tết (cả kho)", Classes = { "section" }, Margin = new Thickness(0, 10, 0, 0) });
         right.Children.Add(Muted("Ngày (dd/MM/yyyy) · Loại L = lễ, T = Tết · Tên. Áp cho mọi nhân viên; người nào đi làm / không nghỉ thì sửa riêng ở cột Loại ngày tab Chi tiết. Lưu cùng nút Lưu cấu hình."));
         right.Children.Add(new Border { Height = 280, Child = Framed(_lg) });
-        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,24,Auto"), VerticalAlignment = VerticalAlignment.Top };
+        left.MaxWidth = 900; left.HorizontalAlignment = HorizontalAlignment.Left;   // ghi chú dài xuống dòng, không đẩy khung phải ra ngoài
+        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,24,Auto"), VerticalAlignment = VerticalAlignment.Top };
         g.Children.Add(left); Grid.SetColumn(right, 2); g.Children.Add(right);
         return new ScrollViewer { Content = g };
     }
