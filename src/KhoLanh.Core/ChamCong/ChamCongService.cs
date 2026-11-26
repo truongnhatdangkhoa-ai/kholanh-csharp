@@ -235,7 +235,7 @@ public sealed class ChamCongService
         return new CcSua
         {
             Nv = S(o["nv"]), Ngay = CcCore.ParseDate(S(o["ngay"])) ?? default, Vao = T("vao"), Ra = T("ra"), ChepTu = T("chepTu"),
-            VSom = D("vsom"), Chot = D("chot"), SauSang = D("sauSang"), GhiChu = S(o["ghiChu"]),
+            VSom = D("vsom"), Chot = D("chot"), SauSang = D("sauSang"), Phep = S(o["phep"]) == "1", GhiChu = S(o["ghiChu"]),
         };
     }).Where(s => s.Nv.Length > 0 && s.Ngay != default).ToList();
 
@@ -248,6 +248,7 @@ public sealed class ChamCongService
         if (s.VSom is double v) o["vsom"] = v.ToString(CcCore.Inv);
         if (s.Chot is double c) o["chot"] = c.ToString(CcCore.Inv);
         if (s.SauSang is double ss) o["sauSang"] = ss.ToString(CcCore.Inv);
+        if (s.Phep) o["phep"] = "1";
         if (s.GhiChu.Length > 0) o["ghiChu"] = s.GhiChu;
         return (JsonNode)o;
     }).ToArray());
@@ -286,6 +287,7 @@ public sealed class ChamCongService
         public double TongSau(CcNhanVien n) => Math.Round(Ngays.Sum(d => Dong[(n.Id, d)].SauSang), 2);
         /// <summary>Số ngày đủ công (sau sang ≥ giờ chuẩn).</summary>
         public int NgayDu(CcNhanVien n) => Ngays.Count(d => Dong[(n.Id, d)].SauSang >= GioChuan - 1e-9);
+        public int NgayPhep(CcNhanVien n) => Ngays.Count(d => Dong[(n.Id, d)].Phep);
         public double GioChuan = 8;
         /// <summary>Giờ dư tháng trước đã đưa vào bù / giờ dư còn lại cuối tháng (tăng ca chưa dùng), theo nhân viên.</summary>
         public Dictionary<string, double> DuTruoc = new(), DuCon = new();
@@ -354,7 +356,7 @@ public sealed class ChamCongService
                 r.Ket = CcCore.Tinh(CcCore.ParseTime(vao), CcCore.ParseTime(ra), n.Nhom, r.VSom, c);
                 r.Chot = s?.Chot ?? r.Ket.Gio; r.SuaChot = s?.Chot is not null;
                 r.CanhBao = r.SuaChot ? "" : r.Ket.CanhBao;
-                r.SauSang = s?.SauSang ?? r.Chot; r.SuaSang = s?.SauSang is not null;
+                r.SauSang = s?.SauSang ?? r.Chot; r.SuaSang = s?.SauSang is not null; r.Phep = s?.Phep == true;
                 t.Dong[(n.Id, d)] = r;
             }
         // sang công (người dùng 26/11): giờ dư bù ngày thiếu trong tháng (+ giờ dư tháng trước nếu bật)
@@ -363,8 +365,8 @@ public sealed class ChamCongService
         {
             var rows = t.Ngays.Select(d => t.Dong[(n.Id, d)]).ToList();
             var truoc = duTruoc?.GetValueOrDefault(n.Id) ?? 0;
-            if (!c.SangCong) { t.DuCon[n.Id] = Math.Round(rows.Where(r => !r.SuaSang).Sum(r => Math.Max(0, r.Chot - t.GioChuan)), 2); continue; }
-            var (sau, lan, con) = CcCore.SangCong(rows.Select(r => (r.Ngay, r.SuaSang ? r.SauSang : r.Chot, r.SuaSang)).ToList(), t.GioChuan, truoc);
+            if (!c.SangCong) { t.DuCon[n.Id] = Math.Round(rows.Where(r => !r.SuaSang && !r.Phep).Sum(r => Math.Max(0, r.Chot - t.GioChuan)), 2); continue; }
+            var (sau, lan, con) = CcCore.SangCong(rows.Select(r => (r.Ngay, r.SuaSang ? r.SauSang : r.Chot, r.SuaSang || r.Phep)).ToList(), t.GioChuan, truoc);
             for (var i = 0; i < rows.Count; i++) if (!rows[i].SuaSang) rows[i].SauSang = sau[i];
             foreach (var l in lan)
             {
@@ -389,7 +391,7 @@ public sealed class ChamCongService
         bc.Cell(1, 1).Style.Font.Bold = true; bc.Cell(1, 1).Style.Font.FontSize = 14;
         var head = new List<string> { "STT", "Mã NV", "Họ tên", "Bộ phận" };
         head.AddRange(t.Ngays.Select(d => d.Day.ToString()));
-        head.AddRange(new[] { "Ngày đủ công", "Tổng giờ", "Giờ dư còn (tăng ca)" });
+        head.AddRange(new[] { "Ngày đủ công", "Nghỉ phép", "Tổng giờ", "Giờ dư còn (tăng ca)" });
         for (var c = 0; c < head.Count; c++) bc.Cell(3, c + 1).Value = head[c];
         for (var i = 0; i < t.Ngays.Count; i++) bc.Cell(2, 5 + i).Value = CcCore.Thu(t.Ngays[i]);
         var row = 4;
@@ -400,13 +402,15 @@ public sealed class ChamCongService
             {
                 var d = t.Dong[(n.Id, t.Ngays[i])];
                 if (d.SauSang != 0) bc.Cell(row, 5 + i).Value = d.SauSang;
+                else if (d.Phep) bc.Cell(row, 5 + i).Value = "P";
                 if (d.CanhBao.Length > 0) bc.Cell(row, 5 + i).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF2D6");
                 else if (d.Nhan.Count > 0) bc.Cell(row, 5 + i).Style.Fill.BackgroundColor = XLColor.FromHtml("#E3F4EA");
                 if (t.Ngays[i].DayOfWeek == DayOfWeek.Sunday) bc.Cell(row, 5 + i).Style.Font.FontColor = XLColor.FromHtml("#B42318");
             }
             bc.Cell(row, 5 + t.Ngays.Count).Value = t.NgayDu(n);
-            bc.Cell(row, 6 + t.Ngays.Count).Value = t.TongSau(n);
-            bc.Cell(row, 7 + t.Ngays.Count).Value = t.DuCon.GetValueOrDefault(n.Id);
+            bc.Cell(row, 6 + t.Ngays.Count).Value = t.NgayPhep(n);
+            bc.Cell(row, 7 + t.Ngays.Count).Value = t.TongSau(n);
+            bc.Cell(row, 8 + t.Ngays.Count).Value = t.DuCon.GetValueOrDefault(n.Id);
             row++;
         }
         var hr = bc.Range(2, 1, 3, head.Count); hr.Style.Font.Bold = true; hr.Style.Fill.BackgroundColor = XLColor.FromHtml("#EDF1F6");
@@ -434,7 +438,7 @@ public sealed class ChamCongService
             ct.Cell(row, 14).Value = d.Chot;
             ct.Cell(row, 15).Value = d.SauSang;
             if (SangText(d) is { Length: > 0 } st) ct.Cell(row, 16).Value = st;
-            var note = string.Join(" · ", new[] { d.GhiChu, d.ChepTu.Length > 0 ? "giờ của " + d.ChepTu : "", d.SuaChot ? "chốt sửa tay" : "", d.SuaSang ? "sang công sửa tay" : "", d.CanhBao }.Where(x => x.Length > 0));
+            var note = string.Join(" · ", new[] { d.Phep ? "nghỉ có phép" : "", d.GhiChu, d.ChepTu.Length > 0 ? "giờ của " + d.ChepTu : "", d.SuaChot ? "chốt sửa tay" : "", d.SuaSang ? "sang công sửa tay" : "", d.CanhBao }.Where(x => x.Length > 0));
             if (note.Length > 0) ct.Cell(row, 17).Value = note;
             if (d.DaSua) ct.Range(row, 1, row, 17).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEEBFC");
             row++;

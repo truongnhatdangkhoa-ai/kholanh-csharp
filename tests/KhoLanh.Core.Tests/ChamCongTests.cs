@@ -160,7 +160,7 @@ public class ChamCongTests : IDisposable
         var bc = wb.Worksheet("Bảng công");
         Assert.Equal("Người Kho A", bc.Cell(4, 3).GetString());
         Assert.Equal(8, bc.Cell(4, 5).GetDouble());                  // ngày 1: 9 giờ → sang 1 giờ cho ngày nghỉ gần nhất
-        Assert.Equal(17.5, bc.Cell(4, 5 + 31 + 1).GetDouble());      // tổng giờ sau sang (không đổi)
+        Assert.Equal(17.5, bc.Cell(4, 5 + 31 + 2).GetDouble());      // tổng giờ sau sang (không đổi)
         Assert.Equal("Sang công", wb.Worksheet("Sang công").Cell(1, 1).GetString() == "Mã nhân viên" ? "Sang công" : "");
         Assert.Equal("Chốt", wb.Worksheet("Chi tiết").Cell(3, 14).GetString());
     }
@@ -229,10 +229,15 @@ public class ChamCongTests : IDisposable
         t = cc.Tinh("2026-10");
         Assert.Equal(0, t.Dong[(a.Id, D(10, 8))].SauSang); Assert.Equal(4, t.Dong[(a.Id, D(10, 9))].SauSang);
 
+        // ngày 9 nghỉ CÓ PHÉP → không bù; 4 giờ dư sang ngày nghỉ không phép gần nhất (ngày 4 và 10 cùng cách 3 ngày → ngày sớm hơn)
+        cc.SaveSua("2026-10", new[] { new CcSua { Nv = a.Id, Ngay = D(10, 9), Phep = true } });
+        t = cc.Tinh("2026-10");
+        Assert.True(t.Dong[(a.Id, D(10, 9))].Phep); Assert.Equal(0, t.Dong[(a.Id, D(10, 9))].SauSang);
+        Assert.Equal(4, t.Dong[(a.Id, D(10, 4))].SauSang); Assert.Equal(1, t.NgayPhep(a));
         // tháng 10 cho làm đủ mọi ngày + ngày 20 làm 30 giờ (chốt sửa tay) → sau khi bù ngày 8 / 9… vẫn còn giờ dư
-        cc.SaveSua("2026-10", Enumerable.Range(1, 31).Where(d => d is not (5 or 6 or 7 or 8)).Select(d => new CcSua { Nv = a.Id, Ngay = D(10, d), Chot = d == 20 ? 30 : 8 }));
+        cc.SaveSua("2026-10", Enumerable.Range(1, 31).Where(d => d is not (5 or 6 or 7 or 8 or 9)).Select(d => new CcSua { Nv = a.Id, Ngay = D(10, d), Chot = d == 20 ? 30 : 8 }));
         var t10 = cc.Tinh("2026-10");
-        Assert.Equal(1 + 4 + 22 - 1, t10.DuCon[a.Id]);                            // dư ngày 5 / 7 / 20, đã bù 1 giờ cho ngày 6 (ngày 8 khóa tay 0 giờ)
+        Assert.Equal(1 + 4 + 22 - 1, t10.DuCon[a.Id]);                            // dư ngày 5 / 7 / 20, đã bù 1 giờ cho ngày 6 (ngày 8 khóa tay 0 giờ, ngày 9 nghỉ phép)
         // tháng 11: ngày 1 làm 4 giờ — chưa bật "bù giờ dư tháng trước" thì không được bù
         cc.SaveSua("2026-11", new[] { new CcSua { Nv = a.Id, Ngay = D(11, 1), Chot = 4 } });
         Assert.Equal(4, cc.Tinh("2026-11").Dong[(a.Id, D(11, 1))].SauSang);

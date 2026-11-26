@@ -105,7 +105,7 @@ public static class CcCore
     /// SANG CÔNG (người dùng 26/11: "ngày 5 làm 9 tiếng, ngày 6 làm 7 tiếng → sang 1 tiếng cho ngày 6, 2 ngày đủ 8 tiếng"):
     /// giờ trên <paramref name="chuan"/> của mỗi ngày (kể cả Chủ nhật) bù cho ngày thiếu trong tháng — ngày có đi làm nhưng thiếu giờ trước,
     /// rồi tới ngày nghỉ hẳn (0 giờ); luôn ghép cặp ngày thiếu – ngày dư GẦN NHAU NHẤT trước; <paramref name="duTruoc"/> =
-    /// giờ dư còn lại của tháng trước (coi như ngày cuối tháng trước). Ngày <c>Khoa</c> (đã sửa tay "Sau sang") không cho / không nhận.
+    /// giờ dư còn lại của tháng trước (coi như ngày cuối tháng trước). Ngày <c>Khoa</c> (đã sửa tay "Sau sang", nghỉ có phép) không cho / không nhận.
     /// Trả giờ sau sang từng ngày, danh sách lần sang và giờ dư còn lại (= tăng ca chưa dùng).
     /// </summary>
     public static (double[] Sau, List<Sang> Lan, double Con) SangCong(IReadOnlyList<(DateOnly Ngay, double Gio, bool Khoa)> days, double chuan, double duTruoc = 0)
@@ -219,7 +219,9 @@ public sealed class CcSua
     public double? VSom, Chot;
     /// <summary>Giờ sau sang công sửa tay (ngày này không cho / nhận sang công tự động).</summary>
     public double? SauSang;
-    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && GhiChu.Length == 0;
+    /// <summary>Nghỉ có phép (người dùng 26/11: "ngày nghỉ có phép thì không bù" — không nhận giờ sang công).</summary>
+    public bool Phep;
+    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && !Phep && GhiChu.Length == 0;
 }
 
 /// <summary>Kết quả 1 nhân viên × 1 ngày.</summary>
@@ -232,11 +234,11 @@ public sealed class CcDong
     public CcCore.Ket Ket = null!;
     /// <summary>Giờ chốt (ghi đè tay nếu có).</summary>
     public double Chot;
-    public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang;
+    public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang, Phep;
     /// <summary>Giờ sau sang công (= <see cref="Chot"/> khi không sang).</summary>
     public double SauSang;
     /// <summary>Lần sang công nhận vào / cho đi của ngày này.</summary>
     public List<CcCore.Sang> Nhan = new(), Cho = new();
-    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || ChepTu.Length > 0;
+    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || Phep || ChepTu.Length > 0;
     public bool CoMat => Chot > 0;
 }

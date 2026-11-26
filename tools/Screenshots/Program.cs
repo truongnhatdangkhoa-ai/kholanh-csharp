@@ -1856,6 +1856,18 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     if (l1.Vao != a1.Vao || l1.Chot != a1.Chot) Bad($"chép giờ: {l1.Vao}/{l1.Chot} ≠ {a1.Vao}/{a1.Chot}");
     var c9 = t.Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
     if (!c9.CanhBao.StartsWith("Chỉ có 1 lần chấm")) Bad("thiếu cảnh báo quên bấm ra: " + c9.CanhBao);
+    // nghỉ có phép: chọn 1 ngày nghỉ (0 giờ chốt) đang được bù của người thứ 2 → đánh dấu phép → ngày đó không còn được bù
+    var nv2 = cc.NhanVien[1];
+    var bu = t.Ngays.FirstOrDefault(d => t.Dong[(nv2.Id, d)].Chot == 0 && t.Dong[(nv2.Id, d)].Nhan.Count > 0);
+    if (bu != default)
+    {
+        cc.SaveSua("2026-10", new[] { new KhoLanh.Core.ChamCong.CcSua { Nv = nv2.Id, Ngay = bu, Phep = true } });
+        t = cc.Tinh("2026-10");
+        var dp = t.Dong[(nv2.Id, bu)];
+        Console.WriteLine($"[CC] nghỉ phép {bu:dd/MM}: sau sang {dp.SauSang} giờ, nhận {dp.Nhan.Count} lần");
+        if (dp.SauSang != 0 || dp.Nhan.Count > 0) Bad("ngày nghỉ có phép vẫn được bù");
+    }
+    else Bad("dữ liệu mẫu không có ngày nghỉ được bù để thử nghỉ phép");
     Console.WriteLine($"[CC] {t.Nvs.Count} người · tổng {t.Nvs.Sum(t.TongGio):0.##} giờ · cần xem {t.Rows.Count(x => x.CanhBao.Length > 0)} · đã sửa {t.Rows.Count(x => x.DaSua)} · sang công {t.SangList.Count} lần / {t.SangList.Sum(x => x.Lan.Gio):0.##} giờ");
     if (t.SangList.Count == 0) Bad("không có lần sang công nào");
     // sang công chỉ dời giờ giữa các ngày: tổng giờ không đổi; giờ dư chưa dùng vẫn nằm trên ngày làm dư (> 8 tiếng = tăng ca)
