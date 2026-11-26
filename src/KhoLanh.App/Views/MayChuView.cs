@@ -14,7 +14,7 @@ namespace KhoLanh.App.Views;
 
 /// <summary>
 /// 1.121 — Đồng bộ &amp; sao lưu › tab MÁY CHỦ (người dùng duyệt mẫu): 1 khung trạng thái theo tình huống của máy này, không hiện IP / cổng / mã LAN.
-///  a) Máy này làm máy chủ: nối được trong kho / qua Internet / máy dự phòng · 3 ô số · bảng Máy đang nối (lọc Trong kho / Internet) · Trùng sửa cần xem.
+///  a) Máy này làm máy chủ: nối được trong kho / qua Internet · 3 ô số · bảng Máy đang nối (lọc Trong kho / Internet) · Trùng sửa cần xem.
 ///  b) Máy con đang nối: đường nối (Trong kho / Internet — app tự chọn) · gửi lần cuối · chờ gửi · Máy trong hệ thống.
 ///  c) Máy đơn có thay đổi chờ gửi (không nối được máy chủ): đã thử LAN / Internet · Nối lại ngay · bảng thay đổi chờ gửi.
 ///  d) Máy đơn dùng bản Drive cá nhân của máy chủ (<see cref="LanService.OfflineSource"/>): nguồn dữ liệu.
@@ -136,12 +136,11 @@ public sealed class MayChuView : UserControl
         else if (lan.HttpError.Length > 0) net = new[] { Bad("✖ " + Short(lan.HttpError, 100)) };
         else if (lan.TunnelLastOk > DateTime.MinValue) net = new[] { Ok("✓"), Muted($" (tự kiểm {lan.TunnelLastOk:HH:mm})") };
         else net = new[] { Muted("chưa kiểm — bấm ⋯ Thêm › Địa chỉ Internet của máy chủ") };
-        var standby = plan?.DuPhong is { } d ? d.Name : "chưa có";
         var subs = new List<Control>
         {
             Line(new[] { Muted("Máy trong kho nối được: ") }.Concat(new[] { inKho }).ToArray()),
             Line(new[] { Muted("Máy ở ngoài nối được (Internet): ") }.Concat(net).ToArray()),
-            Line(Muted("Máy dự phòng: "), Plain(standby)),
+            Line(Muted("Máy chủ tắt: "), Plain("các máy con làm riêng trên dữ liệu trong máy, bật lại thì tự gộp")),
         };
         if (Admin && App.LanPublishNote.Length > 0) subs.Add(Line(Warn("⚠ " + App.LanPublishNote)));
         Control? acts = null;
@@ -155,7 +154,6 @@ public sealed class MayChuView : UserControl
             Item(menu, "Nhật ký nối máy", ShowLog);
             Item(menu, "Địa chỉ Internet của máy chủ…", PublicUrlDialog);
             Item(menu, ChayAn.Enabled ? "Tắt chạy ẩn (đóng cửa sổ = thoát hẳn)" : "Bật chạy ẩn (đóng cửa sổ = ẩn xuống khay)", ToggleChayAn);
-            if (plan?.DuPhong is not null) Item(menu, "Bỏ máy dự phòng", DropStandby);
             more.Flyout = menu;
             var off = new Button { Content = "Tắt máy chủ", Classes = { "danger" } };
             off.Click += async (_, _) => await Release();
@@ -310,7 +308,7 @@ public sealed class MayChuView : UserControl
         _sysSec.Children.Add(new TextBlock { Text = "Máy trong hệ thống", Classes = { "section" } });
         var g = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 10 };
         Put(g, 0, Box("Máy chủ", plan?.Chu?.Name ?? lan.ServerName, null));
-        Put(g, 1, Box("Máy dự phòng", plan?.DuPhong?.Name ?? "chưa có", null));
+        Put(g, 1, Box("Khi máy chủ tắt", "máy này làm riêng, tự gộp khi nối lại", null));
         Put(g, 2, Box("Máy này", $"{lan.MachineName} · {LanService.RoleLabel(lan.Role).ToLowerInvariant()}", null));
         _sysSec.Children.Add(g);
         _notes.Children.Add(Note("Không cần nhập địa chỉ / cổng: đăng nhập là app tự nối máy chủ — trong kho đi qua mạng LAN, ở ngoài đi qua Internet."));
@@ -369,7 +367,7 @@ public sealed class MayChuView : UserControl
     private Run[] TriedRuns()
     {
         var plan = S.Accounts.Plan;
-        var hasNet = plan?.Chu?.Addrs.Any(LanHttp.IsUrl) == true || plan?.DuPhong?.Addrs.Any(LanHttp.IsUrl) == true;
+        var hasNet = plan?.Chu?.Addrs.Any(LanHttp.IsUrl) == true;
         return new[] { Muted("Đã thử: LAN "), Bad("✖"), Muted(" · Internet "), hasNet ? Bad("✖") : Muted("(máy chủ chưa cài địa chỉ Internet)"), Muted(" · tự thử lại mỗi 15 giây") };
     }
 
@@ -461,22 +459,12 @@ public sealed class MayChuView : UserControl
 
     private async Task Release()
     {
-        var d = S.Accounts.Plan?.DuPhong;
-        if (!await Ui.Confirm(this, "Tắt máy chủ trên máy này?" + (d is null
-                ? "\n\nChưa có máy dự phòng: các máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại (ở máy này hoặc máy khác) thì tự gộp."
-                : $"\n\nMáy dự phòng {d.Name} sẽ tự làm máy chủ."), "Tắt máy chủ", "Tắt")) return;
+        if (!await Ui.Confirm(this, "Tắt máy chủ trên máy này?\n\nCác máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại (ở máy này hoặc máy khác) thì tự gộp.", "Tắt máy chủ", "Tắt")) return;
         string msg = "";
         if (!await Ui.RunAsync(this, async () => msg = await LanPlanSync.ReleaseServerAsync(S))) return;
         Hook();
         Render();
         await Ui.Message(this, msg, "Tắt máy chủ");
-    }
-
-    private async Task DropStandby()
-    {
-        if (S.Accounts.Plan?.DuPhong is not { } d) return;
-        if (!await Ui.Confirm(this, $"Bỏ ghi nhận máy dự phòng {d.Name}? Lần đăng nhập tới máy đó thành máy con.", "Bỏ máy dự phòng", "Bỏ")) return;
-        if (await Ui.RunAsync(this, async () => await S.Accounts.UpdatePlanAsync(p => { p.DuPhong = null; return true; }))) Render();
     }
 
     /// <summary>Địa chỉ Internet của máy chủ (tên miền đường hầm Cloudflare) — như khung "Máy chủ từ xa" cũ (1.113).</summary>

@@ -16,10 +16,12 @@ public static class LanPlanSync
         var lan = s.Lan;
         if (lan.Role == LanService.RoleRemote) return null;   // máy xem từ xa (Google Drive): không tự nhận vai LAN
         if (s.Settings.Get(BackupService.DetachedKey) == "1") return null;   // 1.114: máy đã tách ra dùng riêng sau khi khôi phục
-        var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role, LanPlan.CanStandby(s.Session.CurrentUser));
+        var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role);
         if (d is null) return null;
         var oldRole = lan.Role;
-        if (!LanService.ApplyPlan(s.Settings, plan, d.Role)) return null;
+        // 1.131: vai đang CHẠY khác vai đúng (vd máy chủ cũ vừa trả vai cho máy khác: cài đặt đã là máy con nhưng LAN còn chạy vai máy chủ)
+        // → vẫn nạp lại LAN dù cài đặt không đổi (trước đây ô máy dự phòng trong kế hoạch luôn làm "có đổi" nên lỗi bị che).
+        if (!LanService.ApplyPlan(s.Settings, plan, d.Role) && oldRole == d.Role) return null;
         // Sắp thay dữ liệu module bằng dữ liệu máy chủ → sao lưu trước (phòng máy đơn có dữ liệu riêng).
         if (oldRole is LanService.RoleSingle or LanService.RoleServer && d.Role is LanService.RoleStandby or LanService.RoleClient)
             try { s.Backup.BackupTo(Path.Combine(s.Backup.AutoBackupFolder, $"truoc-doi-vai-{DateTime.Now:yyyyMMdd-HHmmss}.db")); } catch { }
@@ -57,12 +59,8 @@ public static class LanPlanSync
         if (!acc.Enabled || !lan.Enabled || !lan.Capable) return null;
         plan ??= new LanPlan();
         var addrs = lan.Addresses();
-        var standbys = lan.Machines().Where(m => m.Role == LanService.RoleStandby && m.Addr.Length > 0)
-            .Select(m => (m.Id, m.Name, m.Addr.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList(), m.User)).ToList();
         var user = s.Session.Username;
-        var users = s.Auth.ListUsers();
-        bool Standby(string u) => LanPlan.CanStandby(users.FirstOrDefault(x => string.Equals(x.Username, u, StringComparison.OrdinalIgnoreCase)));
-        bool Fix(LanPlan p) { var c = p.Fix(lan.MachineId, lan.MachineName, lan.Role, user, addrs, lan.Key, lan.Port, standbys, Standby); if (c || !p.On) p.On = true; return c; }
+        bool Fix(LanPlan p) { var c = p.Fix(lan.MachineId, lan.MachineName, lan.Role, user, addrs, lan.Key, lan.Port); if (c || !p.On) p.On = true; return c; }
         if (!Fix(plan.Clone())) return null;
         if (!acc.CanWrite) return "Máy này chưa có mã quản trị nên chưa ghi được địa chỉ máy chủ lên Google Sheet — các máy khác chưa tự tìm thấy máy này.";
         try { await acc.UpdatePlanAsync(Fix, ct); return null; }
@@ -92,7 +90,7 @@ public static class LanPlanSync
         {
             p.On = true;
             p.Chu = new LanPlan.Slot(lan.MachineId, lan.MachineName, addrs, now, user);
-            if (p.DuPhong?.Id == lan.MachineId) p.DuPhong = null;
+            p.DuPhong = null;   // 1.131: bỏ máy dự phòng
             if (key.Length > 0) p.Key = key;
             if (p.Port == 0) p.Port = lan.Port;
             return true;
@@ -118,7 +116,7 @@ public static class LanPlanSync
         await s.Accounts.UpdatePlanAsync(p => { if (p.Chu?.Id != lan.MachineId) return false; p.Chu = null; return true; }, ct);
         s.Settings.Set("lan_role", LanService.RoleSingle);
         s.ReloadLan();
-        var msg = "Đã tắt máy chủ trên máy này." + (plan?.DuPhong is { } d ? $" Máy dự phòng {d.Name} tự làm máy chủ." : " Các máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại thì tự gộp.");
+        var msg = "Đã tắt máy chủ trên máy này. Các máy con làm tiếp trên dữ liệu trong máy, bật máy chủ lại thì tự gộp.";
         s.Audit.Log(s.Session.Username, "Tắt máy chủ LAN", msg);
         return msg;
     }

@@ -1154,7 +1154,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v213")
     s.Lan.Handle(Beat("m-kho1", "MAY-KHO-1", "thang", 0));
     s.Lan.Handle(Beat("m-kho2", "MAY-KETOAN", "lan", 2));
     s.Lan.Handle(Beat("m-nha", "LAPTOP-NHA", "khoa", 0), "", netIp: "113.161.40.12");
-    // giả lập đã nối Google Sheet chung + kế hoạch LAN (máy dự phòng) — không gọi mạng khi chỉ mở trang
+    // giả lập đã nối Google Sheet chung + kế hoạch LAN (kế hoạch cũ còn ghi máy dự phòng — 1.131 không hiện) — không gọi mạng khi chỉ mở trang
     var sec = (Func<string, string>)KhoLanh.Core.Services.Secret.Protect;
     s.Settings.Set("acct_url", "https://script.google.com/macros/s/DEMO/exec"); s.Settings.Set("acct_token", sec("demo-token"));
     var lp = new KhoLanh.Core.Lan.LanPlan { On = true, Key = "demo", Port = s.Lan.Port };
@@ -1176,7 +1176,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v213")
     if (mc.ConflictRows < 1) Bad("cần khung Trùng sửa cần xem (có 1 mục chờ)");
     var allTxt = string.Join("\n", mc.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Inlines is { Count: > 0 } il ? string.Concat(il.OfType<Avalonia.Controls.Documents.Run>().Select(r => r.Text)) : t.Text ?? ""));
     if (System.Text.RegularExpressions.Regex.IsMatch(allTxt, @"47\d\d\d|Cổng|cổng|mã LAN")) Bad("tab Máy chủ không được hiện cổng / mã LAN");
-    if (!allTxt.Contains("MAY-VAN-PHONG")) Bad("thiếu dòng Máy dự phòng");
+    if (allTxt.Contains("MAY-VAN-PHONG") || allTxt.Contains("dự phòng")) Bad("1.131: tab Máy chủ không còn hiện máy dự phòng (kế hoạch cũ còn ghi vẫn ẩn)");
+    if (!allTxt.Contains("Máy chủ tắt")) Bad("1.131: thiếu dòng Máy chủ tắt → máy con làm riêng");
     CheckUnderNav(main, "v213-may-chu"); Snap(main, "v213-may-chu");
     mc.MachineFilter.Selected = 2; mc.Render(); P(10);
     Console.WriteLine($"[v213] lọc Qua Internet: {mc.MachineRows} máy");

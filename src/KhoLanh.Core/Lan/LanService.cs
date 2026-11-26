@@ -1060,6 +1060,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     private async Task MaybePromote(CancellationToken ct)
     {
+        // 1.131: máy đã trả vai (cài đặt không còn là vai đang chạy — vd máy chủ cũ sau khi máy khác nhận vai) thì không tự lên làm chủ
+        if (_settings.Get("lan_role") is { Length: > 0 } saved && saved != Role) return;
         // Máy chủ chính mới mở mà không thấy ai làm chủ → làm chủ luôn.
         if (Role == RoleServer && DateTime.Now - _startedAt < T(PromoteAfterSeconds + 5))
         {
