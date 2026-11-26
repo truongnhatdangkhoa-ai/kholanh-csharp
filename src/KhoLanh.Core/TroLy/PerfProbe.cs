@@ -123,6 +123,7 @@ public sealed class PerfProbe
     public static double? Latency(string? hostPort, int timeoutMs = 3000)
     {
         if (string.IsNullOrWhiteSpace(hostPort)) return null;
+        if (Uri.TryCreate(hostPort, UriKind.Absolute, out var u) && u.Scheme is "http" or "https") hostPort = $"{u.Host}:{u.Port}";   // 1.104: máy chủ qua đường hầm
         var i = hostPort.LastIndexOf(':');
         if (i <= 0 || !int.TryParse(hostPort[(i + 1)..], out var port)) return null;
         try

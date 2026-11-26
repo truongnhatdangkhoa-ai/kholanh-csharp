@@ -351,6 +351,8 @@ public static class TroLyChecks
         public bool DriveEnabled;
         public string DriveDir = "";
         public bool DriveDirExists = true;
+        /// <summary>1.104: máy chủ có địa chỉ từ xa (Cloudflare Tunnel): địa chỉ + lỗi tự thử nối (rỗng = nối được).</summary>
+        public string TunnelUrl = "", TunnelError = "";
     }
 
     private static Finding Go(Finding f, string key, string label) { f.Go = key; f.GoLabel = label; return f; }
@@ -399,6 +401,10 @@ public static class TroLyChecks
             o.Add(Go(Mk("ket-noi", "do", "Đồng bộ Google Drive", "Thư mục Google Drive dùng chung không còn",
                 "Đồng bộ qua Drive đang bật nhưng không thấy thư mục — máy này không nhận / gửi dữ liệu với các máy khác. Kiểm tra Google Drive cho máy tính đang chạy và đã đăng nhập, hoặc chọn lại thư mục.",
                 new[] { info.DriveDir }), "drive", "Đồng bộ & sao lưu › Giữa các máy"));
+        if (info.TunnelUrl.Length > 0 && info.TunnelError.Length > 0)
+            o.Add(Go(Mk("ket-noi", "do", "Máy chủ từ xa", "Máy ở xa không nối được máy chủ qua Internet",
+                $"Máy chủ tự thử nối qua {info.TunnelUrl} không được — các máy ở nơi khác đang làm riêng trên dữ liệu của mình (sổ chờ, nối lại sẽ tự gửi). Kiểm tra dịch vụ cloudflared trên máy này đang chạy, mạng Internet, và Public hostname trên Cloudflare trỏ đúng HTTP localhost.",
+                new[] { Short(info.TunnelError, 240) }), "lan", "Đồng bộ & sao lưu › Giữa các máy"));
         if (o.Count == 0 && (info.AcctEnabled || info.PhoneEnabled || info.MailReady || info.DriveEnabled))
         {
             var on = new List<string>();

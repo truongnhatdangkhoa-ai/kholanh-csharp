@@ -129,6 +129,7 @@ public partial class LanView : UserControl, IPage
     private void Refresh()
     {
         var lan = App.Services.Lan;
+        RefreshRemote();
         if (!lan.Enabled)
         {
             StatusText.Text = "Máy đơn — dữ liệu chỉ nằm trong máy này.";
@@ -177,4 +178,49 @@ public partial class LanView : UserControl, IPage
     private void OnKeepServer(object? sender, RoutedEventArgs e) => Act("maychu", "Giữ nguyên bản máy chủ, bỏ bản của máy con?");
     private void OnUndo(object? sender, RoutedEventArgs e) => Act("hoantac", "Bỏ kết quả tự gộp, đưa bảng về bản máy chủ trước khi gộp?");
     private void OnSeen(object? sender, RoutedEventArgs e) => Act("daxem", "Đánh dấu đã xem (giữ kết quả hiện tại)?");
+
+    // ------------------------------------------------------------------ 1.104: máy chủ từ xa (Cloudflare Tunnel)
+
+    private void RefreshRemote()
+    {
+        var lan = App.Services.Lan;
+        RemoteCard.IsVisible = lan.Role is LanService.RoleServer or LanService.RoleStandby;
+        if (!RemoteCard.IsVisible) return;
+        if (!RemoteUrlBox.IsFocused && (RemoteUrlBox.Text ?? "").Length == 0) RemoteUrlBox.Text = lan.PublicUrl;
+        var last = lan.TunnelLastOk;
+        RemoteInfo.Text = $"Địa chỉ trong máy cho Cloudflare Tunnel (Service HTTP): localhost:{lan.HttpPort}"
+            + (lan.HttpError.Length > 0 ? "\n⚠ " + lan.HttpError : "")
+            + (lan.PublicUrl.Length == 0 ? "\nChưa có địa chỉ từ xa — chỉ máy trong cùng mạng nối được."
+                : "\nĐường hầm: " + (last == DateTime.MinValue ? "chưa có máy nào nối qua Internet từ lúc mở app." : $"máy ở xa nối lần cuối {last:HH:mm:ss dd/MM}."));
+    }
+
+    private async void OnRemoteSave(object? sender, RoutedEventArgs e)
+    {
+        if (!await Ui.Run(this, () => LanService.SetPublicUrl(App.Services.Settings, RemoteUrlBox.Text))) return;
+        var u = App.Services.Lan.PublicUrl;
+        RemoteUrlBox.Text = u;
+        App.Services.Audit.Log(App.Services.Session.Username, "Địa chỉ máy chủ từ xa", u.Length > 0 ? u : "(bỏ)");
+        RemoteMsg.Foreground = AppTheme.Brush("#1A2433");
+        // ghi địa chỉ mới lên Google Sheet (kế hoạch LAN theo tài khoản) → máy ở xa đăng nhập là tự biết, không cần mã
+        var err = await KhoLanh.Core.Lan.LanPlanSync.PublishAsync(App.Services);
+        RemoteMsg.Text = err ?? (u.Length > 0 ? "Đã lưu và ghi lên Google Sheet chung — máy ở xa chỉ cần đăng nhập là tự nối qua địa chỉ này. Bấm «Kiểm tra nối từ xa» để thử." : "Đã bỏ địa chỉ từ xa.");
+        RefreshRemote();
+    }
+
+    private async void OnRemoteTest(object? sender, RoutedEventArgs e)
+    {
+        RemoteTestButton.IsEnabled = false;
+        RemoteMsg.Foreground = AppTheme.Brush("#5D6B78"); RemoteMsg.Text = "Đang thử nối qua Internet…";
+        try
+        {
+            var r = await App.Services.Lan.TestPublicAsync(RemoteUrlBox.Text);
+            RemoteMsg.Foreground = AppTheme.Brush("#1E7B4A"); RemoteMsg.Text = "✓ " + r;
+        }
+        catch (Exception ex)
+        {
+            RemoteMsg.Foreground = AppTheme.Brush("#B42318");
+            RemoteMsg.Text = "✖ " + ex.Message + "\nKiểm tra: cloudflared đang chạy, Public hostname trỏ HTTP localhost:" + App.Services.Lan.HttpPort + ", DNS tên miền đã chuyển sang Cloudflare.";
+        }
+        finally { RemoteTestButton.IsEnabled = true; RefreshRemote(); }
+    }
 }

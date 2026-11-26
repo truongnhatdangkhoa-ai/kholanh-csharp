@@ -69,6 +69,20 @@
               </StackPanel>
             </Border>
             <StackPanel Grid.Column="1" Spacing="12">
+              <Border Classes="card" x:Name="RemoteCard">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Máy chủ từ xa (qua Internet)" Classes="section"
+                             ToolTip.Tip="Máy ở nơi khác nối máy chủ này qua Internet mà không cài gì: máy chủ chạy Cloudflare Tunnel trỏ tên miền (vd kho.kcenter.xyz) về địa chỉ trong máy bên dưới. Xem hướng dẫn docs/MAY-CHU-TU-XA.md."/>
+                  <TextBlock Text="Địa chỉ từ xa (tên miền đường hầm)" Classes="label"/>
+                  <TextBox x:Name="RemoteUrlBox" Watermark="kho.kcenter.xyz"/>
+                  <WrapPanel ItemSpacing="6" LineSpacing="6">
+                    <Button x:Name="RemoteSaveButton" Content="Lưu địa chỉ" Click="OnRemoteSave"/>
+                    <Button x:Name="RemoteTestButton" Content="Kiểm tra nối từ xa" Click="OnRemoteTest"/>
+                  </WrapPanel>
+                  <SelectableTextBlock x:Name="RemoteInfo" Classes="muted" TextWrapping="Wrap" FontSize="12" Tag="keep"/>
+                  <TextBlock x:Name="RemoteMsg" TextWrapping="Wrap" FontSize="12.5" Tag="keep"/>
+                </StackPanel>
+              </Border>
               <Expander Header="Khi máy chủ tắt thì sao?" HorizontalAlignment="Stretch">
                 <TextBlock TextWrapping="Wrap" FontSize="12.5" Tag="keep"
                            Text="• Có máy dự phòng: khoảng 10 giây sau máy dự phòng tự làm máy chủ, các máy con tự chuyển sang. Máy chủ chính bật lại sẽ chép phần thiếu rồi nhận lại vai.&#10;• Không có máy nào làm chủ: mỗi máy làm tiếp trên dữ liệu riêng, ghi sổ chờ; có máy chủ lại thì tự gửi lên (trùng sửa hiện ở tab Máy đang nối &amp; trùng sửa).&#10;• Nên để chỉ một máy nạp file cho mỗi module trong lúc mất máy chủ."/>

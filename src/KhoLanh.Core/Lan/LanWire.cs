@@ -138,7 +138,7 @@ public sealed class SecureChannel : ILanChannel
 }
 
 /// <summary>Một kết nối tới một máy (giữ mở, gọi lần lượt). Lỗi mạng → đóng, lần gọi sau tự nối lại.</summary>
-public sealed class LanConnection : IDisposable
+public sealed class LanConnection : ILanConn
 {
     public string Endpoint { get; }
     private readonly SemaphoreSlim _gate = new(1, 1);
