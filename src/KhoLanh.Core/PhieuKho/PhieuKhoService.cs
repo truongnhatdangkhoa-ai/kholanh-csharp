@@ -131,8 +131,8 @@ public sealed partial class PhieuKhoService
         return p;
     }
 
-    /// <summary>Lưu (thêm / sửa) 1 phiếu. Trả về bản đã lưu.</summary>
-    public Phieu Save(Phieu p)
+    /// <summary>Lưu (thêm / sửa) 1 phiếu. Trả về bản đã lưu. <paramref name="tay"/> = false: máy tự điền (vd thông tin xe từ email) — không đánh dấu "người dùng đã sửa".</summary>
+    public Phieu Save(Phieu p, bool tay = true)
     {
         RequireEdit();
         p = PhieuKhoCore.Clone(p);
@@ -140,7 +140,7 @@ public sealed partial class PhieuKhoService
         var isNew = p.Id.Length == 0;
         if (isNew) p.Id = "px" + DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString("x") + Guid.NewGuid().ToString("N")[..3];
         p.CapNhat = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'");
-        p.DaSua = true;
+        if (tay) p.DaSua = true;
         var i = List.FindIndex(x => x.Id == p.Id);
         if (i >= 0) List[i] = p; else List.Insert(0, p);
         SaveAll();

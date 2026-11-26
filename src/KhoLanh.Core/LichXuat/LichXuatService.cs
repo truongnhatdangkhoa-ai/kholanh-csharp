@@ -612,6 +612,8 @@ public sealed partial class LichXuatService
         PhieuKhoService.SetTag(p, tag);
         var saved = pnx.Save(p);
         try { pnx.LoadAutoLog(); foreach (var c in codes) pnx.LogAdd(c, "xuat_khau", tag, saved.Id, phieuNew: auto, ghiChu: auto ? "tự tạo theo lịch xuất" : "tạo phiếu nhanh"); pnx.SaveAutoLog(); } catch { /* nhật ký lỗi không chặn phiếu */ }
+        // 1.122: thư «Thông tin xe» đến TRƯỚC khi có phiếu → điền luôn vào phiếu vừa tạo (trước chỉ chép số cont của lịch)
+        if (CanPnx) notes.AddRange(ReplayXe(saved.Id));
         LoadPnx(); Changed?.Invoke();
         notes.Add("Đã tạo phiếu " + (saved.SoPhieu.Length > 0 ? saved.SoPhieu : "") + " — mở Phiếu xuất kho để kiểm tra rồi xuất Excel.");
         return (saved, true, notes);
@@ -904,18 +906,32 @@ public sealed partial class LichXuatService
                     return n;
                 });
             }
-            if (CanPnx) xeN += FillPhieuXe(codes, x.GhiChu);
+            // 1.122 (như app cũ autoXeNow): thư xe MỚI → điền vào phiếu xuất khẩu mới nhất của LSX, thư sau cùng thắng (chỉ ô thư có ghi).
+            // Chưa có phiếu → vẫn ghi nhận thư; khi phiếu được tạo (tự / tay) sẽ tự áp lại (ReplayXe).
+            var fx = CanPnx ? XeToPhieu(codes, x.GhiChu, null) : (Status: "no_pnx", SoPhieu: "");
+            if (fx.Status == "ok") xeN++;
             x.TrangThai = "Đã duyệt"; x.XuLyLuc = now; x.TuDong = true;
-            x.KetQua = rd.Ok ? $"Số cont {rd.Cont} → lịch {x.Lsx}" + (xeN > 0 ? " · đã điền thông tin xe vào phiếu" : "") : "Thư xe không có số cont";
+            x.KetQua = (rd.Ok ? $"Số cont {rd.Cont} → lịch {x.Lsx}" : "Thư xe không có số cont") + fx.Status switch
+            {
+                "ok" => $" · đã điền thông tin xe vào phiếu {fx.SoPhieu}",
+                "same" => $" · phiếu {fx.SoPhieu} đã có đúng thông tin này",
+                "no_phieu" => " · chưa có phiếu xuất khẩu — tự điền khi có phiếu",
+                _ => "",
+            };
         }
+        // 1.122: thư người tin cậy CÒN CHỜ (lượt trước chưa qua lưới an toàn, vd LSX chưa có lịch) cũng thử lại mỗi lượt quét như app cũ (emAuto chạy trên mọi thư chờ)
+        var cutoffAuto = now.AddDays(-Math.Max(cfg.Days, 1));
+        var pendTrusted = store.Where(r => r.TrangThai.Length == 0 && r.NhanLuc >= cutoffAuto).ToList();
         // 2) Thư của người tin cậy qua lưới an toàn → tự áp
         if (cfg.Auto && trust.Length > 0 && CanEdit)
-            foreach (var r in fresh.Where(r => r.HanhDong is "tao" or "doi" or "huy" && LichXuatEmail.Trusted(r.NguoiGui, trust)).OrderBy(r => r.NhanLuc))
+            foreach (var r in fresh.Concat(pendTrusted).Where(r => r.HanhDong is "tao" or "doi" or "huy" && LichXuatEmail.Trusted(r.NguoiGui, trust)).OrderBy(r => r.NhanLuc))
             {
                 if (LichXuatEmail.Guard(r, Rows, now).Length > 0) continue;
                 try { var msg = ApplyEmail(r, r.Ngay, r.Gio); r.TrangThai = "Đã duyệt"; r.XuLyLuc = now; r.TuDong = true; r.KetQua = "[Tự động · người tin cậy] " + msg; auto++; notes.Add($"{r.HanhDongTen} · {r.Lsx}: {msg}"); }
                 catch (Exception e) { r.KetQua = "Chưa tự xử lý được: " + e.Message; break; }
             }
+        // 3) thư xe đã nhận trước khi có phiếu → áp vào phiếu xuất khẩu chưa có thông tin xe (phiếu tạo tay / tạo lại sau khi thư đến)
+        if (CanPnx) foreach (var n in ReplayXe(null, store.Concat(fresh))) { notes.Add(n); xeN++; }
         store.AddRange(fresh);
         SaveEmailRows(store);
         _settings.Set("lx_mail_last", now.ToString("o", CultureInfo.InvariantCulture));
@@ -925,23 +941,62 @@ public sealed partial class LichXuatService
 
     public DateTime? LastScan => DateTime.TryParse(_settings.Get("lx_mail_last"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var d) ? d : null;
 
-    /// <summary>Điền thông tin xe vào phiếu xuất khẩu của LSX (phiếu đã có số xe / tài xế thì không đè). Trả số phiếu đã điền.</summary>
-    private int FillPhieuXe(List<string> codes, string text)
+    /// <summary>5 ô thông tin xe (không tính số cont — phiếu tạo từ lịch đã có cont của lịch) còn trống hết → phiếu chưa nhận thông tin xe.</summary>
+    private static bool XeTrong(Phieu p) => new[] { p.Xe.TaiXe, p.Xe.Sdt, p.Xe.SoXe, p.Xe.Seal, p.Xe.Booking }.All(v => string.IsNullOrWhiteSpace(v));
+
+    /// <summary>
+    /// Áp 1 thư «Thông tin xe» vào phiếu xuất khẩu của LSX (như app cũ autoXeNow): <paramref name="targetId"/> = đúng phiếu đó, không thì phiếu ngày muộn nhất chứa LSX.
+    /// Chỉ ghi các ô thư có ghi (thư sau thắng). Status: ok · same (không có gì mới) · empty (thư không đọc được mục nào) · no_phieu · error.
+    /// </summary>
+    private (string Status, string SoPhieu) XeToPhieu(List<string> codes, string text, string? targetId)
     {
         try
         {
-            var pnx = _pnx(); pnx.Load(); var want = codes.Select(PhieuKhoCore.LsxNorm).ToHashSet(); var n = 0;
-            foreach (var p in pnx.List.Where(p => p.Loai == "xuat_khau" && PhieuKhoCore.LsxList(p.Lsx).Any(c => want.Contains(PhieuKhoCore.LsxNorm(c)))).ToList())
-            {
-                if (p.Xe.SoXe.Trim().Length > 0 || p.Xe.TaiXe.Trim().Length > 0) continue;
-                var c = PhieuKhoCore.Clone(p); var r = PhieuKhoCore.ApplyXeEmail(c, text);
-                if (r.Found.Count == 0) continue;
-                pnx.Save(c); n++;
-            }
-            if (n > 0) LoadPnx();
-            return n;
+            var pnx = _pnx(); pnx.Load(); var want = codes.Select(PhieuKhoCore.LsxNorm).ToHashSet();
+            bool Mine(Phieu p) => p.Loai == "xuat_khau" && PhieuKhoCore.LsxList(p.Lsx).Any(c => want.Contains(PhieuKhoCore.LsxNorm(c)));
+            var h = targetId is not null ? pnx.List.FirstOrDefault(p => p.Id == targetId && Mine(p)) : null;
+            h ??= pnx.List.Where(Mine).OrderByDescending(p => p.Ngay, StringComparer.Ordinal).ThenByDescending(p => p.CapNhat, StringComparer.Ordinal).FirstOrDefault();
+            if (h is null) return ("no_phieu", "");
+            var c = PhieuKhoCore.Clone(h); var r = PhieuKhoCore.ApplyXeEmail(c, text);
+            if (r.Found.Count == 0) return ("empty", h.SoPhieu);
+            if (r.Xe.All(kv => h.Xe.Get(kv.Key) == kv.Value)) return ("same", h.SoPhieu);
+            pnx.Save(c, tay: false); LoadPnx();
+            return ("ok", h.SoPhieu);
         }
-        catch { return 0; }
+        catch { return ("error", ""); }
+    }
+
+    /// <summary>
+    /// 1.122 (như app cũ emXeReplay): thư «Thông tin xe» đã nhận (14 ngày) mà lúc đó chưa có phiếu → áp vào phiếu xuất khẩu chưa có thông tin xe của đúng LSX,
+    /// theo thứ tự cũ → mới (thư mới nhất thắng). <paramref name="targetId"/> = chỉ phiếu đó (vừa tạo). Trả ghi chú từng phiếu đã điền.
+    /// </summary>
+    private List<string> ReplayXe(string? targetId, IEnumerable<LichXuatEmail.Row>? rows = null)
+    {
+        var notes = new List<string>();
+        try
+        {
+            var cut = Now().AddDays(-14);
+            var xe = (rows ?? EmailRows()).Where(r => r.HanhDong == "xe" && r.TrangThai == "Đã duyệt" && r.NhanLuc >= cut).GroupBy(r => r.Id).Select(g => g.First()).OrderBy(r => r.NhanLuc).ToList();
+            if (xe.Count == 0) return notes;
+            var pnx = _pnx(); pnx.Load();
+            var targets = pnx.List.Where(p => p.Loai == "xuat_khau" && (targetId is null ? XeTrong(p) : p.Id == targetId)).ToList();
+            foreach (var p in targets)
+            {
+                var mine = PhieuKhoCore.LsxList(p.Lsx).Select(PhieuKhoCore.LsxNorm).ToHashSet();
+                // quét định kỳ (không chỉ định phiếu): chỉ thư nhận quanh ngày xuất của phiếu (± 3 ngày) — tránh điền xe của lần xuất này vào phiếu cũ cùng LSX
+                bool Near(LichXuatEmail.Row x) => targetId is not null || (IsIso(p.Ngay) && Math.Abs((x.NhanLuc.Date - DateOf(p.Ngay)).TotalDays) <= 3);
+                var its = xe.Where(x => Near(x) && LichXuatEmail.CodesOf(x.Lsx).Any(c => mine.Contains(PhieuKhoCore.LsxNorm(c)))).ToList();
+                if (its.Count == 0) continue;
+                var c = PhieuKhoCore.Clone(p); var n = 0;
+                foreach (var x in its) n += PhieuKhoCore.ApplyXeEmail(c, x.GhiChu).Found.Count;
+                if (n == 0 || new[] { "taiXe", "sdt", "soXe", "cont", "seal", "booking", "nhietDo" }.All(k => p.Xe.Get(k) == c.Xe.Get(k))) continue;
+                pnx.Save(c, tay: false);
+                notes.Add($"Đã điền thông tin xe vào phiếu {p.SoPhieu} ({p.Lsx}) từ email «Thông tin xe» đã nhận trước đó.");
+            }
+            if (notes.Count > 0) LoadPnx();
+        }
+        catch { /* không chặn quét / tạo phiếu */ }
+        return notes;
     }
 
     /// <summary>Lựa chọn khi thư không chắc (LSX đã có lịch ngày khác / nhiều lịch): <see cref="ChoiceKeep"/> = thêm lịch mới, giữ cả hai;
