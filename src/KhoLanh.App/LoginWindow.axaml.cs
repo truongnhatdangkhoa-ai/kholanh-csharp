@@ -144,7 +144,6 @@ public partial class LoginWindow : Window
             }
             var u = s.Auth.LoginGoogle(r.Email);
             try { App.LanNote = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s) ?? ""; } catch (Exception ex) { App.LanNote = "Không tự đổi vai LAN được: " + ex.Message; }
-            try { var dn = KhoLanh.Core.Lan.DrivePlanSync.ApplyAtLogin(s); if (!string.IsNullOrEmpty(dn)) App.LanNote = (App.LanNote.Length > 0 ? App.LanNote + "\n" : "") + dn; } catch (Exception ex) { App.LanNote += (App.LanNote.Length > 0 ? "\n" : "") + "Không tự nhận vai Drive được: " + ex.Message; }
             UserBox.Text = u.Username;
             Succeeded = true;
             LoggedIn?.Invoke();
@@ -191,7 +190,6 @@ public partial class LoginWindow : Window
                 if (Result.Note.Length > 0) DataPathText.Text = Result.Note;
             }
             try { App.LanNote = KhoLanh.Core.Lan.LanPlanSync.ApplyAtLogin(s) ?? ""; } catch (Exception ex) { App.LanNote = "Không tự đổi vai LAN được: " + ex.Message; }
-            try { var dn = KhoLanh.Core.Lan.DrivePlanSync.ApplyAtLogin(s); if (!string.IsNullOrEmpty(dn)) App.LanNote = (App.LanNote.Length > 0 ? App.LanNote + "\n" : "") + dn; } catch (Exception ex) { App.LanNote += (App.LanNote.Length > 0 ? "\n" : "") + "Không tự nhận vai Drive được: " + ex.Message; }
             s.Remember.Save(user, pass, RememberBox.IsChecked == true, AutoBox.IsChecked == true);
             Succeeded = true;
             LoggedIn?.Invoke();

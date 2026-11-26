@@ -125,7 +125,7 @@ public sealed class TroLyMayView : UserControl
         {
             var lost = _list.Count(t => TroLyMay.MatLienLac(t, now));
             _info.Text = $"{_list.Count} máy · " + (lost > 0 ? $"{lost} mất liên lạc (> 1 giờ không có tin) · " : "") +
-                "mỗi máy tự ghi sau mỗi lần quét và mỗi 15 phút (qua LAN / Drive dùng chung).";
+                "mỗi máy tự ghi sau mỗi lần quét và mỗi 15 phút (qua LAN / Internet).";
             var sel = _list.FindIndex(t => t.Id == me);
             _g.Select(sel >= 0 ? sel : 0, 0);
         }

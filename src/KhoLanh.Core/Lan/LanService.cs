@@ -77,7 +77,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private long _maxSeenEpoch;
     public bool Online { get; private set; }
     private DateTime _failSince = DateTime.MinValue;
-    private DateTime _lastPull = DateTime.MinValue, _lastBeat = DateTime.MinValue, _lastPeerCheck = DateTime.MinValue, _lastTry = DateTime.MinValue;
+    private DateTime _lastPull = DateTime.MinValue, _lastBeat = DateTime.MinValue, _lastPeerCheck = DateTime.MinValue, _lastTry = DateTime.MinValue, _lastLanProbe = DateTime.MinValue;
     private readonly DateTime _startedAt = DateTime.Now;
     public string LastSync { get; private set; } = "";
     public event Action? Changed;
@@ -469,6 +469,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 if (await FindServer(ct)) { await Flush(ct); await Pull(ct, full: false); }
             }
             if (Capable && !Online) await MaybePromote(ct);
+            if (!Online && !Serving) await MaybeOfflineSnapshot(now, ct);
         }
         else
         {
@@ -481,6 +482,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 }
                 catch (LanUnreachableException) { }
             }
+            // 1.121: đang đi Internet (đường hầm) mà máy đã về mạng kho → tự chuyển sang LAN (nhanh hơn ~100 lần mỗi lượt gọi)
+            if (Via == "net" && now - _lastLanProbe > T(60)) { _lastLanProbe = now; await ProbeLan(ct); }
             var every = Capable ? T(1) : T(15);
             if (now - _lastPull > every) await Pull(ct, full: false);
             if (Online && PendingCount() > 0) await Flush(ct);
@@ -835,6 +838,108 @@ public sealed partial class LanService : ISheetSource, IDisposable
         catch (LanUnreachableException) { GoOffline(); throw; }
     }
 
+    /// <summary>1.121: đang nối qua Internet → thử các địa chỉ trong kho của máy chủ (chờ ngắn); được thì ghi nhớ địa chỉ LAN để mọi lượt sau đi LAN.</summary>
+    internal async Task<bool> ProbeLan(CancellationToken ct)
+    {
+        if (_server is not { } sv) return false;
+        var fresh = KnownNodes().FirstOrDefault(k => k.Id == sv.Id && k.Id.Length > 0)?.Addrs ?? sv.Addrs;
+        var addrs = fresh.Concat(sv.Addrs).Distinct().ToList();
+        foreach (var ep in addrs.Where(a => !LanHttp.IsUrl(a)))
+        {
+            try
+            {
+                var h = await Conn(ep).CallAsync(Req("hello"), TimeSpan.FromSeconds(1.5), ct);
+                if (h["ok"]?.GetValue<bool>() != true || h["serving"]?.GetValue<bool>() != true || h["id"]?.ToString() != sv.Id) continue;
+                lock (_state)
+                {
+                    if (_server?.Id != sv.Id) return false;
+                    var n = new Node(sv.Id, sv.Name, sv.Role, addrs);
+                    _server = n;
+                    _goodEp[string.Join(";", n.Addrs)] = ep;
+                }
+                Raise();
+                return true;
+            }
+            catch (LanUnreachableException) { }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ 1.121: máy đơn dùng bản sao lưu Drive cá nhân của máy chủ
+
+    /// <summary>
+    /// Máy đơn (không nối được máy chủ): hỏi xem có bản sao lưu của máy chủ MỚI HƠN lần đồng bộ cuối của máy này không
+    /// (tham số: tên máy chủ, lần đồng bộ cuối). Có → tải về file .db tạm và trả (đường dẫn, mô tả, giờ sao lưu); không → null.
+    /// AppServices nối với Drive cá nhân (cùng Gmail đã đăng nhập ở tab Sao lưu).
+    /// </summary>
+    public Func<string, DateTime?, CancellationToken, Task<(string Path, string Label, DateTime At)?>>? OfflineSnapshot { get; set; }
+    /// <summary>Gọi ngay trước khi thay dữ liệu bằng bản Drive (AppServices: chụp bản hiện tại vào Sao lưu trên máy).</summary>
+    public Action? BeforeOfflineSnapshot { get; set; }
+    private DateTime _lastSnapCheck = DateTime.MinValue;
+    private int _snapBusy;
+
+    private async Task MaybeOfflineSnapshot(DateTime now, CancellationToken ct)
+    {
+        if (OfflineSnapshot is not { } get || Role != RoleClient) return;
+        DateTime fail; lock (_state) fail = _failSince;
+        if (fail == DateTime.MinValue || now - fail < T(60) || now - _lastSnapCheck < T(1800)) return;
+        if (PendingCount() > 0) return;   // có thay đổi chờ gửi → giữ dữ liệu của máy (không mất phần đang sửa)
+        var server = _settings.Get("lan_server_name");
+        if (server.Length == 0 || Interlocked.Exchange(ref _snapBusy, 1) == 1) return;
+        _lastSnapCheck = now;
+        try
+        {
+            var since = LastSyncedAt;
+            if (_settings.Get("lan_offline_at") is { Length: > 0 } oa && DateTime.TryParse(oa, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var o) && (since is null || o > since)) since = o;
+            var snap = await get(server, since, ct);
+            if (snap is { } x)
+                try { LoadOfflineSnapshot(x.Path, x.Label, x.At); }
+                finally { try { File.Delete(x.Path); } catch { } }
+        }
+        catch (Exception e) { Log("Máy đơn: không tải được bản Drive", e.Message); }
+        finally { Interlocked.Exchange(ref _snapBusy, 0); }
+    }
+
+    /// <summary>
+    /// Thay dữ liệu module của máy này bằng bản sao lưu của máy chủ (chỉ khi đang là máy đơn và không có thay đổi chờ gửi).
+    /// Không tách khỏi LAN: nối lại máy chủ thì tải lại toàn bộ dữ liệu thật; phần sửa sau khi nạp gửi lên theo sổ chờ như thường.
+    /// </summary>
+    internal bool LoadOfflineSnapshot(string dbPath, string label, DateTime at)
+    {
+        var rows = new List<(string db, string sheet, string data, long version)>();
+        using (var src = new Microsoft.Data.Sqlite.SqliteConnection(new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder { DataSource = dbPath, Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+        {
+            src.Open();
+            rows = src.Query<(string, string, string, long)>("SELECT db_key, sheet, data, version FROM module_sheets").ToList();
+        }
+        if (rows.Count == 0) return false;
+        lock (_dataLock)
+        {
+            if (Online || Serving || PendingCount() > 0) return false;
+            BeforeOfflineSnapshot?.Invoke();
+            var have = rows.Select(r => r.db + "/" + r.sheet).ToHashSet();
+            foreach (var (db, sheet, data, version) in rows) _store.SetExact(db, sheet, data, version);
+            foreach (var (db, sheet, _) in _store.AllVersions())
+                if (!have.Contains(db + "/" + sheet)) _store.SetExact(db, sheet, null, 0);
+            _settings.Set("lan_offline_src", label);
+            _settings.Set("lan_offline_at", at.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));
+            _settings.Set("lan_sync_epoch", ""); _settings.Set("lan_last_seq", "0");   // nối lại máy chủ → tải lại toàn bộ
+        }
+        Log("Máy đơn: dùng bản Drive của máy chủ", label);
+        Raise();
+        return true;
+    }
+
+    /// <summary>1.121: nút "Nối lại ngay" (máy đơn) — vòng sau thử tìm máy chủ ngay, không chờ nhịp 15 giây.</summary>
+    public void RetryNow() { _lastTry = DateTime.MinValue; _lastLanProbe = DateTime.MinValue; }
+
+    /// <summary>1.121: các thay đổi đang chờ gửi lên máy chủ (để giao diện liệt kê): khóa db, bảng, lúc, người sửa.</summary>
+    public List<(string DbKey, string Sheet, string At, string User)> PendingList()
+    {
+        using var c = _db.Open();
+        return c.Query<(string, string, string, string)>("SELECT db_key, sheet, created_at, username FROM lan_pending ORDER BY created_at DESC").ToList();
+    }
+
     private void GoOffline()
     {
         lock (_state)
@@ -877,6 +982,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
             return true;
         }
         lock (_state) { _server = best; _serverEpoch = bestEpoch; Online = true; _failSince = DateTime.MinValue; if (bestEpoch > Epoch && !Serving) SetEpoch(bestEpoch, _epochStart); }
+        if (_settings.Get("lan_server_name") != best.Name) _settings.Set("lan_server_name", best.Name);   // 1.121: máy đơn tìm bản Drive theo tên máy chủ
         Raise();
         return true;
     }
@@ -922,6 +1028,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
         if (ep != _serverEpoch) { _serverEpoch = ep; _settings.Set("lan_sync_epoch", ""); return; } // đổi nhiệm kỳ giữa chừng: lượt sau tải lại
         _settings.Set("lan_last_seq", seq.ToString());
         _settings.Set("lan_sync_epoch", ep.ToString());
+        _settings.Set("lan_synced_at", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture));   // 1.121
+        if (_settings.Get("lan_offline_src").Length > 0) _settings.Set("lan_offline_src", "");   // 1.121: đã nhận dữ liệu thật của máy chủ
         Raise();
         if (ep > Epoch && !Serving) SetEpoch(ep, r["epochStart"]?.GetValue<long>() ?? 0);
         if (r["handover"]?.GetValue<bool>() == true && Role == RoleServer && !Serving)
@@ -1358,6 +1466,17 @@ public sealed partial class LanService : ISheetSource, IDisposable
     }
 
     public string ServerName => Serving ? MachineName : _server?.Name ?? "";
+
+    /// <summary>1.121: máy con đang nối máy chủ bằng đường nào — "lan" (trong kho), "net" (Internet / đường hầm), "" (không nối / đang làm máy chủ).
+    /// App tự chọn: LAN trước, không được thì Internet, đang đi Internet thì cứ 60 giây dò lại LAN.</summary>
+    public string Via => Serving || !Online || ServerAddress is not { } a ? "" : LanHttp.IsUrl(a) ? "net" : "lan";
+
+    /// <summary>1.121: lần cuối nhận dữ liệu từ máy chủ (máy con) — settings <c>lan_synced_at</c>.</summary>
+    public DateTime? LastSyncedAt => DateTime.TryParse(_settings.Get("lan_synced_at"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d : null;
+
+    /// <summary>1.121: máy đơn đang dùng bản sao lưu Drive cá nhân của máy chủ — chữ mô tả ("KHOLANH-PC · sao lưu 26/11 22:00"), "" = dữ liệu của chính máy.
+    /// Xóa khi nối lại máy chủ.</summary>
+    public string OfflineSource => _settings.Get("lan_offline_src");
 
     /// <summary>Một dòng ngắn cho thanh menu.</summary>
     public string Short

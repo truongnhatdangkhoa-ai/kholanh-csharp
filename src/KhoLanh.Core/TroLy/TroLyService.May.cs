@@ -71,7 +71,7 @@ public sealed partial class TroLyService
             }
         }
         catch { /* file số liệu hỏng: bỏ phần hiệu năng */ }
-        return TroLyMay.Build(lan.MachineId, lan.MachineName, Version, TroLyMay.RoleLabel(lan.Role, _drive?.Enabled == true), now, scanAt,
+        return TroLyMay.Build(lan.MachineId, lan.MachineName, Version, TroLyMay.RoleLabel(lan.Role, false), now, scanAt,
             nDo, nVang, nXanh, canh, perf, cpu24, ram24, net);
     }
 
@@ -142,18 +142,9 @@ public sealed partial class TroLyService
         bool net = cats.Overlaps(new[] { "dong-bo", "ket-noi", "sao-luu", "csdl", "trung-khoa" });
         if (net)
         {
-            Add("Vai máy (LAN / Drive)", TroLyMay.RoleLabel(lan.Role, _drive?.Enabled == true));
+            Add("Vai máy (LAN)", TroLyMay.RoleLabel(lan.Role, false));   // 1.121: bỏ Thư mục / Drive dùng chung
             Add("Mạng LAN", lan.Enabled ? "bật" : "tắt");
             if (lan.Enabled) Add("Địa chỉ máy chủ LAN đã biết", TroLyBaoCao.CoKhong(lan.ServerAddress));
-            if (_drive is { } dr)
-            {
-                Add("Drive dùng chung", dr.Mode switch { "chinh" => "máy giữ dữ liệu chính", "xa" => "máy xem từ xa", _ => "tắt" });
-                if (dr.Mode.Length > 0)
-                {
-                    bool exists; try { exists = dr.Dir.Length > 0 && Directory.Exists(dr.Dir); } catch { exists = false; }
-                    Add("Thư mục Drive dùng chung", TroLyBaoCao.MaskPath(dr.Dir) + (dr.Dir.Length > 0 ? exists ? " · thư mục còn" : " · KHÔNG thấy thư mục" : ""));
-                }
-            }
         }
         if (st is not null && cats.Overlaps(new[] { "ket-noi", "dong-bo" }))
         {

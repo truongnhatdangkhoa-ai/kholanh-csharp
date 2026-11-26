@@ -10,34 +10,12 @@ using KhoLanh.Core.SaoLuu;
 namespace KhoLanh.App.Views;
 
 /// <summary>
-/// DỮ LIỆU &amp; SAO LƯU (1.68 — người dùng chốt): 1 module, 2 tab.
-///  • Đồng bộ (chọn 1 — máy này lấy database chính từ đâu): 1. Chỉ trên máy này · 2. Thư mục / Google Drive dùng chung (DriveSyncView) ·
-///    3. Máy chủ LAN (LanView). Chỉ Quản trị.
-///  • Sao lưu (dùng cho MỌI kiểu đồng bộ, kể cả LAN): Trên máy này (tự sao lưu mỗi ngày, ra file, khôi phục) · Google Drive cá nhân (đăng nhập Gmail
-///    như app cũ, <see cref="DriveCaNhanService"/>). Sao lưu chỉ chép dữ liệu ra ngoài, không đụng database chính.
-/// Thay 3 mục menu cũ: Mạng LAN, Đồng bộ Google Drive và phần sao lưu của "Sao lưu và cài đặt" (nay là "Cài đặt máy").
+/// Hàm dùng chung cho phần Sao lưu (<see cref="LocalBackupPanel"/>, <see cref="DriveCaNhanPanel"/> — nằm ở Đồng bộ &amp; sao lưu › Sao lưu).
+/// 1.121: bỏ trang "Dữ liệu &amp; sao lưu" cũ (tab Đồng bộ: Chỉ máy này / Thư mục - Drive dùng chung / Máy chủ LAN) — tình trạng nối máy chủ ở
+/// <see cref="MayChuView"/>, Drive dùng chung bỏ hẳn (<see cref="DriveRetire"/>).
 /// </summary>
-public sealed class DuLieuView : UserControl, IPage
+internal static class DuLieuView
 {
-    public string Title => "Dữ liệu & sao lưu";
-    public string Subtitle => "Đồng bộ: máy này lấy dữ liệu chính từ đâu (chỉ máy này / thư mục Drive dùng chung / máy chủ LAN). Sao lưu: trên máy + Google Drive cá nhân.";
-
-    /// <summary>Mở thẳng: "lan" / "drive" (tab Đồng bộ) · "saoluu" / "dcn" (tab Sao lưu).</summary>
-    public DuLieuView(string start = "")
-    {
-        var s = App.Services;
-        var admin = Roles.IsAdmin(s.Session.Role);
-        var tabs = new TabControl();
-        var sync = admin ? BuildSync(start) : (Control)Muted("Chỉ tài khoản Quản trị đổi được cách đồng bộ của máy.");
-        tabs.Items.Add(new TabItem { Header = "Đồng bộ", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = sync } });
-        var dcn = new DriveCaNhanPanel();
-        var backup = Ui.SubTabs(("Trên máy này", new LocalBackupPanel()), ("Google Drive cá nhân (Gmail)", dcn));
-        if (start == "dcn") backup.SelectedIndex = 1;
-        tabs.Items.Add(new TabItem { Header = "Sao lưu", Content = new Border { Padding = new Thickness(0, 6, 0, 0), Child = backup } });
-        tabs.SelectedIndex = start is "saoluu" or "dcn" || !admin ? 1 : 0;
-        Content = tabs;
-    }
-
     // ------------------------------------------------------------------ 1.114: khôi phục theo 2 chế độ tự động
 
     /// <summary>Máy đang nối máy chủ LAN → báo khóa (trả Task hiện thông báo); null = được khôi phục.</summary>
@@ -48,13 +26,13 @@ public sealed class DuLieuView : UserControl, IPage
     internal static string DetachNote()
     {
         var s = App.Services;
-        if (s.Lan.Role.Length == 0 && s.Drive.Mode.Length == 0) return "";
+        if (s.Lan.Role.Length == 0) return "";
         return "\n\nMáy này đang ở NGOÀI mạng LAN (không nối máy chủ) nên được khôi phục: sau khi khôi phục, máy TÁCH ra dùng dữ liệu riêng — "
-             + "không gửi gì lên máy chủ, máy chủ và các máy trong LAN không bị ảnh hưởng. Muốn dùng chung lại: Đồng bộ & sao lưu › Giữa các máy › Chỉ máy này › «Nối lại mạng LAN» (dữ liệu riêng được thay bằng dữ liệu máy chủ).";
+             + "không gửi gì lên máy chủ, máy chủ và các máy trong LAN không bị ảnh hưởng. Muốn dùng chung lại: Đồng bộ & sao lưu › Máy chủ › «Nối lại mạng LAN» (dữ liệu riêng được thay bằng dữ liệu máy chủ).";
     }
 
     internal static string DetachedDone() => App.Services.Backup.LastDetached
-        ? "\n\nMáy này đã tách khỏi mạng LAN / Drive dùng chung, đang dùng dữ liệu riêng (máy chủ không bị ảnh hưởng)."
+        ? "\n\nMáy này đã tách khỏi mạng LAN, đang dùng dữ liệu riêng (máy chủ không bị ảnh hưởng)."
         : "";
 
     internal static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Tag = "keep" };
@@ -70,49 +48,6 @@ public sealed class DuLieuView : UserControl, IPage
         var b = new Button { Content = text }; if (cls is not null) b.Classes.Add(cls);
         b.Click += async (_, _) => await click();
         return b;
-    }
-
-    /// <summary>Kiểu đồng bộ hiện tại: 0 chỉ máy này · 1 thư mục / Drive dùng chung · 2 máy chủ LAN.</summary>
-    internal static int CurrentMode()
-    {
-        var s = App.Services;
-        if (s.Lan.Enabled && s.Lan.Role != LanService.RoleRemote) return 2;
-        if (s.Drive.Mode is DriveSyncService.ModeMain or DriveSyncService.ModeRemote || s.Lan.Role == LanService.RoleRemote) return 1;
-        return 0;
-    }
-
-    private static Control BuildSync(string start)
-    {
-        var s = App.Services;
-        var mode = CurrentMode();
-        string[] names = { "Chỉ trên máy này", "Thư mục / Google Drive dùng chung", "Máy chủ LAN" };
-        var lan = s.Lan;
-        var now = mode switch
-        {
-            2 => $"{names[2]} — vai: {LanService.RoleLabel(lan.Role)}" + (lan.Serving ? " (đang làm máy chủ)" : lan.Online ? $" · nối {lan.ServerName}" : " · chưa nối được máy chủ"),
-            1 => $"{names[1]} — " + (s.Drive.Mode == DriveSyncService.ModeMain ? "máy chính (giữ dữ liệu chính)" : "máy xem từ xa"),
-            _ => names[0] + " — dữ liệu chỉ nằm trên máy này",
-        };
-        var head = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 8), Children =
-        {
-            new TextBlock { Text = "Máy này đang: " + now, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap },
-            Muted("Mỗi máy chọn MỘT cách lấy database chính. Sao lưu (tab Sao lưu) độc lập — bật được với mọi cách, kể cả máy chủ LAN."),
-        } };
-
-        var local = new StackPanel { Spacing = 10, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left, Children =
-        {
-            Card("1. Chỉ trên máy này (ngoài LAN)",
-                Muted("Dữ liệu nằm trong file database trên máy này, không dùng chung với máy khác. Hợp với máy làm việc một mình."),
-                Muted("• Tự sao lưu mỗi ngày vào thư mục SaoLuu (giữ 30 bản) — xem tab Sao lưu › Trên máy này.\n• Muốn có bản ngoài máy (máy hỏng vẫn còn): tab Sao lưu › Google Drive cá nhân — đăng nhập Gmail, tự sao lưu theo lịch."),
-                mode == 0
-                    ? new TextBlock { Text = "✔ Máy này đang dùng cách này.", Foreground = AppTheme.Brush("#1E7B4A"), FontWeight = FontWeight.SemiBold }
-                    : Muted("Máy này đang dùng cách " + (mode + 1) + ". Muốn về cách 1: " + (mode == 2 ? "tab “Máy chủ LAN” › Quản trị bấm Tắt máy chủ trên máy này." : "tab “Thư mục / Google Drive dùng chung” › chọn Tắt › Lưu."))),
-        } };
-        var sub = Ui.SubTabs(("1. " + names[0], new ScrollViewer { Content = local }), ("2. " + names[1], new DriveSyncView()), ("3. " + names[2], new LanView()));
-        sub.SelectedIndex = start switch { "lan" => 2, "drive" => 1, _ => mode };
-        var dock = new DockPanel();
-        DockPanel.SetDock(head, Dock.Top); dock.Children.Add(head); dock.Children.Add(sub);
-        return dock;
     }
 }
 
@@ -230,7 +165,7 @@ internal sealed class DriveCaNhanPanel : UserControl
         var backupCard = DuLieuView.Card("Sao lưu database lên Drive",
             _state,
             new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Children = { _now, new TextBlock { Text = "Tự sao lưu:", VerticalAlignment = VerticalAlignment.Center }, _every } },
-            DuLieuView.Muted($"Lưu ở Drive của Gmail đang đăng nhập: {DriveCaNhanService.Root} / <tên máy> / KhoLanh_<ngày giờ>.db.gz. Giữ mỗi ngày 1 bản trong {DriveCaNhanService.KeepDays} ngày + 1 bản mỗi tháng trong {DriveCaNhanService.KeepMonths} tháng. Chỉ đọc database (chụp bản sao rồi tải lên) — không đụng đồng bộ LAN / Drive dùng chung. Khôi phục không cần mã đồng bộ: đăng nhập đúng Gmail là được, kể cả trên máy mới."));
+            DuLieuView.Muted($"Lưu ở Drive của Gmail đang đăng nhập: {DriveCaNhanService.Root} / <tên máy> / KhoLanh_<ngày giờ>.db.gz. Giữ mỗi ngày 1 bản trong {DriveCaNhanService.KeepDays} ngày + 1 bản mỗi tháng trong {DriveCaNhanService.KeepMonths} tháng. Chỉ đọc database (chụp bản sao rồi tải lên) — không đụng đồng bộ giữa các máy. Khôi phục không cần mã đồng bộ: đăng nhập đúng Gmail là được, kể cả trên máy mới."));
         _grid.Columns.Add(new DataGridTextColumn { Header = "Máy", Binding = new Binding(nameof(Row.May)), Width = new DataGridLength(160) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Thời gian", Binding = new Binding(nameof(Row.At)) { StringFormat = "dd/MM/yyyy HH:mm" }, Width = new DataGridLength(140) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Dung lượng", Binding = new Binding(nameof(Row.Size)), Width = new DataGridLength(110) });

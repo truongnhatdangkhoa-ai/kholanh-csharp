@@ -457,11 +457,6 @@ public sealed partial class TroLyService
                 info.PendingAgeMin = (now.ToUniversalTime() - o).TotalMinutes;
         }
         catch { }
-        if (_drive is { Enabled: true } dr)
-        {
-            info.DriveEnabled = true; info.DriveStatus = dr.Status;
-            if (dr.LastOk != default) info.DriveOkAgeMin = (now - dr.LastOk).TotalMinutes;
-        }
         return info;
     }
 
@@ -483,7 +478,7 @@ public sealed partial class TroLyService
         return res;
     }
 
-    /// <summary>Cấu hình kết nối của máy: Tài khoản dùng chung, Web App điện thoại, Gmail lịch xuất, thư mục Drive dùng chung (CHỈ ĐỌC).</summary>
+    /// <summary>Cấu hình kết nối của máy: Tài khoản dùng chung, Web App điện thoại, Gmail lịch xuất, đường hầm máy chủ từ xa (CHỈ ĐỌC). 1.121: bỏ thư mục Drive dùng chung.</summary>
     internal ConfigInfo? CollectConfig()
     {
         if (Settings is not { } st) return null;
@@ -496,11 +491,6 @@ public sealed partial class TroLyService
         info.PhoneEnabled = phone.Enabled; info.PhoneError = phone.LastError;
         var mail = KhoLanh.Core.LichXuat.MailConfig.Load(st);
         info.MailReady = mail.Ready; info.MailEmail = mail.Email; info.MailStatus = st.Get("lx_mail_status");
-        if (_drive is { Enabled: true } dr)
-        {
-            info.DriveEnabled = true; info.DriveDir = dr.Dir;
-            try { info.DriveDirExists = Directory.Exists(dr.Dir); } catch { info.DriveDirExists = false; }
-        }
         try
         {
             if (_lan() is { Serving: true, PublicUrl.Length: > 0 } lan)

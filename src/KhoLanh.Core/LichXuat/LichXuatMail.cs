@@ -134,23 +134,103 @@ public sealed class ImapMailSource : IMailSource
         var keepThreads = sums.Where(s => System.Text.RegularExpressions.Regex.IsMatch(s.Envelope?.Subject ?? "", @"\d{2}\.\d{2}\.\d{2,3}"))
             .Select(s => ThreadOf(s)).ToHashSet();
         var want = sums.Where(s => keepThreads.Contains(ThreadOf(s))).ToList();
+        // 1.121 (người dùng: "vì sao app tải toàn bộ thư" — 813 thư mỗi lượt, quá 3 phút): thư đã đọc ở lượt trước lấy từ bộ nhớ đệm trên máy
+        // (MailCache, theo mã thư Gmail), chỉ tải thư MỚI; và chỉ tải PHẦN CHỮ của thư (không tải file đính kèm PDF / ảnh).
+        var cache = MailCache.Load(CachePath);
+        var fresh = want.Where(s => !cache.ContainsKey(KeyOf(s, folder))).ToList();
+        if (fresh.Count > 0 && !items.HasFlag(MessageSummaryItems.BodyStructure))
+        {
+            Progress?.Invoke($"Đang đọc cấu trúc {fresh.Count} thư mới…");
+            var withBody = await folder.FetchAsync(fresh.Select(s => s.UniqueId).ToList(), items | MessageSummaryItems.BodyStructure, ct);
+            fresh = withBody.ToList();
+        }
         var k = 0;
-        foreach (var s in want)
+        foreach (var s in fresh)
         {
             ct.ThrowIfCancellationRequested();
-            Progress?.Invoke($"Đang tải thư {++k}/{want.Count} (chuỗi có LSX trên tiêu đề)…");
-            var msg = await folder.GetMessageAsync(s.UniqueId, ct);
-            var text = msg.TextBody ?? (msg.HtmlBody is { } h ? System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(h, "<(br|/p|/div)[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase)), "<[^>]+>", "") : "");
-            var from = msg.From.Mailboxes.FirstOrDefault() is { } mb ? (mb.Name.Length > 0 ? mb.Name + " <" + mb.Address + ">" : mb.Address) : "";
-            var id = s.GMailMessageId is { } gm ? gm.ToString() : (msg.MessageId ?? s.UniqueId.ToString());
-            res.Add(new LichXuatEmail.Msg(id, ThreadOf(s), (s.InternalDate ?? msg.Date).LocalDateTime, from, msg.Subject ?? "", text));
+            Progress?.Invoke($"Đang tải thư mới {++k}/{fresh.Count} (bỏ qua {want.Count - fresh.Count} thư đã đọc)…");
+            cache[KeyOf(s, folder)] = await ReadAsync(folder, s, ct);
         }
+        foreach (var s in want)
+            if (cache.TryGetValue(KeyOf(s, folder), out var m)) res.Add(m with { ThreadId = ThreadOf(s) });
+        MailCache.Save(CachePath, cache, DateTime.Today.AddDays(-Math.Max(cfg.Days, 1) - 45));
         LastStats = (folder.FullName, uids.Count, want.Count);
+        LastFresh = fresh.Count;
         await c.DisconnectAsync(true, ct);
         return res;
     }
 
+    /// <summary>1.121: file đệm thư đã đọc (null = không đệm). AppServices đặt cạnh database.</summary>
+    public string? CachePath { get; set; }
+    /// <summary>Số thư phải tải mới ở lượt đọc gần nhất (còn lại lấy từ bộ nhớ đệm).</summary>
+    public int LastFresh { get; private set; }
+
+    private static string KeyOf(IMessageSummary s, IMailFolder f) => s.GMailMessageId is { } gm ? "g" + gm : $"u{f.UidValidity}:{s.UniqueId.Id}";
+
+    /// <summary>Chỉ tải phần chữ (text/plain, không có thì html) — không tải file đính kèm. Thiếu cấu trúc thư thì tải cả thư như cũ.</summary>
+    private static async Task<LichXuatEmail.Msg> ReadAsync(IMailFolder folder, IMessageSummary s, CancellationToken ct)
+    {
+        string text = "", subject = s.Envelope?.Subject ?? "", from = "";
+        if (s.Envelope?.From?.Mailboxes.FirstOrDefault() is { } mb0) from = mb0.Name is { Length: > 0 } ? mb0.Name + " <" + mb0.Address + ">" : mb0.Address;
+        var date = (s.InternalDate ?? s.Envelope?.Date ?? DateTimeOffset.Now).LocalDateTime;
+        var part = (BodyPart?)s.TextBody ?? s.HtmlBody;
+        if (part is not null)
+        {
+            var ent = await folder.GetBodyPartAsync(s.UniqueId, part, ct);
+            var raw = ent is MimeKit.TextPart tp ? tp.Text ?? "" : "";
+            text = part == s.TextBody ? raw : HtmlToText(raw);
+        }
+        else
+        {
+            var msg = await folder.GetMessageAsync(s.UniqueId, ct);
+            text = msg.TextBody ?? (msg.HtmlBody is { } h ? HtmlToText(h) : "");
+            if (subject.Length == 0) subject = msg.Subject ?? "";
+            if (from.Length == 0 && msg.From.Mailboxes.FirstOrDefault() is { } mb) from = mb.Name.Length > 0 ? mb.Name + " <" + mb.Address + ">" : mb.Address;
+        }
+        var id = s.GMailMessageId is { } gm ? gm.ToString() : (s.Envelope?.MessageId ?? s.UniqueId.ToString());
+        return new LichXuatEmail.Msg(id, ThreadOf(s), date, from, subject, text);
+    }
+
+    private static string HtmlToText(string h) => System.Text.RegularExpressions.Regex.Replace(System.Net.WebUtility.HtmlDecode(
+        System.Text.RegularExpressions.Regex.Replace(h, "<(br|/p|/div)[^>]*>", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase)), "<[^>]+>", "");
+
     /// <summary>Gmail có mã chuỗi thư; máy chủ khác thì gom theo tiêu đề đã bỏ "Re:/Fw:".</summary>
     private static string ThreadOf(IMessageSummary s) => s.GMailThreadId is { } t ? t.ToString()
         : "s:" + System.Text.RegularExpressions.Regex.Replace(s.Envelope?.Subject ?? "", @"^\s*((re|fw|fwd|tr)\s*:\s*)+", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim().ToLowerInvariant();
+}
+
+/// <summary>
+/// 1.121: bộ nhớ đệm thư lịch xuất đã đọc (file JSON trên máy, theo mã thư): lượt quét sau chỉ tải thư mới.
+/// Thư cũ hơn mốc giữ (số ngày quét + 45 ngày) tự bỏ. File hỏng / không đọc được → coi như trống.
+/// </summary>
+public static class MailCache
+{
+    private sealed record Row(string K, string Id, string T, DateTime D, string F, string S, string X);
+
+    public static Dictionary<string, LichXuatEmail.Msg> Load(string? path)
+    {
+        var d = new Dictionary<string, LichXuatEmail.Msg>();
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return d;
+        try
+        {
+            foreach (var r in System.Text.Json.JsonSerializer.Deserialize<List<Row>>(File.ReadAllText(path)) ?? new())
+                d[r.K] = new LichXuatEmail.Msg(r.Id, r.T, r.D, r.F, r.S, r.X);
+        }
+        catch { d.Clear(); }
+        return d;
+    }
+
+    public static void Save(string? path, Dictionary<string, LichXuatEmail.Msg> cache, DateTime keepFrom)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        try
+        {
+            var rows = cache.Where(p => p.Value.Date >= keepFrom).Select(p => new Row(p.Key, p.Value.Id, p.Value.ThreadId, p.Value.Date, p.Value.From, p.Value.Subject, p.Value.Text)).ToList();
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+            var tmp = path + ".tmp";
+            File.WriteAllText(tmp, System.Text.Json.JsonSerializer.Serialize(rows));
+            File.Move(tmp, path, true);
+        }
+        catch { /* không ghi được đệm: lượt sau tải lại, không sao */ }
+    }
 }

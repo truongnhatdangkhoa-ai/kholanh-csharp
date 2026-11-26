@@ -115,12 +115,20 @@ public class AppServices
         Accounts.Phone = Phone;   // 1.105: mã kết nối máy mang theo PC_TOKEN
         // 1.112: Client OAuth Google dùng chung qua Sheet chung — máy thiếu secret tự lấy về trước khi đăng nhập Gmail.
         DriveCaNhan.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
+        // 1.121: máy đơn (không nối được máy chủ, không có thay đổi chờ gửi) tự dùng bản sao lưu Drive cá nhân của máy chủ nếu mới hơn
+        Lan.OfflineSnapshot = (server, since, ct) => DriveCaNhan.NewerServerBackupAsync(server, since, ct);
+        Lan.BeforeOfflineSnapshot = () =>
+        {
+            try { Backup.BackupTo(Path.Combine(Backup.AutoBackupFolder, $"truoc-tai-drive_{DateTime.Now:yyyy-MM-dd_HHmmss}.db")); } catch { }
+        };
         LuuTru.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
         Auth.PasswordSeen = PhoneAccounts.RememberPassword;   // 1.76: tài khoản PC dùng chung trên điện thoại
         LichXuat = new KhoLanh.Core.LichXuat.LichXuatService(() => Lan, Session, Audit, Settings, () => new PhieuKhoService(() => Lan, Session, Audit, new TongHopService(() => Lan, Session, Audit, Settings)));
+        // 1.121: đệm thư lịch xuất đã đọc cạnh database (lượt quét sau chỉ tải thư mới)
+        if (LichXuat.Mail is KhoLanh.Core.LichXuat.ImapMailSource ims) ims.CachePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "email-lich-xuat-dem.json");
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".") { Settings = Settings };
     }
 
@@ -136,6 +144,16 @@ public class AppServices
                 : "Máy này đang nối máy chủ qua mạng LAN — khóa khôi phục để không ảnh hưởng dữ liệu chung.")
               + " Khôi phục được ở máy ngoài mạng LAN (máy đó tự tách ra dùng dữ liệu riêng)."
             : null;
+
+    /// <summary>
+    /// 1.121: bỏ Thư mục / Drive dùng chung — gọi MỘT lần lúc mở app, trước khi bật LAN (App.InitServices). Máy cũ còn cài Drive dùng chung tự chuyển
+    /// (<see cref="DriveRetire"/>); máy khác không đổi gì. Trả câu báo (null = không có gì đổi).
+    /// </summary>
+    public string? RetireDriveSync()
+    {
+        try { return DriveRetire.Run(this)?.Message; }
+        catch (Exception e) { return "Chưa bỏ được đồng bộ Drive dùng chung: " + e.Message; }
+    }
 
     public void ReloadLan(bool start = true)
     {

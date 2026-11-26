@@ -110,7 +110,7 @@ public sealed class DriveCaNhanService
         var lan = _lan();
         if (lan.HoldsMainData) return null;
         return lan.Role == LanService.RoleRemote
-            ? "Máy này là máy xem từ xa (đồng bộ qua Drive dùng chung) — dữ liệu chính ở máy chính, hãy sao lưu / khôi phục ở máy đó."
+            ? "Máy này là máy xem từ xa — dữ liệu chính ở máy chủ, hãy sao lưu / khôi phục ở máy đó."
             : "Máy này là máy con / dự phòng LAN — dữ liệu chính ở máy chủ, hãy sao lưu / khôi phục trên máy chủ.";
     }
 
@@ -258,6 +258,44 @@ public sealed class DriveCaNhanService
             foreach (var f in (await Google.ListAsync(access, m.Id, ct)).Where(f => !f.Folder))
                 if (TimeOf(f.Name) is { } at) res.Add(new(m.Name, f.Name, f.Id, f.Size, at));
         return res.OrderByDescending(i => i.At).ThenBy(i => i.Machine).ToList();
+    }
+
+    /// <summary>
+    /// 1.121 — máy đơn: bản sao lưu MỚI NHẤT của máy chủ <paramref name="server"/> trên Drive của Gmail đã đăng nhập (tab Sao lưu), mới hơn
+    /// <paramref name="since"/> (≥ 1 phút) → tải về file .db tạm. Chưa đăng nhập Gmail / không có bản mới hơn → null. Không cần quyền Sao lưu
+    /// (chỉ đọc bản của chính Gmail đó, dùng cho máy đơn tự động).
+    /// </summary>
+    public async Task<(string Path, string Label, DateTime At)?> NewerServerBackupAsync(string server, DateTime? since, CancellationToken ct = default)
+    {
+        if (_session.CurrentUser is null) return null;
+        var c = Config;
+        if (!c.Linked) return null;
+        var access = await AccessAsync(c, ct);
+        var root = (await Google.ListAsync(access, "root", ct, Root)).FirstOrDefault(f => f.Folder);
+        if (root is null) return null;
+        var folder = (await Google.ListAsync(access, root.Id, ct)).FirstOrDefault(f => f.Folder && f.Name == SafeName(server));
+        if (folder is null) return null;
+        var best = (await Google.ListAsync(access, folder.Id, ct)).Where(f => !f.Folder)
+            .Select(f => (f, at: TimeOf(f.Name))).Where(x => x.at is not null).OrderByDescending(x => x.at).FirstOrDefault();
+        if (best.f is null || best.at is not { } at || (since is { } s && at <= s.AddMinutes(1))) return null;
+        var tmp = Path.Combine(Path.GetTempPath(), "kl-may-don-" + Guid.NewGuid().ToString("N")[..8] + ".db");
+        await DownloadAsyncCore(access, best.f.Id, tmp, ct);
+        return (tmp, $"{server} · sao lưu {at:dd/MM HH:mm}", at);
+    }
+
+    private async Task DownloadAsyncCore(string access, string id, string toDb, CancellationToken ct)
+    {
+        var gz = toDb + ".gz.tmp";
+        try
+        {
+            if (!await Google.DownloadAsync(access, id, gz, ct)) throw new BusinessException("Bản sao lưu không còn trên Drive.");
+            await using var src = File.OpenRead(gz);
+            await using var z = new GZipStream(src, CompressionMode.Decompress);
+            await using var dst = File.Create(toDb);
+            try { await z.CopyToAsync(dst, ct); }
+            catch (InvalidDataException) { throw new BusinessException("Tệp trên Drive bị hỏng (không giải nén được)."); }
+        }
+        finally { try { File.Delete(gz); } catch { } }
     }
 
     /// <summary>Tải 1 bản về file .db (giải nén) — để tự giữ hoặc khôi phục ở máy khác.</summary>

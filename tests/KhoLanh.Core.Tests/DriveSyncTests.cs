@@ -203,21 +203,21 @@ public class DriveSyncTests : IDisposable
     }
 
     [Fact]
-    public void Tai_khoan_khong_co_quyen_gui_len_thi_may_nha_chi_xem()
+    public void Bo_quyen_drivepush_may_xem_tu_xa_con_sot_chi_Quan_tri_ghi()
     {
+        // 1.121: bỏ Thư mục / Drive dùng chung → mục quyền "drivepush" không còn trong phân quyền (quyền đã lưu chứa khóa này bị bỏ qua);
+        // máy xem từ xa còn sót (chưa chạy DriveRetire) thì chỉ Quản trị ghi được, tài khoản khác chỉ xem.
+        Assert.Null(KhoLanh.Core.Models.Perm.Find("drivepush"));
         var (main, home) = Pair();
         main.Lan.Write(Db, One("S", Rows("a"))); main.Drive.SyncNow(); home.Drive.SyncNow();
         home.Auth.CreateUser("nhanvien", "NV", "matkhau1", KhoLanh.Core.Models.Roles.Staff,
-            KhoLanh.Core.Models.Perm.Serialize(new Dictionary<string, string> { ["m1"] = "sua", ["drivepush"] = "" }));
+            "{\"m1\":\"sua\",\"drivepush\":\"sua\"}");
         home.Auth.Logout(); home.Auth.Login("nhanvien", "matkhau1");
         var e = Assert.Throws<KhoLanh.Core.Services.BusinessException>(() => home.Lan.Write(Db, One("S", Rows("a", "x"))));
         Assert.Contains("chỉ được XEM", e.Message);
         Assert.Equal("a", Names(home.Lan.Read(Db, "S")));
-        // tài khoản chỉnh quyền từ trước khi có mục này → vẫn được gửi (mặc định bật)
+        // Quản trị vẫn ghi được (vào sổ chờ)
         home.Auth.Logout(); home.Auth.Login("admin", "matkhau1");
-        home.Auth.CreateUser("nhanvien2", "NV2", "matkhau1", KhoLanh.Core.Models.Roles.Staff, "{\"m1\":\"sua\"}");
-        home.Auth.Logout(); home.Auth.Login("nhanvien2", "matkhau1");
-        // 1.76: tạo tài khoản / đăng nhập còn ghi mã điện thoại (db "dien-thoai") vào sổ chờ → đếm phần tăng của chính lần ghi bảng S
         var before = home.Lan.PendingCount();
         home.Lan.Write(Db, One("S", Rows("a", "y")));
         Assert.Equal(before + 1, home.Lan.PendingCount());

@@ -44,7 +44,7 @@ public static class Perm
         // 1.110 (người dùng: "tài khoản được phân quyền tạo tài khoản là đồng bộ tài khoản lên Sheet được, app cũ làm được"): quyền theo tài khoản, máy nào cũng vậy.
         new("taikhoan", "Tạo / sửa tài khoản", "Hệ thống", new[] { Edit }, "Tạo, sửa, khóa, đặt lại mật khẩu tài khoản Nhân viên / Quản lý (tự đồng bộ lên Google Sheet chung). Không tạo / sửa được tài khoản Quản trị"),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
-        new("drivepush", "Gửi dữ liệu từ máy xem từ xa (Drive)", "Hệ thống", new[] { Edit }, "Không có quyền thì máy xem từ xa (ngoài công ty) chỉ xem, không sửa được"),
+        // 1.121: bỏ "drivepush" (Gửi dữ liệu từ máy xem từ xa qua Drive) — bỏ hẳn Thư mục / Drive dùng chung; quyền đã lưu chứa khóa này bị bỏ qua.
         new("landuphong", "Máy dự phòng LAN", "Hệ thống", new[] { Edit }, "Máy đăng nhập bằng tài khoản này làm máy dự phòng (giữ bản sao dữ liệu, tự làm máy chủ khi máy chủ chính tắt) nếu chưa có máy dự phòng. Không tích = máy con"),
     };
 
@@ -52,7 +52,7 @@ public static class Perm
     /// Mục quyền thêm sau: tài khoản đã chỉnh quyền riêng từ trước (chưa có mục này trong bảng quyền) vẫn được mức này, để nâng cấp app
     /// không tự tắt Trang Tổng quan / không chặn máy ở nhà. Quản trị đổi lại được bất cứ lúc nào.
     /// </summary>
-    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["drivepush"] = Edit, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit, ["m3dm"] = View, ["m19"] = Edit };
+    public static readonly Dictionary<string, string> MissingDefault = new() { ["lx"] = View, ["m1vtb"] = View, ["m21"] = Edit, ["m22"] = Edit, ["m3dm"] = View, ["m19"] = Edit };
 
     public static int Rank(string? level) => level switch { View => 1, Export => 2, Edit => 3, _ => 0 };
 

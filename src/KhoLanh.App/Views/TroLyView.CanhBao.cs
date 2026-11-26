@@ -242,7 +242,6 @@ public sealed partial class TroLyView
             msg = f.Fix switch
             {
                 TroLyFix.SaoLuuNgay => sv.Backup.DailyAutoBackup() is { } p ? "Đã sao lưu: " + System.IO.Path.GetFileName(p) : "Hôm nay đã có bản sao lưu.",
-                TroLyFix.DongBoDrive => sv.Drive.SyncNow(),
                 TroLyFix.DonBoNho => FreeMemory(),
                 _ => null,
             };

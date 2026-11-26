@@ -143,7 +143,12 @@ public partial class App : Application
             try { KhoLanh.Core.Lan.LanService.ImportBundle(Services.Settings, lan); Services = new AppServices(db); }
             catch { /* mã hỏng: dùng như máy đơn */ }
         }
+        // 1.121: bỏ Thư mục / Drive dùng chung — máy cũ còn cài tự chuyển (trước khi bật LAN); câu báo hiện ở tab Máy chủ / nhật ký.
+        DriveRetireNote = Services.RetireDriveSync() ?? "";
     }
+
+    /// <summary>1.121: câu báo lần chuyển máy cũ khỏi Drive dùng chung (rỗng = máy không dùng Drive dùng chung) — tab Máy chủ hiện.</summary>
+    public static string DriveRetireNote { get; private set; } = "";
 
     /// <summary>Câu báo lần tự nhận vai LAN gần nhất (lúc đăng nhập).</summary>
     public static string LanNote { get; set; } = "";
@@ -155,8 +160,8 @@ public partial class App : Application
     public static void StartLan(IClassicDesktopStyleApplicationLifetime desktop)
     {
         try { Services.Lan.Start(); } catch (Exception ex) { Ui.Describe(ex); }
-        try { Services.Drive.Start(); } catch { }
-        desktop.Exit += (_, _) => { try { Services.Drive.ReleaseOnExit(); Services.Drive.Stop(); Services.Lan.Dispose(); } catch { } };
+        // 1.121: không còn đồng bộ Thư mục / Drive dùng chung (DriveRetire lúc mở app) — DriveSyncService không chạy nền nữa.
+        desktop.Exit += (_, _) => { try { Services.Lan.Dispose(); } catch { } };
         var t = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
         t.Tick += (_, _) => PublishLan();
         t.Start();
@@ -218,7 +223,7 @@ public partial class App : Application
             if (LanNote.Length > 0)
             {
                 var note = LanNote; LanNote = "";
-                Avalonia.Threading.DispatcherTimer.RunOnce(() => _ = Ui.Message(main, note + "\n\nVai mạng LAN do Quản trị gán theo tài khoản (Hệ thống › Mạng LAN)."), TimeSpan.FromMilliseconds(600));
+                Avalonia.Threading.DispatcherTimer.RunOnce(() => _ = Ui.Message(main, note + "\n\nVai mạng LAN do Quản trị gán theo tài khoản (Đồng bộ & sao lưu › Máy chủ)."), TimeSpan.FromMilliseconds(600));
             }
             main.LoggedOut += () => { ShowLogin(desktop, afterLogout: true); main.Close(); };
             main.Closed += (_, _) => { if (!main.IsLoggingOut) desktop.Shutdown(); };
