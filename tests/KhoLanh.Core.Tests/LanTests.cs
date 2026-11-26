@@ -219,6 +219,61 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Khoi_phuc_khoa_khi_noi_may_chu_LAN_may_ngoai_LAN_tach_rieng()
+    {
+        // 1.114: máy đang nối máy chủ LAN → khóa khôi phục; máy LAN đang ngoài mạng → khôi phục được, tách ra dùng riêng, máy chủ không đổi
+        var (srv, cli, ms, _) = Pair();
+        cli.Lan.Write(Db, One("S", Rows("moi")));
+        Until(() => Local(srv, "S") == "moi", "dữ liệu lên máy chủ");
+        // bản sao lưu cũ (dữ liệu khác) làm từ máy đơn riêng
+        var oldDir = System.IO.Path.Combine(_root, "cu"); Directory.CreateDirectory(oldDir);
+        var old = new AppServices(System.IO.Path.Combine(oldDir, "kho.db"));
+        old.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1"); old.Auth.Login("admin", "matkhau1");
+        old.Modules.WriteSheets(Db, One("S", Rows("cu1", "cu2")));
+        var bak = System.IO.Path.Combine(_root, "ban-cu.db"); old.Backup.BackupTo(bak);
+
+        Assert.Contains("đang nối máy chủ", AppServices.RestoreLock(cli.Lan));
+        Assert.Throws<BusinessException>(() => cli.Backup.Restore(bak));
+        Assert.Contains("MÁY CHỦ", AppServices.RestoreLock(srv.Lan));
+        Assert.Throws<BusinessException>(() => srv.Backup.Restore(bak));
+
+        // máy con ra ngoài mạng (máy chủ tắt) → được khôi phục, tách riêng
+        Stop(srv);
+        Until(() => !cli.Lan.Online, "máy con mất máy chủ");
+        Assert.Null(AppServices.RestoreLock(cli.Lan));
+        cli.Backup.Restore(bak);
+        Assert.True(cli.Backup.LastDetached);
+        Assert.Equal("", cli.Settings.Get("lan_role"));
+        Assert.Equal("1", cli.Settings.Get(BackupService.DetachedKey));
+        Assert.False(cli.Lan.Enabled);
+        Assert.Equal("cu1,cu2", Local(cli, "S"));
+        Assert.Equal(0, cli.Lan.PendingCount());
+
+        // máy chủ bật lại: dữ liệu chung vẫn là bản mới, máy đã tách không gửi gì lên
+        var srv2 = Boot(ms);
+        Until(() => srv2.Lan.Serving, "máy chủ lên lại");
+        Thread.Sleep(600);
+        Assert.Equal("moi", Local(srv2, "S"));
+    }
+
+    [Fact]
+    public void Khoi_phuc_can_quyen_khoi_phuc_du_lieu()
+    {
+        var dir = System.IO.Path.Combine(_root, "don"); Directory.CreateDirectory(dir);
+        var s = new AppServices(System.IO.Path.Combine(dir, "kho.db"));
+        s.Auth.CreateFirstAdmin("admin", "Quản trị", "matkhau1"); s.Auth.Login("admin", "matkhau1");
+        var bak = System.IO.Path.Combine(dir, "bk.db"); s.Backup.BackupTo(bak);
+        s.Auth.CreateUser("quanly1", "QL1", "matkhau1", KhoLanh.Core.Models.Roles.Manager);
+        s.Auth.CreateUser("quanly2", "QL2", "matkhau1", KhoLanh.Core.Models.Roles.Manager,
+            KhoLanh.Core.Models.Perm.Serialize(new Dictionary<string, string> { ["khoiphuc"] = KhoLanh.Core.Models.Perm.Edit }));
+        s.Auth.Logout(); s.Auth.Login("quanly1", "matkhau1");
+        Assert.Throws<BusinessException>(() => s.Backup.Restore(bak));          // Quản lý mặc định không có quyền khôi phục
+        s.Auth.Logout(); s.Auth.Login("quanly2", "matkhau1");
+        s.Backup.Restore(bak);                                                  // được tích quyền → khôi phục được (máy đơn)
+        Assert.False(s.Backup.LastDetached);
+    }
+
+    [Fact]
     public void Client_reads_and_writes_the_server_directly()
     {
         var (srv, cli, _, _) = Pair();

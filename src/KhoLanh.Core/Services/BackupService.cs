@@ -67,12 +67,18 @@ public class BackupService
     public Func<string?>? Guard { get; set; }
     /// <summary>Máy ở nhà / máy xem từ xa qua Drive: được khôi phục bằng quyền "Sao lưu và cài đặt"; giữ nguyên cài đặt của máy (vai, thư mục Drive, mã…).</summary>
     public Func<bool>? IsRemote { get; set; }
+    /// <summary>Gọi sau khi khôi phục (AppServices: dựng lại phần LAN theo cài đặt mới).</summary>
+    public Action? AfterRestore { get; set; }
+    /// <summary>Lần khôi phục gần nhất đã tách máy khỏi mạng LAN / Drive dùng chung.</summary>
+    public bool LastDetached { get; private set; }
+    /// <summary>settings: máy đã tách khỏi LAN sau khi khôi phục — không tự nhận vai LAN theo tài khoản nữa cho tới khi bấm "Nối lại".</summary>
+    public const string DetachedKey = "lan_rieng";
 
     public string Restore(string sourcePath)
     {
         var remote = IsRemote?.Invoke() == true;
-        if (remote) _session.Require("backup"); else _session.RequireAdmin();
-        if (!remote && Guard?.Invoke() is { } why) throw new BusinessException(why);
+        _session.Require("khoiphuc");
+        if (Guard?.Invoke() is { } why) throw new BusinessException(why);
         if (!File.Exists(sourcePath)) throw new BusinessException("Không tìm thấy file sao lưu.");
         using (var check = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         {
@@ -86,8 +92,11 @@ public class BackupService
         }
         var safety = Path.Combine(AutoBackupFolder, $"truoc-khoi-phuc_{DateTime.Now:yyyy-MM-dd_HHmmss}.db");
         BackupTo(safety);
-        List<(string key, string value)> keepSettings = new();
-        if (remote) using (var c0 = _db.Open()) keepSettings = Dapper.SqlMapper.Query<(string, string)>(c0, "SELECT key, value FROM settings").ToList();
+        // 1.114: LUÔN giữ cài đặt của chính máy này (bản sao lưu có thể của máy khác — mang vai máy chủ / khóa LAN / token của máy đó)
+        List<(string key, string value)> keepSettings;
+        using (var c0 = _db.Open()) keepSettings = Dapper.SqlMapper.Query<(string, string)>(c0, "SELECT key, value FROM settings").ToList();
+        string Old(string k) => keepSettings.FirstOrDefault(x => x.key == k).value ?? "";
+        var detach = Old("lan_role").Length > 0 || Old("drive_mode").Length > 0;
         using (var src = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = sourcePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
         using (var dst = _db.Open())
         {
@@ -95,19 +104,24 @@ public class BackupService
             src.BackupDatabase(dst);
         }
         _db.Initialize();
-        if (remote)
-            using (var c = _db.Open())
-            using (var tx = c.BeginTransaction())
+        using (var c = _db.Open())
+        using (var tx = c.BeginTransaction())
+        {
+            Dapper.SqlMapper.Execute(c, "DELETE FROM settings", transaction: tx);
+            foreach (var (k, v) in keepSettings) Dapper.SqlMapper.Execute(c, "INSERT INTO settings(key, value) VALUES(@k, @v)", new { k, v }, tx);
+            Dapper.SqlMapper.Execute(c, "DELETE FROM lan_pending", transaction: tx);
+            if (detach)
             {
-                // máy ở nhà: giữ cài đặt của chính máy này; thay đổi chờ gửi cũ bỏ (chỉ những gì sửa SAU khi khôi phục mới gửi lên);
-                // lần đồng bộ tới tải lại bản mới nhất của máy chính.
-                Dapper.SqlMapper.Execute(c, "DELETE FROM settings", transaction: tx);
-                foreach (var (k, v) in keepSettings) Dapper.SqlMapper.Execute(c, "INSERT INTO settings(key, value) VALUES(@k, @v)", new { k, v }, tx);
-                Dapper.SqlMapper.Execute(c, "UPDATE settings SET value='0' WHERE key='drive_seq'", transaction: tx);
-                Dapper.SqlMapper.Execute(c, "DELETE FROM lan_pending", transaction: tx);
-                tx.Commit();
+                // máy ngoài LAN / máy xem từ xa: TÁCH ra dùng riêng — không nối lại máy chủ, không gửi gì lên, không tự nhận vai theo tài khoản
+                // (dữ liệu khôi phục chỉ nằm ở máy này, máy chủ / máy trong LAN không bị ảnh hưởng). "Nối lại" ở Đồng bộ & sao lưu › Giữa các máy.
+                void Set(string k, string v) => Dapper.SqlMapper.Execute(c, "INSERT INTO settings(key, value) VALUES(@k, @v) ON CONFLICT(key) DO UPDATE SET value=excluded.value", new { k, v }, tx);
+                Set("lan_role", ""); Set("lan_serving", ""); Set("drive_mode", ""); Set("drive_seq", "0"); Set(DetachedKey, "1");
             }
-        _audit.Log(_session.Username, "Khôi phục dữ liệu", $"{sourcePath} (bản cũ lưu ở {safety})" + (remote ? " — máy ở nhà, giữ cài đặt máy" : ""));
+            tx.Commit();
+        }
+        LastDetached = detach;
+        AfterRestore?.Invoke();
+        _audit.Log(_session.Username, "Khôi phục dữ liệu", $"{sourcePath} (bản cũ lưu ở {safety})" + (detach ? " — máy ngoài LAN: đã tách ra dùng dữ liệu riêng" : ""));
         return safety;
     }
 }

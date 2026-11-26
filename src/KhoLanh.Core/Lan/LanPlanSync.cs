@@ -15,6 +15,7 @@ public static class LanPlanSync
         if (plan is null) return null;
         var lan = s.Lan;
         if (lan.Role == LanService.RoleRemote) return null;   // máy xem từ xa (Google Drive): không tự nhận vai LAN
+        if (s.Settings.Get(BackupService.DetachedKey) == "1") return null;   // 1.114: máy đã tách ra dùng riêng sau khi khôi phục
         var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role, LanPlan.CanStandby(s.Session.CurrentUser));
         if (d is null) return null;
         var oldRole = lan.Role;
@@ -28,6 +29,21 @@ public static class LanPlanSync
             : $"Máy này chuyển từ {LanService.RoleLabel(oldRole)} sang {LanService.RoleLabel(d.Role)}: {d.Why}.";
         s.Audit.Log(s.Session.Username, "Tự nhận vai LAN", msg);
         return oldRole == d.Role ? null : msg;
+    }
+
+    /// <summary>
+    /// 1.114: nối lại mạng LAN cho máy đã tách ra dùng riêng (sau khi khôi phục): chụp dữ liệu riêng vào SaoLuu (truoc-noi-lai-…),
+    /// bỏ cờ tách, nhận vai theo tài khoản như lúc đăng nhập → dữ liệu module được thay bằng dữ liệu máy chủ.
+    /// </summary>
+    public static string Rejoin(AppServices s)
+    {
+        if (s.Settings.Get(BackupService.DetachedKey) != "1") return "Máy này không ở chế độ tách riêng.";
+        if (s.Accounts.Plan is null) throw new BusinessException("Chưa có kế hoạch mạng LAN trên Google Sheet chung (máy chủ chưa bật hoặc máy chưa kết nối tài khoản dùng chung).");
+        try { s.Backup.BackupTo(Path.Combine(s.Backup.AutoBackupFolder, $"truoc-noi-lai-{DateTime.Now:yyyyMMdd-HHmmss}.db")); } catch { }
+        s.Settings.Set(BackupService.DetachedKey, "");
+        var msg = ApplyAtLogin(s) ?? "Đã bỏ chế độ tách riêng — máy nhận vai theo tài khoản ở lần đăng nhập tới.";
+        s.Audit.Log(s.Session.Username, "Nối lại mạng LAN", msg);
+        return msg;
     }
 
     /// <summary>

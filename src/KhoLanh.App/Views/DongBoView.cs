@@ -295,9 +295,28 @@ public sealed class DongBoView : UserControl, IPage, IKeepFresh
         var p = new StackPanel { Spacing = 8, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
         p.Children.Add(new TextBlock { Text = "Chỉ máy này (không dùng LAN / Drive)", Classes = { "section" } });
         p.Children.Add(DuLieuView.Muted("Dữ liệu nằm trong file database trên máy này, không dùng chung với máy khác. Hợp với máy làm việc một mình.\n• App tự sao lưu mỗi ngày (tab Sao lưu › Trên máy này).\n• Muốn có bản ngoài máy (máy hỏng vẫn còn): tab Sao lưu › Google Drive — đăng nhập Gmail, tự sao lưu theo lịch."));
+        var lan = App.Services.Lan;
         p.Children.Add(mode == 0
             ? new TextBlock { Text = "✔ Máy này đang dùng cách này.", Foreground = AppTheme.Brush("#1E7B4A"), FontWeight = FontWeight.SemiBold }
-            : DuLieuView.Muted("Máy này đang dùng cách khác. Muốn về cách này: " + (mode == 2 ? "Quản trị bấm \"Tắt máy chủ trên máy này\" ở tab Giữa các máy › Máy chủ LAN." : "chọn Thư mục / Drive dùng chung › Tắt › Lưu.")));
+            : DuLieuView.Muted("Máy này đang dùng cách khác. Muốn về cách này: " + (mode == 2
+                ? (lan.Role == LanService.RoleServer
+                    ? "Quản trị bấm \"Tắt máy chủ trên máy này\" ở tab Giữa các máy › Máy chủ LAN."
+                    : "máy con / dự phòng tự tách ra dùng riêng khi khôi phục một bản sao lưu lúc đang NGOÀI mạng LAN (không nối máy chủ) — tab Sao lưu.")
+                : "chọn Thư mục / Drive dùng chung › Tắt › Lưu.")));
+        // 1.114: máy đã tách ra dùng riêng sau khi khôi phục → nối lại
+        if (mode == 0 && App.Services.Settings.Get(KhoLanh.Core.Services.BackupService.DetachedKey) == "1")
+        {
+            p.Children.Add(DuLieuView.Muted("Máy này đã TÁCH khỏi mạng LAN sau khi khôi phục bản sao lưu — dữ liệu riêng, không tự nối lại máy chủ khi đăng nhập. "
+                + "Nối lại: dữ liệu riêng của máy này được chụp vào thư mục SaoLuu (truoc-noi-lai-…) rồi thay bằng dữ liệu máy chủ."));
+            var b = new Button { Content = "Nối lại mạng LAN", HorizontalAlignment = HorizontalAlignment.Left };
+            b.Click += async (_, _) =>
+            {
+                if (!await Ui.Confirm(b, "Nối lại mạng LAN: dữ liệu riêng trên máy này (đã chụp vào SaoLuu) sẽ được thay bằng dữ liệu máy chủ. Tiếp tục?", "Nối lại mạng LAN", "Nối lại")) return;
+                string msg = "";
+                if (await Ui.Run(b, () => msg = KhoLanh.Core.Lan.LanPlanSync.Rejoin(App.Services))) await Ui.Message(b, msg + "\n\nNên đăng nhập lại để app nạp dữ liệu máy chủ.", "Nối lại mạng LAN");
+            };
+            p.Children.Add(b);
+        }
         return new ScrollViewer { Content = new Border { Classes = { "card" }, Child = p, HorizontalAlignment = HorizontalAlignment.Left } };
     }
 
