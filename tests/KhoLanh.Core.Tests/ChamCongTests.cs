@@ -54,7 +54,7 @@ public class ChamCongTests : IDisposable
         Assert.Equal(4, CcCore.Tinh(CcCore.ParseTime("06:57"), CcCore.ParseTime("11:01"), "XUẤT", 0, c).Gio);       // nửa ngày: không trừ trưa
         Assert.Equal(14, CcCore.Tinh(CcCore.ParseTime("06:59"), CcCore.ParseTime("22:31"), "XUẤT", 1, c).Gio);      // ≥ 15 tiếng: trừ thêm 1 giờ tối
         var thieu = CcCore.Tinh(CcCore.ParseTime("06:58"), null, "XUẤT", 0, c);
-        Assert.Equal(0, thieu.Gio); Assert.Equal("Thiếu giờ ra", thieu.CanhBao);
+        Assert.Equal(0, thieu.Gio); Assert.StartsWith("Chỉ có 1 lần chấm (06:58)", thieu.CanhBao);
         Assert.Contains("quá sớm", CcCore.Tinh(CcCore.ParseTime("00:51"), CcCore.ParseTime("16:31"), "XUẤT", 0, c).CanhBao);
         Assert.Equal(0, CcCore.Tinh(CcCore.ParseTime("06:58"), CcCore.ParseTime("16:30"), "KHÁC", 0, c).Nghi);       // bộ phận chưa khai báo: không trừ nghỉ
         Assert.Equal(new DateOnly(2026, 10, 1), CcCore.ParseDate("01/10/2026"));
@@ -125,7 +125,7 @@ public class ChamCongTests : IDisposable
         var t = cc.Tinh("2026-10");
         Assert.Equal(31, t.Ngays.Count);
         Assert.Equal(8, t.Dong[(a.Id, new DateOnly(2026, 10, 1))].Chot);
-        Assert.Equal("Thiếu giờ ra", t.Dong[(a.Id, new DateOnly(2026, 10, 2))].CanhBao);
+        Assert.StartsWith("Chỉ có 1 lần chấm", t.Dong[(a.Id, new DateOnly(2026, 10, 2))].CanhBao);
         Assert.Equal(9, t.Dong[(cc.NhanVien[1].Id, new DateOnly(2026, 10, 1))].Chot);  // 7:00–17:00 − 1:00
 
         cc.SaveSua("2026-10", new[]

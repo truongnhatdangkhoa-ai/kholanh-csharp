@@ -159,7 +159,19 @@ public sealed class ChamCongService
         throw new BusinessException("Không thấy bảng chấm công trong file (cần dòng tiêu đề có Mã nhân viên, Ngày, Giờ vào, Giờ ra).");
     }
 
-    public static FileNap ReadFile(string path) => Parse(SheetText.Read(path), path);
+    /// <summary>
+    /// Đọc file máy chấm công. xlsx đọc SỐ GỐC (ngày = số ngày Excel): phần mềm máy chấm công định dạng ngày kiểu Mỹ "10/1/26"
+    /// (tháng/ngày/năm 2 số) — đọc chữ đang hiện dễ nhầm ngày ↔ tháng.
+    /// </summary>
+    public static FileNap ReadFile(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        if (ext is ".xlsx" or ".xlsm")
+            try { return Parse(SheetText.ReadXlsxFast(path, rawNumbers: true), path); }
+            catch (BusinessException) { throw; }
+            catch (Exception e) when (e is not OutOfMemoryException) { /* file lạ → cách đọc chung */ }
+        return Parse(SheetText.Read(path), path);
+    }
 
     public sealed record KetQuaNap(int Dong, int NvMoi, string Thang, int VSom);
 

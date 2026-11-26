@@ -84,7 +84,8 @@ public static class CcCore
     public static Ket Tinh(int? vao, int? ra, string nhom, double vsom, CcCauHinh c)
     {
         if (vao is null && ra is null) return new(null, null, 0, 0, "");
-        if (vao is null || ra is null) return new(vao is int v0 ? RoundIn(v0, c) : null, ra is int r0 ? RoundOut(r0, c) : null, 0, 0, vao is null ? "Thiếu giờ vào" : "Thiếu giờ ra");
+        if (vao is null || ra is null)
+            return new(vao is int v0 ? RoundIn(v0, c) : null, ra is int r0 ? RoundOut(r0, c) : null, 0, 0, $"Chỉ có 1 lần chấm ({Hm(vao ?? ra)}) — thiếu giờ vào hoặc giờ ra");
         int a = RoundIn(vao.Value, c), b = RoundOut(ra.Value, c);
         var warn = vao.Value < c.VaoSomNhat ? $"Giờ vào {Hm(vao)} quá sớm — kiểm tra lại" : "";
         if (b <= a) return new(a, b, 0, 0, warn.Length > 0 ? warn : "Giờ ra không sau giờ vào");
