@@ -428,11 +428,13 @@ public sealed class GuiData
     private static void AddTo(Bucket b, string? group, double w) { if (string.IsNullOrEmpty(group)) return; b.Tong += w; b.ByGroup[group] = (b.ByGroup.TryGetValue(group, out var x) ? x : 0) + w; }
     public static bool InStock(Bucket b) => Math.Abs(b.Tong) >= 0.005 || b.ByGroup.Values.Any(v => Math.Abs(v) >= 0.005);
 
-    public Pivot ComputePivot()
+    /// <summary>only = id nhóm cần tính (1.126: xuất file HLSO tự chọn); null = cả 6 nhóm.</summary>
+    public Pivot ComputePivot(ISet<string>? only = null)
     {
         var p = new Pivot();
         foreach (var g in Groups)
         {
+            if (only is not null && !only.Contains(g.Id)) continue;
             var cat = new PivotCat { Label = g.Cat }; var order = new List<string>(); var map = new Dictionary<string, Bucket>();
             foreach (var r in GroupRows(g.Id))
             {

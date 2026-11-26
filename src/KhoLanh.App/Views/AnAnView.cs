@@ -629,9 +629,11 @@ public sealed class AnAnView : UserControl, IPage
         var bar = Bar();
         if (_export)
         {
-            bar.Children.Add(Btn("⬇ Xuất excel tổng tồn", async () => await ExportTongTon(), tip: "Một file Excel chung: tổng tồn + Kho Gửi"));
-            bar.Children.Add(Btn("⬇ Xuất excel HLSO", async () => await ExportHlso(), tip: "Cùng cấu trúc file, chỉ gồm Tôm HLSO, Tôm Gia Công, Tôm Nhập Khẩu, Tôm Nguyên Liệu, Tôm Giám Sát"));
-            bar.Children.Add(Btn("⬇ Xuất Bảng Tổng Hợp HLSO", async () => await SaveXlsx(AnAnExport.HlsoSummary(D, D.DataDate.Length > 0 ? D.DataDate : Today), $"BangTongHopHLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
+            // 1.126: tên mới + "Tổng tồn tự chọn" (như HLSO tự chọn, chọn từ mọi sheet của file Tổng tồn)
+            bar.Children.Add(Btn("⬇ Xuất File Tổng tồn", async () => await ExportTongTon(), tip: "Một file Excel chung: tổng tồn + Kho Gửi + 8 module"));
+            bar.Children.Add(Btn("⬇ Xuất file Tổng tồn tự chọn", async () => await ExportPick(false), tip: "Chọn sheet cần xuất trong file Tổng tồn (Tổng Tồn + 8 module)"));
+            bar.Children.Add(Btn("⬇ Xuất File Tổng hợp HLSO", async () => await SaveXlsx(AnAnExport.HlsoSummary(D, D.DataDate.Length > 0 ? D.DataDate : Today), $"BangTongHopHLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx")));
+            bar.Children.Add(Btn("⬇ Xuất file HLSO tự chọn", async () => await ExportPick(true), tip: "Chọn sheet: Tổng Tồn, Tôm HLSO, Tôm Gia Công, Tôm Nhập Khẩu, Tôm Nguyên Liệu, Tôm Giám Sát"));
         }
         if (_edit) bar.Children.Add(Btn("Lấy Kho Gửi từ Tồn kho gửi", async () => await PullKhoGui()));
         // 1.69: Báo Cáo Tổng Tồn (gồm Tồn Kho Gửi) + Đối Soát chung 1 tab con, 2 bảng cạnh nhau như app cũ (PC 5.35; màn hình hẹp tự xuống dòng);
@@ -667,25 +669,41 @@ public sealed class AnAnView : UserControl, IPage
         return v;
     }
 
-    private async Task ExportHlso()
+    /// <summary>Xuất file tự chọn sheet: hlso = 5 loại tôm (Tổng Tồn chỉ gồm 5 loại), không = mọi sheet của file Tổng tồn (Tổng Tồn đầy đủ).</summary>
+    private async Task ExportPick(bool hlso)
     {
+        var ids = hlso ? AnAnExport.HlsoExportIds : AnAnData.FilterModules.Select(m => m.Id).ToArray();
+        var title = hlso ? "Xuất file HLSO tự chọn" : "Xuất file Tổng tồn tự chọn";
         var body = new StackPanel { Spacing = 4 };
         body.Children.Add(Label("Chọn sheet cần xuất:"));
         var sum = new CheckBox { Content = "Tổng Tồn", IsChecked = true };
         body.Children.Add(sum);
-        var boxes = AnAnExport.HlsoExportIds.Select(id => new CheckBox { Content = AnAnData.LabelOf(id), IsChecked = true, Tag = id }).ToList();
+        var boxes = ids.Select(id => new CheckBox { Content = AnAnData.LabelOf(id), IsChecked = true, Tag = id }).ToList();
         foreach (var b in boxes) body.Children.Add(b);
+        var all = new CheckBox { Content = "Chọn / bỏ tất cả", IsChecked = true, Margin = new Thickness(0, 4, 0, 0) };
+        all.Click += (_, _) => { sum.IsChecked = all.IsChecked == true; foreach (var b in boxes) b.IsChecked = all.IsChecked == true; };
+        body.Children.Add(all);
         var ok = false;
         var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Đóng", IsCancel = true };
         body.Children.Add(Ui.Buttons(n, y));
-        var w = Ui.Dialog("Xuất excel HLSO", body, 360);
+        var w = Ui.Dialog(title, body, 360);
         y.Click += (_, _) => { ok = true; w.Close(); }; n.Click += (_, _) => w.Close();
         await Ui.Show(this, w);
         if (!ok) return;
         var pick = boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag!).ToHashSet();
+        if (pick.Count == 0 && sum.IsChecked != true) { await Ui.Message(this, "Chưa chọn sheet nào."); return; }
         var date = "";
-        if (sum.IsChecked == true) { var d = await AskReportDate(); if (d is null) return; date = d; }
-        await SaveXlsx(AnAnExport.BaoCaoAll(D, date, AnAnExport.HlsoExportIds.ToHashSet(), pick, sum.IsChecked == true), $"BaoCao_TongTon_HLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx");
+        if (sum.IsChecked == true)
+        {
+            if (!hlso)
+            {
+                var warn = BaoCaoTongTon.CanhBaoXuat(D);
+                if (warn.Count > 0 && !await Ui.Confirm(this, "Báo cáo tổng tồn còn thiếu số liệu:\n\n" + string.Join("\n", warn.Select(x => "• " + x)) + "\n\nVẫn xuất file Excel?", "Thiếu số liệu", "Vẫn xuất")) return;
+            }
+            var d = await AskReportDate(); if (d is null) return; date = d;
+        }
+        var file = hlso ? $"BaoCao_TongTon_HLSO_{AnAnExport.Stamp(DateTime.Now)}.xlsx" : $"BaoCao_TongTon_TuChon_{AnAnExport.Stamp(DateTime.Now)}.xlsx";
+        await SaveXlsx(AnAnExport.BaoCaoAll(D, date, hlso ? AnAnExport.HlsoExportIds.ToHashSet() : null, pick, sum.IsChecked == true), file);
     }
 
     private async Task PullKhoGui()

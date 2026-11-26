@@ -717,10 +717,12 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "bc")
         var at = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
         Console.WriteLine($"[BC] An An tab 2 = {(at.Items[1] as TabItem)?.Header} · tab 3 = {(at.Items[2] as TabItem)?.Header}");
         at.SelectedIndex = 1; W(30); Snap(win, "40b-an-an-bao-cao-doi-soat" + tag);
+        Console.WriteLine($"[BC{tag}] nút hiện: " + string.Join(" | ", win.PageHost.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible && b.Bounds.Width > 0).Select(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").Where(t => t.Contains("Xuất") || t.Contains("Thêm"))));
         win.Navigate("m2"); W(50);
         var gt = win.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
         Console.WriteLine($"[BC] Gửi tab 2 = {(gt.Items[1] as TabItem)?.Header} · tab 6 = {(gt.Items[5] as TabItem)?.Header}");
         gt.SelectedIndex = 1; W(30); Snap(win, "41b-gui-bao-cao" + tag);
+        Console.WriteLine($"[BC{tag}] Gửi nút hiện: " + string.Join(" | ", win.PageHost.GetVisualDescendants().OfType<Button>().Where(b => b.IsEffectivelyVisible && b.Bounds.Width > 0).Select(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").Where(t => t.Contains("Xuất") || t.Contains("Thêm"))));
         gt.SelectedIndex = 5; W(30); Snap(win, "41c-gui-doi-soat" + tag);
         if (win != main) win.Close();
     }

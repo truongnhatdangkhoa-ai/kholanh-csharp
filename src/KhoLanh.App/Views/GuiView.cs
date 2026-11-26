@@ -678,7 +678,11 @@ public sealed class GuiView : UserControl, IPage
         };
         var bar = Bar();
         bar.Children.Add(Btn("Ẩn / hiện cột trống", () => { _bcHide = !_bcHide; RenderBc(); }));
-        if (_export) bar.Children.Add(Btn("⬇ Xuất Excel Bảng Tổng Hợp", async () => await ExportBc(), primary: true));
+        if (_export)
+        {
+            bar.Children.Add(Btn("⬇ Xuất file HLSO tự chọn", async () => await ExportBcPick(), tip: "Chọn nhóm cần xuất: Bảng Tổng Hợp của các nhóm đã chọn + 1 sheet dữ liệu mỗi nhóm"));
+            bar.Children.Add(Btn("⬇ Xuất Excel Bảng Tổng Hợp", async () => await ExportBc(), primary: true));
+        }
         var main = Page(new StackPanel { Children = { bar, _bcInfo } }, Framed(_bcg));
         var grid = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
         grid.Children.Add(main); var cs = BuildCs(); Grid.SetRow(cs, 1); grid.Children.Add(cs);
@@ -827,6 +831,31 @@ public sealed class GuiView : UserControl, IPage
         if (_pivot is null) return;
         var date = await AskDate(D.DataDate); if (date is null) return;
         await SaveXlsx(GuiExport.BangTongHop(_pivot, date), GuiExport.BangTongHopFileName(DateTime.Now));
+    }
+    /// <summary>1.126: như Tồn kho An An › Xuất file HLSO tự chọn — chọn nhóm (Phân Loại) cần xuất.</summary>
+    private async Task ExportBcPick()
+    {
+        var body = new StackPanel { Spacing = 4 };
+        body.Children.Add(new TextBlock { Text = "Chọn sheet cần xuất:" });
+        var sum = new CheckBox { Content = "Bảng Tổng Hợp (của các nhóm đã chọn)", IsChecked = true };
+        body.Children.Add(sum);
+        var boxes = GuiData.Groups.Select(g => new CheckBox { Content = g.Label, IsChecked = true, Tag = g.Id }).ToList();
+        foreach (var b in boxes) body.Children.Add(b);
+        var all = new CheckBox { Content = "Chọn / bỏ tất cả nhóm", IsChecked = true, Margin = new Thickness(0, 4, 0, 0) };
+        all.Click += (_, _) => { foreach (var b in boxes) b.IsChecked = all.IsChecked == true; };
+        body.Children.Add(all);
+        var ok = false;
+        var y = new Button { Content = "Xuất", IsDefault = true, Classes = { "primary" } }; var n = new Button { Content = "Đóng", IsCancel = true };
+        body.Children.Add(Ui.Buttons(n, y));
+        var w = Ui.Dialog("Xuất file HLSO tự chọn", body, 360);
+        y.Click += (_, _) => { ok = true; w.Close(); }; n.Click += (_, _) => w.Close();
+        await Ui.Show(this, w);
+        if (!ok) return;
+        var pick = boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag!).ToList();
+        if (pick.Count == 0) { await Ui.Message(this, "Chưa chọn nhóm nào."); return; }
+        var date = "";
+        if (sum.IsChecked == true) { var d = await AskDate(D.DataDate); if (d is null) return; date = d; }
+        await SaveXlsx(GuiExport.TuChon(D, date, sum.IsChecked == true, pick), GuiExport.TuChonFileName(DateTime.Now));
     }
     private async Task<string?> AskDate(string initial)
     {
