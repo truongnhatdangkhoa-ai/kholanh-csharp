@@ -135,6 +135,7 @@ public partial class MainWindow : Window
                 new NavItem("m19", "Lưu trữ cá nhân", () => new LuuTruView()),
                 new NavItem("m21", "Xử lý PDF & Excel", () => new XuLyTepView()),
                 new NavItem("m22", "So sánh & Tra cứu bảng", () => new SoSanhBangView()),
+                new NavItem("hengio", "Hẹn giờ tắt máy", () => new HenGioView()),
             }),
             ("HỆ THỐNG", new[]
             {
@@ -329,7 +330,7 @@ public partial class MainWindow : Window
         ["m1"] = "box", ["m2"] = "warehouse", ["m7"] = "pin", ["m3sk"] = "list", ["m1vtb"] = "map", ["m8"] = "grid",
         ["m4"] = "snow", ["m5"] = "calendar", ["m9"] = "check", ["m7ck"] = "chart", ["m3"] = "doc", ["m3dm"] = "tag", ["m24cc"] = "calendar", ["m10"] = "ok",
         ["m13"] = "truck", ["m12"] = "print", ["m11"] = "layers",
-        ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare",
+        ["m14"] = "cube", ["m15"] = "scan", ["m19"] = "folder", ["m21"] = "tool", ["m22"] = "compare", ["hengio"] = "history",
         ["users"] = "users", ["backup"] = "gear", ["ketnoi"] = "network", ["dongbo"] = "cloud", ["audit"] = "history", ["troly"] = "assist",
     };
     /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>

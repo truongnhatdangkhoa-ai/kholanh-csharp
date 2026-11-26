@@ -38,6 +38,8 @@ public static class Perm
         new("m22", "So sánh & Tra cứu bảng", "Công cụ", new[] { Edit }, "So 2 bảng Excel / CSV theo cột khóa (giống / khác / chỉ có ở A / B); kéo cột từ bảng B sang A kiểu VLOOKUP"),
         new("m15", "Scan tài liệu", "Công cụ", new[] { Edit }, "Quét ảnh / PDF thành bản in sạch; tài liệu lưu riêng từng tài khoản"),
         new("m19", "Lưu trữ cá nhân", "Công cụ", new[] { Edit }, "Ghi chú, liên kết, ảnh, tệp riêng từng tài khoản; đăng nhập Google cá nhân để sao lưu Drive"),
+        // 1.139: hẹn giờ tắt máy tính — chỉ Quản trị (hoặc tài khoản Quản trị tích riêng).
+        new("hengio", "Hẹn giờ tắt máy", "Công cụ", new[] { Edit }, "Hẹn giờ tắt máy tính này theo số phút hoặc giờ đồng hồ, hủy hẹn giờ. Mặc định chỉ Quản trị"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
         // 1.114 (người dùng: "máy ngoài LAN khôi phục bình thường, chỉ cần tài khoản được phân quyền"): máy đang nối máy chủ LAN thì vẫn khóa.
         new("khoiphuc", "Khôi phục dữ liệu", "Hệ thống", new[] { Edit }, "Khôi phục bản sao lưu (trên máy / Google Drive) ở máy KHÔNG nối máy chủ LAN — máy nối mạng LAN mà đang ngoài mạng thì tách ra dùng riêng, không ảnh hưởng máy chủ / máy trong LAN"),
@@ -69,6 +71,7 @@ public static class Perm
         var d = new Dictionary<string, string>();
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         d["khoiphuc"] = None;     // 1.114: khôi phục chỉ khi Quản trị tích riêng (Quản trị luôn có)
+        d["hengio"] = None;       // 1.139: tắt máy là việc nguy hiểm với máy chủ LAN — chỉ Quản trị (hoặc tích riêng)
         d["taikhoan"] = None;     // 1.110: tạo / sửa tài khoản chỉ khi Quản trị tích riêng (Quản trị luôn có)
         if (role == Roles.Staff)
         {
