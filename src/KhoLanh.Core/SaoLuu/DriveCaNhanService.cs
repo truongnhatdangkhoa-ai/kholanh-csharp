@@ -284,9 +284,8 @@ public sealed class DriveCaNhanService
     /// </summary>
     public async Task RestoreAsync(Item it, CancellationToken ct = default)
     {
-        RequirePerm();
-        _session.RequireAdmin();
-        if (WhyNotMain() is { } why) throw new BusinessException(why);
+        _session.Require("khoiphuc");   // 1.114: theo quyền Khôi phục dữ liệu; máy đang nối máy chủ LAN bị khóa trong BackupService.Restore
+        if (KhoLanh.Core.AppServices.RestoreLock(_lan()) is { } why) throw new BusinessException(why);
         var tmp = Path.Combine(Path.GetTempPath(), "kl-dcn-khoi-phuc-" + Guid.NewGuid().ToString("N")[..8] + ".db");
         try
         {

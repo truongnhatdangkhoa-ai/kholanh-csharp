@@ -38,6 +38,25 @@ public sealed class DuLieuView : UserControl, IPage
         Content = tabs;
     }
 
+    // ------------------------------------------------------------------ 1.114: khôi phục theo 2 chế độ tự động
+
+    /// <summary>Máy đang nối máy chủ LAN → báo khóa (trả Task hiện thông báo); null = được khôi phục.</summary>
+    internal static Task? RestoreLocked(Visual v) =>
+        KhoLanh.Core.AppServices.RestoreLock(App.Services.Lan) is { } why ? Ui.Message(v, why, "Khôi phục bị khóa") : null;
+
+    /// <summary>Máy đang ở mạng LAN / Drive dùng chung (nhưng ngoài mạng) → câu báo sẽ tách ra dùng riêng.</summary>
+    internal static string DetachNote()
+    {
+        var s = App.Services;
+        if (s.Lan.Role.Length == 0 && s.Drive.Mode.Length == 0) return "";
+        return "\n\nMáy này đang ở NGOÀI mạng LAN (không nối máy chủ) nên được khôi phục: sau khi khôi phục, máy TÁCH ra dùng dữ liệu riêng — "
+             + "không gửi gì lên máy chủ, máy chủ và các máy trong LAN không bị ảnh hưởng. Muốn dùng chung lại: Đồng bộ & sao lưu › Giữa các máy › Chỉ máy này › «Nối lại mạng LAN» (dữ liệu riêng được thay bằng dữ liệu máy chủ).";
+    }
+
+    internal static string DetachedDone() => App.Services.Backup.LastDetached
+        ? "\n\nMáy này đã tách khỏi mạng LAN / Drive dùng chung, đang dùng dữ liệu riêng (máy chủ không bị ảnh hưởng)."
+        : "";
+
     internal static TextBlock Muted(string t) => new() { Text = t, Classes = { "muted" }, FontSize = 12.5, TextWrapping = TextWrapping.Wrap, Tag = "keep" };
     internal static Border Card(string title, params Control[] kids)
     {
@@ -106,7 +125,7 @@ internal sealed class LocalBackupPanel : UserControl
     public LocalBackupPanel()
     {
         var s = App.Services;
-        var admin = Roles.IsAdmin(s.Session.Role);
+        var admin = s.Session.Can("khoiphuc", Perm.Edit);   // 1.114: quyền Khôi phục dữ liệu (Quản trị luôn có)
         _grid.Columns.Add(new DataGridTextColumn { Header = "Tên file", Binding = new Binding(nameof(Row.Name)), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Thời gian", Binding = new Binding(nameof(Row.LastWriteTime)) { StringFormat = "dd/MM/yyyy HH:mm" }, Width = new DataGridLength(140) });
         _grid.Columns.Add(new DataGridTextColumn { Header = "Dung lượng (KB)", Binding = new Binding(nameof(Row.Kb)) { StringFormat = "#,0" }, Width = new DataGridLength(130) });
@@ -129,7 +148,7 @@ internal sealed class LocalBackupPanel : UserControl
         {
             bar,
             DuLieuView.Muted("Mỗi ngày, lần mở đầu tiên app tự sao lưu (tu-dong_…, giữ 30 bản). Bản truoc-khoi-phuc_… / truoc-doi-vai-… là bản chụp dữ liệu cũ ngay trước khi khôi phục / đổi vai LAN."
-                + (admin ? "" : " Khôi phục: chỉ Quản trị.")),
+                + (admin ? " Máy đang nối máy chủ LAN thì khóa khôi phục; máy ngoài LAN khôi phục xong tự tách ra dùng dữ liệu riêng." : " Khôi phục: cần quyền «Khôi phục dữ liệu».")),
         } };
         var dock = new DockPanel();
         DockPanel.SetDock(head, Dock.Top); dock.Children.Add(head); dock.Children.Add(_grid);
@@ -148,13 +167,15 @@ internal sealed class LocalBackupPanel : UserControl
 
     private async Task Restore(string path)
     {
+        if (DuLieuView.RestoreLocked(this) is { } t) { await t; return; }
         if (!await Ui.Confirm(this,
-                $"Khôi phục dữ liệu từ:\n{path}\n\nToàn bộ dữ liệu hiện tại sẽ được thay bằng bản sao lưu này. Phần mềm sẽ tự sao lưu bản hiện tại trước khi khôi phục, rồi yêu cầu đăng nhập lại.",
+                $"Khôi phục dữ liệu từ:\n{path}\n\nToàn bộ dữ liệu module trên máy này sẽ được thay bằng bản sao lưu này (cài đặt máy giữ nguyên). Phần mềm sẽ tự sao lưu bản hiện tại trước khi khôi phục, rồi yêu cầu đăng nhập lại."
+                + DuLieuView.DetachNote(),
                 "Khôi phục dữ liệu", "Khôi phục")) return;
         string safety = "";
         if (!await Ui.Run(this, () => safety = App.Services.Backup.Restore(path))) return;
         var main = MainWindow.Of(this);
-        await Ui.Message(this, $"Đã khôi phục xong. Bản dữ liệu trước khi khôi phục được giữ ở:\n{safety}\n\nVui lòng đăng nhập lại.");
+        await Ui.Message(this, $"Đã khôi phục xong. Bản dữ liệu trước khi khôi phục được giữ ở:\n{safety}" + DuLieuView.DetachedDone() + "\n\nVui lòng đăng nhập lại.");
         main?.Logout();
     }
 }
@@ -217,7 +238,7 @@ internal sealed class DriveCaNhanPanel : UserControl
         var listBtns = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 };
         listBtns.Children.Add(DuLieuView.Btn("Tải lại danh sách", LoadList));
         listBtns.Children.Add(DuLieuView.Btn("Tải bản đang chọn về file .db…", Download));
-        if (admin) listBtns.Children.Add(DuLieuView.Btn("Khôi phục máy này từ bản đang chọn", Restore, "danger"));
+        if (App.Services.Session.Can("khoiphuc", Perm.Edit)) listBtns.Children.Add(DuLieuView.Btn("Khôi phục máy này từ bản đang chọn", Restore, "danger"));
         var listCard = DuLieuView.Card("Bản sao lưu trên Drive (mọi máy của Gmail này)", listBtns, _grid);
         var body = new StackPanel { Spacing = 12, Margin = new Thickness(0, 0, 6, 0) };
         body.Children.Add(new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 14, Children = { acctCard, backupCard.Also(b => Grid.SetColumn(b, 1)) } });
@@ -307,13 +328,14 @@ internal sealed class DriveCaNhanPanel : UserControl
     private async Task Restore()
     {
         if (Sel is not { } it) { await Ui.Message(this, "Chọn một bản trong danh sách trước."); return; }
-        if (Svc.WhyNotMain() is { } why) { await Ui.Message(this, why, "Khôi phục"); return; }
+        if (DuLieuView.RestoreLocked(this) is { } t) { await t; return; }
         if (!await Ui.Confirm(this,
-                $"Khôi phục MÁY NÀY về bản trên Drive:\n{it.Machine} · {it.At:dd/MM/yyyy HH:mm}\n\nToàn bộ dữ liệu hiện tại sẽ được thay bằng bản này. App tự chụp bản hiện tại vào thư mục SaoLuu (truoc-khoi-phuc_…) trước khi ghi đè, rồi yêu cầu đăng nhập lại.",
+                $"Khôi phục MÁY NÀY về bản trên Drive:\n{it.Machine} · {it.At:dd/MM/yyyy HH:mm}\n\nToàn bộ dữ liệu module trên máy này sẽ được thay bằng bản này (cài đặt máy giữ nguyên). App tự chụp bản hiện tại vào thư mục SaoLuu (truoc-khoi-phuc_…) trước khi ghi đè, rồi yêu cầu đăng nhập lại."
+                + DuLieuView.DetachNote(),
                 "Khôi phục từ Google Drive", "Khôi phục")) return;
         _msg.Text = "Đang tải và khôi phục…";
         if (!await Ui.RunAsync(this, () => Task.Run(() => Svc.RestoreAsync(it)))) { _msg.Text = ""; return; }
-        await Ui.Message(this, "Đã khôi phục xong. Vui lòng đăng nhập lại.", "Khôi phục xong");
+        await Ui.Message(this, "Đã khôi phục xong." + DuLieuView.DetachedDone() + "\n\nVui lòng đăng nhập lại.", "Khôi phục xong");
         MainWindow.Of(this)?.Logout();
     }
 }

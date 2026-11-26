@@ -974,6 +974,36 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v203")
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v203) — ĐẠT: " : "Xong (v203) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.100: SHOTS_ONLY=v200 — Trợ lý › Hiệu năng (dữ liệu mẫu 24 giờ + mốc + thao tác chậm), Sáng và Tối. Thoát mã 1 nếu hỏng.
+// 1.114: SHOTS_ONLY=v207 — khôi phục 2 chế độ: máy đã tách riêng thấy nút "Nối lại mạng LAN" (Giữa các máy › Chỉ máy này); máy chủ LAN bị khóa khôi phục. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v207")
+{
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var ok = true;
+    s.Settings.Set("lan_role", ""); s.Settings.Set("lan_serving", ""); s.ReloadLan(start: false);   // như máy vừa khôi phục ngoài LAN: tách riêng
+    s.Settings.Set(KhoLanh.Core.Services.BackupService.DetachedKey, "1");
+    main.Navigate("lan"); P(40);
+    var cards = main.PageHost.GetVisualDescendants().OfType<Button>().ToList();
+    var choose = main.PageHost.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == "Chỉ máy này");
+    if (choose?.GetVisualAncestors().OfType<Button>().FirstOrDefault() is { } cb) { cb.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(30); }
+    else if (choose?.GetVisualAncestors().OfType<Border>().FirstOrDefault(b => b.Cursor is not null) is { } bb)
+    {
+        var pt = bb.TranslatePoint(new Avalonia.Point(20, 10), main)!.Value;
+        main.MouseDown(pt, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); main.MouseUp(pt, Avalonia.Input.MouseButton.Left, Avalonia.Input.RawInputModifiers.None); P(30);
+    }
+    var rejoin = main.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => KhoLanh.App.Controls.Icon.TextOf(b.Content) == "Nối lại mạng LAN" && b.IsEffectivelyVisible);
+    Console.WriteLine($"[v207] nút Nối lại mạng LAN: {rejoin is not null}");
+    if (rejoin is null) ok = false;
+    Snap(main, "v207-noi-lai-lan");
+    s.Settings.Set(KhoLanh.Core.Services.BackupService.DetachedKey, "");
+    int Free() { var l = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); l.Start(); var p = ((System.Net.IPEndPoint)l.LocalEndpoint).Port; l.Stop(); return p; }
+    KhoLanh.Core.Lan.LanService.Configure(s.Settings, s.Session, KhoLanh.Core.Lan.LanService.RoleServer, null, Free());
+    s.ReloadLan(start: true);
+    for (var i = 0; i < 100 && !s.Lan.Serving; i++) P(5);
+    var lockMsg = KhoLanh.Core.AppServices.RestoreLock(s.Lan) ?? "";
+    Console.WriteLine($"[v207] máy chủ: {s.Lan.Serving} · khóa: {lockMsg}");
+    if (!lockMsg.Contains("MÁY CHỦ")) ok = false;
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v207) — ĐẠT: " : "Xong (v207) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.113: SHOTS_ONLY=v204 — Máy chủ từ xa (Cloudflare Tunnel): ô "Địa chỉ từ xa" ở Đồng bộ & sao lưu › Giữa các máy › Máy chủ LAN, mã LAN chứa địa chỉ,
 // "Kiểm tra nối từ xa" qua HTTP thật (127.0.0.1 thay cho Cloudflare). Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v204")

@@ -38,6 +38,8 @@ public static class Perm
         new("m15", "Scan tài liệu", "Công cụ", new[] { Edit }, "Quét ảnh / PDF thành bản in sạch; tài liệu lưu riêng từng tài khoản"),
         new("m19", "Lưu trữ cá nhân", "Công cụ", new[] { Edit }, "Ghi chú, liên kết, ảnh, tệp riêng từng tài khoản; đăng nhập Google cá nhân để sao lưu Drive"),
         new("backup", "Sao lưu và cài đặt", "Hệ thống", new[] { Edit }, "Sao lưu, khôi phục, chép dữ liệu app cũ"),
+        // 1.114 (người dùng: "máy ngoài LAN khôi phục bình thường, chỉ cần tài khoản được phân quyền"): máy đang nối máy chủ LAN thì vẫn khóa.
+        new("khoiphuc", "Khôi phục dữ liệu", "Hệ thống", new[] { Edit }, "Khôi phục bản sao lưu (trên máy / Google Drive) ở máy KHÔNG nối máy chủ LAN — máy nối mạng LAN mà đang ngoài mạng thì tách ra dùng riêng, không ảnh hưởng máy chủ / máy trong LAN"),
         new("audit", "Nhật ký thao tác", "Hệ thống", new[] { View }, ""),
         // 1.110 (người dùng: "tài khoản được phân quyền tạo tài khoản là đồng bộ tài khoản lên Sheet được, app cũ làm được"): quyền theo tài khoản, máy nào cũng vậy.
         new("taikhoan", "Tạo / sửa tài khoản", "Hệ thống", new[] { Edit }, "Tạo, sửa, khóa, đặt lại mật khẩu tài khoản Nhân viên / Quản lý (tự đồng bộ lên Google Sheet chung). Không tạo / sửa được tài khoản Quản trị"),
@@ -67,6 +69,7 @@ public static class Perm
         var d = new Dictionary<string, string>();
         foreach (var i in Items) d[i.Key] = i.Levels[^1];
         d["landuphong"] = None;   // 1.106: máy dự phòng LAN chỉ khi Quản trị tích riêng
+        d["khoiphuc"] = None;     // 1.114: khôi phục chỉ khi Quản trị tích riêng (Quản trị luôn có)
         d["taikhoan"] = None;     // 1.110: tạo / sửa tài khoản chỉ khi Quản trị tích riêng (Quản trị luôn có)
         if (role == Roles.Staff)
         {

@@ -184,18 +184,22 @@ public class DriveSyncTests : IDisposable
         var bk = Directory.GetFiles(Path.Combine(_drive, DriveSyncService.Folder, "backup")).First();
         Assert.DoesNotContain("SQLite format", File.ReadAllText(bk));             // đã mã hóa
 
-        // máy nhà: tải bản về, sửa (chờ gửi), rồi khôi phục — cài đặt máy giữ nguyên, sổ chờ bỏ
+        // máy nhà (ngoài LAN): tải bản về, sửa (chờ gửi), rồi khôi phục — 1.114: tách ra dùng riêng (không đồng bộ theo máy chính nữa,
+        // máy chính không bị ảnh hưởng), sổ chờ bỏ, cài đặt thư mục Drive giữ để nối lại
         home.Drive.SyncNow();
         home.Lan.Write(Db, One("S", Rows("a", "b", "nha")));
         Assert.Equal(1, home.Lan.PendingCount());
+        main.Lan.Write(Db, One("S", Rows("a", "b", "chinh")));
         var tmp = Path.Combine(_root, "kp.db");
         home.Drive.DownloadBackup("b-2026-11-23.kldb", tmp);
         home.Backup.Restore(tmp);
+        Assert.True(home.Backup.LastDetached);
         Assert.Equal(0, home.Lan.PendingCount());
-        Assert.Equal("xa", home.Settings.Get("drive_mode"));
+        Assert.Equal("", home.Settings.Get("drive_mode"));
+        Assert.Equal("1", home.Settings.Get(KhoLanh.Core.Services.BackupService.DetachedKey));
         Assert.Equal(_drive, home.Settings.Get("drive_dir"));
         Assert.Equal("a,b", Names(home.Lan.Read(Db, "S")));
-        Assert.Contains("đã tải bản", home.Drive.SyncNow());                      // đồng bộ lại theo máy chính
+        Assert.Equal("a,b,chinh", Names(main.Lan.Read(Db, "S")));                // máy chính giữ nguyên
     }
 
     [Fact]

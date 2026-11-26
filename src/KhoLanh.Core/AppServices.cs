@@ -87,7 +87,8 @@ public class AppServices
         Drive = new DriveSyncService(() => Lan, Settings);
         Backup.IsRemote = () => Lan.Role == LanService.RoleRemote;
         Drive.MakeBackup = p => Backup.BackupTo(p);
-        Backup.Guard = () => Lan.Enabled ? "Máy này đang dùng chung dữ liệu qua mạng LAN. Chuyển về \"Máy đơn\" ở Mạng LAN rồi mở lại phần mềm trước khi khôi phục." : null;
+        Backup.Guard = () => RestoreLock(Lan);
+        Backup.AfterRestore = () => ReloadLan();   // máy vừa tách khỏi LAN: dừng phần LAN cũ (không nối lại máy chủ, không gửi sổ chờ)
         Entry = new EntryService(() => Lan, Session, Audit);
         TongHop = new TongHopService(() => Lan, Session, Audit, Settings);
         RaDong = new RaDongService(() => Lan, Session, Audit);
@@ -124,6 +125,18 @@ public class AppServices
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>
+    /// <summary>
+    /// 1.114: khóa khôi phục khi máy ĐANG nối máy chủ LAN (máy chủ đang làm chủ / máy con, dự phòng đang nối) — khôi phục lúc đó ảnh hưởng dữ liệu chung.
+    /// Máy ngoài LAN (máy đơn, máy LAN đang không nối được máy chủ, máy xem từ xa qua Drive) → được, sau khi khôi phục tách ra dùng riêng.
+    /// </summary>
+    public static string? RestoreLock(LanService lan) =>
+        lan.Enabled && lan.Role != LanService.RoleRemote && (lan.Serving || lan.Online || lan.Role == LanService.RoleServer)
+            ? (lan.Serving || lan.Role == LanService.RoleServer
+                ? "Máy này là MÁY CHỦ mạng LAN — khôi phục sẽ thay dữ liệu chung của mọi máy, nên bị khóa (muốn khôi phục: Quản trị «Tắt máy chủ trên máy này» trước)."
+                : "Máy này đang nối máy chủ qua mạng LAN — khóa khôi phục để không ảnh hưởng dữ liệu chung.")
+              + " Khôi phục được ở máy ngoài mạng LAN (máy đó tự tách ra dùng dữ liệu riêng)."
+            : null;
+
     public void ReloadLan(bool start = true)
     {
         var old = Lan;
