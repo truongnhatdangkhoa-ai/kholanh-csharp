@@ -1315,6 +1315,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     public string Read(string dbKey, string sheet)
     {
         ModuleStore.CheckName("database", dbKey); ModuleStore.CheckName("sheet", sheet);
+        ReadTrack.Note(dbKey);
         if (Serving || !Enabled || HasPending(dbKey, sheet) || !Online)
         {
             var (json, v) = _store.ReadVersioned(dbKey, sheet);
@@ -1342,6 +1343,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
 
     public List<string> List(string dbKey)
     {
+        ReadTrack.Note(dbKey);
         if (Serving || !Enabled || !Online) return _store.ListSheets(dbKey);
         try
         {

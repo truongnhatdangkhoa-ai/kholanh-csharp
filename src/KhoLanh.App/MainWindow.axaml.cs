@@ -1,3 +1,4 @@
+using KhoLanh.Core.Modules;
 using Avalonia;
 using Avalonia.LogicalTree;
 using Avalonia.Controls.Presenters;
@@ -171,6 +172,7 @@ public partial class MainWindow : Window
         // Cập nhật online: có bản mới đã tải xong → hiện nút trên thanh menu.
         AppUpdater.Ready += OnUpdateReady;
         Closed += (_, _) => AppUpdater.Ready -= OnUpdateReady;
+        ReadTrack.OnRead += OnModuleRead; Closed += (_, _) => ReadTrack.OnRead -= OnModuleRead;   // 1.136
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
         s.Lan.Changed += OnLanChanged;
@@ -455,16 +457,32 @@ public partial class MainWindow : Window
         if (item is null) return;
         if (!Allowed(item)) return;
         // 1.72 (A3): giữ màn hình đã mở trong phiên — quay lại không dựng lại nếu dữ liệu chưa đổi (mốc CurrentSeq của CSDL module)
+        // 1.136: không chỉ so mốc chung — trang còn dùng được nếu MỌI database nó đã đọc chưa đổi (sửa module khác không làm trang này dựng lại)
         var seq = DataSeq();
-        if (page is null && CacheEnabled && _cache.TryGetValue(key, out var c0) && c0.Seq == seq) { page = c0.Page; _cache[key] = (c0.Page, seq, DateTime.Now); }
+        var vers = DbVersions();
+        var reused = false;
+        if (Environment.GetEnvironmentVariable("KL_DEBUG_CACHE") == "1" && _cache.TryGetValue(key, out var cd) && cd.Vers is not null && vers is not null)
+            Console.WriteLine($"[CACHE] {key} seq {cd.Seq}/{seq} deps [{string.Join(",", DepsOf(key))}] đổi [{string.Join(",", DepsOf(key).Where(k => (cd.Vers.TryGetValue(k, out var a) ? a : 0) != (vers.TryGetValue(k, out var b) ? b : 0)))}]");
+        if (page is null && CacheEnabled && _cache.TryGetValue(key, out var c0)
+            && (c0.Seq == seq || (vers is not null && c0.Vers is not null && ReadTrack.Fresh(DepsOf(key), c0.Vers, vers))))
+        { page = c0.Page; reused = true; _cache[key] = (c0.Page, seq, vers, DateTime.Now); }
         if (page is null)
         {
-            using (var m = KhoLanh.Core.TroLy.Perf.Measure("Mở module", item.Label)) page = item.Create();
-            if (page is not IKeepFresh) _cache[key] = (page, seq, DateTime.Now);
-            while (_cache.Count > CacheMax) _cache.Remove(_cache.OrderBy(x => x.Value.At).First().Key);   // bỏ màn hình lâu không mở
+            lock (_deps) { _deps[key] = new HashSet<string>(StringComparer.Ordinal); _building = key; }
+            try { using (var m = KhoLanh.Core.TroLy.Perf.Measure("Mở module", item.Label)) page = item.Create(); }
+            finally { lock (_deps) _building = null; }
+            if (page is not IKeepFresh && CacheEnabled) _cache[key] = (page, seq, vers, DateTime.Now);
+            while (_cache.Count > CacheMax) { var old = _cache.OrderBy(x => x.Value.At).First().Key; _cache.Remove(old); lock (_deps) _deps.Remove(old); }   // bỏ màn hình lâu không mở
         }
+        lock (_deps) _shownAt[key] = DateTime.UtcNow;
         PageHost.IsVisible = true;
-        PageHost.Content = page;
+        if (reused)
+        {
+            Ui.Reusing = page;   // màn hình con tự nạp lúc gắn (Ui.SkipReload) biết là không cần đọc lại
+            PageHost.Content = page;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (ReferenceEquals(Ui.Reusing, page)) Ui.Reusing = null; }, Avalonia.Threading.DispatcherPriority.Background);
+        }
+        else PageHost.Content = page;
         // 1.62: bỏ dòng mô tả cạnh tiêu đề ở mọi module (gọn) — mô tả chuyển vào nút ⓘ Hướng dẫn
         if (page is IPage p) { PageTitle.Text = p.Title; PageSubtitle.Text = ""; }
         foreach (var b in _buttons.Values) b.Classes.Remove("active");
@@ -631,14 +649,31 @@ public partial class MainWindow : Window
     internal TabControl? PageTabs => _pageTabs;
 
     // ------------------------------------------------------------------ 1.72 (A3): giữ màn hình đã mở
-    private const int CacheMax = 8;
+    private const int CacheMax = 12;
     /// <summary>Tắt giữ màn hình (công cụ chụp ảnh cần màn hình mới mỗi lần mở).</summary>
     public static bool CacheEnabled { get; set; } = true;
-    private readonly Dictionary<string, (Control Page, long Seq, DateTime At)> _cache = new();
+    private readonly Dictionary<string, (Control Page, long Seq, Dictionary<string, long>? Vers, DateTime At)> _cache = new();
+    // 1.136: database mỗi màn hình đã đọc (ReadTrack). Lần đọc chạy nền nên gán cho: màn hình đang dựng, màn hình đang mở,
+    // và màn hình vừa mở < 20 s (đang nạp nền). Gán thừa chỉ làm trang dựng lại nhiều hơn — không bao giờ giữ trang cũ sai.
+    private readonly Dictionary<string, HashSet<string>> _deps = new();
+    private readonly Dictionary<string, DateTime> _shownAt = new();
+    private string? _building;
+    private static readonly TimeSpan DepWindow = TimeSpan.FromSeconds(20);
+    private void OnModuleRead(string db)
+    {
+        lock (_deps)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var (k, set) in _deps)
+                if (k == _building || k == _current || (_shownAt.TryGetValue(k, out var at) && now - at < DepWindow)) set.Add(db);
+        }
+    }
+    private IReadOnlyCollection<string> DepsOf(string key) { lock (_deps) return _deps.TryGetValue(key, out var d) ? d.ToArray() : Array.Empty<string>(); }
+    private static Dictionary<string, long>? DbVersions() { try { return App.Services.Modules.DbVersions(); } catch { return null; } }
     /// <summary>Mốc dữ liệu module (tăng mỗi lần có sheet đổi, kể cả nhận từ LAN / Drive) — đổi thì dựng lại màn hình khi mở.</summary>
     private static long DataSeq() { try { return App.Services.Modules.CurrentSeq(); } catch { return -1; } }
     /// <summary>Bỏ các màn hình đã giữ (đổi giao diện / cỡ chữ, đổi quyền…).</summary>
-    public void ClearPageCache() => _cache.Clear();
+    public void ClearPageCache() { _cache.Clear(); lock (_deps) _deps.Clear(); }
 
     private async void OnChangePassword(object? sender, RoutedEventArgs e)
     {

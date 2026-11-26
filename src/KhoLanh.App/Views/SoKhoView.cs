@@ -45,6 +45,7 @@ public sealed class SoKhoView : UserControl, IPage
         Content = root;
         AttachedToVisualTree += async (_, _) =>
         {
+            if (Ui.SkipReload(this) && _loaded) return;   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
             if (!await Ui.RunAsync(this, () => Task.Run(Svc.Load))) return;
             _loaded = true; Status();
             foreach (var r in _refresh) r();

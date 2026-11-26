@@ -73,7 +73,7 @@ public sealed class PnxAutoView : UserControl
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top);
         root.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(1), Child = _g });
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     private static Button Btn(string text, Func<Task> click, string? tip = null, bool primary = false)

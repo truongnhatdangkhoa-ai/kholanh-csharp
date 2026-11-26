@@ -743,6 +743,57 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
         Console.WriteLine($"[PERF] {k,-6} mở lần đầu {firstMs[k],7:0} ms · mở lại {again,6:0} ms");
         for (var i = 0; i < 5; i++) { Thread.Sleep(20); Pump(); }
     }
+    // 1.136: sửa database KHÁC → quay lại Tồn kho An An vẫn giữ màn hình cũ (không dựng lại / không đọc lại); sửa chính database của nó → dựng lại
+    {
+        main.Navigate("m1"); Pump(); var pg = main.PageHost.Content; main.Navigate("lx"); Pump();
+        s.Modules.WriteSheets("thu-hieu-nang", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["A"] = new() { new System.Text.Json.Nodes.JsonObject { ["x"] = 1 } } });
+        var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate("m1"); Pump(); var t1 = sw.Elapsed.TotalMilliseconds;
+        var keep = ReferenceEquals(pg, main.PageHost.Content);
+        main.Navigate("lx"); Pump();
+        s.Modules.WriteSheets("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["ThuHieuNang"] = new() });
+        main.Navigate("m1"); Pump(); var rebuilt = !ReferenceEquals(pg, main.PageHost.Content);
+        Console.WriteLine($"[PERF-GIU] sửa db khác → giữ trang: {keep} ({t1:0} ms) · sửa db của trang → dựng lại: {rebuilt}");
+        if (!keep || !rebuilt) { Console.WriteLine("[PERF-GIU] SAI"); Environment.ExitCode = 1; }
+    }
+    long busyAt = 0;
+    if (Environment.GetEnvironmentVariable("PERF_STACK") == "1")
+        new Thread(() =>
+        {
+            var pid = Environment.ProcessId; var done = 0L;
+            while (true)
+            {
+                Thread.Sleep(100);
+                var b = Interlocked.Read(ref busyAt);
+                if (b == 0 || b == done || Environment.TickCount64 - b < 600) continue;
+                done = b;
+                var psi = new System.Diagnostics.ProcessStartInfo(Environment.GetEnvironmentVariable("HOME") + "/.dotnet/tools/dotnet-stack", $"report -p {pid}") { RedirectStandardOutput = true, RedirectStandardError = true };
+                using var pr2 = System.Diagnostics.Process.Start(psi)!; var o = pr2.StandardOutput.ReadToEnd() + pr2.StandardError.ReadToEnd(); pr2.WaitForExit();
+                File.WriteAllText(System.IO.Path.Combine(outDir, $"stack-{b}.txt"), o);
+                Console.WriteLine("[PERF-STACK] đã ghi stack-" + b);
+            }
+        }) { IsBackground = true }.Start();
+    void Jobs() { Interlocked.Exchange(ref busyAt, Environment.TickCount64); Dispatcher.UIThread.RunJobs(); Interlocked.Exchange(ref busyAt, 0); }
+    if (Environment.GetEnvironmentVariable("PERF_M1") == "1")
+        for (var r = 0; r < 8; r++)
+        {
+            main.Navigate("lx"); Pump();
+            var gp = GC.GetTotalPauseDuration().TotalMilliseconds; var g2 = GC.CollectionCount(2);
+            var sw = System.Diagnostics.Stopwatch.StartNew(); var v = new KhoLanh.App.Views.AnAnView(); var ctor = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); main.Show("m1", v); var show = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); Jobs(); var j1 = sw.Elapsed.TotalMilliseconds;
+            sw.Restart(); for (var i = 0; i < 20; i++) { Thread.Sleep(25); Jobs(); } var j2 = sw.Elapsed.TotalMilliseconds - 500;
+            Console.WriteLine($"[PERF-M1] dựng {ctor:0} ms · gắn {show:0} ms · việc chờ {j1:0} ms · sau đó {j2:0} ms · GC dừng {GC.GetTotalPauseDuration().TotalMilliseconds - gp:0} ms, GC2 +{GC.CollectionCount(2) - g2}");
+        }
+    // 1.136: dò lần đứng ~1,2 s (đồng hồ từ lúc mở + số lần GC thế hệ 2) — chạy thêm PERF_ROUNDS lượt mở lại
+    var t0 = System.Diagnostics.Stopwatch.StartNew();
+    var rounds = int.TryParse(Environment.GetEnvironmentVariable("PERF_ROUNDS"), out var pr) ? pr : 0;
+    for (var r = 0; r < rounds; r++)
+        foreach (var k in keysP)
+        {
+            var g2 = GC.CollectionCount(2); var sw = System.Diagnostics.Stopwatch.StartNew(); main.Navigate(k); Jobs(); var ms = sw.Elapsed.TotalMilliseconds;
+            if (ms > 150) Console.WriteLine($"[PERF-DUNG] t={t0.Elapsed.TotalSeconds,5:0.0}s {k,-6} {ms,6:0} ms · GC2 +{GC.CollectionCount(2) - g2}");
+            for (var i = 0; i < 10; i++) { Thread.Sleep(50); var sw2 = System.Diagnostics.Stopwatch.StartNew(); Jobs(); var j = sw2.Elapsed.TotalMilliseconds; if (j > 150) Console.WriteLine($"[PERF-DUNG] t={t0.Elapsed.TotalSeconds,5:0.0}s (việc chờ trên luồng giao diện) {j,6:0} ms sau {k}"); }
+        }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
 // 1.90: SHOTS_ONLY=lxtrung — LSX trùng lịch: cảnh báo ở tab Việc cần làm, hộp giữ 1 lịch / trùng hợp lệ; gộp xong hết báo. Thoát mã 1 nếu hỏng.

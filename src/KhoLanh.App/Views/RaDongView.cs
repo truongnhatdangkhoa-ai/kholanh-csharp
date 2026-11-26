@@ -117,7 +117,7 @@ public sealed class RaDongView : UserControl, IPage
         root.Children.Add(top);
         root.Children.Add(tabs);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     private static Button Btn(string text, Action click, bool primary = false, bool danger = false)

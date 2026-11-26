@@ -98,7 +98,7 @@ public sealed class ChamCongView : UserControl, IPage
         DockPanel.SetDock(bar, Dock.Top); dock.Children.Add(bar);
         DockPanel.SetDock(_st, Dock.Bottom); dock.Children.Add(_st); dock.Children.Add(_tabs);
         Content = dock;
-        AttachedToVisualTree += (_, _) => Reload();
+        AttachedToVisualTree += (_, _) => { if (!Ui.SkipReload(this)) Reload(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     private static Control Pad(Control c) => new Border { Padding = new Thickness(0, 6, 0, 0), Child = c };

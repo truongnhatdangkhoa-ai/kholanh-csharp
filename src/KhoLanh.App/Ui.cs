@@ -14,6 +14,24 @@ namespace KhoLanh.App;
 public static class Ui
 {
     /// <summary>Văn hóa định dạng của app: ngày kiểu Việt, SỐ kiểu 1,500.00 (1.71, <see cref="KhoLanh.Core.Grid.NumFmt"/>).</summary>
+    // ------------------------------------------------------------------ 1.136 (hiệu năng): quay lại trang đã giữ sẵn
+    /// <summary>Trang MainWindow đang gắn lại từ bộ giữ màn hình (dữ liệu nó đọc chưa đổi) — chỉ có giá trị trong lúc gắn.</summary>
+    internal static Control? Reusing { get; set; }
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, object> Attached = new();
+    /// <summary>
+    /// Gọi ở đầu AttachedToVisualTree của màn hình tự nạp dữ liệu: true = đang quay lại trang đã giữ sẵn mà dữ liệu chưa đổi
+    /// và màn hình này đã từng gắn (đã nạp) → không cần đọc lại. Lần gắn đầu / tab con mới hiện lần đầu luôn false.
+    /// </summary>
+    public static bool SkipReload(Control c)
+    {
+        var seen = Attached.TryGetValue(c, out _);
+        if (!seen) Attached.Add(c, new object());
+        if (!seen || Reusing is null) return false;
+        for (StyledElement? e = c; e is not null; e = e.Parent)
+            if (ReferenceEquals(e, Reusing)) return true;
+        return false;
+    }
+
     public static readonly CultureInfo Vi = KhoLanh.Core.Grid.NumFmt.Culture;
 
     public static Window? Owner(Visual v) => TopLevel.GetTopLevel(v) as Window;

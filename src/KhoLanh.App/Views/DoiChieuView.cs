@@ -96,7 +96,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         root.Children.Add(_tabs);
         Content = root;
         _timer.Tick += (_, _) => AutoSync();
-        AttachedToVisualTree += async (_, _) => { await LoadAsync(); _timer.Start(); };
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); _timer.Start(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
         DetachedFromVisualTree += (_, _) => _timer.Stop();
     }
 

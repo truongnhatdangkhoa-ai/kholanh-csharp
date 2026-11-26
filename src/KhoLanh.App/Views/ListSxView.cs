@@ -64,7 +64,7 @@ public sealed class ListSxView : UserControl
         var split = _split;
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(split);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     /// <summary>Chọn List của LSX (mở từ tab "⚡ Tự động đã tạo").</summary>

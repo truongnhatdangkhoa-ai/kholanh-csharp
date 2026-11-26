@@ -168,7 +168,7 @@ public sealed class ViTriView : UserControl, IPage
         Content = root;
         // 1.135 (hiệu năng): quay lại trang đã giữ sẵn mà dữ liệu chưa đổi → giữ nguyên (cả phiếu đang soạn), không đọc lại toàn bộ
         // (đo: mở lại 0,9 s — chậm hơn lần đầu — và trước đây còn xóa phiếu đang soạn dở mỗi lần quay lại)
-        AttachedToVisualTree += (_, _) => { if (_loadedSeq < 0 || _loadedSeq != DataSeq()) _ = Safe(LoadAsync); };
+        AttachedToVisualTree += (_, _) => { var keep = Ui.SkipReload(this); if (_loadedSeq < 0 || (!keep && _loadedSeq != DataSeq())) _ = Safe(LoadAsync); };   // 1.136: + dữ liệu trang đọc chưa đổi (MainWindow) → giữ
     }
 
     // =====================================================================================

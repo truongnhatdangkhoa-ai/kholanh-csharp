@@ -114,7 +114,7 @@ public sealed class CargoView : UserControl
         _inner = Ui.SubTabs(("Danh sách phiếu nội địa", listPage), ("Danh mục", BuildCfgTab()));
         Content = _inner;
         ShowEditor();
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     /// <summary>Đang mở khung soạn phiếu.</summary>
