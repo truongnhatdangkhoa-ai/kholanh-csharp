@@ -768,6 +768,30 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lxtrung")
     if (lx.DupGroups().Any(g => g.Lsx == "26.09.020")) { Console.WriteLine("[Trùng] LỖI: gộp xong vẫn báo"); ok = false; }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (lxtrung) — ĐẠT: " : "Xong (lxtrung) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.125: SHOTS_ONLY=v225 — Tổng quan › Lịch xuất trong ngày ở 1366×768: các nút của dòng lịch (Đã có List · Đã có phiếu · Cont · ✎) cùng 1 hàng. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v225")
+{
+    var ok = true;
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var lx = s.LichXuat; lx.Load();
+    lx.Add(new() { Ngay = KhoLanh.Core.LichXuat.LichXuatCore.Iso(DateTime.Today), Lsx = "26.09.020", ContSo = "IAAU8692960", Gio = "10:00" });
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    hw.Navigate("lx"); P(60);
+    var tqv = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TongQuanView>().First();
+    var edit = tqv.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => ToolTip.GetTip(b) as string == "Sửa lịch");
+    var cont = tqv.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => (ToolTip.GetTip(b) as string ?? "").StartsWith("Dán email"));
+    if (edit is null || cont is null) { Console.WriteLine("[v225] LỖI: không thấy nút"); ok = false; }
+    else
+    {
+        var ye = edit.TranslatePoint(new Point(0, 0), tqv)?.Y ?? -1; var yc = cont.TranslatePoint(new Point(0, 0), tqv)?.Y ?? -1;
+        var xe = (edit.TranslatePoint(new Point(edit.Bounds.Width, 0), hw)?.X ?? 0);
+        Console.WriteLine($"[v225] y Cont {yc:0} · y Sửa {ye:0} · mép phải Sửa {xe:0} / cửa sổ {hw.Bounds.Width:0}");
+        if (Math.Abs(ye - yc) > 1) { Console.WriteLine("[v225] LỖI: nút Sửa rớt dòng"); ok = false; }
+        if (xe > hw.Bounds.Width) { Console.WriteLine("[v225] LỖI: nút Sửa bị cắt"); ok = false; }
+    }
+    Snap(hw, "v225-lich-xuat-trong-ngay");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v225) — ĐẠT: " : "Xong (v225) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.74: SHOTS_ONLY=v174 — hộp Email mở được (trước lỗi NullReference), đổi giao diện Tối → Sáng bằng hộp "Giao diện & cỡ chữ",
 // màu thanh tiêu đề Windows theo giao diện. Thoát mã 1 nếu kiểm tra hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")
