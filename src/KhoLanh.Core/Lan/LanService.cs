@@ -77,7 +77,7 @@ public sealed partial class LanService : ISheetSource, IDisposable
     private long _maxSeenEpoch;
     public bool Online { get; private set; }
     private DateTime _failSince = DateTime.MinValue;
-    private DateTime _lastPull = DateTime.MinValue, _lastBeat = DateTime.MinValue, _lastPeerCheck = DateTime.MinValue, _lastTry = DateTime.MinValue;
+    private DateTime _lastPull = DateTime.MinValue, _lastBeat = DateTime.MinValue, _lastPeerCheck = DateTime.MinValue, _lastTry = DateTime.MinValue, _lastLanProbe = DateTime.MinValue;
     private readonly DateTime _startedAt = DateTime.Now;
     public string LastSync { get; private set; } = "";
     public event Action? Changed;
@@ -481,6 +481,8 @@ public sealed partial class LanService : ISheetSource, IDisposable
                 }
                 catch (LanUnreachableException) { }
             }
+            // 1.121: đang đi Internet (đường hầm) mà máy đã về mạng kho → tự chuyển sang LAN (nhanh hơn ~100 lần mỗi lượt gọi)
+            if (Via == "net" && now - _lastLanProbe > T(60)) { _lastLanProbe = now; await ProbeLan(ct); }
             var every = Capable ? T(1) : T(15);
             if (now - _lastPull > every) await Pull(ct, full: false);
             if (Online && PendingCount() > 0) await Flush(ct);
@@ -833,6 +835,43 @@ public sealed partial class LanService : ISheetSource, IDisposable
             return r;
         }
         catch (LanUnreachableException) { GoOffline(); throw; }
+    }
+
+    /// <summary>1.121: đang nối qua Internet → thử các địa chỉ trong kho của máy chủ (chờ ngắn); được thì ghi nhớ địa chỉ LAN để mọi lượt sau đi LAN.</summary>
+    internal async Task<bool> ProbeLan(CancellationToken ct)
+    {
+        if (_server is not { } sv) return false;
+        var fresh = KnownNodes().FirstOrDefault(k => k.Id == sv.Id && k.Id.Length > 0)?.Addrs ?? sv.Addrs;
+        var addrs = fresh.Concat(sv.Addrs).Distinct().ToList();
+        foreach (var ep in addrs.Where(a => !LanHttp.IsUrl(a)))
+        {
+            try
+            {
+                var h = await Conn(ep).CallAsync(Req("hello"), TimeSpan.FromSeconds(1.5), ct);
+                if (h["ok"]?.GetValue<bool>() != true || h["serving"]?.GetValue<bool>() != true || h["id"]?.ToString() != sv.Id) continue;
+                lock (_state)
+                {
+                    if (_server?.Id != sv.Id) return false;
+                    var n = new Node(sv.Id, sv.Name, sv.Role, addrs);
+                    _server = n;
+                    _goodEp[string.Join(";", n.Addrs)] = ep;
+                }
+                Raise();
+                return true;
+            }
+            catch (LanUnreachableException) { }
+        }
+        return false;
+    }
+
+    /// <summary>1.121: nút "Nối lại ngay" (máy đơn) — vòng sau thử tìm máy chủ ngay, không chờ nhịp 15 giây.</summary>
+    public void RetryNow() { _lastTry = DateTime.MinValue; _lastLanProbe = DateTime.MinValue; }
+
+    /// <summary>1.121: các thay đổi đang chờ gửi lên máy chủ (để giao diện liệt kê): khóa db, bảng, lúc, người sửa.</summary>
+    public List<(string DbKey, string Sheet, string At, string User)> PendingList()
+    {
+        using var c = _db.Open();
+        return c.Query<(string, string, string, string)>("SELECT db_key, sheet, created_at, username FROM lan_pending ORDER BY created_at DESC").ToList();
     }
 
     private void GoOffline()

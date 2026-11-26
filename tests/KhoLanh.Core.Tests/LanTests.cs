@@ -180,6 +180,33 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Dang_di_Internet_ve_toi_kho_tu_chuyen_sang_LAN()
+    {
+        // 1.121: máy con đang nối qua đường hầm (LAN không tới được) → máy về mạng kho (địa chỉ LAN của máy chủ tới được) → tự đi LAN
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var httpPort = FreePort();
+        {
+            var s0 = new AppServices(ms.Path);
+            s0.Settings.Set("lan_addrs", "127.0.0.1:1");
+            s0.Settings.Set("lan_http_port", httpPort.ToString());
+            LanService.SetPublicUrl(s0.Settings, $"http://127.0.0.1:{httpPort}/");
+        }
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var mc = Setup("con", LanService.RoleClient, srv.Lan.ConnectionCode());
+        var cli = Boot(mc);
+        Until(() => cli.Lan.Online, "máy con nối qua đường hầm");
+        Assert.Equal("net", cli.Lan.Via);
+        Assert.Equal("", srv.Lan.Via);
+        srv.Settings.Set("lan_addrs", $"127.0.0.1:{ms.Port}");   // máy con "về kho": địa chỉ LAN của máy chủ tới được
+        Until(() => cli.Lan.Via == "lan", "máy con tự chuyển sang LAN", 30);
+        Assert.Equal($"127.0.0.1:{ms.Port}", cli.Lan.ServerAddress);
+        cli.Lan.Write(Db, One("S", Rows("a")));
+        Assert.Equal("a", Local(srv, "S"));
+        Assert.Empty(cli.Lan.PendingList());
+    }
+
+    [Fact]
     public async Task Duong_ham_chan_sai_ma_lan_va_goi_lai_goi_tin_cu()
     {
         var key = "khoa-that"; var guard = new LanHttp.ReplayGuard();
