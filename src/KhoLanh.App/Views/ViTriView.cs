@@ -166,7 +166,9 @@ public sealed class ViTriView : UserControl, IPage
         root.Children.Add(top);
         root.Children.Add(_tabs);
         Content = root;
-        AttachedToVisualTree += (_, _) => _ = Safe(LoadAsync);
+        // 1.133 (hiệu năng): quay lại trang đã giữ sẵn mà dữ liệu chưa đổi → giữ nguyên (cả phiếu đang soạn), không đọc lại toàn bộ
+        // (đo: mở lại 0,9 s — chậm hơn lần đầu — và trước đây còn xóa phiếu đang soạn dở mỗi lần quay lại)
+        AttachedToVisualTree += (_, _) => { if (_loadedSeq < 0 || _loadedSeq != DataSeq()) _ = Safe(LoadAsync); };
     }
 
     // =====================================================================================
@@ -200,14 +202,19 @@ public sealed class ViTriView : UserControl, IPage
     private static string Raw(double v) => Math.Round(v, 6).ToString(CultureInfo.InvariantCulture);
     private static Border Framed(Control c) => new() { BorderBrush = Line, BorderThickness = new Thickness(1), Child = c };
 
+    private long _loadedSeq = -1;
+    private static long DataSeq() { try { return App.Services.Modules.CurrentSeq(); } catch { return -2; } }
+
     private async Task LoadAsync()
     {
         _status.Text = "Đang tải…";
+        var seq = DataSeq();
         // 1.90: Svc.Load thay Svc.Rows ở luồng nền — trong lúc đó không vẽ (chỉ số trong _draft / _rowIdx thuộc bản cũ)
         _reloading++;
         try { await Task.Run(Svc.Load); }
         catch (Exception ex) { _status.Text = ""; await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex)); return; }
         finally { _reloading--; }
+        _loadedSeq = seq;
         _status.Text = "";
         _draft.Clear(); _editing = null;
         _loading = true;

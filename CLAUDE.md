@@ -130,6 +130,36 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 | 1.43 | Giao diện mới bước 1 — nền móng: bảng màu Tối thiết kế riêng (`AppTheme.DesignedDark`), tài nguyên mới (Text, Surface2, BorderStrong, Ok/Warn/Bad/Info + Soft, NavFg…), kiểu nút primary / thường / ghost / danger, ô nhập 32 px, tab gạch chân, `Border.pill.*`, bộ biểu tượng nét mảnh `Controls/Icon.cs` | `AppTheme.cs`, `Styles.axaml`, `Controls/Icon.cs` |
 | 1.42 | Sửa lỗi cập nhật FileNotFoundException (nhiều cửa sổ) · bắt lỗi giao diện không sập app · MailKit 4.18.2 · dọn tài liệu / ảnh cũ · sắp lại nhóm menu (Chức năng, Chứng từ) | `AppUpdater.cs`, `Services/UpdateScript.cs` |
 
+## ĐANG LÀM DỞ (bàn giao 26/11/2026 ~13:10 — người dùng: "tạm dừng, lưu tạm, viết bàn giao cho phiên sau")
+**Bối cảnh**: người dùng giao 7 việc cùng lúc + dặn "làm xong tự gộp rồi phát hành, có việc không cần hỏi, tự quyết theo đề xuất tốt nhất".
+Đã PHÁT HÀNH: 1.129 (Chấm công + máy chủ chạy ẩn + sửa CI máy dự phòng), 1.130 (gõ vị trí nhanh, phép tính như Excel, lệch theo vị trí),
+1.131 (bỏ máy dự phòng), 1.132 (Tồn vị trí › Tra cứu đã xuất). Chi tiết ở bảng phiên bản phía trên.
+
+1. **PR #94 = bản 1.133.0 (bôi đen chép chữ như web) — CHƯA GỘP** (CI head e9277f7 đã xanh, Release v1.132.0 đã có → gộp được ngay). Nhánh PR:
+   `claude/wonderful-bardeen-ud2ogp`. Commit "lưu tạm" cuối cùng (ViTriView + CLAUDE.md này) đẩy lên cùng nhánh → CI chạy lại; xanh thì gộp PR #94 → Release v1.133.0.
+   Gộp bằng `merge_pull_request` (merge_method "merge", expectedHeadSha phải đủ 40 ký tự — `git rev-parse`).
+2. **Việc 7 — hiệu năng ("app chạy mượt, load dữ liệu nhanh", người dùng nhờ ĐỀ XUẤT) — đang đo, CHƯA gửi đề xuất cho người dùng**:
+   - Đo bằng `SHOTS_ONLY=perf` (cảnh có sẵn ~dòng 734 `tools/Screenshots/Program.cs`, cache bật; mỗi lượt có ~200 ms chi phí cố định của chế độ không màn hình).
+     Kết quả (dữ liệu mẫu): Tồn kho An An mở lần đầu 0,45–1,4 s; Sơ đồ kho 0,37–0,53 s; còn lại ~0,2–0,3 s.
+   - ĐÃ SỬA (trong commit lưu tạm, `Views/ViTriView.cs`): Tồn theo vị trí mỗi lần quay lại trang (đã giữ sẵn) đều `LoadAsync` = đọc lại toàn bộ +
+     XÓA phiếu đang soạn dở (đo mở lại 0,93 s, chậm hơn lần đầu). Nay `_loadedSeq` = `Modules.CurrentSeq()` lúc nạp; quay lại mà seq không đổi → giữ nguyên
+     (cả phiếu đang soạn). Đã kiểm: build + `SHOTS_ONLY=v232` đạt. Nên rà các View khác có `AttachedToVisualTree += … Load…` cùng kiểu (grep) — chưa làm.
+   - PHÁT HIỆN CHƯA XỬ LÝ: có 1 lần đứng ~1,2 s xuất hiện ở trang bất kỳ, cùng thời điểm (~30 s sau khi mở cửa sổ chính) → nghi việc nền định kỳ tranh
+     luồng giao diện / khóa CSDL / GC: `MainWindow.RefreshDmBadge` (Task.Run, Danh mục mã hàng `XlCount` sau 30 s rồi mỗi 60 s), gợi ý mã Nhập liệu
+     (`EntryView.LoadSuggestions`), Trợ lý quét tự động 90 s (Quản trị), `TroLy.StartStatus` 2 phút. Đang thử tắt RefreshDmBadge (biến môi trường tạm
+     `KL_NO_DM`, ĐÃ GỠ, không còn trong mã) thì bị dừng giữa chừng → chưa có kết luận. Cách làm tiếp: chạy `SHOTS_ONLY=perf` 2–3 lượt, mỗi lượt tắt 1 việc nền,
+     xem đỉnh 1,2 s mất ở lượt nào; sửa việc đó (đọc theo đợt / không giữ khóa `_dataLock` lâu / giảm cấp phát).
+   - Đề xuất định gửi người dùng (chưa gửi): (a) quay lại trang không tải lại (đã làm cho Tồn vị trí, áp các trang khác); (b) Tồn kho An An dựng nền + tab con
+     dựng khi mở; (c) xử lý đỉnh đứng ~1,2 s của việc nền; (d) nạp sẵn ngầm Tổng quan / Nhập liệu / Tồn kho sau đăng nhập lúc rảnh; (e) dùng số liệu thật
+     của máy người dùng: Trợ lý › Hiệu năng + `logs/cham.log` (thao tác > 2 s) — nhờ người dùng gửi "Báo cáo cho Claude" của Trợ lý để biết chỗ chậm thật.
+3. **Chưa thử trên Windows thật** (công cụ chụp chạy không màn hình): biểu tượng khay hệ thống khi máy chủ chạy ẩn (1.129 `ChayAn`), bôi đen chữ (1.133
+   `TextSelect`: con trỏ chữ I, vùng chọn theo cỡ chữ phóng to `LayoutTransformControl`). Nhờ người dùng thử trên KHOLANH-PC.
+4. **Nhánh làm việc**: nhánh chỉ định `claude/confident-bardeen-fhu6c6` còn lịch sử PR #81 (đã gộp kiểu squash) → đẩy cần ghi đè, bị chặn; phiên này
+   đẩy lên `claude/wonderful-bardeen-ud2ogp` (nhánh PR #89 cũ, gộp kiểu merge nên nối tiếp được). Mỗi bản: PR mới từ nhánh này, gộp sau khi Release bản
+   trước đã có (giữ thứ tự bản).
+5. **Nhắc người dùng** (đã nhắc nhiều lần, chưa xác nhận): đổi mã cài Cloudflare tunnel (Rotate token — từng lộ trong ảnh chat); nạp lại file mới nhất
+   Tồn kho gửi + Tồn theo vị trí (dữ liệu nhân đôi do lỗi gộp LAN cũ, sửa ở 1.120).
+
 ## Việc tạm hoãn / còn mở
 - Drive cá nhân (sao lưu database module lên Drive riêng) / Kho dữ liệu cá nhân / Dọn rác (app cũ: `core/drive-ca-nhan.js`, `core/kho-ca-nhan.js`, `core/don-rac.js`) — chưa làm. Lưu trữ cá nhân (`core/luu-tru.js`) ĐÃ làm ở 1.60 (chưa có: đồng bộ điện thoại qua LAN như app cũ).
 - Bản điện thoại MỚI: repo `truongnhatdangkhoa-ai/kholanh-csharp-mobile` (tách từ app cũ 24/11/2026, Google Sheet mới riêng; repo cũ giữ nguyên cho hệ thống đang dùng). Trước đó: dùng nguyên app `truongnhatdangkhoa-ai/kholanh-anan-mobile` (Capacitor, Google Sheet + Apps Script `Code.gs`). Giai đoạn sau (khi cần dữ liệu tức thì / chung tài khoản): cổng API HTTPS trên `KhoLanh.Server`, điện thoại đăng nhập bằng tài khoản PC — chưa làm. Icon mới đã dùng ở repo điện thoại mới.
