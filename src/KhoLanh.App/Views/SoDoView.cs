@@ -91,8 +91,9 @@ public sealed partial class SoDoView : UserControl, IPage
     private readonly List<Control> _kSoOnly = new(); // nút chỉ dùng ở tab Vị trí có hàng
     private static readonly GridColumn[] KkCols =
     {
-        new("d", "Dãy", 44) { ReadOnly = true }, new("vt", "Vị trí", 118), new("ma", "Mã hàng", 230), new("tl", "Trọng lượng", 95),
-        new("sl", "Số lượng", 95), new("ghi", "Ghi chú", 210), new("mv", "Đề xuất chuyển", 130) { ReadOnly = true },
+        new("d", "Dãy", 44) { ReadOnly = true }, new("vt", "Vị trí", 118), new("ma", "Mã hàng", 250),
+        new("tl", "Trọng lượng", 0) { ReadOnly = true },   // 1.133: ẩn (Mã hàng rút gọn đã có quy cách) — giữ cột rộng 0 để chỉ số cột / dữ liệu / Excel không đổi
+        new("sl", "Số lượng", 95), new("ghi", "Ghi chú", 280), new("mv", "Đề xuất chuyển", 130) { ReadOnly = true },
     };
 
     public SoDoView()

@@ -21,7 +21,7 @@ public static class CopyText
     private static void OnContext(TextBlock tb, ContextRequestedEventArgs e)
     {
         if (e.Handled || tb is SelectableTextBlock || !Eligible(tb)) return;
-        var sel = TextSelect.SelectedText();   // 1.133: vừa bôi đen → mục đầu "Chép đoạn đã bôi đen"
+        var sel = TextSelect.SelectedText();   // 1.134: vừa bôi đen → mục đầu "Chép đoạn đã bôi đen"
         var text = TextSelect.TextOf(tb).Trim();
         if (text.Length == 0 && sel.Length == 0) return;
         var box = Box(tb);

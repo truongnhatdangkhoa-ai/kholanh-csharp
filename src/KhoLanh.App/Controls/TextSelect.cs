@@ -10,7 +10,7 @@ using Avalonia.VisualTree;
 namespace KhoLanh.App.Controls;
 
 /// <summary>
-/// 1.133 — bôi đen + chép chữ như trang web (người dùng: "phần copy đã làm trước đó nhưng không tốt, mình muốn bôi đen rồi copy như trên 1 trang website,
+/// 1.134 — bôi đen + chép chữ như trang web (người dùng: "phần copy đã làm trước đó nhưng không tốt, mình muốn bôi đen rồi copy như trên 1 trang website,
 /// có thể bôi đen copy bất kỳ chữ nào"). KHÔNG thay TextBlock bằng SelectableTextBlock (chữ đang cập nhật / nút sẽ hỏng) — lớp dùng chung cho MỌI
 /// TextBlock thường (<see cref="CopyText.Eligible"/>: không thuộc nút / menu / tab / ô chọn / ô nhập):
 ///  • kéo chuột trên chữ = bôi đen (qua nhiều dòng / nhiều khung theo thứ tự trên màn hình, như web), bấm đúp = 1 từ, bấm 3 lần = cả dòng chữ;
