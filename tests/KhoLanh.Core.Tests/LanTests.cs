@@ -504,6 +504,36 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Standby_does_not_take_over_after_one_slow_call()
+    {
+        // 1.129 (CI main đỏ ở Standby_takes_over…: máy dự phòng tự lên làm chủ khi máy chủ chính còn sống): trước đây chỉ xét thời gian
+        // mất máy chủ — 1 lượt hỏi chậm (máy bận) dài hơn ngưỡng là lên làm chủ ngay → 2 máy chủ. Nay cần ≥ 3 lượt tìm máy chủ hụt liên tiếp.
+        var ms = Setup("chu", LanService.RoleServer, null);
+        var srv = Boot(ms);
+        Until(() => srv.Lan.Serving, "máy chủ lên");
+        var sb = Boot(Setup("duphong", LanService.RoleStandby, srv.Lan.ConnectionCode()));
+        Until(() => sb.Lan.Online, "máy dự phòng nối");
+        // Giống CI: 1 lượt kéo dữ liệu hụt (→ mất máy chủ) rồi CẢ 1 lượt tìm máy chủ hụt, mỗi lần gọi chờ 1 giây (> ngưỡng 0,5 giây của test).
+        var phase = 0; var round = -1;
+        sb.Lan.TestBeforeCall = async req =>
+        {
+            var hello = req["op"]?.ToString() == "hello";
+            if (Volatile.Read(ref phase) == 0 && !hello) { Volatile.Write(ref phase, 1); await Task.Delay(1000); throw new LanUnreachableException("mạng chập chờn (test)"); }
+            if (Volatile.Read(ref phase) == 1 && hello)
+            {
+                if (round < 0) round = sb.Lan.FindRounds;
+                if (sb.Lan.FindRounds == round) { await Task.Delay(1000); throw new LanUnreachableException("máy chủ trả lời chậm (test)"); }
+                Volatile.Write(ref phase, 2);
+            }
+        };
+        Until(() => Volatile.Read(ref phase) == 2 && (sb.Lan.Online || sb.Lan.Serving), "máy dự phòng hết lượt hụt", 20);
+        Thread.Sleep(300);
+        Assert.False(sb.Lan.Serving);
+        Assert.True(srv.Lan.Serving);
+        Assert.True(sb.Lan.Online);
+    }
+
+    [Fact]
     public void Standby_takes_over_and_hands_back_to_the_main_server()
     {
         var ms = Setup("chu", LanService.RoleServer, null);
