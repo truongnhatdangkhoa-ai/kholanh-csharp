@@ -436,7 +436,26 @@ public sealed class CargoView : UserControl
             var errs = col <= 1 ? res.Errors.Take(res.SizeErrs) : res.Errors;
             return errs.Any() ? string.Join("\n", errs) : null;
         };
-        gm.Changed += () => { if (_loading) return; SyncLines(b, gm, ks); grid.SpareRows = Math.Max(SpareOpen, MinRows - gm.RowCount); Dirty(); };
+        gm.Changed += () => { _hintRows = null; if (_loading) return; SyncLines(b, gm, ks); grid.SpareRows = Math.Max(SpareOpen, MinRows - gm.RowCount); Dirty(); };
+        if (ks && _edit)
+        {
+            // 1.128: gợi ý khi gõ — cột Loại (danh mục) · cột Size-quy cách (hàng còn tồn An An thuộc phân loại của Loại dòng đó)
+            grid.Suggest = (col, text) =>
+            {
+                var cfg = Svc.Cfg;
+                if (col == 0)
+                    return cfg.Loai.Where(l => text.Trim().Length == 0 || l.Code.StartsWith(text.Trim(), StringComparison.OrdinalIgnoreCase))
+                        .Select(l => new SheetGrid.GridSuggestion(l.Code, l.Code + (l.Ten.Length > 0 ? " · " + l.Ten : ""), "Phân loại An An: " + NhomText(NhomOf(cfg, l.Code)))).ToList();
+                if (col != 1) return null;
+                var hints = CargoStock.SuggestSn(HintRows(c), cfg, gm.Get(grid.Row, 0), text);
+                return hints.Select(h => new SheetGrid.GridSuggestion(h.Sn, $"{h.Loai} {h.Sn}  ·  {h.Size}  ·  {h.Pack}",
+                    $"Còn {h.Left.ToString("#,0.##", Ui.Vi)} kiện · {h.NhomLabel}" + (h.Dts.Count > 0 ? " · đặc tính " + string.Join(", ", h.Dts.Take(4)) + (h.Dts.Count > 4 ? "…" : "") : ""), h)).ToList();
+            };
+            grid.SuggestionPicked += (r, col, it) =>
+            {
+                if (col == 1 && it.Tag is CargoStock.SnHint h && !string.Equals(gm.Get(r, 0).Trim(), h.Loai, StringComparison.OrdinalIgnoreCase)) gm.Set(r, 0, h.Loai);
+            };
+        }
         _blocks.Add((b, gm));
         // 1.71: gõ TỔNG kiện của dòng → đổ đầy từng dãy từ dãy 1 theo hàng KIỆN / DÃY (dãy đã có hàng dòng khác chỉ nhận phần trống) — như app cũ
         var tongCol = ks ? 9 : 2; var dayFirst = ks ? 10 : 3;
@@ -475,6 +494,16 @@ public sealed class CargoView : UserControl
 
     /// <summary>Cửa sổ chọn hàng đang mở (công cụ chụp ảnh dùng).</summary>
     internal Window? PickerWindow { get; private set; }
+    /// <summary>1.128: tồn An An gộp theo size (đã trừ cont đang soạn) cho ô gợi ý — tính lại khi lưới mục hàng đổi.</summary>
+    private List<CargoStock.SizeRow>? _hintRows;
+    private List<CargoStock.SizeRow> HintRows(CargoRec c)
+    {
+        if (_hintRows is not null) return _hintRows;
+        try { _hintRows = Svc.StockBySize(c); } catch { _hintRows = new(); }
+        return _hintRows;
+    }
+    /// <summary>1.128: nút lọc phân loại của cửa sổ Chọn từ tồn (công cụ chụp ảnh dùng).</summary>
+    internal Seg? PickerSeg { get; private set; }
 
     private async Task PickFromStock(CargoRec c, int bi)
     {
@@ -492,7 +521,8 @@ public sealed class CargoView : UserControl
             new GridColumn("sn", "Size-quy cách", 115) { ReadOnly = true }, new GridColumn("nma", "Số mã", 70, "number") { ReadOnly = true },
             new GridColumn("ton", "Tồn (kiện)", 95, "number") { ReadOnly = true }, new GridColumn("co", "Đã có trong cont này", 150, "number") { ReadOnly = true },
             new GridColumn("con", "Còn lại", 90, "number") { ReadOnly = true }, new GridColumn("sl", "SL xuất", 95, "number"),
-        }, rows.Select(r => new[] { r.Size, r.Dt, r.Pack.Length > 0 ? r.Pack : r.Tl is > 0 ? $"({r.Tl.Value.ToString("0.###", Ui.Vi)} kg)" : "", r.Sn, r.NMa.ToString(), N(r.Ton), N(r.Have), N(r.Left), "" }));
+            new GridColumn("nhom", "Phân loại", 140) { ReadOnly = true },
+        }, rows.Select(r => new[] { r.Size, r.Dt, r.Pack.Length > 0 ? r.Pack : r.Tl is > 0 ? $"({r.Tl.Value.ToString("0.###", Ui.Vi)} kg)" : "", r.Sn, r.NMa.ToString(), N(r.Ton), N(r.Have), N(r.Left), "", r.NhomLabel }));
         var grid = new SheetGrid(gm) { SpareRows = 0, CheckCol = CSl, CheckFill = r => r < rows.Count ? (rows[r].Left > 0 ? rows[r].Left.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "") : "" };
         double Sl(int r) => Ui.TryParseNumber(gm.Get(r, CSl).Trim(), out var v) && v > 0 ? v : 0;
         grid.CellBackground = (r, col) => r < rows.Count && col == CSl && Sl(r) > rows[r].Left + 1e-9 ? BadBg : r < rows.Count && col == 3 && ks && rows[r].Sn.Length == 0 ? BadBg : null;
@@ -520,6 +550,21 @@ public sealed class CargoView : UserControl
         top.Children.Add(new TextBlock { Text = $"Mục hàng {bi + 1} ({(ks ? "kháng sinh" : "khác")}) · {Svc.StockInfo}", FontSize = 12.5, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap });
         top.Children.Add(new TextBlock { Text = "Tồn gộp theo Size + Đặc tính + Quy cách, KHÔNG tách lô. Thêm vào phiếu: mỗi dòng chọn thành 1 dòng" + (ks ? " (Loại + Size-quy cách + KQ KS theo đặc tính; Lô NL để trống để gõ sau)" : " (Size + Quy cách)") + ", số kiện đổ đầy từ dãy 1 theo hàng KIỆN / DÃY.",
             FontSize = 12, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, Tag = "keep" });
+        // 1.128: lọc theo phân loại Tồn kho An An (mặc định: phân loại của Loại đang dùng nhiều nhất trong mục này)
+        var nhoms = rows.Select(r => r.NhomLabel).Distinct().OrderBy(l => Array.IndexOf(KhoLanh.Core.KiemKe.PhanLoaiM1.Order, rows.First(r => r.NhomLabel == l).Nhom) is var i && i < 0 ? 99 : i).ToList();
+        if (nhoms.Count > 1)
+        {
+            var seg = new Seg(new[] { $"Tất cả ({rows.Count})" }.Concat(nhoms.Select(l => $"{l} ({rows.Count(r => r.NhomLabel == l)})")).ToArray()) { HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 0) };
+            ToolTip.SetTip(seg, "Phân loại theo tab Phân loại của Tồn kho An An. Loại hàng ↔ phân loại sửa ở tab Danh mục (cột Phân loại An An). Dòng đã nhập SL ở phân loại khác vẫn được thêm.");
+            void Filt(int i) => grid.SetFilter(9, setAllowed: true, allowed: i <= 0 ? null : new HashSet<string> { nhoms[i - 1] });
+            seg.Changed += Filt;
+            var loaiDung = ks ? b.Lines.Where(l => l.Loai.Trim().Length > 0).GroupBy(l => l.Loai.Trim().ToUpperInvariant()).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstOrDefault() : null;
+            var nhMd = loaiDung is null ? "" : NhomOf(Svc.Cfg, loaiDung);
+            var idx = nhMd.Length == 0 ? -1 : nhoms.IndexOf(KhoLanh.Core.KiemKe.PhanLoaiM1.LabelOf(nhMd));
+            if (idx >= 0) { seg.Selected = idx + 1; Filt(idx + 1); }
+            PickerSeg = seg;
+            top.Children.Add(seg);
+        }
         top.Children.Add(warn);
         var root = new DockPanel();
         DockPanel.SetDock(top, Dock.Top); DockPanel.SetDock(bar, Dock.Bottom);
@@ -743,10 +788,14 @@ public sealed class CargoView : UserControl
         // 1.53: bảng Size-quy cách chiếm hết phần còn lại của trang (trước cố định 260 px trong khung cuộn); Loại hàng cao theo số dòng
         _lg = new SheetGrid(_lm) { SpareRows = 2 }; _qg = new SheetGrid(_qm) { SpareRows = 3 };
         _lm.Changed += () => _lg.Height = SheetGrid.FitHeight(_lm.RowCount + _lg.SpareRows, 220);
+        // 1.128: cột Phân loại An An gợi ý tên nhóm
+        _lg.Suggest = (col, text) => col != 2 ? null : KhoLanh.Core.KiemKe.PhanLoaiM1.Order.Select(KhoLanh.Core.KiemKe.PhanLoaiM1.LabelOf).Append(NoNhom)
+            .Where(x => text.Trim().Length == 0 || KhoLanh.Core.KiemKe.PhanLoaiM1.Fuzzy(x).Contains(KhoLanh.Core.KiemKe.PhanLoaiM1.Fuzzy(text)))
+            .Select(x => new SheetGrid.GridSuggestion(x, x, x == NoNhom ? "Không lọc tồn theo phân loại" : "Phân loại của Tồn kho An An")).ToList();
         var save = Btn("💾 Lưu danh mục", async () => await SaveCfgAsync(), primary: true); save.IsEnabled = _edit;
         var top = new StackPanel { Spacing = 8, Margin = new Thickness(0, 6, 0, 8) };
         top.Children.Add(new TextBlock { Text = "Mã hàng = tiền tố 13 ký tự (theo Loại + số quy cách) + Size 4 số + Mã gói 4 ký tự + số kết quả kháng sinh 4 số. Mã gói = ký tự 18–21 của mã hàng (trọng lượng + quy cách đóng thùng trong Tổng hợp › Mã hóa sản phẩm).", TextWrapping = TextWrapping.Wrap, FontSize = 12.5, Classes = { "muted" } });
-        top.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…)", Framed(_lg)));
+        top.Children.Add(Section("Loại hàng (mã loại gõ ở cột Loại: BTP = HLSO, NL = HOSO…; Phân loại An An = nhóm tồn dùng để gợi ý)", Framed(_lg)));
         top.Children.Add(new TextBlock { Text = "Size-quy cách (số quy cách = số cuối của 0040-6; cột tiền tố theo từng loại hàng ở trên)", FontWeight = FontWeight.SemiBold });
         var sug = Btn("🪄 Gợi ý Mã gói + Tiền tố", async () => { SuggestCfg(); await Task.CompletedTask; }); sug.IsEnabled = _edit;
         var bottom = new StackPanel { Spacing = 6, Margin = new Thickness(0, 8, 0, 0) };
@@ -758,10 +807,14 @@ public sealed class CargoView : UserControl
         return root;
     }
 
+    private const string NoNhom = "(không gắn)";
+    private static string NhomText(string nhom) => nhom.Length == 0 ? NoNhom : KhoLanh.Core.KiemKe.PhanLoaiM1.LabelOf(nhom);
+
     private void RenderCfg()
     {
         var cfg = Svc.Cfg; _lm.ReadOnly = !_edit; _qm.ReadOnly = !_edit;
-        _lm.Load(new[] { new GridColumn("code", "Mã loại", 90), new GridColumn("ten", "Tên (HLSO / HOSO…)", 200) }, cfg.Loai.Select(l => new[] { l.Code, l.Ten }));
+        _lm.Load(new[] { new GridColumn("code", "Mã loại", 90), new GridColumn("ten", "Tên (HLSO / HOSO…)", 200), new GridColumn("nhom", "Phân loại An An (gợi ý từ tồn)", 220) },
+            cfg.Loai.Select(l => new[] { l.Code, l.Ten, NhomText(NhomOf(cfg, l.Code)) }));
         var qcols = new List<GridColumn> { new("d", "Số", 50), new("label", "Nhãn (1.8Kg x 6)", 150), new("pack", "Mã gói (IME1)", 110) };
         qcols.AddRange(cfg.Loai.Select(l => new GridColumn("pre" + l.Code, "Tiền tố " + l.Code, 160)));
         _qm.Load(qcols, cfg.Qc.Select(q => new[] { q.D, q.Label, q.Pack }.Concat(cfg.Loai.Select(l => q.Pre.GetValueOrDefault(l.Code) ?? "")).ToArray()));
@@ -790,7 +843,13 @@ public sealed class CargoView : UserControl
     private async Task SaveCfgAsync()
     {
         var loai = new List<CargoLoai>();
-        for (var r = 0; r < _lm.RowCount; r++) if (_lm.Get(r, 0).Trim().Length > 0) loai.Add(new CargoLoai { Code = _lm.Get(r, 0), Ten = _lm.Get(r, 1) });
+        for (var r = 0; r < _lm.RowCount; r++)
+        {
+            if (_lm.Get(r, 0).Trim().Length == 0) continue;
+            // 1.128: Phân loại An An — tên nhóm như tab Phân loại của Tồn kho An An; trống = theo mặc định, "(không gắn)" = không gợi ý theo phân loại
+            if (ParseNhom(_lm.Get(r, 2)) is not { } nhom) { _cfgMsg.Text = $"Loại hàng dòng {r + 1}: phân loại \"{_lm.Get(r, 2).Trim()}\" không có ở Tồn kho An An. Chọn một trong: {string.Join(", ", KhoLanh.Core.KiemKe.PhanLoaiM1.Order.Select(KhoLanh.Core.KiemKe.PhanLoaiM1.LabelOf))} (hoặc để trống)."; return; }
+            loai.Add(new CargoLoai { Code = _lm.Get(r, 0), Ten = _lm.Get(r, 1), Nhom = nhom });
+        }
         if (loai.Count == 0) { _cfgMsg.Text = "Phải có ít nhất 1 loại hàng."; return; }
         var cfg = new CargoCfg { Loai = NormCfg(new CargoCfg { Loai = loai }).Loai };
         var warn = new List<string>();

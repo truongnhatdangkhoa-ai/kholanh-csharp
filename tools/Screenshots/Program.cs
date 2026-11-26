@@ -794,6 +794,93 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v225")
     Snap(hw, "v225-lich-xuat-trong-ngay");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v225) — ĐẠT: " : "Xong (v225) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.128: SHOTS_ONLY=v228 — Phiếu xuất nội địa gợi ý theo phân loại Tồn kho An An: Danh mục có cột "Phân loại An An";
+// Chọn từ tồn có nút lọc phân loại (mặc định theo Loại của mục); gõ ô Size-quy cách → gợi ý chỉ hàng còn tồn thuộc phân loại của Loại. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v228")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v228] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+    // tồn An An mẫu: HLSO (Tạm, không khách) · Gia công (TÂN PHONG PHÚ) · Nguyên liệu (RHO) · Giám sát (Mạ băng)
+    var hd = new[] { "Mã hàng", "Tên hàng", "Đặc tính", "Tồn cuối", "Trọng lượng", "Khách hàng", "Mạ băng", "Tình trạng" };
+    string M(string pre, string size, string pack, int ks) => pre + size + pack + ks.ToString("0000");
+    var anRows = new List<string[]>();
+    foreach (var (sz, ks, ton) in new[] { ("0021", 3, 40), ("0026", 3, 55), ("0031", 7, 62), ("0040", 3, 80), ("0040", 7, 24), ("0050", 3, 33), ("0060", 12, 18) })
+        anRows.Add(new[] { M("VRHLBTNXXXR00", sz, "IME1", ks), "Tôm HLSO", "", ton.ToString(), "10.8", "", "", "Tạm" });
+    anRows.Add(new[] { M("VRHLBTNXXXR00", "0040", "IME1", 3), "Tôm HLSO", "", "15", "10.8", "TÂN PHONG PHÚ", "", "Tạm" });
+    anRows.Add(new[] { M("VRHLBTNXXXR00", "0031", "IMF1", 7), "Tôm HLSO", "", "21", "12.6", "TÂN PHONG PHÚ", "", "Tạm" });
+    foreach (var (sz, ton) in new[] { ("0130", 26), ("0150", 14) }) anRows.Add(new[] { M("VRHOITNXXXR00", sz, "JPA1", 3), "Tôm NL", "", ton.ToString(), "8", "", "", "Tạm" });
+    anRows.Add(new[] { M("VRHLBTNXXXR00", "0040", "IME1", 7), "Tôm HLSO", "", "11", "10.8", "", "Tôm giám sát", "Tạm" });
+    anRows.Add(new[] { "VRHLBTNSXNR008J41IME1MKS1", "Tôm thành phẩm", "", "120", "10.8", "TOYO", "", "Thành phẩm" });
+    var anArr = new System.Text.Json.Nodes.JsonArray(anRows.Select(r => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject(r.Select((v, i) => new KeyValuePair<string, System.Text.Json.Nodes.JsonNode?>("c" + i, v)))).ToArray());
+    var anMeta = new System.Text.Json.Nodes.JsonObject { ["headers"] = new System.Text.Json.Nodes.JsonArray(hd.Select(h => (System.Text.Json.Nodes.JsonNode)h).ToArray()), ["fileName"] = "TON KHO 26.11.xlsx", ["dataDate"] = "26/11/2026" };
+    s.Lan.Write("ton-kho-an-an", new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { ["LoadData"] = anArr, ["LoadDataMeta"] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + anMeta.ToJsonString() }) });
+
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    hw.Navigate("m13"); P(40);
+    var top = hw.PageHost.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    top.SelectedIndex = 1; P(20);   // Phiếu xuất nội địa (tab thứ 2 từ 1.96)
+    var cg = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.CargoView>().First(x => x.IsEffectivelyVisible);
+    s.Cargo.LoadRefs();
+    Console.WriteLine("[v228] phân loại tồn: " + string.Join(", ", s.Cargo.StockRows.GroupBy(r => r.Nhom).Select(g => $"{KhoLanh.Core.KiemKe.PhanLoaiM1.LabelOf(g.Key)} {g.Count()}")));
+    if (!s.Cargo.StockRows.Any(r => r.Nhom == "tomgc") || !s.Cargo.StockRows.Any(r => r.Nhom == "hlso")) Bad("chưa phân loại được tồn An An");
+
+    // Danh mục: cột Phân loại An An
+    var sub = cg.GetVisualDescendants().OfType<TabControl>().First(x => x.IsEffectivelyVisible);
+    sub.SelectedIndex = sub.ItemCount - 1; P(25);
+    var lgrid = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 3);
+    Console.WriteLine("[v228] Danh mục › Loại hàng: " + string.Join(" | ", Enumerable.Range(0, lgrid.Model.RowCount).Select(r => string.Join(" · ", lgrid.Model.Row(r)))));
+    if (lgrid.Model.Get(0, 2) != "Tôm HLSO") Bad("cột Phân loại An An của BTP không phải Tôm HLSO");
+    Snap(hw, "v228-danh-muc-phan-loai");
+    sub.SelectedIndex = 0; P(20);
+
+    // mở cont đầu, mục 1 có 1 dòng BTP → Chọn từ tồn lọc sẵn Tôm HLSO
+    var lg = cg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible);
+    lg.Select(1, 0); lg.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); P(25);
+    var cur = (KhoLanh.Core.PhieuKho.CargoRec)typeof(KhoLanh.App.Views.CargoView).GetField("_cur", bf)!.GetValue(cg)!;
+    var b0 = cur.Blocks.First(b => b.Loai != "khac");
+    var bi = cur.Blocks.IndexOf(b0);
+    b0.Lines = new() { new KhoLanh.Core.PhieuKho.CargoLine { Loai = "BTP", Sn = "0040-6", Lo = "", Dai = new() { ["1"] = "20" } } };
+    typeof(KhoLanh.App.Views.CargoView).GetMethod("ShowEditor", bf)!.Invoke(cg, null); P(15);
+    var task = (Task)typeof(KhoLanh.App.Views.CargoView).GetMethod("PickFromStock", bf)!.Invoke(cg, new object[] { cur, bi })!;
+    P(30);
+    var pw = cg.PickerWindow; var seg = cg.PickerSeg;
+    if (pw is null || seg is null) Bad("không có cửa sổ Chọn từ tồn / nút lọc phân loại");
+    else
+    {
+        var pg = pw.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        var vis = pg.ShownRows.Where(r => r < pg.Model.RowCount && pg.Model.Get(r, 0).Length > 0).Select(r => pg.Model.Get(r, 9)).Distinct().ToList();
+        Console.WriteLine($"[v228] Chọn từ tồn: nút lọc đang chọn {seg.Selected}, phân loại đang hiện: {string.Join(", ", vis)}");
+        if (vis.Count != 1 || vis[0] != "Tôm HLSO") Bad("mặc định chưa lọc theo Tôm HLSO");
+        Snap(pw, "v228-chon-tu-ton-loc-phan-loai");
+        pw.Close(); P(10);
+    }
+    for (var i = 0; i < 100 && !task.IsCompleted; i++) P(1);
+
+    // gõ ô Size-quy cách dòng 2 (Loại TGC → hàng Tôm Gia Công) và dòng 1 (BTP)
+    var bg = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount > 40 && x.Model.Columns[1].Header.StartsWith("Size-quy cách"));
+    var pop = (Avalonia.Controls.Primitives.Popup)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sug", bf)!.GetValue(bg)!;
+    var ed = (TextBox)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_editor", bf)!.GetValue(bg)!;
+    List<KhoLanh.App.Controls.SheetGrid.GridSuggestion> Sug() => (List<KhoLanh.App.Controls.SheetGrid.GridSuggestion>)typeof(KhoLanh.App.Controls.SheetGrid).GetField("_sugItems", bf)!.GetValue(bg)!;
+    string Items() => string.Join(" | ", Sug().Select(x => x.Label + " (" + x.Detail + ")"));
+    void Esc() { ed.RaiseEvent(new Avalonia.Input.KeyEventArgs { Key = Avalonia.Input.Key.Escape, RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent }); P(3); }
+    bg.Model.Set(1, 0, "BTP"); P(5);
+    bg.Select(1, 1); bg.BeginEdit("40"); P(8);
+    Console.WriteLine("[v228] BTP gõ 40: " + Items());
+    if (!pop.IsOpen || Sug().Count == 0) Bad("không mở gợi ý Size-quy cách");
+    else if (Sug().Any(x => !x.Detail.Contains("Tôm HLSO"))) Bad("gợi ý BTP có hàng ngoài Tôm HLSO");
+    if (pop.IsOpen && pop.Child is Control ch) SnapPopup(hw, ch, ed, "v228-goi-y-size-quy-cach");
+    Esc(); Esc();
+    bg.Model.Set(2, 0, "TGC"); P(5);
+    bg.Select(2, 1); bg.BeginEdit(""); bg.BeginEdit("3"); P(8);
+    Console.WriteLine("[v228] TGC gõ 3: " + Items());
+    if (Sug().Count == 0 || Sug().Any(x => !x.Detail.Contains("Tôm Gia Công"))) Bad("gợi ý TGC sai phân loại");
+    // chọn gợi ý đầu → Loại theo mã tồn (TGC chưa có tiền tố → BTP)
+    typeof(KhoLanh.App.Controls.SheetGrid).GetMethod("PickSuggest", bf)!.Invoke(bg, new object[] { 0 }); P(8);
+    Console.WriteLine($"[v228] sau khi chọn: dòng 3 Loại {bg.Model.Get(2, 0)}, Size-quy cách {bg.Model.Get(2, 1)}");
+    if (bg.Model.Get(2, 1).Length == 0) Bad("chọn gợi ý không điền Size-quy cách");
+    hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v228) — ĐẠT: " : "Xong (v228) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.127: SHOTS_ONLY=v227 — In chứng từ kho › "Sửa thông tin" (InfoLine) ở 1366×768: khung không bị cắt (FlyoutPresenter mặc định MaxWidth 456),
 // mọi ô + 5 cột người ký nằm trọn trong khung và trong cửa sổ, không cuộn ngang — cả 3 loại phiếu. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v227")

@@ -133,7 +133,10 @@ public sealed class CargoService
             var meta = Read("ton-kho-an-an", "LoadDataMeta"); var mj = meta.Count > 0 && meta[0] is JsonObject mo ? JsonNode.Parse((mo["data"]?.ToString() ?? "").Replace("__JSON__", "")) as JsonObject : null;
             var headers = (mj?["headers"] as JsonArray ?? new JsonArray()).Select(x => x?.ToString() ?? "").ToList(); if (headers.Count == 0) return;
             var rows = Read("ton-kho-an-an", "LoadData").OfType<JsonObject>().Select(o => Enumerable.Range(0, headers.Count).Select(i => o["c" + i]?.ToString() ?? "").ToArray()).ToList();
-            StockRows = KiemKeCore.MakeStock(headers, rows);
+            // 1.128: nhóm phân loại từng dòng — đúng như tab Phân loại của Tồn kho An An (cả chuyển tay + điều kiện tự thêm)
+            string[] grp;
+            try { grp = PhanLoaiM1.Classify(headers, rows, PhanLoaiM1.ManualOf(mj), PhanLoaiM1.CustomOf(Read("ton-kho-an-an", "DieuKienTuThem"))).Primary; } catch { grp = Array.Empty<string>(); }
+            StockRows = KiemKeCore.MakeStock(headers, rows, grp);
             Stock = CargoStock.Aggregate(StockRows);
             StockInfo = $"Tồn kho An An: {Stock.Count:#,0} mã (file {mj?["fileName"]}, ngày {mj?["dataDate"]})";
         }

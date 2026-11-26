@@ -27,6 +27,29 @@ public static class PhanLoaiM1
         public string[] Primary = Array.Empty<string>();
     }
 
+    /// <summary>1.128: "manualAssign" trong LoadDataMeta của Tồn kho An An (chỉ số dòng → nhóm).</summary>
+    public static Dictionary<int, string> ManualOf(System.Text.Json.Nodes.JsonObject? meta)
+    {
+        var d = new Dictionary<int, string>();
+        if (meta?["manualAssign"] is System.Text.Json.Nodes.JsonObject mo)
+            foreach (var kv in mo) { var v = kv.Value?.ToString() ?? ""; if (int.TryParse(kv.Key, out var i) && v.Length > 0) d[i] = v; }
+        return d;
+    }
+    /// <summary>1.128: điều kiện tự thêm (sheet DieuKienTuThem của ton-kho-an-an: 1 dòng, data = "__JSON__{ nhóm: [ … ] }").</summary>
+    public static Dictionary<string, List<CustomFilter>> CustomOf(System.Text.Json.Nodes.JsonArray? rows)
+    {
+        var d = new Dictionary<string, List<CustomFilter>>();
+        if (rows is null || rows.Count == 0 || rows[0] is not System.Text.Json.Nodes.JsonObject ro) return d;
+        System.Text.Json.Nodes.JsonObject? cj;
+        try { cj = System.Text.Json.Nodes.JsonNode.Parse((ro["data"]?.ToString() ?? "").Replace("__JSON__", "")) as System.Text.Json.Nodes.JsonObject; } catch { return d; }
+        if (cj is null) return d;
+        static int I(System.Text.Json.Nodes.JsonNode? n) => double.TryParse(n?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? (int)v : 0;
+        foreach (var kv in cj)
+            if (kv.Value is System.Text.Json.Nodes.JsonArray arr)
+                d[kv.Key] = arr.OfType<System.Text.Json.Nodes.JsonObject>().Select(o => new CustomFilter { ColLabel = o["colLabel"]?.ToString() ?? "", Op = o["op"]?.ToString() ?? "", Value = o["value"]?.ToString() ?? "", From = I(o["from"]), To = I(o["to"]) }).ToList();
+        return d;
+    }
+
     public static string Fuzzy(string? s)
     {
         var d = new string((s ?? "").Normalize(NormalizationForm.FormD).Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).Replace('đ', 'd').Replace('Đ', 'd').ToLowerInvariant();

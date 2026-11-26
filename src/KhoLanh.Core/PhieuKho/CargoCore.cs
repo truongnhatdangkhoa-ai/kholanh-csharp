@@ -56,6 +56,8 @@ public sealed class CargoLoai
 {
     public string Code { get; set; } = "";
     public string Ten { get; set; } = "";
+    /// <summary>1.128: phân loại Tồn kho An An của loại hàng (id nhóm: hlso / tomnl / tomgc / tomgs…). "" = theo mặc định (<see cref="CargoCore.NhomMacDinh"/>), "-" = không gắn.</summary>
+    public string Nhom { get; set; } = "";
 }
 public sealed class CargoQc
 {
@@ -243,6 +245,26 @@ public static class CargoCore
         },
     };
 
+    /// <summary>1.128: Loại hàng ↔ phân loại Tồn kho An An mặc định (như tiền tố Size của An An: Tôm HLSO "BTP", Tôm Nguyên Liệu "NL", Tôm Gia Công "TGC", Tôm Giám Sát "TGS").</summary>
+    public static readonly IReadOnlyDictionary<string, string> NhomMacDinh = new Dictionary<string, string> { ["BTP"] = "hlso", ["NL"] = "tomnl", ["TGC"] = "tomgc", ["TGS"] = "tomgs" };
+    /// <summary>Phân loại An An đang dùng của 1 loại hàng ("" = không gắn).</summary>
+    public static string NhomOf(CargoCfg cfg, string? loai)
+    {
+        var code = (loai ?? "").Trim().ToUpperInvariant(); if (code.Length == 0) return "";
+        var n = cfg.Loai.FirstOrDefault(l => l.Code == code)?.Nhom ?? "";
+        return n == "-" ? "" : n.Length > 0 ? n : NhomMacDinh.GetValueOrDefault(code) ?? "";
+    }
+    /// <summary>Chữ người dùng gõ ở cột "Phân loại An An" → id nhóm. "" = theo mặc định, "-" = không gắn, null = không nhận ra.</summary>
+    public static string? ParseNhom(string? text)
+    {
+        var t = (text ?? "").Trim(); if (t.Length == 0) return "";
+        var f = KiemKe.PhanLoaiM1.Fuzzy(t);
+        if (t == "-" || f is "khong" or "khong gan" or "khong co" or "chua phan loai") return "-";
+        foreach (var id in KiemKe.PhanLoaiM1.Order)
+            if (f == id || f == KiemKe.PhanLoaiM1.Fuzzy(KiemKe.PhanLoaiM1.Label[id]) || "tom " + f == KiemKe.PhanLoaiM1.Fuzzy(KiemKe.PhanLoaiM1.Label[id])) return id;
+        return null;
+    }
+
     public static CargoCfg NormCfg(CargoCfg? c)
     {
         var o = new CargoCfg(); var seenL = new HashSet<string>(); var seenD = new HashSet<string>();
@@ -250,7 +272,8 @@ public static class CargoCore
         {
             var code = Regex.Replace((x.Code ?? "").Trim().ToUpperInvariant(), "[^A-Z0-9]", ""); if (code.Length > 8) code = code[..8];
             if (code.Length == 0 || !seenL.Add(code)) continue;
-            o.Loai.Add(new CargoLoai { Code = code, Ten = (x.Ten ?? "").Trim() });
+            var nhom = (x.Nhom ?? "").Trim(); if (nhom == NhomMacDinh.GetValueOrDefault(code)) nhom = "";
+            o.Loai.Add(new CargoLoai { Code = code, Ten = (x.Ten ?? "").Trim(), Nhom = nhom });
         }
         if (o.Loai.Count == 0) o.Loai = DefaultCfg().Loai;
         foreach (var x in c?.Qc ?? new())

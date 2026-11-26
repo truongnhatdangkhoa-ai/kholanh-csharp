@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using KhoLanh.Core.KiemKe;
+using static KhoLanh.Core.PhieuKho.CargoCore;
 
 namespace KhoLanh.Core.PhieuKho;
 
@@ -180,8 +181,10 @@ public static class CargoStock
     /// 1 nhóm tồn: Size (nhãn như cột Size của Cargo) · Đặc tính (KQ kháng sinh — 4 số cuối mã 25 ký tự, hoặc cột Đặc tính) · Quy cách (mã gói 4 ký tự 18–21 → danh mục Size-quy cách).
     /// Loai / Sn suy được khi mã gói + tiền tố có trong danh mục; KsStt &gt; 0 khi đặc tính là số kết quả 1–83.
     /// </summary>
-    public sealed record SizeRow(string Key, string Size, string Dt, string Pack, string Loai, string Sn, int KsStt, double Ton, double Have, double? Tl, int NMa, string MaMau)
+    public sealed record SizeRow(string Key, string Size, string Dt, string Pack, string Loai, string Sn, int KsStt, double Ton, double Have, double? Tl, int NMa, string MaMau, string Nhom = "")
     {
+        /// <summary>1.128: tên phân loại Tồn kho An An của nhóm ("Chưa phân loại" khi trống).</summary>
+        public string NhomLabel => PhanLoaiM1.LabelOf(Nhom);
         public double Left => Math.Max(0, Math.Round(Ton - Have, 6));
     }
 
@@ -229,28 +232,82 @@ public static class CargoStock
     }
 
     /// <summary>
-    /// Tồn Tồn kho An An gộp theo Size + Đặc tính + Quy cách (KHÔNG tách lô / hợp đồng), kèm số kiện đã có trong cont đang soạn.
+    /// Tồn Tồn kho An An gộp theo Size + Đặc tính + Quy cách (KHÔNG tách lô / hợp đồng) + phân loại An An (1.128), kèm số kiện đã có trong cont đang soạn.
     /// Chỉ các nhóm còn tồn &gt; 0. Sắp theo Size rồi Quy cách, Đặc tính.
+    /// Kiện đã có trong cont: tính theo Size + Quy cách + KQ; cùng nhóm có ở nhiều phân loại thì ghi vào phân loại của Loại hàng dòng đó (không có thì phân loại đầu).
     /// </summary>
     public static List<SizeRow> BySize(IEnumerable<KiemKeCore.Stock> stock, CargoCfg cfg, CargoRec? rec, CargoCore.KsIndex? ks)
     {
-        var have = rec is null ? new() : HaveByGroup(cfg, rec, ks);
-        var g = new Dictionary<string, (string Size, string Pack, string Loai, string Sn, int Ks, string Dt, double Ton, double? Tl, HashSet<string> Ma, string Mau)>();
+        var g = new Dictionary<string, (string Base, string Size, string Pack, string Loai, string Sn, int Ks, string Dt, double Ton, double? Tl, HashSet<string> Ma, string Mau, string Nhom)>();
+        var order = new List<string>();
         foreach (var s in stock)
         {
             if (!(s.Ton > 0) || Describe(cfg, s.Ma, s.Dt) is not { } d) continue;
-            var k = GroupKey(d.Size, d.Pack, d.Ks, d.Dt);
-            if (!g.TryGetValue(k, out var e)) e = (d.Size, d.Pack, d.Loai, d.Sn, d.Ks, d.Dt, 0, s.Tl, new HashSet<string>(), Norm(s.Ma));
+            // 1.128: hàng thuộc phân loại của 1 Loại khác mà Loại đó dùng CÙNG tiền tố cho quy cách này → lấy Loại theo phân loại (vd TGC cùng tiền tố BTP)
+            if (s.Nhom.Length > 0 && cfg.Loai.FirstOrDefault(l => NhomOf(cfg, l.Code) == s.Nhom)?.Code is { } ln && ln != d.Loai)
+            {
+                var (pre, _, pack4, _) = Split(s.Ma);
+                if (cfg.Qc.FirstOrDefault(q => q.Pack.Length > 0 && string.Equals(q.Pack, pack4, StringComparison.OrdinalIgnoreCase)) is { } qc && string.Equals(qc.Pre.GetValueOrDefault(ln), pre, StringComparison.OrdinalIgnoreCase))
+                    d = d with { Loai = ln };
+            }
+            var bk = GroupKey(d.Size, d.Pack, d.Ks, d.Dt); var k = bk + "|" + s.Nhom;
+            if (!g.TryGetValue(k, out var e)) { e = (bk, d.Size, d.Pack, d.Loai, d.Sn, d.Ks, d.Dt, 0, s.Tl, new HashSet<string>(), Norm(s.Ma), s.Nhom); order.Add(k); }
             e.Ton += s.Ton; e.Ma.Add(Norm(s.Ma)); e.Tl ??= s.Tl;
             g[k] = e;
         }
-        return g.Select(kv =>
+        var have = new Dictionary<string, double>();
+        if (rec is not null)
+            foreach (var b in rec.Blocks)
+                foreach (var ln in b.Lines)
+                {
+                    var r = CargoCore.ResolveLine(cfg, b, ln, ks); if (r.Kien <= 0) continue;
+                    var bk = r.Other ? GroupKey(r.Size, r.Pack, 0, "") : GroupKey(r.Size, r.Pack, r.Ks?.Stt ?? 0, "");
+                    var cands = order.Where(k => g[k].Base == bk).ToList(); if (cands.Count == 0) continue;
+                    var nh = r.Other ? "" : NhomOf(cfg, r.Loai);
+                    var tk = cands.FirstOrDefault(k => g[k].Nhom == nh) ?? cands[0];
+                    have[tk] = have.GetValueOrDefault(tk) + r.Kien;
+                }
+        return order.Select(k =>
         {
-            var e = kv.Value;
-            // dòng trong cont chưa ra KQ kháng sinh (chưa gõ lô) được đếm vào nhóm KQ = 0 → cộng vào nhóm cùng size + quy cách khi nhóm KQ đó có
-            var h = have.GetValueOrDefault(kv.Key);
-            return new SizeRow(kv.Key, e.Size, e.Dt, e.Pack, e.Loai, e.Sn, e.Ks, Math.Round(e.Ton, 6), Math.Round(h, 6), e.Tl, e.Ma.Count, e.Mau);
-        }).OrderBy(r => SizeOrder(r.Size)).ThenBy(r => r.Size, StringComparer.Ordinal).ThenBy(r => r.Pack, StringComparer.Ordinal).ThenBy(r => r.Dt, StringComparer.Ordinal).ToList();
+            var e = g[k]; var h = have.GetValueOrDefault(k);
+            return new SizeRow(k, e.Size, e.Dt, e.Pack, e.Loai, e.Sn, e.Ks, Math.Round(e.Ton, 6), Math.Round(h, 6), e.Tl, e.Ma.Count, e.Mau, e.Nhom);
+        }).OrderBy(r => SizeOrder(r.Size)).ThenBy(r => r.Size, StringComparer.Ordinal).ThenBy(r => r.Pack, StringComparer.Ordinal).ThenBy(r => r.Dt, StringComparer.Ordinal)
+          .ThenBy(r => Array.IndexOf(PhanLoaiM1.Order, r.Nhom)).ToList();
+    }
+
+    /// <summary>1.128: 1 gợi ý ô Size-quy cách — gộp các nhóm tồn cùng Loại + Size-quy cách (mọi đặc tính) trong phân loại của Loại.</summary>
+    public sealed record SnHint(string Sn, string Loai, string Size, string Pack, double Left, List<string> Dts, string NhomLabel);
+
+    /// <summary>
+    /// 1.128: gợi ý khi gõ ô Size-quy cách của phiếu nội địa: chỉ hàng còn tồn (sau khi trừ cont đang soạn) thuộc phân loại An An của <paramref name="loai"/>
+    /// (Loại trống → mọi Loại có gắn phân loại). Chữ gõ: "40" (size) · "0040-6" / "40-6" · "BTP40" · "NL130" — khớp đầu size / Size-quy cách / nhãn size.
+    /// </summary>
+    public static List<SnHint> SuggestSn(IEnumerable<SizeRow> rows, CargoCfg cfg, string? loai, string? text, int max = 12)
+    {
+        var lo = (loai ?? "").Trim().ToUpperInvariant();
+        var t = System.Text.RegularExpressions.Regex.Replace((text ?? "").Trim().ToUpperInvariant(), @"\s+", "");
+        // gõ loại ngay đầu ô ("NL130") → dùng loại đó
+        var lm = System.Text.RegularExpressions.Regex.Match(t, "^(" + string.Join("|", cfg.Loai.Select(l => l.Code).OrderByDescending(c => c.Length).Select(System.Text.RegularExpressions.Regex.Escape)) + ")(?=\\d|$)");
+        if (cfg.Loai.Count > 0 && lm.Success) { lo = lm.Groups[1].Value; t = t[lm.Length..]; }
+        var nm = System.Text.RegularExpressions.Regex.Match(t, @"^0*(\d{1,4})(?:[-–./](\d?))?$");
+        if (t.Length > 0 && !nm.Success) return new();
+        var num = nm.Success ? nm.Groups[1].Value : ""; var dig = nm.Success ? nm.Groups[2].Value : ""; var hasDash = nm.Success && t.IndexOfAny(new[] { '-', '–', '.', '/' }) >= 0;
+        bool Hit(SizeRow r)
+        {
+            if (r.Sn.Length == 0 || !(r.Left > 0)) return false;
+            // Loại có phân loại → chỉ hàng thuộc phân loại đó (Loại của gợi ý = Loại ra đúng mã tồn); Loại không gắn phân loại → theo Loại; Loại trống → mọi hàng
+            var nh = lo.Length > 0 ? NhomOf(cfg, lo) : "";
+            if (nh.Length > 0 ? r.Nhom != nh : lo.Length > 0 && r.Loai != lo) return false;
+            if (num.Length == 0) return true;
+            var size = r.Sn.Split('-')[0].TrimStart('0'); var d = r.Sn.Split('-').Last();
+            if (hasDash) return size == num && (dig.Length == 0 || d == dig);
+            return size.StartsWith(num, StringComparison.Ordinal);
+        }
+        return rows.Where(Hit).GroupBy(r => r.Loai + "|" + r.Sn).Select(gr =>
+        {
+            var f = gr.First();
+            return new SnHint(f.Sn, f.Loai, f.Size, f.Pack, Math.Round(gr.Sum(x => x.Left), 6), gr.Select(x => x.Dt).Where(x => x.Length > 0).Distinct().ToList(), f.NhomLabel);
+        }).OrderBy(h => SizeOrder(h.Size)).ThenBy(h => h.Sn, StringComparer.Ordinal).Take(max).ToList();
     }
     private static (int, double) SizeOrder(string size)
     {
