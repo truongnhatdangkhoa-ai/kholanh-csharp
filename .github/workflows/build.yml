@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # dọn file kiểm tra (artifact) cũ — dung lượng lưu trữ Actions gói miễn phí chỉ 0,5 GB
 
 jobs:
   build:
@@ -31,6 +32,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: KhoLanh-win-x64
+          # chỉ cần trong chính lượt chạy này (tự kiểm Windows + phát hành); bản phát hành giữ exe riêng → giữ 1 ngày cho đỡ tốn dung lượng
+          retention-days: 1
           path: |
             publish/win-x64/KhoLanh.exe
             publish/win-x64/KhoLanh.exe.sha256
@@ -109,3 +112,12 @@ jobs:
           files: |
             out/KhoLanh.exe
             out/KhoLanh.exe.sha256
+      - name: Dọn file kiểm tra cũ (giữ dung lượng lưu trữ Actions)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.workflow_run.id != ${{ github.run_id }}) | .id' |
+          while read -r id; do gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" >/dev/null || true; done
+          echo "Đã dọn file kiểm tra của các lượt chạy trước."
