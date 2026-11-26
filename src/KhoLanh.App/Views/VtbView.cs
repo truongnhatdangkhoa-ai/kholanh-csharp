@@ -64,7 +64,7 @@ public sealed class VtbView : UserControl, IPage
         var rb = new Border { Padding = new Thickness(8, 0, 0, 0), Child = right }; Grid.SetColumn(rb, 2); split.Children.Add(rb);
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(split);
         Content = root;
-        AttachedToVisualTree += (_, _) => Reload();
+        AttachedToVisualTree += (_, _) => { if (!Ui.SkipReload(this)) Reload(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     private static Button Btn(string text, Action click, bool primary = false)

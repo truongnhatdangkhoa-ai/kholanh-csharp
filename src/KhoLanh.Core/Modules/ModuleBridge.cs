@@ -31,6 +31,7 @@ public class ModuleStore
     public string ReadSheetJson(string dbKey, string sheet)
     {
         CheckName("database", dbKey); CheckName("sheet", sheet);
+        ReadTrack.Note(dbKey);
         using var c = _db.Open();
         return c.ExecuteScalar<string?>("SELECT data FROM module_sheets WHERE db_key=@dbKey AND sheet=@sheet", new { dbKey, sheet }) ?? "[]";
     }
@@ -41,6 +42,7 @@ public class ModuleStore
     public List<string> ListSheets(string dbKey)
     {
         CheckName("database", dbKey);
+        ReadTrack.Note(dbKey);
         using var c = _db.Open();
         return c.Query<string>("SELECT sheet FROM module_sheets WHERE db_key=@dbKey ORDER BY sheet", new { dbKey }).ToList();
     }
@@ -191,6 +193,16 @@ public class ModuleStore
     public static string CleanRows(JsonArray rows) => Clean(rows);
 
     /// <summary>Mọi bảng đang có (để đồng bộ toàn bộ).</summary>
+    /// <summary>1.136: phiên bản lớn nhất của từng database (gồm bảng đã xóa) — đổi = có bảng trong database đó vừa đổi.</summary>
+    public Dictionary<string, long> DbVersions()
+    {
+        using var c = _db.Open();
+        var d = new Dictionary<string, long>();
+        foreach (var (k, v) in c.Query<(string, long)>("SELECT db_key, MAX(version) FROM module_sheets GROUP BY db_key UNION ALL SELECT db_key, MAX(version) FROM sheet_tombstones GROUP BY db_key"))
+            d[k] = Math.Max(v, d.TryGetValue(k, out var o) ? o : 0);
+        return d;
+    }
+
     public List<(string DbKey, string Sheet, long Version)> AllVersions()
     {
         using var c = _db.Open();

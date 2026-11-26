@@ -122,7 +122,7 @@ public sealed class ChungTuView : UserControl, IPage
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(_kinds);
         Content = root;
         PlaceBody();
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     /// <summary>Nội dung (2 tab con) dùng chung cho 3 loại chứng từ: gắn vào tab loại đang chọn.</summary>

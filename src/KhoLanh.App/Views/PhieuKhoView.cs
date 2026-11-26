@@ -128,7 +128,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         var root = new Panel(); root.Children.Add(_outer); root.Children.Add(_full);
         Content = root;
         ShowEditor();
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     /// <summary>Hiện khung soạn phiếu chiếm cả trang (null = về các tab danh sách).</summary>

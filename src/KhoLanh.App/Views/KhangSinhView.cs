@@ -120,7 +120,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
         var row = new DockPanel { Margin = new Thickness(0, 0, 0, 4) }; DockPanel.SetDock(tools, Dock.Right); row.Children.Add(tools); row.Children.Add(_info);
         var root = new DockPanel(); DockPanel.SetDock(row, Dock.Top); root.Children.Add(row); root.Children.Add(_tabs);
         Content = root;
-        AttachedToVisualTree += async (_, _) => await LoadAsync();
+        AttachedToVisualTree += async (_, _) => { if (!Ui.SkipReload(this)) await LoadAsync(); };   // 1.136: quay lại trang dữ liệu chưa đổi → không đọc lại
     }
 
     // =====================================================================================
