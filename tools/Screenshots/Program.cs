@@ -794,6 +794,51 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v225")
     Snap(hw, "v225-lich-xuat-trong-ngay");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v225) — ĐẠT: " : "Xong (v225) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.127: SHOTS_ONLY=v227 — In chứng từ kho › "Sửa thông tin" (InfoLine) ở 1366×768: khung không bị cắt (FlyoutPresenter mặc định MaxWidth 456),
+// mọi ô + 5 cột người ký nằm trọn trong khung và trong cửa sổ, không cuộn ngang — cả 3 loại phiếu. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v227")
+{
+    var ok = true;
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    hw.Navigate("m12"); P(60);
+    var ctv = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.ChungTuView>().First();
+    var kinds = ctv.GetVisualDescendants().OfType<TabControl>().First();
+    for (var k = 0; k < kinds.ItemCount; k++)
+    {
+        kinds.SelectedIndex = k; P(40);
+        var line = ctv.GetVisualDescendants().OfType<KhoLanh.App.Controls.InfoLine>().First(l => l.IsEffectivelyVisible);
+        var btn = line.GetVisualDescendants().OfType<Button>().First(b => b.Flyout is not null);
+        btn.Flyout!.ShowAt(btn); P(20);
+        var sv = (ScrollViewer)((Flyout)btn.Flyout).Content!;
+        var pres = sv.GetVisualAncestors().OfType<FlyoutPresenter>().First();
+        var grid = sv.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First();
+        var gridNeed = grid.Model.Columns.Sum(c => c.Width) + 72 + 18; // cột số dòng + thanh cuộn dọc
+        var kind = (kinds.Items[k] as TabItem)?.Header;
+        Console.WriteLine($"[v227] {kind}: khung {pres.Bounds.Width:0}×{pres.Bounds.Height:0} · nội dung {sv.Extent.Width:0} / thấy {sv.Viewport.Width:0} · bảng người ký {grid.Bounds.Width:0} (cần ~{gridNeed:0})");
+        if (pres.Bounds.Width > hw.Bounds.Width - 20) { Console.WriteLine("[v227] LỖI: khung rộng hơn cửa sổ"); ok = false; }
+        if (sv.Extent.Width > sv.Viewport.Width + 1) { Console.WriteLine("[v227] LỖI: nội dung bị cắt ngang"); ok = false; }
+        if (grid.Bounds.Width < gridNeed) { Console.WriteLine("[v227] LỖI: bảng người ký phải cuộn ngang"); ok = false; }
+        // ghép khung vào ảnh, canh phải theo nút (BottomEdgeAlignedRight)
+        Pump();
+        using (var frame = hw.CaptureRenderedFrame()!)
+        {
+            var pt = btn.TranslatePoint(new Point(btn.Bounds.Width, btn.Bounds.Height), hw) ?? new Point(0, 0);
+            var ps = new PixelSize((int)Math.Ceiling(pres.Bounds.Width), (int)Math.Ceiling(pres.Bounds.Height));
+            using var pop = new Avalonia.Media.Imaging.RenderTargetBitmap(ps); pop.Render(pres);
+            using var all = new Avalonia.Media.Imaging.RenderTargetBitmap(frame.PixelSize);
+            using (var ctx = all.CreateDrawingContext())
+            {
+                ctx.DrawImage(frame, new Rect(0, 0, frame.Size.Width, frame.Size.Height));
+                ctx.DrawImage(pop, new Rect(pt.X - ps.Width, pt.Y + 2, ps.Width, ps.Height));
+            }
+            if (pt.X - ps.Width < 0) { Console.WriteLine("[v227] LỖI: khung tràn trái"); ok = false; }
+            all.Save(Path.Combine(outDir, $"v227-sua-thong-tin-{k}.png"));
+        }
+        btn.Flyout.Hide(); P(10);
+    }
+    hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v227) — ĐẠT: " : "Xong (v227) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.74: SHOTS_ONLY=v174 — hộp Email mở được (trước lỗi NullReference), đổi giao diện Tối → Sáng bằng hộp "Giao diện & cỡ chữ",
 // màu thanh tiêu đề Windows theo giao diện. Thoát mã 1 nếu kiểm tra hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v174")

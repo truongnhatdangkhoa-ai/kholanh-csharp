@@ -371,6 +371,11 @@
     <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
     <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
   </Style>
+  <!-- khung "Sửa thông tin" của InfoLine: bỏ MaxWidth 456 mặc định của FlyoutPresenter (1.127) -->
+  <Style Selector="FlyoutPresenter.wide">
+    <Setter Property="MaxWidth" Value="1200"/>
+    <Setter Property="MaxHeight" Value="900"/>
+  </Style>
   <!-- dòng tóm tắt thông tin phiếu (Controls/InfoLine) -->
   <Style Selector="Border.infoline">
     <Setter Property="Background" Value="{DynamicResource CardBg}"/>
