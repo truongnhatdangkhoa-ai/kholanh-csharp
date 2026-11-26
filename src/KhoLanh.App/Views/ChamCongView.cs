@@ -22,7 +22,7 @@ public sealed class ChamCongView : UserControl, IPage
 
     private static ChamCongService Svc => App.Services.ChamCong;
     private static readonly IBrush WarnBg = AppTheme.Brush("#FFF2D6"), EditBg = AppTheme.Brush("#EEEBFC"), SunBg = AppTheme.Brush("#F3F5F8"),
-        EditCol = AppTheme.Brush("#FBFCFD"), Sun = AppTheme.Brush("#B42318");
+        EditCol = AppTheme.Brush("#FBFCFD"), Sun = AppTheme.Brush("#B42318"), NhanBg = AppTheme.Brush("#E3F4EA"), ChoBg = AppTheme.Brush("#E6F0FC");
 
     private readonly ComboBox _thang = new() { MinWidth = 150 };
     private readonly TextBlock _st = new() { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Classes = { "muted" } };
@@ -34,6 +34,9 @@ public sealed class ChamCongView : UserControl, IPage
     // Bảng công
     private readonly GridModel _bm = new() { ReadOnly = true };
     private readonly SheetGrid _bg;
+    private readonly ComboBox _bView = new() { ItemsSource = new[] { "Giờ sau sang công", "Giờ chốt (trước sang công)" }, SelectedIndex = 0, MinWidth = 210 };
+    private readonly CheckBox _buTruoc = new() { VerticalAlignment = VerticalAlignment.Center };
+    private bool SauSangView => _bView.SelectedIndex != 1;
     // Chi tiết
     internal readonly GridModel _cm = new();
     private readonly SheetGrid _cg;
@@ -45,12 +48,13 @@ public sealed class ChamCongView : UserControl, IPage
     private readonly GridModel _nm = new();
     private readonly SheetGrid _ng;
     // Cấu hình
-    private readonly TextBox _pb = new() { Width = 260 }, _vTron = Num(), _vNua = Num(), _rTron = Num(), _rNua = Num(), _nua = Num(), _toiTu = Num(), _toi = Num(), _som = Num();
+    private readonly TextBox _pb = new() { Width = 260 }, _vTron = Num(), _vNua = Num(), _rTron = Num(), _rNua = Num(), _nua = Num(), _toiTu = Num(), _toi = Num(), _som = Num(), _chuan = Num();
+    private readonly CheckBox _sang = new() { Content = "Tự sang công: giờ trên 1 công bù cho ngày thiếu trong tháng (ngày đi làm thiếu trước, rồi ngày nghỉ; ngày gần nhau nhất trước)" };
     private readonly GridModel _tm = new();
     private readonly SheetGrid _tg;
 
     // cột Chi tiết
-    private const int CId = 0, CMa = 1, CTen = 2, CNhom = 3, CNgay = 4, CThu = 5, CVaoM = 6, CRaM = 7, CVao = 8, CRa = 9, CVs = 10, CVaoT = 11, CRaT = 12, CNghi = 13, CCong = 14, CChot = 15, CNote = 16, CWarn = 17;
+    private const int CId = 0, CMa = 1, CTen = 2, CNhom = 3, CNgay = 4, CThu = 5, CVaoM = 6, CRaM = 7, CVao = 8, CRa = 9, CVs = 10, CVaoT = 11, CRaT = 12, CNghi = 13, CCong = 14, CChot = 15, CSau = 16, CSang = 17, CNote = 18, CWarn = 19;
 
     public ChamCongView()
     {
@@ -65,6 +69,12 @@ public sealed class ChamCongView : UserControl, IPage
         _thang.SelectionChanged += (_, _) => { if (!_loading) Compute(); };
         _cNv.SelectionChanged += (_, _) => { if (!_loading) PaintChiTiet(); };
         _cOnly.IsCheckedChanged += (_, _) => { if (!_loading) PaintChiTiet(); };
+        _bView.SelectionChanged += (_, _) => { if (!_loading) PaintBang(); };
+        _buTruoc.IsCheckedChanged += async (_, _) =>
+        {
+            if (_loading || CurKy is not { } ky) return;
+            if (await Ui.Run(this, () => Svc.SetBuThangTruoc(ky, _buTruoc.IsChecked == true))) Compute();
+        };
 
         var bar = new ToolRow { Margin = new Thickness(0, 4, 0, 6) };
         bar.Children.Add(new TextBlock { Text = "Tháng", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
@@ -126,7 +136,14 @@ public sealed class ChamCongView : UserControl, IPage
         }
         _t = Svc.Tinh(ky);
         var canh = _t.Rows.Count(r => r.CanhBao.Length > 0); var sua = _t.Rows.Count(r => r.DaSua);
-        _st.Text = $"{_t.Nvs.Count} nhân viên · {_t.Nvs.Sum(_t.TongGio):#,0.##} giờ" + (canh > 0 ? $" · {canh} ngày cần xem" : "") + (sua > 0 ? $" · {sua} ngày đã sửa tay" : "");
+        _st.Text = $"{_t.Nvs.Count} nhân viên · {_t.Nvs.Sum(_t.TongGio):#,0.##} giờ" + (_t.SangList.Count > 0 ? $" · sang công {_t.SangList.Sum(x => x.Lan.Gio):#,0.##} giờ" : "") + (canh > 0 ? $" · {canh} ngày cần xem" : "") + (sua > 0 ? $" · {sua} ngày đã sửa tay" : "");
+        _loading = true;
+        var du = Svc.CauHinh.SangCong ? Svc.DuThangTruoc(ky) : null;
+        _buTruoc.IsVisible = du is not null;
+        _buTruoc.IsEnabled = Svc.CanEdit;
+        _buTruoc.Content = $"Bù giờ dư tháng {Label(ChamCongService.KyTruoc(ky))} (còn {du ?? 0:#,0.##} giờ)";
+        _buTruoc.IsChecked = Svc.CauHinh.BuThangTruoc.Contains(ky);
+        _loading = false;
         PaintBang(); FillNvFilter(); PaintChiTiet();
     }
 
@@ -190,9 +207,9 @@ public sealed class ChamCongView : UserControl, IPage
 
     private Control BuildBang()
     {
-        var hint = Muted("Mỗi ô = giờ chốt của ngày. Nền vàng = cần xem (chỉ 1 lần chấm, giờ vào quá sớm…), nền tím = đã sửa tay, chữ đỏ = Chủ nhật. Sửa ở tab Chi tiết ngày.");
+        var hint = Muted("Mỗi ô = giờ của ngày (mặc định SAU sang công). Nền xanh lá = nhận giờ sang công, xanh dương = cho giờ dư đi, vàng = cần xem (chỉ 1 lần chấm, giờ vào quá sớm…), tím = đã sửa tay, chữ đỏ = Chủ nhật. Rê chuột vào ô để xem giờ vào / ra và sang công. Sửa ở tab Chi tiết ngày.");
         var btn = Btn("Xem chi tiết người đang chọn", () => { OpenChiTiet(_bg.Row); return Task.CompletedTask; });
-        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6), Children = { new ToolRow { Children = { btn } }, hint } };
+        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6), Children = { new ToolRow { Children = { new TextBlock { Text = "Hiện", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) }, _bView, _buTruoc, ToolRow.Gap(), btn } }, hint } };
         var d = new DockPanel();
         DockPanel.SetDock(top, Dock.Top); d.Children.Add(top); d.Children.Add(Framed(_bg));
         _bg.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { OpenChiTiet(_bg.Row); e.Handled = true; } };
@@ -208,14 +225,17 @@ public sealed class ChamCongView : UserControl, IPage
         if (_t is null) return;
         var cols = new List<GridColumn> { new("ma", "Mã NV", 70) { ReadOnly = true }, new("ten", "Họ tên", 190) { ReadOnly = true }, new("nhom", "Bộ phận", 70) { ReadOnly = true } };
         cols.AddRange(_t.Ngays.Select(d => new GridColumn("d" + d.Day, $"{d.Day} {CcCore.Thu(d).Replace(".", "")}", 60, "number") { ReadOnly = true }));
-        cols.Add(new GridColumn("so", "Số ngày", 64, "number") { ReadOnly = true });
+        var sau = SauSangView;
+        cols.Add(new GridColumn("so", sau ? "Ngày đủ công" : "Số ngày làm", 90, "number") { ReadOnly = true });
         cols.Add(new GridColumn("tong", "Tổng giờ", 78, "number") { ReadOnly = true });
+        cols.Add(new GridColumn("du", "Dư còn (tăng ca)", 110, "number") { ReadOnly = true });
         cols.Add(new GridColumn("cx", "Cần xem", 66, "number") { ReadOnly = true });
         var rows = _t.Nvs.Select(n =>
         {
             var r = new List<string> { n.Ma, n.Ten, n.Nhom };
-            r.AddRange(_t.Ngays.Select(d => { var x = _t.Dong[(n.Id, d)].Chot; return x == 0 ? "" : Ui.Num(x); }));
-            r.Add(_t.SoNgay(n).ToString()); r.Add(Ui.Num(_t.TongGio(n)));
+            r.AddRange(_t.Ngays.Select(d => { var dd = _t.Dong[(n.Id, d)]; var x = sau ? dd.SauSang : dd.Chot; return x == 0 ? "" : Ui.Num(x); }));
+            r.Add(sau ? _t.NgayDu(n).ToString() : _t.SoNgay(n).ToString()); r.Add(Ui.Num(sau ? _t.TongSau(n) : _t.TongGio(n)));
+            var du = _t.DuCon.GetValueOrDefault(n.Id); r.Add(du > 0 ? Ui.Num(du) : "");
             var cx = _t.CanhBao(n); r.Add(cx > 0 ? cx.ToString() : "");
             return (IEnumerable<string?>)r;
         }).ToList();
@@ -227,10 +247,13 @@ public sealed class ChamCongView : UserControl, IPage
         if (_t is null || r < 0 || r >= _t.Nvs.Count || c < BDay0 || c >= BDay0 + _t.Ngays.Count) return null;
         return _t.Dong[(_t.Nvs[r].Id, _t.Ngays[c - BDay0])];
     }
-    private IBrush? BBg(int r, int c) => BCell(r, c) is { } d ? d.CanhBao.Length > 0 ? WarnBg : d.DaSua ? EditBg : d.Ngay.DayOfWeek == DayOfWeek.Sunday ? SunBg : null : null;
+    private IBrush? BBg(int r, int c) => BCell(r, c) is { } d
+        ? d.CanhBao.Length > 0 ? WarnBg : d.DaSua ? EditBg : SauSangView && d.Nhan.Count > 0 ? NhanBg : SauSangView && d.Cho.Count > 0 ? ChoBg : d.Ngay.DayOfWeek == DayOfWeek.Sunday ? SunBg : null
+        : null;
     private IBrush? BFg(int r, int c) => BCell(r, c) is { } d && d.Ngay.DayOfWeek == DayOfWeek.Sunday ? Sun : null;
     private string? BTip(int r, int c) => BCell(r, c) is { } d
-        ? $"{d.Ngay:dd/MM} {CcCore.Thu(d.Ngay)} · vào {Or(d.Vao)} · ra {Or(d.Ra)} · nghỉ {CcCore.HmShort(d.Ket.Nghi)} · chốt {Ui.Num(d.Chot)} giờ" + (d.CanhBao.Length > 0 ? "\n⚠ " + d.CanhBao : "") + (d.ChepTu.Length > 0 ? "\nGiờ của " + d.ChepTu : "") + (d.GhiChu.Length > 0 ? "\n" + d.GhiChu : "")
+        ? $"{d.Ngay:dd/MM} {CcCore.Thu(d.Ngay)} · vào {Or(d.Vao)} · ra {Or(d.Ra)} · nghỉ {CcCore.HmShort(d.Ket.Nghi)} · chốt {Ui.Num(d.Chot)} giờ" + (d.SauSang != d.Chot || d.SuaSang ? $" → sau sang công {Ui.Num(d.SauSang)} giờ" : "")
+          + (ChamCongService.SangText(d) is { Length: > 0 } st ? "\n" + st : "") + (d.CanhBao.Length > 0 ? "\n⚠ " + d.CanhBao : "") + (d.ChepTu.Length > 0 ? "\nGiờ của " + d.ChepTu : "") + (d.GhiChu.Length > 0 ? "\n" + d.GhiChu : "")
         : null;
     private static string Or(string s) => s.Length > 0 ? s : "—";
 
@@ -254,7 +277,7 @@ public sealed class ChamCongView : UserControl, IPage
             bar.Children.Add(Btn("Chép giờ người khác…", ChepGio, "Người không có mã máy chấm công (làm thay): lấy giờ vào / ra của một người khác cho các ngày đang chọn"));
             bar.Children.Add(Btn("Trả về giờ máy", ResetSel, "Bỏ mọi sửa tay (giờ, V.Sớm, chốt, chép giờ, ghi chú) của các ngày đang chọn"));
         }
-        var hint = Muted("Sửa trực tiếp các cột có ✎: Giờ vào / Giờ ra (vd 07:30), V.Sớm (giờ được bớt nghỉ trưa, vd 1), Chốt (ghi đè giờ chốt), Ghi chú. Rời ô là tự lưu. Xóa ô giờ = để trống (0 giờ); muốn quay về giờ máy bấm “Trả về giờ máy”.");
+        var hint = Muted("Sửa trực tiếp các cột có ✎: Giờ vào / Giờ ra (vd 07:30), V.Sớm (vào sớm / đi sớm — số giờ cộng thêm, vd 1), Chốt (ghi đè giờ chốt), Sau sang (ghi đè giờ sau sang công — ngày đó không cho / nhận sang công tự động; xóa ô = về tự động), Ghi chú. Rời ô là tự lưu. Xóa ô giờ = để trống (0 giờ); muốn quay về giờ máy bấm “Trả về giờ máy”.");
         var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6), Children = { bar, hint } };
         var d = new DockPanel();
         DockPanel.SetDock(top, Dock.Top); d.Children.Add(top); d.Children.Add(Framed(_cg));
@@ -284,15 +307,16 @@ public sealed class ChamCongView : UserControl, IPage
             new("vm", "Vào (máy)", 80) { ReadOnly = true }, new("rm", "Ra (máy)", 76) { ReadOnly = true },
             new("vao", "Giờ vào ✎", 88), new("ra", "Giờ ra ✎", 84), new("vs", "V.Sớm ✎", 74, "number"),
             new("vt", "Vào", 52) { ReadOnly = true }, new("rt", "Ra", 52) { ReadOnly = true }, new("nghi", "Nghỉ", 52) { ReadOnly = true }, new("cong", "Công", 56) { ReadOnly = true },
-            new("chot", "Chốt ✎", 72, "number"), new("note", "Ghi chú ✎", 200), new("warn", "Cần xem", 260) { ReadOnly = true },
+            new("chot", "Chốt ✎", 72, "number"), new("sau", "Sau sang ✎", 88, "number"), new("sang", "Sang công", 200) { ReadOnly = true },
+            new("note", "Ghi chú ✎", 200), new("warn", "Cần xem", 260) { ReadOnly = true },
         };
         var rows = _cRows.Select(r => (IEnumerable<string?>)new[]
         {
             r.Nv.Id + "|" + r.Ngay.ToString("yyyy-MM-dd"), r.Nv.Ma, r.Nv.Ten, r.Nv.Nhom, r.Ngay.ToString("dd/MM/yyyy"), CcCore.Thu(r.Ngay),
             r.VaoGoc, r.RaGoc, r.Vao, r.Ra, r.VSom != 0 ? Ui.Num(r.VSom) : "",
             CcCore.HmShort(r.Ket.VaoTron), CcCore.HmShort(r.Ket.RaTron), r.Ket.Nghi > 0 ? CcCore.HmShort(r.Ket.Nghi) : "", r.Ket.Cong > 0 ? CcCore.HmShort(r.Ket.Cong) : "",
-            r.Chot != 0 ? Ui.Num(r.Chot) : "", r.GhiChu,
-            string.Join(" · ", new[] { r.CanhBao, r.ChepTu.Length > 0 ? "giờ của " + r.ChepTu : "", r.SuaChot ? "chốt sửa tay" : "" }.Where(x => x.Length > 0)),
+            r.Chot != 0 ? Ui.Num(r.Chot) : "", r.SauSang != 0 ? Ui.Num(r.SauSang) : "", ChamCongService.SangText(r), r.GhiChu,
+            string.Join(" · ", new[] { r.CanhBao, r.ChepTu.Length > 0 ? "giờ của " + r.ChepTu : "", r.SuaChot ? "chốt sửa tay" : "", r.SuaSang ? "sang công sửa tay" : "" }.Where(x => x.Length > 0)),
         }).ToList();
         _loading = true;
         _cm.Load(cols, rows); _cg.Refresh();
@@ -304,13 +328,15 @@ public sealed class ChamCongView : UserControl, IPage
     {
         if (CRow(r) is not { } d) return null;
         if (c == CWarn && d.CanhBao.Length > 0) return WarnBg;
-        if ((c == CVao && d.SuaVao) || (c == CRa && d.SuaRa) || (c == CVs && d.SuaVSom) || (c == CChot && d.SuaChot) || ((c is CVao or CRa) && d.ChepTu.Length > 0)) return EditBg;
+        if ((c == CVao && d.SuaVao) || (c == CRa && d.SuaRa) || (c == CVs && d.SuaVSom) || (c == CChot && d.SuaChot) || (c == CSau && d.SuaSang) || ((c is CVao or CRa) && d.ChepTu.Length > 0)) return EditBg;
+        if (c is CSau or CSang && d.Nhan.Count > 0) return NhanBg;
+        if (c is CSau or CSang && d.Cho.Count > 0) return ChoBg;
         if (d.CanhBao.Length > 0 && c is CVaoM or CRaM) return WarnBg;
         return null;
     }
     private string? CTip(int r, int c) => CRow(r) is { } d && c == CNghi
-        ? $"Nghỉ trưa {d.Nv.Nhom} {CcCore.HmShort(Svc.CauHinh.NghiTruaOf(d.Nv.Nhom))}" + (d.VSom != 0 ? $" − V.Sớm {Ui.Num(d.VSom)} giờ" : "") + $"; có mặt ≤ {Svc.CauHinh.NuaNgayToiDa / 60.0:0.#} tiếng không trừ; ≥ {Svc.CauHinh.NghiToiTu / 60.0:0.#} tiếng trừ thêm {CcCore.HmShort(Svc.CauHinh.NghiToiPhut)}"
-        : null;
+        ? $"Nghỉ trưa {d.Nv.Nhom} {CcCore.HmShort(Svc.CauHinh.NghiTruaOf(d.Nv.Nhom))}" + $"; có mặt ≤ {Svc.CauHinh.NuaNgayToiDa / 60.0:0.#} tiếng không trừ; ≥ {Svc.CauHinh.NghiToiTu / 60.0:0.#} tiếng trừ thêm {CcCore.HmShort(Svc.CauHinh.NghiToiPhut)}"
+        : CRow(r) is { } v && c == CVs ? "V.Sớm = vào sớm / đi sớm: số giờ cộng thêm vào công ngày này" : null;
 
     /// <summary>So lưới với kết quả đang có → các sửa tay cần ghi.</summary>
     private List<CcSua> Diff()
@@ -321,9 +347,9 @@ public sealed class ChamCongView : UserControl, IPage
         for (var i = 0; i < _cRows.Count && i < _cm.RowCount; i++)
         {
             var d = _cRows[i];
-            string vao = _cm.Get(i, CVao).Trim(), ra = _cm.Get(i, CRa).Trim(), vs = _cm.Get(i, CVs).Trim(), chot = _cm.Get(i, CChot).Trim(), note = _cm.Get(i, CNote).Trim();
+            string vao = _cm.Get(i, CVao).Trim(), ra = _cm.Get(i, CRa).Trim(), vs = _cm.Get(i, CVs).Trim(), chot = _cm.Get(i, CChot).Trim(), sauS = _cm.Get(i, CSau).Trim(), note = _cm.Get(i, CNote).Trim();
             var s = old.TryGetValue((d.Nv.Id, d.Ngay), out var o) ? o : new CcSua { Nv = d.Nv.Id, Ngay = d.Ngay };
-            var before = (s.Vao, s.Ra, s.VSom, s.Chot, s.GhiChu);
+            var before = (s.Vao, s.Ra, s.VSom, s.Chot, s.SauSang, s.GhiChu);
             string Norm(string t) => CcCore.ParseTime(t) is int m ? CcCore.Hm(m) : t;
             // giờ: trùng giờ đang tính từ máy / chép → không ghi đè; khác → ghi đè (trống = không có giờ)
             var vaoNguon = s.ChepTu is { Length: > 0 } ? d.Vao : d.VaoGoc;
@@ -338,8 +364,14 @@ public sealed class ChamCongView : UserControl, IPage
                 else if (Ui.TryParseNumber(chot, out var cv)) s.Chot = Math.Abs(cv - d.Ket.Gio) < 1e-9 && !d.SuaChot ? null : cv;
                 else throw new KhoLanh.Core.Services.BusinessException($"Chốt \"{chot}\" không phải số.");
             }
+            if (sauS != (d.SauSang != 0 ? Ui.Num(d.SauSang) : ""))
+            {
+                if (sauS.Length == 0) s.SauSang = d.SuaSang ? null : 0;
+                else if (Ui.TryParseNumber(sauS, out var sv)) s.SauSang = sv;
+                else throw new KhoLanh.Core.Services.BusinessException($"Sau sang \"{sauS}\" không phải số.");
+            }
             s.GhiChu = note;
-            if (before != (s.Vao, s.Ra, s.VSom, s.Chot, s.GhiChu)) res.Add(s);
+            if (before != (s.Vao, s.Ra, s.VSom, s.Chot, s.SauSang, s.GhiChu)) res.Add(s);
         }
         return res;
     }
@@ -448,7 +480,9 @@ public sealed class ChamCongView : UserControl, IPage
             Row("Nửa ngày (không trừ nghỉ trưa)", T("có mặt ≤"), _nua, T("phút")),
             Row("Nghỉ tối", T("có mặt ≥"), _toiTu, T("phút → trừ thêm"), _toi, T("phút")),
             Row("Cảnh báo giờ vào quá sớm", T("trước"), _som, T("phút tính từ 0:00 (240 = 4:00)")),
-            Muted("Nghỉ trưa theo bộ phận (phút) ở bảng bên phải; bộ phận không có trong bảng thì không trừ nghỉ. V.Sớm (giờ) nhập từng ngày ở tab Chi tiết để bớt giờ nghỉ trưa."),
+            Row("Giờ 1 công", _chuan, T("phút (480 = 8 tiếng)")),
+            _sang,
+            Muted("Nghỉ trưa theo bộ phận (phút) ở bảng bên phải; bộ phận không có trong bảng thì không trừ nghỉ. V.Sớm (vào sớm / đi sớm, giờ) nhập từng ngày ở tab Chi tiết — cộng thẳng vào giờ công. Bù giờ dư tháng trước: bật từng tháng ở tab Bảng công."),
         } };
         if (Svc.CanEdit) left.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { Btn("Lưu cấu hình", SaveCauHinh, primary: true), Btn("Về mặc định", async () => { if (await Ui.Confirm(this, "Đưa quy tắc tính giờ về mặc định (theo bảng chấm công kho tháng 10/2026)?", "Về mặc định", "Đồng ý") && await Ui.Run(this, () => Svc.SaveCauHinh(new CcCauHinh()))) { PaintCauHinh(); Compute(); } }) } });
         var right = new DockPanel { Width = 380 };
@@ -465,7 +499,8 @@ public sealed class ChamCongView : UserControl, IPage
         var c = Svc.CauHinh;
         _pb.Text = c.PhongBan; _vTron.Text = c.VaoTronGio.ToString(); _vNua.Text = c.VaoNuaGio.ToString(); _rTron.Text = c.RaTronGio.ToString(); _rNua.Text = c.RaNuaGio.ToString();
         _nua.Text = c.NuaNgayToiDa.ToString(); _toiTu.Text = c.NghiToiTu.ToString(); _toi.Text = c.NghiToiPhut.ToString(); _som.Text = c.VaoSomNhat.ToString();
-        foreach (var b in new[] { _pb, _vTron, _vNua, _rTron, _rNua, _nua, _toiTu, _toi, _som }) b.IsReadOnly = !Svc.CanEdit;
+        _chuan.Text = c.GioChuan.ToString(); _sang.IsChecked = c.SangCong; _sang.IsEnabled = Svc.CanEdit;
+        foreach (var b in new[] { _pb, _vTron, _vNua, _rTron, _rNua, _nua, _toiTu, _toi, _som, _chuan }) b.IsReadOnly = !Svc.CanEdit;
         _tm.Load(new[] { new GridColumn("bp", "Bộ phận", 130), new GridColumn("ph", "Nghỉ trưa (phút)", 130, "number") }, c.NghiTrua.Select(p => (IEnumerable<string?>)new[] { p.Key, p.Value.ToString() }));
         _tg.Refresh();
     }
@@ -479,7 +514,9 @@ public sealed class ChamCongView : UserControl, IPage
             {
                 PhongBan = (_pb.Text ?? "").Trim(), VaoTronGio = I(_vTron, "vào tròn giờ"), VaoNuaGio = I(_vNua, "vào :30"), RaTronGio = I(_rTron, "ra tròn giờ"), RaNuaGio = I(_rNua, "ra :30"),
                 NuaNgayToiDa = I(_nua, "nửa ngày"), NghiToiTu = I(_toiTu, "nghỉ tối từ"), NghiToiPhut = I(_toi, "nghỉ tối"), VaoSomNhat = I(_som, "giờ vào quá sớm"),
+                GioChuan = I(_chuan, "giờ 1 công"), SangCong = _sang.IsChecked == true, BuThangTruoc = Svc.CauHinh.BuThangTruoc,
             };
+            if (c.GioChuan < 60) throw new KhoLanh.Core.Services.BusinessException("Giờ 1 công phải từ 60 phút trở lên.");
             if (c.VaoTronGio > c.VaoNuaGio || c.RaTronGio > c.RaNuaGio || c.VaoNuaGio > 60 || c.RaNuaGio > 60) throw new KhoLanh.Core.Services.BusinessException("Mốc làm tròn phải tăng dần và không quá 60 phút.");
             c.NghiTrua.Clear();
             for (var i = 0; i < _tm.RowCount; i++)

@@ -1856,7 +1856,16 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     if (l1.Vao != a1.Vao || l1.Chot != a1.Chot) Bad($"chép giờ: {l1.Vao}/{l1.Chot} ≠ {a1.Vao}/{a1.Chot}");
     var c9 = t.Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
     if (!c9.CanhBao.StartsWith("Chỉ có 1 lần chấm")) Bad("thiếu cảnh báo quên bấm ra: " + c9.CanhBao);
-    Console.WriteLine($"[CC] {t.Nvs.Count} người · tổng {t.Nvs.Sum(t.TongGio):0.##} giờ · cần xem {t.Rows.Count(x => x.CanhBao.Length > 0)} · đã sửa {t.Rows.Count(x => x.DaSua)}");
+    Console.WriteLine($"[CC] {t.Nvs.Count} người · tổng {t.Nvs.Sum(t.TongGio):0.##} giờ · cần xem {t.Rows.Count(x => x.CanhBao.Length > 0)} · đã sửa {t.Rows.Count(x => x.DaSua)} · sang công {t.SangList.Count} lần / {t.SangList.Sum(x => x.Lan.Gio):0.##} giờ");
+    if (t.SangList.Count == 0) Bad("không có lần sang công nào");
+    // sang công chỉ dời giờ giữa các ngày: tổng giờ không đổi; giờ dư chưa dùng vẫn nằm trên ngày làm dư (> 8 tiếng = tăng ca)
+    foreach (var n in t.Nvs)
+    {
+        if (Math.Abs(t.TongSau(n) - t.TongGio(n)) > 1e-6) Bad($"sang công làm đổi tổng giờ: {n.Ten} {t.TongSau(n)} ≠ {t.TongGio(n)}");
+        var du = t.Ngays.Sum(d => Math.Max(0, t.Dong[(n.Id, d)].SauSang - 8));
+        if (Math.Abs(du - t.DuCon[n.Id]) > 1e-6) Bad($"giờ dư còn lại lệch: {n.Ten} {du} ≠ {t.DuCon[n.Id]}");
+        if (t.DuCon[n.Id] > 0 && t.Ngays.Any(d => t.Dong[(n.Id, d)].SauSang < 8)) Bad($"{n.Ten} còn giờ dư mà vẫn có ngày chưa đủ 8 tiếng");
+    }
     Snap(main, "cc1-bang-cong");
     // sửa tay qua lưới Chi tiết: ngày 9 người thứ 3 quên bấm ra → gõ 17:00
     v!._tabs.SelectedIndex = 1; W();

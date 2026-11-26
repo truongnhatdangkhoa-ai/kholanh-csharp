@@ -91,9 +91,60 @@ public static class CcCore
         if (b <= a) return new(a, b, 0, 0, warn.Length > 0 ? warn : "Giờ ra không sau giờ vào");
         var span = b - a;
         var nghi = 0;
-        if (span > c.NuaNgayToiDa) nghi = Math.Max(0, c.NghiTruaOf(nhom) - (int)Math.Round(vsom * 60));
+        if (span > c.NuaNgayToiDa) nghi = c.NghiTruaOf(nhom);
         if (span >= c.NghiToiTu) nghi += c.NghiToiPhut;
-        return new(a, b, nghi, Math.Max(0, span - nghi), warn);
+        // V.Sớm = vào sớm / đi sớm (người dùng 26/11): giờ CỘNG THÊM vào ngày đó. Bảng Excel cũ trừ vào ô Nghỉ (cùng kết quả khi có nghỉ trưa);
+        // cộng thẳng để ngày nửa buổi (không trừ nghỉ trưa) vẫn được tính.
+        return new(a, b, nghi, Math.Max(0, span - nghi + (int)Math.Round(vsom * 60)), warn);
+    }
+
+    /// <summary>1 lần sang công: <paramref name="Gio"/> giờ từ ngày <paramref name="Tu"/> (null = giờ dư tháng trước) sang ngày <paramref name="Den"/>.</summary>
+    public sealed record Sang(DateOnly? Tu, DateOnly Den, double Gio);
+
+    /// <summary>
+    /// SANG CÔNG (người dùng 26/11: "ngày 5 làm 9 tiếng, ngày 6 làm 7 tiếng → sang 1 tiếng cho ngày 6, 2 ngày đủ 8 tiếng"):
+    /// giờ trên <paramref name="chuan"/> của mỗi ngày (kể cả Chủ nhật) bù cho ngày thiếu trong tháng — ngày có đi làm nhưng thiếu giờ trước,
+    /// rồi tới ngày nghỉ hẳn (0 giờ); luôn ghép cặp ngày thiếu – ngày dư GẦN NHAU NHẤT trước; <paramref name="duTruoc"/> =
+    /// giờ dư còn lại của tháng trước (coi như ngày cuối tháng trước). Ngày <c>Khoa</c> (đã sửa tay "Sau sang") không cho / không nhận.
+    /// Trả giờ sau sang từng ngày, danh sách lần sang và giờ dư còn lại (= tăng ca chưa dùng).
+    /// </summary>
+    public static (double[] Sau, List<Sang> Lan, double Con) SangCong(IReadOnlyList<(DateOnly Ngay, double Gio, bool Khoa)> days, double chuan, double duTruoc = 0)
+    {
+        var sau = days.Select(d => d.Gio).ToArray();
+        var lan = new List<Sang>();
+        if (days.Count == 0) return (sau, lan, Math.Max(0, duTruoc));
+        // nguồn: (chỉ số ngày hoặc -1 = tháng trước, ngày, giờ còn)
+        var nguon = new List<(int I, DateOnly Ngay, double Con)>();
+        if (duTruoc > 1e-9) nguon.Add((-1, days[0].Ngay.AddDays(-1), duTruoc));
+        for (var i = 0; i < days.Count; i++)
+            if (!days[i].Khoa && days[i].Gio > chuan + 1e-9) nguon.Add((i, days[i].Ngay, days[i].Gio - chuan));
+        var thieu = Enumerable.Range(0, days.Count).Where(i => !days[i].Khoa && days[i].Gio < chuan - 1e-9).ToList();
+        // 2 lượt: ngày có đi làm nhưng thiếu giờ, rồi ngày nghỉ hẳn; mỗi bước ghép cặp (ngày thiếu, ngày dư) GẦN NHAU NHẤT
+        // (bằng nhau → ngày thiếu sớm hơn, ngày dư trước ngày thiếu)
+        foreach (var nhom in new[] { thieu.Where(i => days[i].Gio > 1e-9).ToList(), thieu.Where(i => days[i].Gio <= 1e-9).ToList() })
+            while (true)
+            {
+                int bi = -1, bk = -1; long best = long.MaxValue;
+                foreach (var i in nhom)
+                {
+                    if (chuan - sau[i] <= 1e-9) continue;
+                    for (var k = 0; k < nguon.Count; k++)
+                    {
+                        if (nguon[k].Con <= 1e-9) continue;
+                        long key = (long)Math.Abs(nguon[k].Ngay.DayNumber - days[i].Ngay.DayNumber) * 1_000_000 + (long)(days[i].Ngay.DayNumber % 100_000) * 2 + (nguon[k].Ngay > days[i].Ngay ? 1 : 0);
+                        if (key < best) { best = key; bi = i; bk = k; }
+                    }
+                }
+                if (bi < 0) break;
+                var lay = Math.Min(chuan - sau[bi], nguon[bk].Con);
+                nguon[bk] = nguon[bk] with { Con = nguon[bk].Con - lay };
+                if (nguon[bk].I >= 0) sau[nguon[bk].I] -= lay;
+                sau[bi] += lay;
+                lan.Add(new(nguon[bk].I >= 0 ? nguon[bk].Ngay : null, days[bi].Ngay, Math.Round(lay, 2)));
+            }
+        lan.Sort((x, y) => x.Den != y.Den ? x.Den.CompareTo(y.Den) : Nullable.Compare(x.Tu, y.Tu));
+        for (var i = 0; i < sau.Length; i++) sau[i] = Math.Round(sau[i], 2);
+        return (sau, lan, Math.Round(nguon.Sum(n => n.Con), 2));
     }
 }
 
@@ -110,6 +161,12 @@ public sealed class CcCauHinh
     public int NghiToiTu = 900, NghiToiPhut = 60;
     /// <summary>Giờ vào trước mốc này (phút) → cảnh báo (thường là lần bấm ra của đêm trước).</summary>
     public int VaoSomNhat = 240;
+    /// <summary>Giờ 1 công (phút) — mốc sang công.</summary>
+    public int GioChuan = 480;
+    /// <summary>Tự sang công (giờ dư bù ngày thiếu trong tháng).</summary>
+    public bool SangCong = true;
+    /// <summary>Các tháng (yyyy-MM) lấy thêm giờ dư còn lại của tháng trước để bù.</summary>
+    public HashSet<string> BuThangTruoc = new();
 
     public int NghiTruaOf(string nhom) => NghiTrua.TryGetValue(CcCore.NormNhom(nhom), out var v) ? v : 0;
 
@@ -118,6 +175,8 @@ public sealed class CcCauHinh
         ["phongBan"] = PhongBan, ["vaoTron"] = VaoTronGio, ["vaoNua"] = VaoNuaGio, ["raTron"] = RaTronGio, ["raNua"] = RaNuaGio,
         ["nghiTrua"] = new JsonObject(NghiTrua.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)p.Value))),
         ["nuaNgay"] = NuaNgayToiDa, ["nghiToiTu"] = NghiToiTu, ["nghiToi"] = NghiToiPhut, ["vaoSomNhat"] = VaoSomNhat,
+        ["gioChuan"] = GioChuan, ["sangCong"] = SangCong ? "1" : "0",
+        ["buThangTruoc"] = new JsonArray(BuThangTruoc.OrderBy(x => x, StringComparer.Ordinal).Select(x => (JsonNode)x).ToArray()),
     };
 
     public static CcCauHinh From(JsonObject? o)
@@ -128,6 +187,8 @@ public sealed class CcCauHinh
         c.PhongBan = o["phongBan"]?.ToString() ?? c.PhongBan;
         c.VaoTronGio = I("vaoTron", c.VaoTronGio); c.VaoNuaGio = I("vaoNua", c.VaoNuaGio); c.RaTronGio = I("raTron", c.RaTronGio); c.RaNuaGio = I("raNua", c.RaNuaGio);
         c.NuaNgayToiDa = I("nuaNgay", c.NuaNgayToiDa); c.NghiToiTu = I("nghiToiTu", c.NghiToiTu); c.NghiToiPhut = I("nghiToi", c.NghiToiPhut); c.VaoSomNhat = I("vaoSomNhat", c.VaoSomNhat);
+        c.GioChuan = I("gioChuan", c.GioChuan); c.SangCong = o["sangCong"]?.ToString() != "0";
+        if (o["buThangTruoc"] is JsonArray bt) foreach (var x in bt) if (x?.ToString() is { Length: 7 } k) c.BuThangTruoc.Add(k);
         if (o["nghiTrua"] is JsonObject nt)
         {
             c.NghiTrua.Clear();
@@ -156,7 +217,9 @@ public sealed class CcSua
     public DateOnly Ngay;
     public string? Vao, Ra, ChepTu;
     public double? VSom, Chot;
-    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && GhiChu.Length == 0;
+    /// <summary>Giờ sau sang công sửa tay (ngày này không cho / nhận sang công tự động).</summary>
+    public double? SauSang;
+    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && GhiChu.Length == 0;
 }
 
 /// <summary>Kết quả 1 nhân viên × 1 ngày.</summary>
@@ -169,7 +232,11 @@ public sealed class CcDong
     public CcCore.Ket Ket = null!;
     /// <summary>Giờ chốt (ghi đè tay nếu có).</summary>
     public double Chot;
-    public bool SuaVao, SuaRa, SuaVSom, SuaChot;
-    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || ChepTu.Length > 0;
+    public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang;
+    /// <summary>Giờ sau sang công (= <see cref="Chot"/> khi không sang).</summary>
+    public double SauSang;
+    /// <summary>Lần sang công nhận vào / cho đi của ngày này.</summary>
+    public List<CcCore.Sang> Nhan = new(), Cho = new();
+    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || ChepTu.Length > 0;
     public bool CoMat => Chot > 0;
 }
