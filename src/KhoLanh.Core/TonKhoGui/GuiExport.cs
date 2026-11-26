@@ -54,6 +54,17 @@ public static class GuiExport
 
     // ---------- Bảng Tổng Hợp (Báo Cáo)
     public static string BangTongHopFileName(DateTime t) => $"BangTongHop_{t:yyyyMMdd}_{t:HHmm}.xlsx";
+    /// <summary>1.126 "Xuất file HLSO tự chọn" (như Tồn kho An An): sheet Bảng Tổng Hợp chỉ gồm nhóm đã chọn (summary) + 1 sheet dữ liệu mỗi nhóm đã chọn (pick). Không có sheet nào → null.</summary>
+    public static XlsxOut? TuChon(GuiData d, string reportDate, bool summary, IReadOnlyCollection<string> pick)
+    {
+        var x = new XlsxOut();
+        if (summary && pick.Count > 0) x.Sheets.Add(BangTongHop(d.ComputePivot(pick.ToHashSet()), reportDate).Sheets[0]);
+        foreach (var g in GuiData.Groups)
+            if (pick.Contains(g.Id)) x.Sheets.Add(Rows(d, d.GroupRows(g.Id), GroupSheetName(g.Id)).Sheets[0]);
+        return x.Sheets.Count == 0 ? null : x;
+    }
+    public static string TuChonFileName(DateTime t) => $"BangTongHop_TuChon_{t:yyyyMMdd}_{t:HHmm}.xlsx";
+
     public static XlsxOut BangTongHop(GuiData.Pivot p, string reportDate)
     {
         var used = GuiData.DtGroups.Where(g => (p.Grand.ByGroup.TryGetValue(g, out var v) && v != 0) || p.Cats.Any(c => c.B.ByGroup.TryGetValue(g, out var x) && x != 0)).ToList();

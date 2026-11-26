@@ -148,6 +148,21 @@ public class TonKhoGuiTests : IDisposable
         using var w3 = new XLWorkbook(p3); Assert.Equal("TỔNG", w3.Worksheet(1).Cell(9, 3).GetString());
     }
     [Fact]
+    public void Xuat_file_HLSO_tu_chon_chi_gom_nhom_da_chon()
+    {
+        var g = _s.Gui; g.Commit(g.Preview(Xlsx("tc.xlsx", Sample)));
+        g.SaveManual(new[] { ("x", "83.EU") }); g.MergeGroup(new[] { "83.EU" }, "EU");
+        var only = g.D.ComputePivot(new HashSet<string> { "5" });
+        Assert.Equal(new[] { "TÔM HLSO" }, only.Cats.Select(c => c.Label).ToArray());
+        Assert.Equal(only.Cats[0].B.Tong, only.Grand.Tong, 6);
+        var p = Path.Combine(_dir, "tc-out.xlsx"); GuiExport.TuChon(g.D, "23/11/2026", true, new[] { "5" })!.Save(p);
+        using (var wb = new XLWorkbook(p)) { Assert.Equal(2, wb.Worksheets.Count); Assert.Equal("Tom HLSO", wb.Worksheet(2).Name); }
+        var p2 = Path.Combine(_dir, "tc-out2.xlsx"); GuiExport.TuChon(g.D, "", false, new[] { "5", "nl" })!.Save(p2);
+        using (var wb = new XLWorkbook(p2)) Assert.Equal(new[] { "Tom Nguyen Lieu", "Tom HLSO" }, wb.Worksheets.Select(w => w.Name).ToArray());
+        Assert.Null(GuiExport.TuChon(g.D, "", true, Array.Empty<string>()));
+    }
+
+    [Fact]
     public void Custom_summary_filters_sizes_and_columns()
     {
         var g = _s.Gui; g.Commit(g.Preview(Xlsx("cs.xlsx", Sample)));
