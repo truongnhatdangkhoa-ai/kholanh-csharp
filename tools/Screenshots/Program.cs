@@ -1907,6 +1907,29 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v205")
     w.Close();
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v205) — ĐẠT: " : "Xong (v205) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.139: Hẹn giờ tắt máy — SHOTS_ONLY=hg: trang ở 1366×768, trước / sau khi có hẹn giờ (chỉ ghi settings, KHÔNG gọi lệnh shutdown thật); thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "hg")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[HG] SAI: " + m); }
+    void W(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(20); Pump(); } }
+    main.Width = 1366; main.Height = 768; W();
+    main.Navigate("hengio"); W(40);
+    var v = main.PageHost.GetVisualDescendants().OfType<HenGioView>().FirstOrDefault();
+    if (v is null) { Bad("không mở được trang Hẹn giờ tắt máy"); s.Lan.Dispose(); Environment.Exit(1); }
+    string Texts() => string.Join(" | ", v!.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? ""));
+    if (!Texts().Contains("Chưa hẹn giờ tắt máy")) Bad("trạng thái đầu không đúng: " + Texts());
+    CheckUnderNav(main, "hg-1366");
+    Snap(main, "hg1-chua-hen");
+    s.Settings.Set(KhoLanh.Core.HenGio.HenGioService.Key, DateTime.Now.AddMinutes(95).ToString("o"));
+    main.Navigate("lx"); W(10); main.Navigate("hengio"); W(40);
+    v = main.PageHost.GetVisualDescendants().OfType<HenGioView>().FirstOrDefault();
+    if (v is null || !Texts().Contains("Máy tắt lúc") || !Texts().Contains("Còn 1 giờ")) Bad("không hiện đếm ngược: " + (v is null ? "" : Texts()));
+    var huy = v!.GetVisualDescendants().OfType<Avalonia.Controls.Button>().FirstOrDefault(b => (KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").Contains("Hủy hẹn giờ"));
+    if (huy is null || !huy.IsEnabled) Bad("nút Hủy hẹn giờ không bật khi đang hẹn");
+    Snap(main, "hg2-dang-hen");
+    s.Settings.Set(KhoLanh.Core.HenGio.HenGioService.Key, "");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (hg) — ĐẠT: " : "Xong (hg) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: Chấm công — dữ liệu GIẢ (tên giả) theo đúng dạng file "Chi tiết chấm công" của máy chấm công; tự kiểm tính giờ + sửa tay qua lưới.
 // SHOTS_ONLY=cc; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
