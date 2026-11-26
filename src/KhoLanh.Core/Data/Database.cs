@@ -40,15 +40,11 @@ public class Database
 
     public SqliteConnection Open()
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
         var c = new SqliteConnection(_connectionString);
         c.Open();
-        var t1 = sw.ElapsedMilliseconds;
         c.Execute("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
         if (!OperatingSystem.IsWindows() && BusyOk)
             try { sqlite3_busy_handler(c.Handle!.DangerousGetHandle(), Busy, IntPtr.Zero); } catch { BusyOk = false; }
-        if (Diag) lock (Recent) { Recent.Enqueue((Environment.TickCount64, Environment.CurrentManagedThreadId, new System.Diagnostics.StackTrace(1, false).ToString())); while (Recent.Count > 60) Recent.Dequeue(); }
-        if (Diag && sw.ElapsedMilliseconds > 100) Console.WriteLine($"[SQLDIAG] Open chậm {t1}/{sw.ElapsedMilliseconds} ms luồng {Environment.CurrentManagedThreadId} {System.IO.Path.GetFileName(FilePath)}\n{Environment.StackTrace}");
         return c;
     }
 
@@ -68,24 +64,6 @@ public class Database
     private static bool BusyOk = true;
     [System.Runtime.InteropServices.DllImport("e_sqlite3", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
     private static extern int sqlite3_busy_handler(IntPtr db, BusyFn fn, IntPtr arg);
-    public static readonly Queue<(long At, int Th, string St)> Recent = new();
-    public static string RecentText(long ms) { lock (Recent) { var now = Environment.TickCount64; return string.Join("\n----\n", Recent.Where(r => now - r.At < ms).Select(r => $"t-{now - r.At} th{r.Th}\n" + string.Join("\n", r.St.Split('\n').Where(l => l.Contains("KhoLanh")).Take(6)))); } }
-    public static readonly bool Diag = Environment.GetEnvironmentVariable("KL_SQL_DIAG") == "1";
-    private static readonly Dictionary<string, SqliteConnection> Keepers = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>
-    /// 1.136 (hiệu năng): giữ 1 kết nối mở suốt lúc app chạy. Không có nó, mỗi lần kết nối CUỐI CÙNG đóng (Pooling = false) SQLite gộp
-    /// nhật ký WAL vào file + xóa WAL / bộ nhớ chia sẻ (khóa độc quyền), kết nối mở ngay sau đó phải dựng lại và có thể phải chờ.
-    /// Kết nối này không dùng để đọc / ghi.
-    /// </summary>
-    public void KeepAlive()
-    {
-        lock (Keepers)
-        {
-            if (Keepers.ContainsKey(FilePath)) return;
-            try { Keepers[FilePath] = Open(); } catch { /* không giữ được: chạy như cũ */ }
-        }
-    }
-
     public void Initialize()
     {
         using var c = Open();

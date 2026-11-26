@@ -14,9 +14,6 @@ public partial class App : Application
 
     public override void Initialize()
     {
-        // 1.136 (hiệu năng): GC không dừng hẳn luồng giao diện để dọn thế hệ 2 (đo: đứng 0,3–1 s ngẫu nhiên khi đọc lại bảng lớn) — dọn nền,
-        // chỉ dừng hẳn khi bộ nhớ thật sự thiếu.
-        System.Runtime.GCSettings.LatencyMode = System.Runtime.GCLatencyMode.SustainedLowLatency;
         AvaloniaXamlLoader.Load(this); AppTheme.Install(this); Controls.Icon.InstallEmojiSwap(); Controls.HintTrim.Install(); Controls.CopyText.Install(); Controls.TextSelect.Install(); TitleBar.Install();
     }
 
@@ -149,7 +146,6 @@ public partial class App : Application
             try { KhoLanh.Core.Lan.LanService.ImportBundle(Services.Settings, lan); Services = new AppServices(db); }
             catch { /* mã hỏng: dùng như máy đơn */ }
         }
-        Services.Db.KeepAlive();   // 1.136: không để luồng giao diện chờ SQLite gộp WAL mỗi lần kết nối cuối đóng
         // 1.121: bỏ Thư mục / Drive dùng chung — máy cũ còn cài tự chuyển (trước khi bật LAN); câu báo hiện ở tab Máy chủ / nhật ký.
         DriveRetireNote = Services.RetireDriveSync() ?? "";
         if (Services.RetireStandby() is { } sb) DriveRetireNote = DriveRetireNote.Length > 0 ? DriveRetireNote + "\n" + sb : sb;   // 1.131

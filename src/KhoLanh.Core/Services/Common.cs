@@ -96,10 +96,7 @@ public class SettingsService
     public string Get(string key, string fallback = "")
     {
         using var c = _db.Open();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var r = c.ExecuteScalar<string?>("SELECT value FROM settings WHERE key=@key", new { key }) ?? fallback;
-        if (Database.Diag && sw.ElapsedMilliseconds > 100) Console.WriteLine($"[SQLDIAG] Get {key} chậm {sw.ElapsedMilliseconds} ms\n" + Database.RecentText(1500));
-        return r;
+        return c.ExecuteScalar<string?>("SELECT value FROM settings WHERE key=@key", new { key }) ?? fallback;
     }
 
     public void Set(string key, string value)
