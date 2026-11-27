@@ -54,7 +54,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     private static readonly string[] Cols = { "ngay", "ma", "ten", "ksl", "knet", "xsl", "xnet", "dsl", "dnet", "tt", "gc" };
     private static readonly (string Key, string Text)[] Filters =
     {
-        ("can", "Cần xem (chưa khớp)"), ("all", "Tất cả"), ("lech", "Lệch"), ("chi_kho", "Chỉ có ở Kho"), ("chi_xuong", "Chỉ có ở Xưởng"), ("zero", "Ghi 0"), ("khop", "Khớp"),
+        ("can", "Cần xem (chưa khớp)"), ("all", "Tất cả"), ("lech", "Lệch"), ("chi_kho", "Chỉ có ở Kho"), ("chi_xuong", "Chỉ có ở Xưởng"), ("xk", "Xuất kiểm"), ("zero", "Ghi 0"), ("khop", "Khớp"),
     };
 
     // ---------- tab Liên kết file
@@ -230,7 +230,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         {
             var s = r.Summary;
             _summary.Text = $"{p.Kho!.File} ↔ Xưởng “{p.XuongSheet}” · {s.NNgay} ngày ({s.NNgayLech} ngày có lệch) · {s.NMuc} mục: " +
-                $"{s.NKhop} khớp · {s.NLech} lệch · {s.NChiKho} chỉ có ở Kho · {s.NChiXuong} chỉ có ở Xưởng" + (s.NZero > 0 ? $" · {s.NZero} ghi 0" : "") +
+                $"{s.NKhop} khớp · {s.NLech} lệch · {s.NChiKho} chỉ có ở Kho · {s.NChiXuong} chỉ có ở Xưởng" + (s.NZero > 0 ? $" · {s.NZero} ghi 0" : "") + (s.NXk > 0 ? $" · {s.NXk} xuất kiểm" : "") +
                 $"  |  Kho {N(s.KSl)} · {Kg(s.KNet)} kg — Xưởng {N(s.XSl)} · {Kg(s.XNet)} kg — Δ {SgnN(s.DSl)} · {SgnKg(s.DNet)} kg" +
                 (r.NNhanh > 0 ? $"  |  {r.NNhanh} mục BTP / NL so nhanh theo Size + kg/thùng" : "");
         }
@@ -248,7 +248,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     private bool Pass(Item it)
     {
         var f = Filters[Math.Max(0, _filter.SelectedIndex)].Key;
-        if (f == "can" && it.Status == "khop") return false;
+        if (f == "can" && it.Status is "khop" or "xk") return false;   // 1.170: Xuất kiểm không cần xem
         if (f is not ("can" or "all") && it.Status != f) return false;
         if (_hideZero.IsChecked == true && (it.KSl ?? 0) == 0 && (it.XSl ?? 0) == 0 && (it.KNet ?? 0) == 0 && (it.XNet ?? 0) == 0) return false;
         var q = (_q.Text ?? "").Trim();
@@ -280,17 +280,17 @@ public sealed partial class DoiChieuView : UserControl, IPage
                 if (d.CheckXuong is { Khop: false } cx) warn.Add($"dòng tổng Xưởng ghi {N(cx.Sl)} · {Kg(cx.Net)} kg ≠ cộng chi tiết");
                 if (d.NcKho is { } nk) warn.Add($"Kho có {nk.N} dòng chưa mã ({N(nk.Sl)})");
                 if (d.NcXuong is { } nx) warn.Add($"Xưởng có {nx.N} dòng chưa mã ({N(nx.Sl)})");
-                var sum = $"{d.Items.Count} mục · {d.NLech} lệch · {d.NChiKho + d.NChiXuong} chỉ 1 bên";
+                var sum = $"{d.Items.Count} mục · {d.NLech} lệch · {d.NChiKho + d.NChiXuong} chỉ 1 bên" + (d.NXk > 0 ? $" · {d.NXk} xuất kiểm" : "");
                 foreach (var it in items)
                 {
                     var note = Svc.NoteOf(_pid, it);
                     rows.Add(new[] { Dmy(it.Ngay), it.Ma, it.TheoSize ? (it.Ten.Length > 0 ? it.Ten : it.Size) : it.Ten, Inv(it.KSl), Inv(it.KNet), Inv(it.XSl), Inv(it.XNet),
-                        it.Status == "khop" ? "" : Inv(it.DSl), it.Status == "khop" ? "" : Inv(it.DNet), StatusText.GetValueOrDefault(it.Status, it.Status), note.Line });
+                        it.Status is "khop" or "xk" ? "" : Inv(it.DSl), it.Status is "khop" or "xk" ? "" : Inv(it.DNet), StatusText.GetValueOrDefault(it.Status, it.Status), note.Line });
                     _rowItem.Add(it); _rowDay.Add(d);
                 }
                 // 1.166: dòng TỔNG nằm DƯỚI khối chi tiết của ngày (như file Excel Kho / Xưởng)
                 rows.Add(new[] { Dmy(d.Ngay), "TỔNG", sum,
-                    Inv(d.Kho.Sl), Inv(d.Kho.Net), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", sum + (warn.Count > 0 ? " · ⚠ " + string.Join(" · ", warn) : "") });
+                    Inv(d.Kho.Sl - d.XkSl), Inv(d.Kho.Net - d.XkNet), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", sum + (warn.Count > 0 ? " · ⚠ " + string.Join(" · ", warn) : "") });
                 _rowItem.Add(null); _rowDay.Add(d);
             }
         }
@@ -310,6 +310,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         return c is 7 or 8 ? (c == 7 ? SgnN(d) : SgnKg(d)) : c is 4 or 6 ? Kg(d) : N(d);
     }
 
+    private static readonly IBrush XkBg = AppTheme.Brush("#EEEBFC");
     private static readonly IBrush TotOk = AppTheme.Brush("#1E7B4A"), TotBad = AppTheme.Brush("#B42318");
     /// <summary>1.166: dòng TỔNG — số màu xanh lá, lệch (Δ, "Có lệch") màu đỏ; chữ còn lại giữ màu đen.</summary>
     private IBrush? Fg(int r, int c)
@@ -327,7 +328,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
         if (it is null) return null;   // 1.166: dòng TỔNG không tô nền ô — chỉ đổi màu chữ số (CellFg)
         if (c is 5 or 6 && Svc.EditOf(_pid, "xuong", it.Ngay, it.Ma, c == 5 ? "sl" : "net") is not null) return EditedBg;
         if (c is 3 or 4 && Svc.EditOf(_pid, "kho", it.Ngay, it.Ma, c == 3 ? "sl" : "net") is not null) return EditedBg;
-        if (c == 9) return it.Status switch { "lech" => LechBg, "chi_kho" => ChiKhoBg, "chi_xuong" => ChiXuongBg, "khop" => KhopBg, "zero" => ZeroBg, _ => null };
+        if (c == 9) return it.Status switch { "lech" => LechBg, "chi_kho" => ChiKhoBg, "chi_xuong" => ChiXuongBg, "khop" => KhopBg, "xk" => XkBg, "zero" => ZeroBg, _ => null };
         if (c == 10 && _gm.Get(r, 10).StartsWith('⇄')) return MoveBg;
         if (c is 7 or 8 && it.Status == "lech") return LechBg;
         return null;

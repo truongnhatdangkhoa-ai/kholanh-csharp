@@ -249,6 +249,34 @@ public class DoiChieuTests : IDisposable
     }
 
     [Fact]
+    public void Chuyen_xuat_kiem_ghi_vao_file_Kho_ghi_chu_va_khong_doi_chieu_Xuong()
+    {
+        // 1.170: mã chuyển từ tab Xuất kiểm → thêm vào file Kho, trạng thái "xk" (không chi_kho / lệch), Δ ngày không tính, đánh dấu chặn chuyển lại, hoàn tác bỏ dấu
+        var dc = Linked();
+        var g = new XuatKiem.Group { Ngay = "2026-11-03", Ma = MD, Ten = "Tôm D", Sl = 5, Tlg = 2, Net = 10 };
+        Assert.Equal(0, dc.XkTo(g.Ngay, g.Ma));
+        var before = dc.P1.Result!.Summary;
+        var r = dc.ChuyenXuatKiem(1, new[] { g });
+        Assert.StartsWith("✔", r.Message);
+        Assert.Contains(dc.P1.Kho!.Res.Rows, x => x.Ma == MD && x.Ngay == "2026-11-03" && x.Sl == 5 && x.Net == 10);   // đã ghi vào file Excel Kho
+        var it = dc.P1.Result!.Items.Single(i => i.Ma == MD);
+        Assert.Equal("xk", it.Status); Assert.Equal((0, 0), (it.DSl, it.DNet));
+        Assert.Equal(1, dc.P1.Result.Summary.NXk);
+        Assert.Equal(before.NChiKho, dc.P1.Result.Summary.NChiKho);                     // không thành "Chỉ có ở Kho"
+        var day = dc.P1.Result.Days.Single(d => d.Ngay == "2026-11-03");
+        Assert.Equal((1, 0, 5.0), (day.NXk, day.NChiKho, day.XkSl)); Assert.False(day.CoLech);
+        Assert.Equal(before.KSl, dc.P1.Result.Summary.KSl);                              // tổng Kho đối chiếu không gồm mã Xuất kiểm
+        Assert.Equal(1, dc.XkTo(g.Ngay, g.Ma)); Assert.Contains("Xuất kiểm", dc.NoteOf(1, it).Line);
+        Assert.Equal("Xuất kiểm", DcxEngine.StatusText["xk"]);
+        // dấu lưu theo tài khoản → nạp lại vẫn còn; hoàn tác phiếu chuyển bỏ cả dòng Excel lẫn dấu
+        var again = new DoiChieuService(() => _s.Lan, _s.Session, _s.Audit, _s.Settings, _dir); again.Load();
+        Assert.Equal(1, again.XkTo(g.Ngay, g.Ma));
+        dc.UndoLog(dc.St.Log[^1].Id);
+        Assert.Equal(0, dc.XkTo(g.Ngay, g.Ma)); Assert.DoesNotContain(dc.P1.Kho!.Res.Rows, x => x.Ma == MD && x.Ngay == "2026-11-03");
+        Assert.Throws<BusinessException>(() => dc.ChuyenXuatKiem(1, new[] { new XuatKiem.Group { Ngay = "2026-11-03", Ma = MD, Sl = 0 } }));
+    }
+
+    [Fact]
     public void Commit_refuses_when_file_changed_outside()
     {
         var dc = Linked();
