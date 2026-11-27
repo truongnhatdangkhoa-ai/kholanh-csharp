@@ -1250,9 +1250,25 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v253")
         if (dlg.Bounds.Height > 768) Bad("hộp xác nhận cao hơn màn hình 768");
         if (napBtn is null || (napBtn.TranslatePoint(new Point(0, napBtn.Bounds.Height), dlg)?.Y ?? 9999) > dlg.Bounds.Height) Bad("nút Nạp nằm ngoài hộp");
         if (gridNk?.Model.RowCount != 12) Bad($"bảng phải 12 dòng (mỗi Size 1 dòng), có {gridNk?.Model.RowCount}");
+        // 1.183: kiểm soát trước khi nạp — tình trạng, duyệt, sửa ô, dòng đỏ không nạp được
+        if (gridNk is not null)
+        {
+            var tt = Enumerable.Range(0, gridNk.Model.RowCount).Select(r => gridNk.Model.Get(r, 0)).ToList();
+            Console.WriteLine($"[v255] tình trạng: {tt.Count(x => x.StartsWith("✔"))} xanh · {tt.Count(x => x.StartsWith("⚠"))} vàng · {tt.Count(x => x.StartsWith("✖"))} đỏ; đã tích {gridNk.CheckedRows.Count}");
+            if (gridNk.CheckedRows.Count == 0) Bad("dòng đọc đủ phải được tích sẵn");
+            // sửa ô INVOICE dòng 1 → ghi nhận ô đã sửa, tình trạng đỏ khi xóa INVOICE
+            var inv0 = gridNk.Model.Get(1, 5);
+            gridNk.Model.Set(1, 5, ""); P(20);
+            if (!gridNk.Model.Get(1, 0).StartsWith("✖")) Bad("xóa INVOICE phải thành đỏ, có: " + gridNk.Model.Get(1, 0));
+            gridNk.SetChecked(new[] { 1 }, true); P(10);
+            if (gridNk.CheckedRows.Contains(1)) Bad("dòng đỏ không được tích");
+            gridNk.Model.Set(1, 5, "INV-SUA-TAY"); P(20);
+            if (gridNk.Model.Get(1, 0).StartsWith("✖")) Bad("điền INVOICE xong không còn đỏ");
+            Snap(dlg, "v255-nap-tom-nhap-khau-kiem-soat");
+        }
         dlg.Close(); P(10);
     }
-    if (!pend.IsCompleted || pend.Result) Bad("đóng hộp phải trả về không nạp");
+    if (!pend.IsCompleted || pend.Result is not null) Bad("đóng hộp phải trả về không nạp");
     // Hộp thông báo chữ dài: phần chữ cuộn, nút Đóng không bị đẩy khuất
     var msg = KhoLanh.App.Ui.Message(w, string.Join("\n", Enumerable.Range(1, 80).Select(i => $"Dòng thông báo dài số {i}"))); P(30);
     var mw = w.OwnedWindows.LastOrDefault();

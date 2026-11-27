@@ -41,6 +41,10 @@ public static class KhangSinhNhapKhau
             }
         }
         public bool IsNhiem => Nhiem.Count > 0;
+        public Mau Clone() => new()
+        {
+            Stt = Stt, Ten = Ten, NgayNhap = NgayNhap, Kien = Kien, Inputs = new(Inputs), Kq = Kq, DatTinh = DatTinh, GhiChu = GhiChu,
+        };
         public JsonObject ToJson()
         {
             var inp = new JsonArray(Keys.Select(k => (JsonNode)(Inputs.GetValueOrDefault(k) ?? "")).ToArray());
@@ -140,6 +144,17 @@ public static class KhangSinhNhapKhau
         public List<Mau> Mau = new();
         public List<string> Issues = new();               // lỗi / cảnh báo khi đọc
         public byte[] Bytes = Array.Empty<byte>();
+        /// <summary>1.183: các chỗ người dùng sửa tay trước khi nạp (ghi vào bản ghi để biết dữ liệu không hoàn toàn từ PDF).</summary>
+        public List<string> Edits = new();
+        /// <summary>Bản sao sâu (dùng giữ bản "đọc từ PDF" và tạo phiếu con chỉ gồm các Size đã duyệt).</summary>
+        public Phieu Clone(Func<Mau, bool>? keep = null) => new()
+        {
+            File = File, So = So, Date = Date, Title = Title, Country = Country, Invoice = Invoice, InvDate = InvDate, Contract = Contract, Tp = Tp,
+            Lod = new(Lod), Issues = new(Issues), Bytes = Bytes, Edits = new(Edits),
+            Mau = Mau.Where(m => keep is null || keep(m)).Select(m => m.Clone()).ToList(),
+        };
+        /// <summary>Số mẫu lớn nhất ghi trong phiếu (so với số mẫu đọc được).</summary>
+        public int MaxStt => Mau.Count == 0 ? 0 : Mau.Max(m => m.Stt);
         public List<(string Hang, string Size, List<Mau> Mau)> BySize() =>
             Mau.GroupBy(m => HangSize(m.Ten)).Select(g => (g.Key.Hang, g.Key.Size, g.OrderBy(m => m.Stt).ToList())).ToList();
     }
@@ -169,7 +184,7 @@ public static class KhangSinhNhapKhau
         return p;
     }
 
-    private static string DateIso(string s)
+    public static string DateIso(string s)
     {
         var m = Regex.Match(s ?? "", @"(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})");
         return m.Success ? $"{m.Groups[3].Value}-{m.Groups[2].Value.PadLeft(2, '0')}-{m.Groups[1].Value.PadLeft(2, '0')}" : "";
@@ -326,6 +341,54 @@ public static class KhangSinhNhapKhau
         }
     }
 
+
+    // ================================================================== 1.183: kiểm soát trước khi nạp
+
+    /// <summary>Mức tin cậy của 1 dòng (1 Size của 1 phiếu): 0 đọc đủ · 1 có cảnh báo cần xem · 2 thiếu thông tin cốt lõi — không cho nạp.</summary>
+    public static (int Level, string Text) Status(Phieu p, string hang, string size, List<Mau> mau)
+    {
+        var bad = new List<string>();
+        if (p.So.Length == 0) bad.Add("thiếu số phiếu");
+        if (p.Invoice.Length == 0) bad.Add("thiếu INVOICE");
+        if (p.Contract.Length == 0) bad.Add("thiếu Contract");
+        if (p.Date.Length == 0) bad.Add("thiếu ngày phân tích");
+        if (size.Length == 0) bad.Add("thiếu Size");
+        if (hang.Length == 0) bad.Add("thiếu tên hàng");
+        if (mau.Count == 0) bad.Add("không có mẫu");
+        if (bad.Count > 0) return (2, string.Join(", ", bad));
+        var warn = new List<string>();
+        foreach (var m in mau)
+        {
+            var tag = $"Mẫu {m.Stt}:";
+            var n = p.Issues.Count(i => i.StartsWith("•") && i.Contains(tag));
+            if (n > 0) warn.Add($"mẫu {m.Stt}");
+            else if (m.Kien == 0 || m.DatTinh.Length == 0) warn.Add($"mẫu {m.Stt}");
+        }
+        if (p.Issues.Any(i => i.StartsWith("•") && (i.Contains("Thiếu mẫu số") || i.Contains("Trùng mẫu số") || i.Contains("Không đọc được"))))
+            warn.Add("phiếu thiếu / trùng mẫu hoặc thiếu thông tin");
+        var w = warn.Distinct().ToList();
+        return w.Count > 0 ? (1, "Cần xem: " + string.Join("; ", w.Take(4)) + (w.Count > 4 ? "…" : "")) : (0, "Đọc đủ");
+    }
+
+    /// <summary>"58/60": số mẫu đọc được / số mẫu lớn nhất ghi trong file.</summary>
+    public static string MauDoc(Phieu p) => $"{p.Mau.Count}/{Math.Max(p.MaxStt, p.Mau.Count)}";
+
+    /// <summary>Đổi tên hàng / Size của 1 nhóm mẫu (Size nằm trong tên mẫu: "Tôm HLSO 31/40 nhập khẩu").</summary>
+    public static void SetHangSize(IEnumerable<Mau> mau, string hang, string size)
+    {
+        foreach (var m in mau) m.Ten = $"{hang.Trim()} {size.Trim()} nhập khẩu".Trim();
+    }
+
+    /// <summary>Hiểu ngày người dùng gõ (dd/MM/yyyy, dd.MM.yyyy hoặc yyyy-MM-dd) → ISO; không hiểu → null.</summary>
+    public static string? ParseDate(string? s)
+    {
+        s = (s ?? "").Trim();
+        if (s.Length == 0) return "";
+        if (Regex.IsMatch(s, @"^\d{4}-\d{1,2}-\d{1,2}$") && DateTime.TryParse(s, Inv, DateTimeStyles.None, out var d0)) return d0.ToString("yyyy-MM-dd", Inv);
+        var iso = DateIso(s);
+        return iso.Length > 0 && DateTime.TryParse(iso, Inv, DateTimeStyles.None, out var d) ? d.ToString("yyyy-MM-dd", Inv) : null;
+    }
+
     // ================================================================== bản ghi
 
     public static string KeyFor(string so, string invoice, string size) => Regex.Replace($"{so}|{invoice}|{size}".ToUpperInvariant(), @"\s+", "");
@@ -339,6 +402,7 @@ public static class KhangSinhNhapKhau
             {
                 ["kind"] = "nk", ["so"] = p.So, ["date"] = p.Date, ["country"] = p.Country, ["invoice"] = p.Invoice, ["invDate"] = p.InvDate,
                 ["contract"] = p.Contract, ["tp"] = p.Tp, ["hang"] = hang, ["size"] = size, ["file"] = p.File, ["savedAt"] = savedAt,
+                ["suaTay"] = p.Edits.Count > 0 ? string.Join(" · ", p.Edits) : null,
                 ["lod"] = new JsonObject(p.Lod.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)kv.Value))),
                 ["mau"] = new JsonArray(mau.Select(m => (JsonNode)m.ToJson()).ToArray()),
             });
