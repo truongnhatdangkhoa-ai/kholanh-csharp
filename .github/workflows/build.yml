@@ -27,6 +27,11 @@ jobs:
           SHOTS_ONLY: perf2
           PERF2_ROWS: "4000"
           PERF2_MAX_MS: "6000"
+      - name: Kiểm tra nạp sẵn trang lúc rảnh (1.181)
+        run: dotnet run -c Release --project tools/Screenshots -- napsan-out
+        env:
+          SHOTS_ONLY: napsan
+          NAPSAN_ROWS: "4000"
       - name: Kiểm tra Apps Script tài khoản dùng chung
         run: node tests/apps-script/kiem-tra.js
       - name: Đóng gói Windows (1 file .exe nén, không cần cài .NET)

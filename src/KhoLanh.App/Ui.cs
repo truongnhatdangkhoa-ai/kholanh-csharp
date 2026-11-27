@@ -269,8 +269,12 @@ public static class Ui
         if (w.MinHeight > 0) w.MinHeight *= sc;
     }
 
+    /// <summary>1.181: trang đang nạp sẵn ngầm (MainWindow) mà muốn hiện hộp thoại (thường là báo lỗi lúc nạp) → không hiện, báo MainWindow bỏ trang
+    /// (mở thật sẽ dựng lại và báo như cũ). Hộp thoại coi như bấm Đóng.</summary>
+    internal static Func<Visual, bool>? PreloadBlock { get; set; }
     public static async Task Show(Visual v, Window w)
     {
+        if (PreloadBlock?.Invoke(v) == true) return;
         ApplyZoom(w);
         AllowResize(w);
         if (Owner(v) is { } owner) await w.ShowDialog(owner);
