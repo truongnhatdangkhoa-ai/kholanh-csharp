@@ -895,6 +895,23 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v225")
     Snap(hw, "v225-lich-xuat-trong-ngay");
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v225) — ĐẠT: " : "Xong (v225) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.148: SHOTS_ONLY=v248 — nút "Đã có List" / "Đã có phiếu" ở Lịch xuất trong ngày: dấu tích xanh lá (#1E7B4A). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v248")
+{
+    var ok = true;
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var lx = s.LichXuat; lx.Load();
+    lx.Add(new() { Ngay = KhoLanh.Core.LichXuat.LichXuatCore.Iso(DateTime.Today), Lsx = "26.09.021", ContSo = "IAAU8692961", Gio = "10:00" });
+    var hw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; hw.Show(); P();
+    hw.Navigate("lx"); P(60);
+    var tqv = hw.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.TongQuanView>().First();
+    var done = tqv.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("done")).ToList();
+    var green = done.Count(b => b.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Any(p => p.Stroke is Avalonia.Media.ISolidColorBrush sb && sb.Color == Avalonia.Media.Color.Parse("#1E7B4A")));
+    Console.WriteLine($"[v248] nút đã có: {done.Count}, dấu tích xanh lá: {green}");
+    if (done.Count > 0 && green != done.Count) { Console.WriteLine("[v248] LỖI: dấu tích chưa xanh lá"); ok = false; }
+    Snap(hw, "v248-da-co-list-phieu");
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v248) — ĐẠT: " : "Xong (v248) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.128: SHOTS_ONLY=v228 — Phiếu xuất nội địa gợi ý theo phân loại Tồn kho An An: Danh mục có cột "Phân loại An An";
 // Chọn từ tồn có nút lọc phân loại (mặc định theo Loại của mục); gõ ô Size-quy cách → gợi ý chỉ hàng còn tồn thuộc phân loại của Loại. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v228")
