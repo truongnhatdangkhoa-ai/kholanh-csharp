@@ -1066,6 +1066,36 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v228")
     if (bg.Model.Get(2, 1).Length == 0) Bad("chọn gợi ý không điền Size-quy cách");
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v228) — ĐẠT: " : "Xong (v228) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.154: SHOTS_ONLY=v250 — module Công cụ có tab "Đã lưu" + ô tích "Tự lưu file vào Lưu trữ cá nhân": xuất file → vào danh sách; tích → chép vào Lưu trữ cá nhân. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v250")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v250] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var tmpd = Path.Combine(Path.GetTempPath(), "kl-v250-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(tmpd);
+    var f1 = Path.Combine(tmpd, "Hop-dong-ban-scan.pdf"); File.WriteAllText(f1, "pdf");
+    var f2 = Path.Combine(tmpd, "Anh-trang-1.jpg"); File.WriteAllText(f2, "jpg");
+    var cw = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; cw.Show(); P();
+    cw.Navigate("m15"); P(40);
+    KhoLanh.App.Controls.CongCuFiles.Exported(cw, "Scan tài liệu", f1); P(10);
+    var tabs = cw.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.Items.OfType<TabItem>().Any(i => (i.Header as string) == "Đã lưu"));
+    tabs.SelectedIndex = 1; P(40);
+    var box = cw.PageHost.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(c => (c.Content as string)?.StartsWith("Tự lưu file") == true);
+    if (box is null) Bad("không có ô tích tự lưu"); else { box.IsChecked = true; P(10); }
+    if (!s.CongCuFiles.SyncOn) Bad("ô tích không được nhớ");
+    KhoLanh.App.Controls.CongCuFiles.Exported(cw, "Scan tài liệu", f2); P(10);
+    for (var i = 0; i < 100 && s.CongCuFiles.List("Scan tài liệu").Count(f => f.Sync != "") == 0; i++) P(5);
+    var l = s.CongCuFiles.List("Scan tài liệu");
+    Console.WriteLine("[v250] " + string.Join(" | ", l.Select(f => f.Name + ":" + f.Sync + ":" + f.Note)));
+    if (l.Count != 2) Bad("danh sách đã lưu phải có 2 mục"); else if (l.First(f => f.Path == f2).Sync == "") Bad("file xuất sau khi tích chưa đồng bộ");
+    P(20); Snap(cw, "v250-scan-da-luu");
+    foreach (var (k, hd) in new[] { ("m14", "4  Đã lưu"), ("m21", "Đã lưu"), ("m22", "Đã lưu") })
+    {
+        cw.Navigate(k); P(40);
+        if (!cw.PageHost.GetVisualDescendants().OfType<TabItem>().Any(i => (i.Header as string) == hd)) Bad("module " + k + " thiếu tab Đã lưu");
+    }
+    cw.Close(); s.Lan.Dispose(); try { Directory.Delete(tmpd, true); } catch { }
+    Console.WriteLine((ok ? "Xong (v250) — ĐẠT: " : "Xong (v250) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.149: SHOTS_ONLY=v249 — cỡ chữ 90–130 %: thanh menu (44px) phải nằm đúng mép trên cửa sổ, không bị đẩy lên / cắt, ở mọi màn hình. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v249")
 {

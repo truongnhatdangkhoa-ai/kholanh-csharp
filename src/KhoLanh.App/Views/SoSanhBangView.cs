@@ -73,7 +73,7 @@ public sealed class SoSanhBangView : UserControl, IPage
         lkpTop.Children.Add(Row(Lb("Mã có nhiều dòng ở B"), _dup, _btnLkp, _lkpDl, _lkpStats));
         var lkpTab = new DockPanel(); DockPanel.SetDock(lkpTop, Dock.Top); lkpTab.Children.Add(lkpTop); lkpTab.Children.Add(Framed(_lg));
 
-        var tabs = new TabControl { ItemsSource = new[] { new TabItem { Header = "So sánh 2 bảng", Content = cmpTab }, new TabItem { Header = "Tra cứu (kéo cột B → A)", Content = lkpTab } } };
+        var tabs = new TabControl { ItemsSource = new[] { new TabItem { Header = "So sánh 2 bảng", Content = cmpTab }, new TabItem { Header = "Tra cứu (kéo cột B → A)", Content = lkpTab }, CongCuFiles.Tab("So sánh & Tra cứu bảng") } };
 
         var top = new StackPanel { Spacing = 8 }; top.Children.Add(sides); top.Children.Add(opts); top.Children.Add(_msg);
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(tabs);
@@ -286,7 +286,7 @@ public sealed class SoSanhBangView : UserControl, IPage
         try
         {
             await Task.Run(() => ExcelOps.Write(path, new[] { ("Tóm tắt", sum), ("Khác nhau", diff), ("Chỉ có ở A", onlyA), ("Chỉ có ở B", onlyB), ("Mã trùng", DupTable()), ("Giống nhau", same) }));
-            Ui.Exported(this, path);
+            CongCuFiles.Exported(this, "So sánh & Tra cứu bảng", path);
         }
         catch (Exception e) { await Ui.Message(this, e.Message, "Không lưu được"); }
     }
@@ -313,7 +313,7 @@ public sealed class SoSanhBangView : UserControl, IPage
         var path = await Ui.SaveFile(this, "Lưu kết quả tra cứu", $"tra-cuu-bang-{Stamp()}.xlsx", "xlsx", "Excel"); if (path is null) return;
         var sheets = new List<(string, CcTable)> { ("Kết quả tra cứu", r.Table) };
         if (r.Miss.Count > 0) sheets.Add(("Không tìm thấy", new CcTable(new[] { "Dòng A" }.Concat(A.Head), r.Miss.Select(i => new object?[] { (double)RowNo(_a, i) }.Concat(A.Rows[i]).ToArray()))));
-        try { await Task.Run(() => ExcelOps.Write(path, sheets)); Ui.Exported(this, path); }
+        try { await Task.Run(() => ExcelOps.Write(path, sheets)); CongCuFiles.Exported(this, "So sánh & Tra cứu bảng", path); }
         catch (Exception e) { await Ui.Message(this, e.Message, "Không lưu được"); }
     }
 }
