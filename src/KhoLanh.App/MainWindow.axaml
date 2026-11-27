@@ -14,6 +14,7 @@
           <StackPanel x:Name="NavPanel" Orientation="Horizontal"/>
         </ScrollViewer>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" Margin="8,0,0,0">
+          <Button x:Name="SearchButton" Classes="topnav" Click="OnSearchClick"/>
           <Button x:Name="RefreshButton" Classes="topnav" Click="OnRefreshClick"/>
           <Button x:Name="LanPill" Classes="topnav" IsVisible="False" Click="OnLanPill">
             <Ellipse x:Name="LanDot" Width="10" Height="10" Fill="#3FB950" VerticalAlignment="Center"/>

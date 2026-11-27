@@ -61,6 +61,7 @@ public partial class MainWindow : Window
         ApplyZoom();
         AddHandler(KeyDownEvent, (_, e) =>
         {
+            if (e.Key == Avalonia.Input.Key.H && e.KeyModifiers == Avalonia.Input.KeyModifiers.Alt) { e.Handled = true; OpenSearch(); return; }   // 1.161: Alt + H = Tìm nhanh
             if (!e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
             if (e.Key == Avalonia.Input.Key.K) { e.Handled = true; OpenSearch(); return; }
             if (e.Key is Avalonia.Input.Key.OemPlus or Avalonia.Input.Key.Add) { Zoom(0.1); e.Handled = true; }
@@ -152,6 +153,8 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
+        SearchButton.Content = Controls.Icon.Make("search", 16);   // 1.161: Tìm nhanh (Alt + H / Ctrl + K)
+        ToolTip.SetTip(SearchButton, "Tìm nhanh (Alt + H)");
         RefreshButton.Content = Controls.Icon.Make("refresh", 16);   // 1.139: làm mới trang đang mở
         ToolTip.SetTip(RefreshButton, "Làm mới");
         // 1.97: biểu tượng tài khoản theo quyền (phương án B): ô màu + hình khiên / cặp / người, tên, nhãn quyền
@@ -759,6 +762,8 @@ public partial class MainWindow : Window
 
     private bool _refreshing;
     /// <summary>1.139: nút Làm mới — tải lại danh sách dùng chung (tài khoản), thử nối lại máy chủ, bỏ trang giữ sẵn rồi dựng lại trang đang mở bằng dữ liệu mới.</summary>
+    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
+
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
         if (_refreshing) return;

@@ -3461,6 +3461,7 @@ foreach (var (key, name) in new[] { ("users", "12-tai-khoan"), ("backup", "13-sa
     sw.SelectRow(0); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41-tim-nhanh");
     sw.SetQuery("bot"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41b-tim-nhanh-module");
     sw.SetQuery("26.11"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41c-tim-nhanh-phieu");
+    sw.SetQuery("btp 50 mks"); for (var i = 0; i < 30; i++) { Thread.Sleep(30); Pump(); } Snap(sw, "41d-tim-nhanh-btp-50-mks");   // 1.161: chọn module kho để lọc (hàng "Tìm trong:")
     sw.Close(); for (var i = 0; i < 10; i++) { Thread.Sleep(30); Pump(); }
 }
 // ---------------- Đồng bộ điện thoại ----------------
