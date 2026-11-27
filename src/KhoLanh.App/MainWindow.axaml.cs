@@ -119,11 +119,11 @@ public partial class MainWindow : Window
                 new NavItem("m5", "Đối chiếu hàng ngày", () => new DoiChieuView()),
                 new NavItem("m9", "Đối chiếu kiểm kê", () => new KiemKeView()),
                 new NavItem("m7ck", "Số liệu cuối kỳ", () => new CuoiKyView()),
-                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
-                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
+                new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),   // 1.179: chuyển từ nhóm Chứng từ (đã bỏ) · 1.180: thứ tự nhóm theo người dùng
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
                 new NavItem("m24cc", "Chấm công", () => new ChamCongView()),
-                new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),   // 1.179: chuyển từ nhóm Chứng từ (đã bỏ)
+                new NavItem("m3", "Tổng hợp", () => new TongHopView()),
+                new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
             }),
             ("CÔNG CỤ", new[]
             {
