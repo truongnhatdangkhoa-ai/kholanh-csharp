@@ -124,6 +124,100 @@ public class SettingsService
     {
         try { Write(key, value); }
         catch (SqliteException ex) when (NoTable(ex)) { Repair(); Write(key, value); }
+        if (Mirrored(key)) SaveMirror();
+    }
+
+    // ── 1.143: bản dự phòng cài đặt quan trọng ngoài bảng settings ──
+    // Phần mềm dọn rác từng xóa bảng settings → máy chủ mất vai (lan_role), khóa LAN, link Web App… và lặng lẽ thành "máy đơn".
+    // Nay các khóa quan trọng được chép thêm vào file nhỏ cạnh CSDL (<khodata.db>.cai-dat.json) mỗi lần ghi; mở app thấy khóa vắng ở bảng → nạp lại.
+    // KHÔNG chép các khóa phụ thuộc dữ liệu hiện có (lan_last_seq, lan_sync_epoch, lan_serving, lan_claim…): khôi phục sai chúng làm lệch đồng bộ.
+    private static readonly HashSet<string> MirrorKeys = new(StringComparer.Ordinal)
+    {
+        "lan_role", "lan_key", "lan_port", "lan_http_port", "lan_public", "lan_nodes", "lan_addrs", "lan_name", "lan_machine_id",
+        "lan_server_name", "lan_rieng", "lan_plan", "lan_enc",
+        "drive_mode", "drive_dir", "drive_every", "drive_key", "drive_bo", "drive_home",
+        "acct_url", "acct_token", "acct_admin_key", "acct_keyblobs",
+        "phone_webapp_url", "phone_pc_token", "lt_google_id", "lt_google_secret", "may_chu_chay_an",
+        "company_name", "company_address", "warehouse_name",
+    };
+    private static bool Mirrored(string key) => MirrorKeys.Contains(key) || key.StartsWith("lx_mail_", StringComparison.Ordinal);
+
+    public string MirrorPath => _db.FilePath + ".cai-dat.json";
+    private readonly object _mirrorLock = new();
+
+    /// <summary>Chép các khóa quan trọng đang có trong bảng ra file dự phòng (ghi tạm rồi đổi tên; lỗi ghi file không làm hỏng việc lưu cài đặt).</summary>
+    public void SaveMirror()
+    {
+        try
+        {
+            Dictionary<string, string> d;
+            using (var c = _db.Open())
+                d = c.Query<(string key, string value)>("SELECT key, value FROM settings").Where(r => Mirrored(r.key)).ToDictionary(r => r.key, r => r.value);
+            if (d.Count == 0) return;   // bảng đang rỗng / mới tạo lại: đừng ghi đè bản dự phòng còn tốt
+            lock (_mirrorLock)
+            {
+                var tmp = MirrorPath + ".tmp";
+                File.WriteAllText(tmp, System.Text.Json.JsonSerializer.Serialize(d));
+                File.Move(tmp, MirrorPath, true);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Mở app: khóa quan trọng nào có trong file dự phòng mà bảng KHÔNG còn dòng (bị xóa ngoài app) thì nạp lại. Khóa còn trong bảng (kể cả rỗng) giữ nguyên.
+    /// Trả danh sách khóa đã nạp lại.
+    /// </summary>
+    public List<string> RestoreFromMirror()
+    {
+        var restored = new List<string>();
+        try
+        {
+            if (!File.Exists(MirrorPath)) return restored;
+            var d = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(MirrorPath));
+            if (d == null || d.Count == 0) return restored;
+            try { Read("lan_role", ""); } catch (SqliteException ex) when (NoTable(ex)) { Repair(); }
+            using var c = _db.Open();
+            var have = c.Query<string>("SELECT key FROM settings").ToHashSet(StringComparer.Ordinal);
+            foreach (var (k, v) in d)
+            {
+                if (!Mirrored(k) || have.Contains(k)) continue;
+                c.Execute("INSERT INTO settings(key, value) VALUES(@k, @v)", new { k, v });
+                restored.Add(k);
+            }
+        }
+        catch { }
+        return restored;
+    }
+
+    private static bool Trivial(string k) => k is "lan_machine_id" or "lan_name";
+
+    /// <summary>Danh sách khóa (hoặc file dự phòng) có khóa nào ngoài mã máy / tên máy — nếu không thì mất cũng không đáng báo.</summary>
+    public static bool Meaningful(IEnumerable<string> keys) => keys.Any(k => !Trivial(k));
+
+    private bool MirrorHasMeaning(object? restoredOnly)
+    {
+        try
+        {
+            if (!File.Exists(MirrorPath)) return false;
+            var d = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(MirrorPath));
+            return d != null && Meaningful(d.Keys);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>Bảng cài đặt trống nhưng máy đã có tài khoản và không có file dự phòng → cài đặt (vai máy, LAN…) đã mất.</summary>
+    public bool LostWithoutBackup()
+    {
+        try
+        {
+            if (MirrorHasMeaning(restoredOnly: null)) return false;
+            using var c = _db.Open();
+            try { if (c.ExecuteScalar<long>("SELECT COUNT(*) FROM settings") > 0) return false; }
+            catch (SqliteException ex) when (NoTable(ex)) { }   // bảng bị xóa hẳn = trống
+            return c.ExecuteScalar<long>("SELECT COUNT(*) FROM users") > 0;
+        }
+        catch { return false; }
     }
 
     private void Write(string key, string value)
