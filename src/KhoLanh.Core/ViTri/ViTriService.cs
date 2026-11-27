@@ -21,7 +21,7 @@ namespace KhoLanh.Core.ViTri;
 ///   • Phiếu đã lưu: sửa, hủy trừ / trừ lại, xóa (hoàn tồn), gộp / tách phiếu, tách mã ra phiếu mới, mở khóa phiếu của đợt nạp cũ.
 ///   • Lưu trữ theo ngày (tự gộp phiếu cùng ngày + cùng loại), thống kê Size.
 /// </summary>
-public sealed class ViTriService
+public sealed partial class ViTriService
 {
     public const string Db = "ton-vi-tri-an-an", SheetRows = "ViTri", SheetMeta = "ViTriMeta", SheetSlips = "ViTriPhieuDienThoai", PermKey = "m7";
     public const string NoPos = "(chưa có vị trí)";
@@ -173,6 +173,7 @@ public sealed class ViTriService
         var sj = JsonCell(Read(Db, SheetSlips));
         var st = sj is null ? null : Try(() => JsonSerializer.Deserialize<SlipStore>(sj, Json));
         Slips = st?.Slips ?? new(); _seq = st?.Seq ?? 1;
+        LoadXuatGoc();
         LoadDictionaries();
         Loaded = true;
     }
@@ -1017,13 +1018,21 @@ public sealed class ViTriService
 
     /// <summary>1.132: 1 dòng hàng đã xuất (mọi phiếu, đang mở + đã lưu trữ) — tra cứu / rà soát theo mã, size, vị trí.</summary>
     public sealed record DaXuat(string Ngay, string MaPhieu, string Loai, string MaGoc, string Ma, string Ten, string Size, string Lo, string Vt,
-        double Sl, double Tl, string NguoiTao, bool DienThoai, bool DaTru, double TonVt, string SlipId);
+        double Sl, double Tl, string NguoiTao, bool DienThoai, bool DaTru, double TonVt, string SlipId, string Nguon = "app")
+    {
+        /// <summary>1.160: Đặc tính / Hợp đồng / Khách / Ghi chú — chỉ dòng Excel kho gốc có; <see cref="DoiChieu"/> = ghép app ↔ Excel.</summary>
+        public string Dt { get; init; } = "";
+        public string Hd { get; init; } = "";
+        public string Khach { get; init; } = "";
+        public string GhiChu { get; init; } = "";
+        public string DoiChieu { get; init; } = "";
+    }
 
     /// <summary>
     /// 1.132 (người dùng: "trong tồn vị trí thêm tìm mã hàng, size, vị trí đã xuất để rà soát lại các mã hàng đã xuất"): mọi dòng của mọi phiếu xuất,
     /// mới nhất trước; <see cref="DaXuat.TonVt"/> = tồn hiện tại (file đang nạp) ở đúng Mã · Lô · Vị trí của dòng — đã xuất hết mà file còn tồn thì dễ thấy.
     /// </summary>
-    public List<DaXuat> DaXuatList()
+    public List<DaXuat> DaXuatList(bool app = true, bool excel = true)
     {
         var ton = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in Rows) { if (r.Ghost) continue; var k = r.MaGoc.Trim() + "|" + r.Lo.Trim() + "|" + r.Vt.Trim(); ton[k] = ton.GetValueOrDefault(k) + r.Sl; }
@@ -1036,7 +1045,12 @@ public sealed class ViTriService
                 o.Add(new DaXuat(DayKey(s), s.MaPhieu.Length > 0 ? s.MaPhieu : s.Id, LoaiLabel(s.Loai), l.MaGoc, ma, l.Ten, size, l.Lo, l.Vt, l.Qty, l.Tl,
                     s.NguoiTao, s.FromPhone, s.Deducted, Math.Round(ton.GetValueOrDefault(l.MaGoc.Trim() + "|" + l.Lo.Trim() + "|" + l.Vt.Trim()), 3), s.Id));
             }
-        return o;
+        if (XuatGoc.Count == 0) return app ? o : new();
+        var tonMv = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in Rows) { if (r.Ghost) continue; var k = r.MaGoc.Trim() + "|" + r.Vt.Trim(); tonMv[k] = tonMv.GetValueOrDefault(k) + r.Sl; }
+        var xl = XuatGocAsDaXuat(tonMv);
+        o = DoiChieuXuat(o, xl);   // gán đối chiếu trên cả 2 phía kể cả khi chỉ hiện 1 nguồn
+        return (app ? o : new()).Concat(excel ? xl : new()).OrderByDescending(x => x.Ngay, StringComparer.Ordinal).ToList();
     }
 
     public sealed record ArcGroup(string Day, string Loai, List<Slip> Slips)
