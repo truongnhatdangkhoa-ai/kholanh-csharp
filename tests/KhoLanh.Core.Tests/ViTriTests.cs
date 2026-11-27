@@ -52,6 +52,7 @@ public class ViTriTests : IDisposable
         (B, TenB, "L3", "B.01.03", 5, 10));   // dòng trùng Mã|Lô|Vị trí → khóa #1
 
     private int Idx(string ma, string vt, string lo) => Vt.Rows.FindIndex(r => r.MaGoc == ma && r.Vt == vt && r.Lo == lo);
+    private ViTriService.Slip ReloadSlip(string id) => Reload().Slips.Single(x => x.Id == id);
     private ViTriService Reload() { var v = new ViTriService(() => _s.Lan, _s.Session, _s.Audit); v.Load(); return v; }
 
     [Fact]
@@ -463,5 +464,20 @@ public class ViTriTests : IDisposable
         var bad = Path.Combine(Path.GetTempPath(), "xg160_bad.xlsx");
         using (var wb = new XLWorkbook()) { wb.AddWorksheet("x").Cell(1, 1).Value = "Mã hàng"; wb.SaveAs(bad); }
         Assert.Contains("Ngày chứng từ", Assert.Throws<BusinessException>(() => Vt.ReadXuatGoc(bad)).Message);
+    }
+
+    [Fact]
+    public void Phieu_vi_tri_gop_theo_ma_dac_tinh_hop_dong_va_danh_dau_da_tru_An_An()
+    {
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var a = Vt.CreateSlip(new() { new(Idx(A, "A.02.01", "L1"), 12), new(Idx(A, "A.10.01", "L1"), 8) }, false, "xuatxa", DateTime.Today, "");   // cùng mã + đặc tính + hợp đồng, 2 vị trí
+        var b = Vt.CreateSlip(new() { new(Idx(A, "A.02.01", "L2"), 5) }, false, "xuatxa", DateTime.Today, "");                                         // hợp đồng khác
+        var l = ViTriService.ToAnAnLines(new[] { a, b });
+        Assert.Equal(2, l.Count);
+        Assert.Contains(l, x => x.Ma == ViTriService.ShortCode(A) && x.Hd == "HD01" && x.Qty == 20);
+        Assert.Contains(l, x => x.Hd == "HD02" && x.Qty == 5);
+        Assert.Equal("", ViTriService.AnAnSlipOf(a));
+        Vt.MarkAnAn(new[] { a.Id }, "PX-0007");
+        Assert.Equal("PX-0007", ViTriService.AnAnSlipOf(ReloadSlip(a.Id)));
     }
 }

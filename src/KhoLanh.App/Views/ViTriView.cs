@@ -17,7 +17,7 @@ namespace KhoLanh.App.Views;
 /// Module Tồn kho theo vị trí (C#, nghiệp vụ theo "Tồn Vị Trí An An" của app cũ — không dùng WebView2; dùng chung dữ liệu với app cũ).
 /// Giao diện mới: lưới tồn có cột "SL xuất" gõ / dán thẳng ("x" = lấy hết), khung "Phiếu đang soạn" bên phải luôn thấy trước khi lưu.
 /// </summary>
-public sealed class ViTriView : UserControl, IPage
+public sealed partial class ViTriView : UserControl, IPage
 {
     public string Title => "Tồn kho theo vị trí";
     public string Subtitle => "Lập phiếu xuất: chọn hàng từ tồn theo ô vị trí, sửa SL ngay trên phiếu (trừ tồn khi lưu), gộp theo Size, lưu trữ theo ngày — dùng chung dữ liệu với app cũ.";
@@ -789,6 +789,7 @@ public sealed class ViTriView : UserControl, IPage
             act.Children.Add(Btn("Tách mã ra phiếu mới…", async () => await SplitLines()));
             act.Children.Add(Btn("Đổi loại…", async () => await ChangeLoai()));
             act.Children.Add(Btn("Đổi ngày…", async () => await ChangeDay()));
+            if (App.Services.AnAn.CanEdit) act.Children.Add(ToolRow.More(Btn("Trừ nhanh tồn An An…", async () => await TruAnAn(), tip: "Trừ tồn Tồn kho An An theo phiếu vị trí (theo mã · đặc tính · hợp đồng, không theo lô) để xuất báo cáo An An nhanh.")));
             act.Children.Add(Btn("🗑 Xóa phiếu", async () => await DeleteSlip(), danger: true));
         }
         if (_export)

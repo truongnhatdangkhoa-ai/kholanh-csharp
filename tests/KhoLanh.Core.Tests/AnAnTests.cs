@@ -201,4 +201,28 @@ public class AnAnTests : IDisposable
         Assert.Equal(oracle["DacTinh"]!.ToJsonString(), JsonNode.Parse(_s.Lan.Read(AnAnStore.Db, AnAnStore.SDacTinh))!.ToJsonString());
         var sync = aa.SyncKhoGui(true)!.Value; Assert.Equal(983086.6, sync.Info.Kg);
     }
+
+    [Fact]
+    public void Tru_nhanh_theo_ma_dac_tinh_hop_dong_tu_phieu_vi_tri()
+    {
+        // 1.165: ghép (mã · đặc tính · hợp đồng); nhiều dòng An An cùng khóa thì trừ lần lượt; không ghép / vượt tồn → bỏ qua và báo
+        var aa = _s.AnAn; aa.Load();
+        aa.Commit(aa.Preview(Xlsx("TON 20.11.xlsx", ("A1", "KD", "HD1", 10, 2, "16/20"), ("A1", "KD", "HD1", 4, 2, "16/20"), ("B2", "EU", "HD2", 5, 3, "21/25"))), keepUndo: false);
+        var lines = new[]
+        {
+            new AnAnService.VtLine("A1", "KD", "HD1", 12), new AnAnService.VtLine("B2", "EU", "HD9", 1), new AnAnService.VtLine("B2", "EU", "HD2", 9),
+        };
+        var pv = aa.PreviewTruNhanh(lines);
+        Assert.Equal(new[] { "ok", "khong-ghep", "vuot-ton" }, pv.Select(r => r.Status));
+        Assert.Equal(14, pv[0].Ton); Assert.Equal(2, pv[0].Con); Assert.Equal(5, pv[2].Ton);
+        Assert.Equal("10", aa.D.Cell(0, aa.D.Col("Tồn cuối")));   // xem trước không ghi gì
+        var r = aa.TruNhanh(lines, new[] { "PCVT-1" });
+        Assert.Equal(1, r.Done); Assert.Equal(2, r.Skipped);
+        var ci = aa.D.Col("Tồn cuối");
+        Assert.Equal(new[] { 0.0, 2.0, 5.0 }, Enumerable.Range(0, 3).Select(i => Core.TonKho.JsText.LooseNum(aa.D.Cell(i, ci))).ToArray());
+        Assert.True(AnAnService.SlipDeducted(r.Slip!));
+        Assert.Equal("PCVT-1", r.Slip!["vtSlips"]![0]!.GetValue<string>());
+        aa.UndoSlip(AnAnService.SlipId(r.Slip!));   // hủy trừ như phiếu thường
+        Assert.Equal(new[] { 10.0, 4.0, 5.0 }, Enumerable.Range(0, 3).Select(i => Core.TonKho.JsText.LooseNum(aa.D.Cell(i, ci))).ToArray());
+    }
 }
