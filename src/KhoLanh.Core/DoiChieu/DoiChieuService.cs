@@ -556,6 +556,7 @@ public sealed class DoiChieuService
     }
     // ------------------------------------------------------------------ 1.170 chuyển mã Xuất kiểm sang file Kho
 
+    public const string XkNote = "Xuất kiểm";   // chữ ghi vào cột Ghi chú của file Excel Kho
     private static string XkKey(int pid, string ngay, string ma) => pid + "|" + ngay + "|" + NormMa(ma);
     public bool IsXk(int pid, string ngay, string ma) => St.Xk.Contains(XkKey(pid, ngay, ma));
     /// <summary>Mã Xuất kiểm (ngày, mã) đã chuyển sang file nào: 1 / 2 (= <see cref="KN"/>), 0 nếu chưa.</summary>
@@ -579,7 +580,15 @@ public sealed class DoiChieuService
         {
             var ops = gs.Select(g => new Op { Type = "add", Slot = pid, Ngay = g.Ngay, Ma = g.Ma, Ten = g.Ten, Sl = g.Sl, Tl = g.Tlg is > 0 ? g.Tlg : null }).ToList();
             var tot = gs.Sum(g => g.Sl);
-            return ApplyOps(ops, $"Chuyển {gs.Count} mã Xuất kiểm sang {KN(pid)} (SL {tot.ToString("#,0.###", CultureInfo.InvariantCulture)})", false, added);
+            var noteKeys = gs.Select(g => g.Ngay + "|" + NormMa(g.Ma)).ToHashSet();
+            // ghi chữ "Xuất kiểm" vào cột Ghi chú của file Excel Kho (chưa có cột thì thêm cột cuối) cho các dòng vừa chuyển
+            byte[] Note(int id, byte[] bytes)
+            {
+                if (id != pid) return bytes;
+                var r = DcxXlsx.AddNoteColumn(bytes, PairOf(id).Kho!.Sheet, noteKeys, XkNote);
+                return r.Bytes ?? bytes;
+            }
+            return ApplyOps(ops, $"Chuyển {gs.Count} mã Xuất kiểm sang {KN(pid)} (SL {tot.ToString("#,0.###", CultureInfo.InvariantCulture)})", false, added, Note);
         }
         catch { foreach (var k in added) St.Xk.Remove(k); throw; }
     }
@@ -865,7 +874,7 @@ public sealed class DoiChieuService
 
     public sealed record ApplyResult(string Message, int NetKept);
     /// <summary>Đổi thao tác → sửa file Kho (giữ mẫu) → ghi cả 2 file hoặc không file nào → đọc lại. Ghi lịch sử kèm thao tác ngược.</summary>
-    public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false, List<string>? xk = null)
+    public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false, List<string>? xk = null, Func<int, byte[], byte[]>? post = null)
     {
         RequireEdit();
         for (var attempt = 0; ; attempt++)
@@ -887,6 +896,7 @@ public sealed class DoiChieuService
                     Removes = sp.Rm.Select(kv => new DcxXlsx.Remove(kv.Key, kv.Value)).ToList(), Adds = sp.Adds, Renames = sp.Renames, Green = sp.Move, SizeOf = SizeOf,
                 });
                 try { var f = DcxXlsx.AddTotalFormulas(bytes, p.Kho.Sheet); if (f.Bytes is not null) bytes = f.Bytes; } catch { /* không quan trọng */ }
+                if (post is not null) bytes = post(id, bytes);   // 1.171: bước sửa thêm trước khi ghi (vd ghi chú "Xuất kiểm")
                 outs.Add((id, bytes, rep));
             }
             if (outs.Count == 0) throw new BusinessException("Không có gì để ghi.");

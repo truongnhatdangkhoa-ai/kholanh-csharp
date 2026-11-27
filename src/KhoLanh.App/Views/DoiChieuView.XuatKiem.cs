@@ -41,7 +41,7 @@ public sealed partial class DoiChieuView
         _xkTen = Btn("Cập nhật tên hàng…", async () => await XkTen(), tip: "Tra tên chuẩn theo mã hàng để thay tên bị cắt trong file gốc — xem trước rồi mới áp"); _xkTen.IsEnabled = false;
         _xkUndoBtn = Btn("↶ Hoàn tác tên hàng", () => XkUndo(), tip: "Trả lại tên hàng như trong file gốc"); _xkUndoBtn.IsVisible = false;
         _xkSave = Btn("📤 Xuất file rút gọn (.xlsx)", async () => await XkSave()); _xkSave.IsEnabled = false;
-        _xkMove = Btn("⇥ Chuyển sang file xuất…", async () => await XkChuyen(), tip: "Tích các mã (hoặc chọn 1 dòng) rồi chuyển sang file Xuất thay thùng / Xuất rã đông: ghi vào file Excel Kho, ghi chú “Xuất kiểm”, không đối chiếu với Xưởng."); _xkMove.IsEnabled = false;
+        _xkMove = Btn("⇥ Chuyển sang file xuất…", async () => await XkChuyen(), tip: "Tích các mã (hoặc chọn 1 dòng) rồi chuyển sang file Xuất thay thùng / Xuất rã đông: ghi vào file Excel Kho (kèm chữ “Xuất kiểm” ở cột Ghi chú), không đối chiếu với Xưởng."); _xkMove.IsEnabled = false;
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(pick); bar.Children.Add(_xkMove); bar.Children.Add(_xkTen); bar.Children.Add(_xkUndoBtn); bar.Children.Add(_xkSave);
         var hint = new TextBlock
@@ -124,7 +124,7 @@ public sealed partial class DoiChieuView
         var pid = pick.Value.Index + 1;
         if (!Svc.IsLinked(Svc.PairOf(pid))) { await Ui.Message(this, $"Chưa liên kết file Excel {DoiChieuService.KN(pid)} (tab Liên kết file) nên chưa ghi được.", "Chuyển sang file xuất"); return; }
         var has = todo.Where(g => Svc.KhoHas(pid, g.Ngay, g.Ma) > 0).ToList();
-        var text = $"Chuyển {todo.Count} mã Xuất kiểm sang {DoiChieuService.KN(pid)}?\n\nGhi thêm dòng vào file Excel Kho (giữ mẫu). Các mã này ghi chú “Xuất kiểm” và KHÔNG đối chiếu với Xưởng. Hoàn tác được ở Lịch sử ghi file."
+        var text = $"Chuyển {todo.Count} mã Xuất kiểm sang {DoiChieuService.KN(pid)}?\n\nGhi thêm dòng vào file Excel Kho (giữ mẫu). Chữ “Xuất kiểm” được ghi vào cột Ghi chú của file Excel (file chưa có cột Ghi chú thì thêm 1 cột cuối). Các mã này KHÔNG đối chiếu với Xưởng. Hoàn tác được ở Lịch sử ghi file."
             + (done.Count > 0 ? $"\n\n{done.Count} mã đã chuyển trước đó sẽ bỏ qua." : "")
             + (has.Count > 0 ? $"\n\n⚠ {has.Count} mã đã có sẵn ở file {DoiChieuService.KN(pid)} cùng ngày ({string.Join(", ", has.Take(3).Select(g => g.Ma))}{(has.Count > 3 ? "…" : "")}) — số lượng sẽ CỘNG DỒN vào dòng đó." : "");
         if (!await Ui.Confirm(this, text, "Chuyển sang file xuất", "Chuyển")) return;

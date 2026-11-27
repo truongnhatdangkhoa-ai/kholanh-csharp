@@ -268,12 +268,43 @@ public class DoiChieuTests : IDisposable
         Assert.Equal(before.KSl, dc.P1.Result.Summary.KSl);                              // tổng Kho đối chiếu không gồm mã Xuất kiểm
         Assert.Equal(1, dc.XkTo(g.Ngay, g.Ma)); Assert.Contains("Xuất kiểm", dc.NoteOf(1, it).Line);
         Assert.Equal("Xuất kiểm", DcxEngine.StatusText["xk"]);
+        // 1.171: chữ "Xuất kiểm" nằm trong FILE EXCEL Kho (file mẫu chưa có cột Ghi chú → thêm cột cuối), chỉ ở dòng vừa chuyển
+        using (var wb = new XLWorkbook(new MemoryStream(File.ReadAllBytes(dc.LinkOf("kho1")!.Path))))
+        {
+            var ws = wb.Worksheet("Xuat"); var hdr = ws.Row(3).Cells().First(c => c.GetString() == "Ghi chú");
+            var rowsMd = ws.RowsUsed().Where(r => r.Cell(2).GetString() == MD).ToList(); Assert.Single(rowsMd);
+            Assert.Equal("Xuất kiểm", rowsMd[0].Cell(hdr.Address.ColumnNumber).GetString());
+            Assert.All(ws.RowsUsed().Where(r => r.RowNumber() > 3 && r.Cell(2).GetString() != MD), r => Assert.Equal("", r.Cell(hdr.Address.ColumnNumber).GetString()));
+        }
         // dấu lưu theo tài khoản → nạp lại vẫn còn; hoàn tác phiếu chuyển bỏ cả dòng Excel lẫn dấu
         var again = new DoiChieuService(() => _s.Lan, _s.Session, _s.Audit, _s.Settings, _dir); again.Load();
         Assert.Equal(1, again.XkTo(g.Ngay, g.Ma));
         dc.UndoLog(dc.St.Log[^1].Id);
         Assert.Equal(0, dc.XkTo(g.Ngay, g.Ma)); Assert.DoesNotContain(dc.P1.Kho!.Res.Rows, x => x.Ma == MD && x.Ngay == "2026-11-03");
         Assert.Throws<BusinessException>(() => dc.ChuyenXuatKiem(1, new[] { new XuatKiem.Group { Ngay = "2026-11-03", Ma = MD, Sl = 0 } }));
+    }
+
+    [Fact]
+    public void Ghi_chu_Xuat_kiem_dien_vao_cot_Ghi_chu_co_san_chi_o_trong()
+    {
+        var path = Path.Combine(_dir, "kho-gc.xlsx");
+        using (var wb = new XLWorkbook())
+        {
+            var ws = wb.AddWorksheet("Xuat");
+            var heads = new[] { "Ngày", "Mã hàng", "Tên hàng", "Số lượng", "Trọng lượng", "Net", "Ghi chú" };
+            for (var i = 0; i < heads.Length; i++) ws.Cell(3, i + 1).Value = heads[i];
+            ws.Cell(4, 1).Value = D1; ws.Cell(4, 2).Value = A; ws.Cell(4, 3).Value = "Tôm A"; ws.Cell(4, 4).Value = 2; ws.Cell(4, 5).Value = 3; ws.Cell(4, 6).Value = 6;
+            ws.Cell(5, 1).Value = D1; ws.Cell(5, 2).Value = B; ws.Cell(5, 3).Value = "Tôm B"; ws.Cell(5, 4).Value = 1; ws.Cell(5, 5).Value = 3; ws.Cell(5, 6).Value = 3; ws.Cell(5, 7).Value = "giữ nguyên";
+            ws.Cell(6, 1).Value = D1; ws.Cell(6, 4).Value = 3; ws.Cell(6, 6).Value = 9; ws.Cell(6, 4).FormulaA1 = "SUM(D4:D5)"; ws.Cell(6, 6).FormulaA1 = "SUM(F4:F5)";
+            wb.SaveAs(path);
+        }
+        var keys = new HashSet<string> { "2026-11-01|" + A, "2026-11-01|" + B };
+        var (bytes, rep) = DcxXlsx.AddNoteColumn(File.ReadAllBytes(path), "Xuat", keys, "Xuất kiểm");
+        Assert.Equal("fill", rep.Mode); Assert.NotNull(bytes);
+        using var wb2 = new XLWorkbook(new MemoryStream(bytes!)); var w = wb2.Worksheet("Xuat");
+        Assert.Equal("Xuất kiểm", w.Cell(4, 7).GetString());      // ô trống → điền
+        Assert.Equal("giữ nguyên", w.Cell(5, 7).GetString());      // ô đã có chữ → không đè
+        Assert.Equal(7, w.Row(3).CellsUsed().Count());             // không thêm cột thừa
     }
 
     [Fact]
