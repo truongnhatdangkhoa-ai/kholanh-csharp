@@ -330,6 +330,8 @@ public sealed class MayChuView : UserControl
             Line(Muted("Chờ gửi: "), pending > 0 ? Warn($"{pending} thay đổi") : Plain("0")),
         };
         if (pending > 0) subs.Add(Line(Muted("Có thay đổi chờ gửi nên KHÔNG tải bản Drive (để không mất phần đang sửa).")));
+        subs.Add(Line(Muted("Lý do: ")));
+        foreach (var d in Diag(lan)) subs.Add(Line(Muted("  • " + d)));
         Control acts = RetryButton();
         if (Admin)
         {
@@ -364,6 +366,8 @@ public sealed class MayChuView : UserControl
             Line(Muted("Chờ gửi: "), pending > 0 ? Warn($"{pending} thay đổi") : Plain("0")),
             Line(Muted("Khi máy về mạng kho (cùng mạng với máy chủ) app tự nối, gửi các thay đổi lên và gộp — không cần làm gì thêm.")),
         };
+        subs.Add(Line(Muted("Chi tiết lần thử nối gần nhất:")));
+        foreach (var d in Diag(lan)) subs.Add(Line(Muted("  • " + d)));
         var off = new Button { Content = "Tắt chế độ ngoại tuyến" };
         off.Click += (_, _) => { S.Lan.SetAwayMode(false); Render(); };
         var retry = new Button { Content = "Thử nối mạng kho ngay" };
@@ -403,6 +407,8 @@ public sealed class MayChuView : UserControl
         _notes.Children.Add(Note("Máy chưa kết nối Drive cá nhân (Hệ thống › Kết nối › Gmail sao lưu) thì khi mất máy chủ, máy dùng dữ liệu đang có trên máy."));
         FillPending(pending);
     }
+
+    private static List<string> Diag(LanService lan) { try { return lan.Diagnose(); } catch { return new(); } }
 
     private Run[] TriedRuns()
     {
