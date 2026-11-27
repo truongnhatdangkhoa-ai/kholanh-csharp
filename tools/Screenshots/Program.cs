@@ -846,6 +846,73 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
         }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
+// 1.153: SHOTS_ONLY=perf2 — dữ liệu LỚN (PERF2_ROWS dòng, mặc định 8000) rồi mở từng module + bấm từng tab; thời gian luồng giao diện
+// (dựng + bố cục + việc chờ). Quá PERF2_MAX_MS (mặc định 2500) → thoát mã 1. Dùng làm kiểm tra hiệu năng tự động.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf2")
+{
+    var n = int.TryParse(Environment.GetEnvironmentVariable("PERF2_ROWS"), out var nn) ? nn : 8000;
+    var maxMs = int.TryParse(Environment.GetEnvironmentVariable("PERF2_MAX_MS"), out var mm) ? mm : 2500;
+    var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "perf2-" + Guid.NewGuid().ToString("N")[..6]); Directory.CreateDirectory(tmp);
+    var sw0 = System.Diagnostics.Stopwatch.StartNew();
+    string Xl(string name, string[] head, int rows, Func<string, int, ClosedXML.Excel.XLCellValue> val)
+    {
+        var fp = System.IO.Path.Combine(tmp, name);
+        using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("Sheet1");
+        for (var c = 0; c < head.Length; c++) ws.Cell(1, c + 1).Value = head[c];
+        for (var i = 0; i < rows; i++) for (var c = 0; c < head.Length; c++) ws.Cell(i + 2, c + 1).Value = val(head[c], i);
+        wbk.SaveAs(fp); return fp;
+    }
+    string MaOf(int i) => $"VRHLBTNXECR00{1000 + i % 9000}IME1";
+    var hA = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Size", "Hợp đồng", "ĐVT", "Tồn cuối", "Tồn cuối (NET)", "Trọng lượng" };
+    s.AnAn.Commit(s.AnAn.Preview(Xl("Ton kho An An 20.11.2026.xlsx", hA, n, (h, i) => h switch
+    { "Mã hàng" => MaOf(i), "Tên hàng" => "Tôm thẻ mẫu " + i, "Đặc tính" => "IQF " + i % 40, "Size" => (30 + i % 40) + "/" + (40 + i % 40), "Hợp đồng" => "HD-" + i % 300, "ĐVT" => "Thùng", "Tồn cuối" => 20 + i % 90, "Tồn cuối (NET)" => (20 + i % 90) * 10, "Tình trạng" => "Thành phẩm", _ => 10 })));
+    var hV = new[] { "Mã hàng", "Tên hàng", "Lô (Batch)", "Vị trí", "SL Tồn", "T.Lượng" };
+    var vf = s.ViTri.ReadFile(Xl("Ton theo vi tri 21.11.xlsx", hV, n, (h, i) => h switch
+    { "Mã hàng" => MaOf(i), "Tên hàng" => "Tôm thẻ mẫu " + i, "Lô (Batch)" => $"{i % 28 + 1:00}.05.26 L{i % 30}", "Vị trí" => $"TG{i % 4 + 1}.{(char)('A' + i % 6)}.{i / 40 % 30 + 1:00}.{i % 3 + 1}.{i % 2 + 1}", "SL Tồn" => 5 + i % 60, _ => 10 }));
+    vf.Sha = "perf2"; s.ViTri.Import(vf);
+    var hG = new[] { "Mã hàng", "Tên hàng", "Số lô", "Size", "Quy cách", "Ngày nhập kho", "Phiếu nhập", "Số kiện", "Trọng lượng", "Số kiện", "Trọng lượng" };
+    try { s.Gui.Commit(s.Gui.Preview(Xl("ton-kho-gui perf.xlsx", hG, Math.Min(n, 3000), (h, i) => h switch
+    { "Mã hàng" => MaOf(i), "Tên hàng" => "TÔM TCT BTP50, BLOCK, 1.8Kg x 6, 0083", "Số lô" => "L" + i % 50, "Size" => "BTP" + (30 + i % 40), "Quy cách" => "1.8Kg x 6", "Ngày nhập kho" => new DateTime(2026, 11, 1 + i % 25), "Phiếu nhập" => "PN" + i, _ => 8 + i % 20 }))); }
+    catch (Exception ex) { Console.WriteLine("[PERF2] bỏ Tồn kho gửi: " + ex.Message); }
+    try
+    {
+        var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn[1]; var pg = s.Entry.Create("Nhập kho perf", tpl);
+        s.Entry.Save(pg, tpl.Columns, Enumerable.Range(0, Math.Min(n, 6000)).Select(i => new[] { $"{1 + i % 28:00}/11/2026", MaOf(i), "HLSO 16/20", "16/20", (10 + i % 300).ToString(), "10", (100 + i % 3000).ToString(), $"K{i % 9}-{i % 30:00}", "AN AN", "" }).ToList());
+    }
+    catch (Exception ex) { Console.WriteLine("[PERF2] bỏ Nhập liệu: " + ex.Message); }
+    try
+    {
+        s.SoKho.Load(); var sk = new List<KhoLanh.Core.SoKho.SkLine>();
+        for (var i = 0; i < Math.Min(n, 5000); i++) sk.Add(new() { Id = "p" + i, Loai = "nhap", Ngay = $"2026-11-{1 + i % 25:00}", ChungTu = "PN" + i / 20, ViTri = "K" + i % 12, MaHang = "BOT" + i % 200, Size = "25kg", SoLuong = 10 + i % 50, Net = 250 + i % 50 * 25, HanDung = "2027-06-30", NgayNhap = $"2026-11-{1 + i % 25:00}" });
+        s.SoKho.SavePhieu(sk, null, "nhap", "PERF");
+    }
+    catch (Exception ex) { Console.WriteLine("[PERF2] bỏ NXT Bột/Sốt: " + ex.Message); }
+    Console.WriteLine($"[PERF2] nạp {n} dòng mỗi module trong {sw0.Elapsed.TotalSeconds:0.0} s: An An {s.AnAn.D.Rows.Count} · vị trí {s.ViTri.Rows.Count}");
+    KhoLanh.App.MainWindow.CacheEnabled = false;
+    var all = new List<(double ms, string what)>();
+    void Jobs2() { Dispatcher.UIThread.RunJobs(); Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick(1); Dispatcher.UIThread.RunJobs(); }
+    var keys2 = new[] { "lx", "m6", "m13", "m1", "m2", "m7", "m3sk", "m1vtb", "m8", "m4", "m5", "m9", "m7ck", "m3", "m3dm", "m10", "m24cc", "m12", "m11" };
+    foreach (var k in keys2)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew(); double slept = 0;
+        try { main.Navigate(k); } catch (Exception ex) { Console.WriteLine($"[PERF2] {k}: LỖI {ex.GetType().Name}: {ex.Message}"); continue; }
+        Jobs2();
+        for (var i = 0; i < 20; i++) { Thread.Sleep(30); slept += 30; Jobs2(); }
+        all.Add((sw.Elapsed.TotalMilliseconds - slept, "mở " + k));
+        var tc = main.PageHost.GetVisualDescendants().OfType<TabControl>().FirstOrDefault(x => x.IsEffectivelyVisible && x.ItemCount > 1);
+        if (tc is null) continue;
+        for (var ti = 0; ti < tc.ItemCount; ti++)
+        {
+            var sw2 = System.Diagnostics.Stopwatch.StartNew(); tc.SelectedIndex = ti; for (var i = 0; i < 6; i++) Jobs2();
+            all.Add((sw2.Elapsed.TotalMilliseconds, $"{k} › tab {(tc.Items[ti] as TabItem)?.Header ?? ti}"));
+        }
+    }
+    foreach (var (ms, what) in all.OrderByDescending(x => x.ms).Take(25)) Console.WriteLine($"[PERF2] {ms,7:0} ms  {what}{(ms > maxMs ? "   <-- CHẬM" : "")}");
+    var bad = all.Where(x => x.ms > maxMs).ToList();
+    Console.WriteLine($"[PERF2] {all.Count} lượt đo, chậm hơn {maxMs} ms: {bad.Count}");
+    if (bad.Count > 0) Environment.ExitCode = 1;
+    s.Lan.Dispose(); return;
+}
 // 1.90: SHOTS_ONLY=lxtrung — LSX trùng lịch: cảnh báo ở tab Việc cần làm, hộp giữ 1 lịch / trùng hợp lệ; gộp xong hết báo. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "lxtrung")
 {

@@ -216,7 +216,7 @@ public sealed class AnAnData
     private Dictionary<string, double>? _tpcTotals;
 
     /// <summary>Gọi sau mọi thay đổi dữ liệu / điều kiện / chuyển dòng / đặc tính.</summary>
-    public void Invalidate() { _base.Clear(); _sizeStats = null; _tpcTotals = null; }
+    public void Invalidate() { _filterCols = null; _base.Clear(); _sizeStats = null; _tpcTotals = null; }
 
     /// <summary>Danh sách chỉ số dòng thuộc 1 bảng (filterModuleBaseRows — đúng thứ tự app cũ: dòng chuyển tay vào nằm cuối).</summary>
     public List<int> BaseRows(string id)
@@ -355,7 +355,14 @@ public sealed class AnAnData
 
     public sealed record ColRef(string Label, int Ci);
 
-    public List<ColRef> FilterCols() => FilterColumns.Select(l => new ColRef(l, Col(l))).Where(c => c.Ci != -1).ToList();
+    // 1.153: FilterCols được gọi cho TỪNG dòng (TpcStatus / WeightBasis…) và mỗi lần dò cột chuẩn hóa chữ tiêu đề → 8000 dòng mất ~1 s. Nhớ theo bộ tiêu đề.
+    private List<ColRef>? _filterCols; private List<string>? _filterColsFor; private int _filterColsN = -1;
+    public List<ColRef> FilterCols()
+    {
+        if (_filterCols is null || !ReferenceEquals(_filterColsFor, Headers) || _filterColsN != Headers.Count)
+        { _filterCols = FilterColumns.Select(l => new ColRef(l, Col(l))).Where(c => c.Ci != -1).ToList(); _filterColsFor = Headers; _filterColsN = Headers.Count; }
+        return _filterCols;
+    }
     public List<ColRef> ExportCols() => ExportColumns.Select(l => new ColRef(l, Col(l))).Where(c => c.Ci != -1).ToList();
 
     /// <summary>Cột số lượng × trọng lượng cho "Tổng KL (kg)" của các bảng Phân Loại (getFilterModuleWeightBasis).</summary>
