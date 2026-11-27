@@ -98,6 +98,18 @@ public sealed partial class TongQuanView : UserControl, IPage
         b.Click += async (_, _) => await click();
         return b;
     }
+    /// <summary>Nút trạng thái "đã có": dấu tích xanh lá (1.148), chữ giữ màu nút thường.</summary>
+    internal static Button DoneBtn(string text, Func<Task> click, string? tip = null, double fs = 12)
+    {
+        var b = Btn(text, click, tip, fs: fs);
+        b.Classes.Add("done");
+        b.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 6,
+            Children = { KhoLanh.App.Controls.Icon.Make("ok", 15, AppTheme.Brush("#1E7B4A")), new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center } },
+        };
+        return b;
+    }
     private static ScrollViewer Scroll(Control c) => new() { Content = new Border { Padding = new Thickness(0, 8, 8, 16), Child = c }, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
     internal static Border Card(Control body, double pad = 14) => new() { Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(pad), Child = body };
     internal static TextBlock H2(string t) => new() { Text = t, FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Dark, VerticalAlignment = VerticalAlignment.Center };
@@ -268,9 +280,9 @@ public sealed partial class TongQuanView : UserControl, IPage
         var sp = StPill(x.St); sp.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(sp, 6); g.Children.Add(sp);
         var ac = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(8, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         var px = Svc.CanEdit && Svc.CanPnx;
-        if (x.HasList) ac.Children.Add(Btn("✔ Đã có List", () => OpenPnx(1, null, x.Codes.FirstOrDefault()), "Mở List sản xuất của LSX này", fs: 12));
+        if (x.HasList) ac.Children.Add(DoneBtn("Đã có List", () => OpenPnx(1, null, x.Codes.FirstOrDefault()), "Mở List sản xuất của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo List", async () => await RunPnx(x, false), "Tạo List sản xuất từ tồn kho (Thành Phẩm Chính)", fs: 12));
-        if (x.HasPhieu) ac.Children.Add(Btn("✔ Đã có phiếu", () => OpenPnx(0, Svc.PhieuOf(Svc.Group(x.Ids))?.Id, null), "Mở Phiếu xuất kho của LSX này", fs: 12));
+        if (x.HasPhieu) ac.Children.Add(DoneBtn("Đã có phiếu", () => OpenPnx(0, Svc.PhieuOf(Svc.Group(x.Ids))?.Id, null), "Mở Phiếu xuất kho của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo phiếu xuất", async () => await RunPnx(x, true), "Tạo Phiếu xuất kho từ List (chưa có List thì tạo từ tồn kho)", fs: 12));
         if (Svc.CanEdit) { ac.Children.Add(Btn("✉ Cont", async () => await ContMailDialog(x.Ids), "Dán email «Thông tin xe» để cập nhật số cont", fs: 12)); ac.Children.Add(Btn("✎", async () => await EditDialog(x.Ids[0], null), "Sửa lịch", fs: 12)); }
         Grid.SetColumn(ac, 7); g.Children.Add(ac);
