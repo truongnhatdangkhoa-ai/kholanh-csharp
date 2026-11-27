@@ -75,7 +75,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         tabs.Items.Add(new TabItem { Header = "Tổng quan", Content = Scroll(HomeTab()) });
         tabs.Items.Add(new TabItem { Header = "Lịch xuất theo tháng", Content = Scroll(MonthTab()) });
         tabs.Items.Add(new TabItem { Header = "Thống kê", Content = Scroll(StatsTab()) });
-        tabs.SelectionChanged += (_, _) => { if (tabs.SelectedIndex == 1) PaintMonth(); else if (tabs.SelectedIndex == 2) PaintStats(); };
+        tabs.SelectionChanged += (_, e) => { if (!ReferenceEquals(e.Source, tabs)) return; if (tabs.SelectedIndex == 1) PaintMonth(); else if (tabs.SelectedIndex == 2) PaintStats(); };
         Content = tabs;
 
         var timer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };

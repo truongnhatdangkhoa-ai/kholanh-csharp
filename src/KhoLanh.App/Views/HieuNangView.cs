@@ -35,7 +35,10 @@ public sealed class HieuNangView : UserControl
         refresh.Click += (_, _) => Refresh();
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
         var left = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        left.Children.Add(_range); left.Children.Add(refresh); left.Children.Add(_info);
+        var claude = new Button { Content = "📋 Sao chép báo cáo cho Claude", Padding = new Thickness(10, 4) };
+        ToolTip.SetTip(claude, "Soạn sẵn prompt + số liệu hiệu năng THẬT của máy này (CPU / RAM / mạng, mốc mở app · đăng nhập · đồng bộ, thao tác chậm, database, cảnh báo) — dán vào Claude để kiểm tra app. Không có tên khách / người dùng.");
+        claude.Click += async (_, _) => await CopyReport();
+        left.Children.Add(_range); left.Children.Add(refresh); left.Children.Add(claude); left.Children.Add(_info);
         top.Children.Add(left);
 
         var chartCard = Card("CPU / RAM theo thời gian", _chart);
@@ -94,6 +97,36 @@ public sealed class HieuNangView : UserControl
         }, now - span, now);
         PaintApp(now, marks);
         PaintData();
+    }
+
+    /// <summary>1.172: soạn prompt + số liệu hiệu năng cho Claude (hỏi thêm mô tả hiện tượng — tùy chọn) rồi chép vào bộ nhớ tạm.</summary>
+    private async Task CopyReport()
+    {
+        var note = await Ui.Prompt(this, "Mô tả ngắn hiện tượng người dùng thấy (tùy chọn — vd: “chuyển tab Tồn kho An An giật 3 giây”, “mở app chậm”). Để trống nếu không có.", "Báo cáo hiệu năng cho Claude", "");
+        if (note is null) return;
+        var st = Store; var now = Now();
+        var rg = Ranges[Math.Clamp(_range.Selected, 0, Ranges.Length - 1)];
+        var inp = new TroLyHieuNangBaoCao.Input
+        {
+            Version = KhoLanh.Core.Services.UpdateService.Current.ToString(), At = now, RangeLabel = rg.Label, Note = note, Cores = Environment.ProcessorCount,
+            Os = System.Runtime.InteropServices.RuntimeInformation.OSDescription, LanExpected = App.Services?.Lan.ServerAddress is not null, SlowMs = Perf.SlowMs,
+        };
+        string? text = null;
+        var ok = await Ui.Run(this, () =>
+        {
+            try
+            {
+                if (st is not null) { inp.Last = st.Latest(); inp.Points = st.Range(now - rg.Span, now, 600); inp.Marks = st.Marks(null, now.AddDays(-7)); }
+            }
+            catch { /* file số liệu hỏng: báo cáo trống phần máy */ }
+            try { inp.Slow = Perf.Read(App.DataFolder, now, 7); } catch { inp.Slow = new(); }
+            try { inp.Db = DbStats.Read(App.Services.Db); } catch { inp.Db = null; }
+            try { inp.Findings = App.Services.TroLy.Last?.Findings.ToList() ?? new(); } catch { inp.Findings = new(); }
+            text = TroLyHieuNangBaoCao.Build(inp);
+        });
+        if (!ok || text is null) return;
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb) await cb.SetTextAsync(text);
+        _info.Text = $"Đã sao chép báo cáo hiệu năng ({text.Length:#,0} ký tự) — dán vào Claude.";
     }
 
     private static readonly string[] LvBg = { "#FFFFFF", "#FFF2D6", "#FDE8E6" }, LvFg = { "#1A2433", "#9A5B00", "#B42318" };

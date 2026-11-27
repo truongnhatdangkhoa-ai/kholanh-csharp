@@ -40,7 +40,7 @@ public sealed class SoKhoView : UserControl, IPage
         var dm = new DinhMucPanel(); Tab("Định mức", dm, dm.Paint);
         var sc = new SoCaiPanel(); Tab("Sổ cái & lịch sử", sc, sc.Paint);
         var cf = new CauHinhPanel(); Tab("Cấu hình", cf, cf.Paint);
-        tabs.SelectionChanged += (_, _) => { if (tabs.SelectedIndex >= 0 && tabs.SelectedIndex < _refresh.Count && _loaded) _refresh[tabs.SelectedIndex](); };
+        tabs.SelectionChanged += (_, e) => { if (!ReferenceEquals(e.Source, tabs)) return;   /* 1.172: danh sách / ô chọn bên trong nổi lên đây → không phải đổi tab */ if (tabs.SelectedIndex >= 0 && tabs.SelectedIndex < _refresh.Count && _loaded) _refresh[tabs.SelectedIndex](); };
         var root = new DockPanel(); DockPanel.SetDock(_status, Dock.Top); root.Children.Add(_status); root.Children.Add(tabs);
         Content = root;
         AttachedToVisualTree += async (_, _) =>

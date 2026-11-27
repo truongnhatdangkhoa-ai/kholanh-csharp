@@ -53,7 +53,7 @@ public sealed class AnAnView : UserControl, IPage
                 new TabItem { Header = "Tổng Hợp", Content = BuildTh() },
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // 1.172: bỏ qua sự kiện nổi lên từ ô chọn / danh sách bên trong
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(_status, Dock.Right);
         top.Children.Add(_status); top.Children.Add(_fileInfo);
