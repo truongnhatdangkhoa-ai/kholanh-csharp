@@ -28,14 +28,6 @@
         <Border Classes="card">
           <StackPanel x:Name="BootPanel" Spacing="6"/>
         </Border>
-        <!-- Chép từ app cũ (1.98: chỉ Quản trị) -->
-        <Border x:Name="LegacyCard" Classes="card">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Chép dữ liệu từ app cũ" Classes="section" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Content="Chọn khokhanh.db và chép…" Click="OnImportLegacy"
-                    ToolTip.Tip="Chép dữ liệu MỌI module của app cũ (Tồn kho, Lịch xuất, NXT Bột/Sốt, Phiếu xuất kho, Nhập liệu, Kiểm kê, Tổng hợp, Kháng sinh…) từ app › database › engine › khokhanh.db — chọn từng module trước khi chép. Chỉ đọc file cũ."/>
-          </Grid>
-        </Border>
       </StackPanel>
     </ScrollViewer>
 
