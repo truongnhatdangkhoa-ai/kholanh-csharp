@@ -56,7 +56,13 @@ public static class GridTotals
             if (v.Contains(',') && ViNum.IsMatch(v)) return true;
             if (Regex.IsMatch(v, @"^[+-]?\d{1,3}(\.\d{3}){2,}$")) return true;
             var m = Dotted.Match(v);
-            if (m.Success) { dotted++; if (m.Groups[1].Value.Length == 3) dotted3++; }
+            if (m.Success)
+            {
+                // 26/11: "0.750" / "12345.678" không thể là 750 / 12.345 kiểu Việt (số 0 đầu hoặc > 3 chữ số trước dấu chấm) → là số thập phân → cả cột KHÔNG phải kiểu Việt
+                var ip = v.TrimStart('+', '-'); ip = ip.Substring(0, ip.IndexOf('.'));
+                if ((ip.Length > 1 && ip[0] == '0') || ip == "0" || ip.Length > 3) return false;
+                dotted++; if (m.Groups[1].Value.Length == 3) dotted3++;
+            }
         }
         return dotted > 0 && dotted == dotted3;
     }

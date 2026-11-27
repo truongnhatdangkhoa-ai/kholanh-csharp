@@ -61,3 +61,26 @@ public class GridTotalsTests
         Assert.Equal(17, r[1]);      // "Tổng hợp HLSO" là tên hàng, không phải dòng tổng
     }
 }
+
+public class NumFmtZero137Tests
+{
+    [Fact]
+    public void So_am_rat_nho_khong_hien_thanh_am_khong()
+    {
+        Assert.Equal("0.00", NumFmt.Kg(-0.001));
+        Assert.Equal("0", NumFmt.Count(-0.001));
+        Assert.Equal("0", NumFmt.Num(-0.0001));
+        Assert.Equal("-0.01", NumFmt.Kg(-0.006));
+    }
+}
+
+public class ViFormat137Tests
+{
+    [Fact]
+    public void So_thap_phan_3_chu_so_khong_bi_hieu_thanh_hang_nghin()
+    {
+        Assert.False(GridTotals.IsViFormat(new[] { "0.750", "0.125" }));
+        Assert.False(GridTotals.IsViFormat(new[] { "12345.678" }));
+        Assert.True(GridTotals.IsViFormat(new[] { "3.891", "12.345" }));
+    }
+}
