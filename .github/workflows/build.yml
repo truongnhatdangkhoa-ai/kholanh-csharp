@@ -21,6 +21,12 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Kiểm thử
         run: dotnet test tests/KhoLanh.Core.Tests -c Release
+      - name: Kiểm tra hiệu năng mở module / chuyển tab (dữ liệu lớn)
+        run: dotnet run -c Release --project tools/Screenshots -- perf-out
+        env:
+          SHOTS_ONLY: perf2
+          PERF2_ROWS: "4000"
+          PERF2_MAX_MS: "6000"
       - name: Kiểm tra Apps Script tài khoản dùng chung
         run: node tests/apps-script/kiem-tra.js
       - name: Đóng gói Windows (1 file .exe nén, không cần cài .NET)
