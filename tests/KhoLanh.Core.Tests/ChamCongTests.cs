@@ -250,6 +250,27 @@ public class ChamCongTests : IDisposable
     }
 
     [Fact]
+    public void Nghi_phep_nua_ngay_va_gio_lam_ngay_le()
+    {
+        var s = Svc(); var cc = s.ChamCong; cc.Load();
+        cc.SaveNhanVien(new() { new CcNhanVien { Ten = "Người A", Nhom = "XUẤT" } });
+        cc.Load(); var a = cc.NhanVien[0];
+        DateOnly D(int d) => new(2026, 10, d);
+        Assert.Equal("P5", CcCore.NormLoai("P0.5")); Assert.Equal("P5", CcCore.NormLoai("p 1/2")); Assert.Equal("P", CcCore.NormLoai("P")); Assert.Equal("P0.5", CcCore.Nhan("P5"));
+        var cfg = cc.CauHinh; for (var d = 5; d <= 7; d++) cfg.NgayLe[D(d)] = ("L", "Lễ"); cc.SaveCauHinh(cfg); cc.Load();
+        cc.SaveSua("2026-10", new[]
+        {
+            new CcSua { Nv = a.Id, Ngay = D(1), Loai = "P5", Chot = 4 },   // phép nửa ngày, làm 4 giờ
+            new CcSua { Nv = a.Id, Ngay = D(2), Loai = "P" },
+            new CcSua { Nv = a.Id, Ngay = D(5), Chot = 8 },                // lễ, đi làm 1 ngày
+            new CcSua { Nv = a.Id, Ngay = D(6), Chot = 4 },                // lễ, đi làm 0,5 ngày
+        });
+        var t = cc.Tinh("2026-10");
+        Assert.Equal(1.5, t.NgayPhep(a)); Assert.Equal(4, t.Dong[(a.Id, D(1))].SauSang);
+        Assert.Equal(12, t.GioLe(a)); Assert.Equal(4, t.Dong[(a.Id, D(6))].GioLe); Assert.Equal(0, t.Dong[(a.Id, D(7))].GioLe);
+    }
+
+    [Fact]
     public void Nghi_le_tet_cong_tac()
     {
         var s = Svc(); var cc = s.ChamCong; cc.Load();

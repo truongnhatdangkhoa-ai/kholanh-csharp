@@ -252,9 +252,9 @@ public sealed class ChamCongView : UserControl, IPage
         var rows = _t.Nvs.Select(n =>
         {
             var r = new List<string> { n.Ma, n.Ten, n.Nhom };
-            r.AddRange(_t.Ngays.Select(d => { var dd = _t.Dong[(n.Id, d)]; var x = sau ? dd.SauSang : dd.Chot; return dd.Loai.Length > 0 && (dd.DuCong || x == 0) ? dd.Loai : x == 0 ? "" : Ui.Num(x); }));
+            r.AddRange(_t.Ngays.Select(d => { var dd = _t.Dong[(n.Id, d)]; var x = sau ? dd.SauSang : dd.Chot; return dd.Loai.Length > 0 && (dd.DuCong || x == 0) ? CcCore.Nhan(dd.Loai) : x == 0 ? "" : Ui.Num(x); }));
             r.Add(sau ? _t.NgayDu(n).ToString() : _t.SoNgay(n).ToString());
-            string Cnt(int k) => k > 0 ? k.ToString() : "";
+            string Cnt(double k) => k > 0 ? Ui.Num(k) : "";
             r.Add(Cnt(_t.NgayPhep(n))); r.Add(Cnt(_t.NgayLoai(n, "L", "T"))); r.Add(Cnt(_t.NgayLoai(n, "CT")));
             var gl = _t.GioLe(n); r.Add(gl > 0 ? Ui.Num(gl) : ""); r.Add(Ui.Num(sau ? _t.TongSau(n) : _t.TongGio(n)));
             var du = _t.DuCon.GetValueOrDefault(n.Id); r.Add(du > 0 ? Ui.Num(du) : "");
@@ -339,7 +339,7 @@ public sealed class ChamCongView : UserControl, IPage
             r.Nv.Id + "|" + r.Ngay.ToString("yyyy-MM-dd"), r.Nv.Ma, r.Nv.Ten, r.Nv.Nhom, r.Ngay.ToString("dd/MM/yyyy"), CcCore.Thu(r.Ngay),
             r.VaoGoc, r.RaGoc, r.Vao, r.Ra, r.VSom != 0 ? Ui.Num(r.VSom) : "",
             CcCore.HmShort(r.Ket.VaoTron), CcCore.HmShort(r.Ket.RaTron), r.Ket.Nghi > 0 ? CcCore.HmShort(r.Ket.Nghi) : "", r.Ket.Cong > 0 ? CcCore.HmShort(r.Ket.Cong) : "",
-            r.Chot != 0 ? Ui.Num(r.Chot) : "", r.SauSang != 0 ? Ui.Num(r.SauSang) : "", r.Loai, ChamCongService.SangText(r), r.GhiChu,
+            r.Chot != 0 ? Ui.Num(r.Chot) : "", r.SauSang != 0 ? Ui.Num(r.SauSang) : "", CcCore.Nhan(r.Loai), ChamCongService.SangText(r), r.GhiChu,
             string.Join(" · ", new[] { r.CanhBao, r.ChepTu.Length > 0 ? "giờ của " + r.ChepTu : "", r.SuaChot ? "chốt sửa tay" : "", r.SuaSang ? "sang công sửa tay" : "" }.Where(x => x.Length > 0)),
         }).ToList();
         _loading = true;
