@@ -67,7 +67,7 @@ public sealed partial class KhangSinhView
         var top = new StackPanel { Spacing = 8 };
         top.Children.Add(Muted("Chọn 1 hoặc nhiều file PDF phiếu kết quả: phiếu lần 1 \"Kết quả kiểm kháng sinh nguyên liệu (Kho)\" hoặc phiếu kiểm lại (2 cột Kết quả lần 1 / lần 2). "
             + "App đọc mỗi phiếu bằng 2 cách độc lập (theo cột và theo thứ tự chữ trong file) rồi đối soát Lô · Mẫu · Đặt tính; mục lệch phải xem ảnh phiếu gốc bên phải và tick \"Đã so\" mới nhập được. "
-            + "Phiếu lần 1: lô (Ngày nhập + Số lô) đã có thì cập nhật kết quả lần 1. Phiếu kiểm lại: mẫu ghi \"Lô: N (ngày)\" được gắn vào lô đó. PDF dạng bảng khác được chuyển sang khớp cột như Excel."));
+            + "Phiếu lần 1: lô (Ngày nhập + Số lô) đã có thì cập nhật kết quả lần 1. Phiếu kiểm lại: mẫu ghi \"Lô: N (ngày)\" được gắn vào lô đó. PDF dạng bảng khác được chuyển sang khớp cột như Excel. Phiếu TÔM NHẬP KHẨU (không có lô: INV · Contract · TP · Size) được nhận ra tự động và nạp sang tab \"Tôm nhập khẩu\"."));
         top.Children.Add(Wrap(Btn("Chọn file PDF…", async () => await PickPdf(), primary: true), Btn("Chọn lại", PdfReset), _pInfo));
         DockPanel.SetDock(top, Dock.Top); p.Children.Add(top);
 
@@ -119,11 +119,21 @@ public sealed partial class KhangSinhView
     internal async Task LoadPdfFiles(IReadOnlyList<string> paths)
     {
         _pInfo.Text = "Đang đọc file PDF…";
-        List<P.Phieu>? found = null; List<P.PdfTable>? tables = null; var failed = new List<string>();
+        List<P.Phieu>? found = null; List<P.PdfTable>? tables = null; var failed = new List<string>(); List<KhangSinhNhapKhau.Phieu>? nk = null;
         try
         {
             await Task.Run(() =>
             {
+                // 1.175: phiếu tôm nhập khẩu (không có lô) — mọi file đều là loại này thì đi luồng riêng
+                var nkl = new List<KhangSinhNhapKhau.Phieu>();
+                foreach (var path in paths)
+                {
+                    KhangSinhNhapKhau.Phieu? x = null;
+                    try { x = KhangSinhNhapKhau.Read(File.ReadAllBytes(path), System.IO.Path.GetFileName(path)); } catch { x = null; }
+                    if (x is null) { nkl.Clear(); break; }
+                    nkl.Add(x);
+                }
+                if (nkl.Count > 0) { nk = nkl; return; }
                 var list = new List<P.Phieu>();
                 foreach (var path in paths)
                 {
@@ -149,6 +159,7 @@ public sealed partial class KhangSinhView
         }
         catch (Exception ex) { _pInfo.Text = ""; await Ui.Message(this, Ui.Describe(ex), "Không đọc được PDF"); return; }
 
+        if (nk is not null) { _pInfo.Text = ""; await NkImport(nk); return; }
         if (found is not null)
         {
             _pf = found; _pSel = null; _pZoom = 1; _pImg.Source = null; _pBox.IsVisible = false; _pRenderSeq++;

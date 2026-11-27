@@ -113,6 +113,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
                 new TabItem { Header = "Nhập từ Excel", Content = BuildImport() },
                 new TabItem { Header = "Nạp PDF phiếu", Content = BuildPdf() },
                 new TabItem { Header = "Quy định kháng sinh", Content = BuildRules() },
+                new TabItem { Header = "Tôm nhập khẩu", Content = BuildNk() },
             },
         };
         var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
@@ -156,6 +157,7 @@ public sealed partial class KhangSinhView : UserControl, IPage
         RenderInfo();
         ApplyFilters(keepDay: false);
         LoadRulesGrid();
+        NkRefresh();
     }
     private void RenderInfo()
     {

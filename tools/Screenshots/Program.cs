@@ -1089,6 +1089,52 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v251")
     Snap(w, "v251-nxt-chon-phieu");
     w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v251) — ĐẠT: " : "Xong (v251) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.175: SHOTS_ONLY=v253 — Kết quả kháng sinh › Tôm nhập khẩu: nạp phiếu (dữ liệu giả giống phiếu MNSF-155 có 2 mẫu nhiễm), gõ "TP143 size 31/35" → thẻ kết quả, danh sách + các mẫu. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v253")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v253] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.KhangSinh.Load();
+    string[] ky = { "enro", "cipro", "oxy", "doxy", "sulfo", "aoz", "cap" };
+    KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Phieu MkPhieu(string so, string inv, string ct, string tp, params (string size, int n, int bad)[] sizes)
+    {
+        var ph = new KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Phieu { File = so + ".pdf", So = so, Date = "2024-11-19", Country = "Ấn Độ", Invoice = inv, Contract = ct, Tp = tp };
+        var stt = 0;
+        foreach (var (size, n, bad) in sizes)
+            for (var i = 1; i <= n; i++)
+            {
+                stt++; var isBad = i > n - bad;
+                var m = new KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Mau { Stt = stt, Ten = "Tôm HLSO " + size + " nhập khẩu", NgayNhap = "2024-11-18", Kien = 50,
+                    Kq = isBad ? "ĐẠT NHẬT, ASC-A,B, MỸ, HQ" : "ĐẠT MKS", DatTinh = isBad ? "10.N-AS2-M-H" : "23.MKS", GhiChu = isBad ? "Doxy: 7,52" : "" };
+                foreach (var k in ky) m.Inputs[k] = isBad && k == "doxy" ? "7,52" : "ND";
+                ph.Mau.Add(m);
+            }
+        return ph;
+    }
+    s.KhangSinh.ImportNhapKhau(new[] { MkPhieu("19/KS 11", "MNSF-155/2024-25", "TP-143/24-MAA", "143", ("31/35", 30, 2)), MkPhieu("02/KS 11", "000086452", "TR3007-05", "", ("41/50", 33, 0)), MkPhieu("11/KS 02", "F37AQ25111000208", "TP-219/24-ITC", "219", ("31/40", 16, 0), ("51/60", 6, 0)) });
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P();
+    w.Navigate("m10"); P(40);
+    var tabs = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.IsEffectivelyVisible && t.Items.OfType<TabItem>().Any(i => (i.Header as string) == "Tôm nhập khẩu"));
+    tabs.SelectedIndex = 6; P(30);
+    var box = w.PageHost.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => (t.Watermark ?? "").StartsWith("Tìm — VD: TP143"));
+    if (box is null) Bad("không thấy ô tìm Tôm nhập khẩu");
+    else
+    {
+        P(20); Snap(w, "v253-tom-nhap-khau-danh-sach");
+        box.Text = "TP143 size 31/35"; for (var i = 0; i < 30; i++) P(5);
+        var texts = w.PageHost.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "").ToList();
+        if (!texts.Any(t => t.Contains("mẫu nhiễm 10.N-AS2-M-H") && t.Contains("28 mẫu 23.MKS"))) Bad("thẻ kết quả không nói 28 mẫu đạt + 2 mẫu nhiễm: " + string.Join(" | ", texts.Where(t => t.Contains("mẫu"))));
+        if (!texts.Any(t => t.Contains("Doxy 7,52") && t.Contains("Doxy 7,52"))) Bad("thẻ không ghi chỉ tiêu nhiễm");
+        Snap(w, "v253-tom-nhap-khau-tp143-size-31-35");
+        box.Text = "TP219 size 31/40"; for (var i = 0; i < 30; i++) P(5);
+        texts = w.PageHost.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "").ToList();
+        if (!texts.Any(t => t.Contains("16/16 mẫu 23.MKS"))) Bad("TP219 31/40 phải 16/16 mẫu 23.MKS");
+        box.Text = "TP219 size 99/99"; for (var i = 0; i < 30; i++) P(5);
+        texts = w.PageHost.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "").ToList();
+        if (!texts.Any(t => t.Contains("chỉ có Size 31/40, 51/60"))) Bad("không gợi ý Size có trong TP219");
+    }
+    w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v253) — ĐẠT: " : "Xong (v253) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.174: SHOTS_ONLY=v252 — NXT Bột/Sốt › Phiếu xuất: "Chọn hàng từ tồn…" mở bảng tồn theo lô, tích dòng → SL = tồn, Xong → dòng vào phiếu. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v252")
 {
