@@ -179,6 +179,7 @@ public partial class MainWindow : Window
         if (AppUpdater.StagedVersion is { } sv) OnUpdateReady(sv);
         if (!_autoStarted) { _autoStarted = true; AppUpdater.StartAuto(); }
         s.Lan.Changed += OnLanChanged;
+        try { s.PhoneSync.StartInstantPush(); } catch { /* 1.145: đẩy ngay khi có thay đổi (nếu bật ở Điện thoại) */ }
         try { s.PhoneSync.StartInstantSlipPush(); } catch { /* 1.72 (B6): đẩy phiếu PC lên điện thoại ngay khi lưu */ }
         Closed += (_, _) => s.Lan.Changed -= OnLanChanged;
         _lanTimer.Tick += (_, _) => ShowLan();
