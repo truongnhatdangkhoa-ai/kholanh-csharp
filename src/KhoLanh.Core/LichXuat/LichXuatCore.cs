@@ -190,12 +190,19 @@ public static class LichXuatCore
         var all = groups.Select(g => Mk(g, now, pnx)).ToList();
         int ByGio(ContRow a, ContRow b) => string.CompareOrdinal(a.Gio.Length > 0 ? a.Gio : "99:99", b.Gio.Length > 0 ? b.Gio : "99:99");
         var today = all.Where(x => x.Ngay == day).ToList(); today.Sort(ByGio);
-        var recent = all.Where(x => string.CompareOrdinal(x.Ngay, t) <= 0 && x.St != "plan").ToList();
+        var m0 = MonthOf(t) + "-01"; // 1.146: gần đây = TOÀN BỘ lịch từ đầu tháng tới hôm nay (giao diện phân trang)
+        var recent = all.Where(x => string.CompareOrdinal(x.Ngay, t) <= 0 && string.CompareOrdinal(x.Ngay, m0) >= 0 && x.St != "plan").ToList();
         recent.Sort((a, b) => string.CompareOrdinal(b.Ngay, a.Ngay) is var c && c != 0 ? c : ByGio(b, a));
         var up = all.Where(x => string.CompareOrdinal(x.Ngay, t) >= 0 && x.St == "plan").ToList();
         up.Sort((a, b) => string.CompareOrdinal(a.Ngay, b.Ngay) is var c && c != 0 ? c : ByGio(a, b));
-        return new Home(day, today, recent.Take(60).ToList(), up.Take(60).ToList());
+        return new Home(day, today, recent, up);
     }
+
+    /// <summary>1.146: số trang (≥ 1) của <paramref name="count"/> dòng, mỗi trang <paramref name="size"/> dòng.</summary>
+    public static int PageCount(int count, int size) => Math.Max(1, (count + size - 1) / size);
+
+    /// <summary>1.146: số thứ tự đếm từ DƯỚI lên trên toàn danh sách — dòng đầu (mới nhất) = <paramref name="count"/>, dòng cuối = 1; không đổi khi sang trang.</summary>
+    public static int Stt(int count, int index) => count - index;
 
     public static ContRow Mk(List<Lich> g, DateTime now, Func<List<Lich>, PnxState>? pnx)
     {

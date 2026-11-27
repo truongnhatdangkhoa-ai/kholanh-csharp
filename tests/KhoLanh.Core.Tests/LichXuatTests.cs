@@ -83,6 +83,17 @@ public class LichXuatTests : IDisposable
     // ------------------------------------------------------------------ lõi
 
     [Fact]
+    public void Gan_day_la_ca_thang_va_phan_trang_10_dong_stt_tu_duoi_len()
+    {
+        var rows = Enumerable.Range(1, 23).Select(i => L("r" + i, $"2026-11-{(i % 3) + 1:00}", $"LSX 26.11.{i:000}", "ok")).ToList();
+        rows.Add(L("cu", "2026-10-30", "LSX 26.10.001", "ok")); // tháng trước không tính
+        var h = LichXuatCore.BuildHome(rows, "2026-11-23", Now);
+        Assert.Equal(23, h.Recent.Count);
+        Assert.Equal(3, LichXuatCore.PageCount(23, 10)); Assert.Equal(1, LichXuatCore.PageCount(0, 10)); Assert.Equal(1, LichXuatCore.PageCount(10, 10));
+        Assert.Equal(23, LichXuatCore.Stt(23, 0)); Assert.Equal(1, LichXuatCore.Stt(23, 22));
+    }
+
+    [Fact]
     public void Home_gop_cont_va_tach_gan_day_du_kien()
     {
         var rows = new List<Lich>
