@@ -37,10 +37,6 @@ public sealed class EntryService
     public static readonly Template[] BuiltIn =
     {
         new("trong", "Trống (cột A–J)", Enumerable.Range(0, 10).Select(i => new GridColumn("c" + i, GridModel.ColumnName(i), 110)).ToList(), true),
-        new("nhap-kho", "Nhập kho", Cols(("Ngày", "date", 100, EntryRules.Today, ""), ("Mã hàng", "text", 190, "", ""), ("Tên hàng", "text", 240, EntryRules.Ten, ""), ("Size", "text", 80, EntryRules.Size, ""),
-            ("Số thùng", "number", 90, "", ""), ("Kg / thùng", "number", 90, EntryRules.Tl, ""), ("Tổng kg", "number", 100, "", "=[Số thùng]*[Kg / thùng]"), ("Vị trí", "text", 90, "", ""), ("Khách hàng", "text", 130, "", ""), ("Ghi chú", "text", 200, "", "")), true),
-        new("xuat-kho", "Xuất kho", Cols(("Ngày", "date", 100, EntryRules.Today, ""), ("Số phiếu", "text", 110, "", ""), ("Mã hàng", "text", 190, "", ""), ("Tên hàng", "text", 240, EntryRules.Ten, ""), ("Size", "text", 80, EntryRules.Size, ""),
-            ("Số thùng", "number", 90, "", ""), ("Tổng kg", "number", 100, "", ""), ("Vị trí", "text", 90, "", ""), ("Khách hàng", "text", 130, "", ""), ("Ghi chú", "text", 200, "", "")), true),
         // 1.62: mẫu kiểm kê mới — Size / Trọng lượng theo mã, Net = Số lượng × Trọng lượng, Ngày nhập = ngày tạo dòng (không tự đổi khi sửa)
         // 1.71: Net(kg) → Tổng Net(kg); thêm Số lượng xuất · Số lượng còn lại (= Số lượng − SL xuất, là số đối chiếu kiểm kê) ·
         //       Tổng Net(kg) còn lại (= SL còn lại × Trọng lượng) · Ngày xuất (tự điền khi gõ SL xuất)

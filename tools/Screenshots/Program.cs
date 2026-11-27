@@ -156,7 +156,7 @@ using (var c = s.Db.Open())
 
 // Nhập liệu mẫu
 {
-    var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn[1];
+    var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn[0];
     var pg = s.Entry.Create("Nhập kho 22/11", tpl);
     var rnd = new Random(7);
     string[] hang = { "HLSO 16/20 BLOCK", "PD 31/40 IQF", "PTO 26/30", "HOSO 20/30 SEMI", "PDTO 41/50 IQF" };
@@ -167,7 +167,7 @@ using (var c = s.Db.Open())
             thung.ToString(), kg.ToString(), (thung * kg).ToString(), $"K{rnd.Next(1, 9)}-{rnd.Next(1, 30):00}", i % 3 == 0 ? "AN AN" : "MINH PHÚ", i % 9 == 0 ? "Hàng gửi" : "" };
     }).ToList();
     s.Entry.Save(pg, tpl.Columns, rows);
-    s.Entry.Create("Kiểm kê kho 2", KhoLanh.Core.Entry.EntryService.BuiltIn[3]);
+    s.Entry.Create("Kiểm kê kho 2", KhoLanh.Core.Entry.EntryService.BuiltIn.First(t => t.Id == "kiem-ke"));
 }
 
 // Tổng hợp mẫu: Bảng 1 lấy từ danh sách mã hàng mặc định
@@ -876,7 +876,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf2")
     catch (Exception ex) { Console.WriteLine("[PERF2] bỏ Tồn kho gửi: " + ex.Message); }
     try
     {
-        var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn[1]; var pg = s.Entry.Create("Nhập kho perf", tpl);
+        var tpl = KhoLanh.Core.Entry.EntryService.BuiltIn[0]; var pg = s.Entry.Create("Nhập kho perf", tpl);
         s.Entry.Save(pg, tpl.Columns, Enumerable.Range(0, Math.Min(n, 6000)).Select(i => new[] { $"{1 + i % 28:00}/11/2026", MaOf(i), "HLSO 16/20", "16/20", (10 + i % 300).ToString(), "10", (100 + i % 3000).ToString(), $"K{i % 9}-{i % 30:00}", "AN AN", "" }).ToList());
     }
     catch (Exception ex) { Console.WriteLine("[PERF2] bỏ Nhập liệu: " + ex.Message); }
@@ -1088,6 +1088,40 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v251")
         }
     Snap(w, "v251-nxt-chon-phieu");
     w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v251) — ĐẠT: " : "Xong (v251) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
+// 1.174: SHOTS_ONLY=v252 — NXT Bột/Sốt › Phiếu xuất: "Chọn hàng từ tồn…" mở bảng tồn theo lô, tích dòng → SL = tồn, Xong → dòng vào phiếu. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v252")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v252] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.SoKho.Load();
+    var sk0 = new List<KhoLanh.Core.SoKho.SkLine>();
+    for (var i = 0; i < 6; i++) sk0.Add(new() { Id = "q" + i, Loai = "nhap", Ngay = "2026-11-01", ChungTu = "NL-1", ViTri = "K1", MaHang = "BOT" + i, Size = "25kg", SoLuong = 10 + i, Net = 25 * (10 + i) });
+    s.SoKho.SavePhieu(sk0, null, "nhap", "v252");
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P();
+    w.Navigate("m3sk"); P(40);
+    var tabs = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.IsEffectivelyVisible);
+    tabs.SelectedIndex = 1; P(20);
+    var btn = w.PageHost.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<TextBlock>().Any(t => (t.Text ?? "").Contains("Chọn hàng từ tồn")));
+    if (btn is null) { Bad("không thấy nút Chọn hàng từ tồn"); }
+    else
+    {
+        btn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(40);
+        var dlg = w.OwnedWindows.LastOrDefault();
+        var grid = dlg?.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().FirstOrDefault();
+        if (dlg is null || grid is null) Bad("không mở được cửa sổ chọn hàng");
+        else
+        {
+            grid.SetChecked(new[] { 0, 2 }, true); P(10);
+            if (grid.Model.Get(0, 8) != "10" || grid.Model.Get(2, 8) != "12") Bad($"tích dòng không điền SL: '{grid.Model.Get(0, 8)}' / '{grid.Model.Get(2, 8)}'");
+            Snap(dlg, "v252-nxt-chon-hang-xuat");
+            dlg.Close(); P(40);
+            var g2 = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(x => x.IsEffectivelyVisible).ToList();
+            if (!g2.Any(x => x.Model.ColCount > 1 && Enumerable.Range(0, x.Model.RowCount).Count(r => x.Model.Get(r, 1).StartsWith("BOT")) == 2)) Bad("2 lô đã chọn không vào dòng phiếu");
+        }
+    }
+    Snap(w, "v252-nxt-phieu-xuat");
+    w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v252) — ĐẠT: " : "Xong (v252) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v250")
 {
