@@ -280,7 +280,7 @@ public sealed class SoDoService
         rng.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; rng.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         ws.Row(1).Style.Font.Bold = true; ws.Row(1).Style.Fill.BackgroundColor = XLColor.FromHtml("#E8E8E8");
         ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents(1, Math.Min(r, 400));
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("xuất Excel danh sách vị trí", Path.GetFileName(path));
     }
 
@@ -450,7 +450,7 @@ public sealed class SoDoService
             ws.PageSetup.SetRowsToRepeatAtTop(3, 3);
         }
         if (wb.Worksheets.Count == 0) wb.AddWorksheet("Trong");
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         k.Out = true;
         Log("xuất phiếu in vị trí", Path.GetFileName(path));
     }
@@ -562,6 +562,6 @@ public sealed class SoDoService
         var rng = ws.Range(1, 1, Math.Max(1, r - 1), head.Length);
         rng.Style.Border.OutsideBorder = XLBorderStyleValues.Thin; rng.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         ws.Row(1).Style.Font.Bold = true; ws.SheetView.FreezeRows(1); ws.Columns().AdjustToContents();
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 }

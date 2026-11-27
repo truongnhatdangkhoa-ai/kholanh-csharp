@@ -1034,7 +1034,7 @@ public sealed class DoiChieuService
             foreach (var e in ed) Put(ws, row++, new object?[] { e.At.Replace('T', ' '), KN(e.Pair), Dmy(e.Ngay), e.Ma, e.Ten, (e.Field == "sl" ? "SL " : "Net ") + (e.Side == "kho" ? "Kho" : "Xưởng"), e.Before, e.After, e.By });
             Finish(ws, Array.Empty<int>(), new[] { 7, 8 });
         }
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
     private static void Header(IXLWorksheet ws, string[] h)
     {

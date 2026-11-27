@@ -211,6 +211,6 @@ public static class XuatKiem
         double[] w = { 17.6, 26.4, 63.4, 10.9, 15.4, 12, 9, 15.1 }; for (var i = 0; i < 8; i++) ws.Column(i + 1).Width = w[i];
         ws.Range(1, 1, last, 8).SetAutoFilter(); ws.SheetView.FreezeRows(1);
         ws.PageSetup.PageOrientation = XLPageOrientation.Landscape; ws.PageSetup.PaperSize = XLPaperSize.A4Paper; ws.PageSetup.FitToPages(1, 0); ws.PageSetup.SetRowsToRepeatAtTop(1, 1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 }

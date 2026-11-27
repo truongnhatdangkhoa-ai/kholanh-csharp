@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using KhoLanh.App.Controls;
 using KhoLanh.Core.Grid;
 using KhoLanh.Core.SoKho;
+using KhoLanh.Core;
 
 namespace KhoLanh.App.Views;
 
@@ -106,7 +107,7 @@ public sealed class VtbView : UserControl, IPage
             ws.Cell(1, 1).Value = "NGÀY:"; ws.Cell(1, 2).Value = DateTime.Today; ws.Cell(1, 2).Style.DateFormat.Format = "dd/MM/yyyy";
             var cols = KhoLanh.Core.SoKho.VtbService.TemplateColumns;
             for (var c = 0; c < cols.Length; c++) { var cell = ws.Cell(2, c + 1); cell.Value = cols[c]; cell.Style.Font.Bold = true; cell.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#D9E1F2"); }
-            ws.Columns(1, cols.Length).Width = 14; wb.SaveAs(path);
+            ws.Columns(1, cols.Length).Width = 14; wb.SaveInPlace(path);
         });
         Ui.Exported(this, Path.GetDirectoryName(path)!);
     }

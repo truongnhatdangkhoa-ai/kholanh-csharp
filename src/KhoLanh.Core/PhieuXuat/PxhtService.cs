@@ -380,7 +380,7 @@ public sealed class PxhtService
                 r++;
             }
         Style(wi, h2.Length, r - 1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 
     private static void Style(IXLWorksheet ws, int cols, int lastRow)

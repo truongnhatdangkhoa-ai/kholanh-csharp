@@ -272,7 +272,7 @@ public sealed class SoKhoService
             for (var i = 0; i < v.Length; i++) ws.Cell(r, i + 1).Value = v[i] switch { double d => d, null => "", var x => x.ToString() };
             r++;
         }
-        Finish(ws, h.Length); wb.SaveAs(path);
+        Finish(ws, h.Length); wb.SaveInPlace(path);
     }
 
     /// <summary>Xuất bảng bất kỳ (tiêu đề + dòng) — dùng cho Tồn kho / NXT / Định mức.</summary>
@@ -282,7 +282,7 @@ public sealed class SoKhoService
         for (var i = 0; i < head.Count; i++) ws.Cell(1, i + 1).Value = head[i];
         var r = 2;
         foreach (var v in rows) { for (var i = 0; i < v.Length; i++) ws.Cell(r, i + 1).Value = v[i] switch { double d => d, int n => n, null => "", var x => x.ToString() }; r++; }
-        Finish(ws, head.Count); wb.SaveAs(path);
+        Finish(ws, head.Count); wb.SaveInPlace(path);
     }
     private static void Finish(IXLWorksheet ws, int cols)
     {

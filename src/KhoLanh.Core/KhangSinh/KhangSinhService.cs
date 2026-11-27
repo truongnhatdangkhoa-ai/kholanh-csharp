@@ -540,7 +540,7 @@ public sealed class KhangSinhService
         }
         ws.SheetView.FreezeRows(1);
         ws.Columns().AdjustToContents(8, 60);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("Xuất Excel", $"{rows.Count} dòng → {Path.GetFileName(path)}");
     }
     public static string SavedText(string iso) =>
