@@ -162,7 +162,8 @@ public class ChamCongTests : IDisposable
         Assert.Equal(8, bc.Cell(4, 5).GetDouble());                  // ngày 1: 9 giờ → sang 1 giờ cho ngày nghỉ gần nhất
         Assert.Equal(17.5, bc.Cell(4, 5 + 31 + 5).GetDouble());      // tổng giờ sau sang (không đổi)
         Assert.Equal("Sang công", wb.Worksheet("Sang công").Cell(1, 1).GetString() == "Mã nhân viên" ? "Sang công" : "");
-        Assert.Equal("Chốt", wb.Worksheet("Chi tiết").Cell(3, 14).GetString());
+        Assert.Equal("Tăng ca trưa", wb.Worksheet("Chi tiết").Cell(3, 13).GetString());   // 1.159: cột mới sau V.Sớm
+        Assert.Equal("Chốt", wb.Worksheet("Chi tiết").Cell(3, 15).GetString());
     }
 
     [Fact]

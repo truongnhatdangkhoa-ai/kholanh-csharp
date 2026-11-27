@@ -134,6 +134,6 @@ public static class ThongKeThang
         }
         double[] w3 = { 7, 18, 18 };
         for (var i = 0; i < 3; i++) w2.Column(i + 1).Width = w3[i];
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 }

@@ -730,7 +730,7 @@ public sealed class ChungTuService
             used.Add(nm);
             Sheet(wb.AddWorksheet(nm), g, meta, k, names, logo);
         }
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("Xuất Excel", $"{k.Label}: {groups.Count} phiếu → {Path.GetFileName(path)}");
     }
 

@@ -24,6 +24,7 @@ public sealed class ScanView : UserControl, IPage
     public string Subtitle => "Ảnh chụp / PDF → tự cắt trang, khử bóng, nền trắng chữ đen → xuất PDF để in / gửi. Xử lý hoàn toàn trên máy.";
 
     private static ScanStore Store => App.Services.Scan;
+    private readonly TabControl _tabs;
     private static readonly IBrush Line_ = AppTheme.Brush("#D0D7E2");
     private static readonly IBrush Dark = AppTheme.Brush("#0B2A45");
     private const int PreviewSide = 1700, ThumbSide = 240;
@@ -66,10 +67,9 @@ public sealed class ScanView : UserControl, IPage
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
         bar.Children.Add(Btn("＋ Thêm ảnh / PDF", AddFilesDialog, "Chọn ảnh chụp (JPG, PNG…) hoặc file PDF — có thể chọn nhiều file, hoặc kéo thả vào trang", true));
         bar.Children.Add(Btn("Mới", NewDoc));
-        bar.Children.Add(Btn("Tài liệu đã lưu", OpenSaved));
         bar.Children.Add(new TextBlock { Text = "Tên:", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 });
         bar.Children.Add(_name);
-        bar.Children.Add(Btn("💾 Lưu", SaveDoc, "Cất tài liệu vào bộ nhớ của tài khoản trên máy này để mở / chỉnh lại sau"));
+        bar.Children.Add(Btn("💾 Lưu", SaveDoc, "Cất tài liệu vào bộ nhớ của tài khoản trên máy này để mở / chỉnh lại sau — xem ở tab “Đã lưu”"));
         bar.Children.Add(_fmt);
         bar.Children.Add(Btn("⬇ Xuất PDF", ExportPdf, null, true));
         bar.Children.Add(Btn("⬇ Xuất ảnh JPG", ExportJpg, "Trang đang xem → 1 file JPG; chọn “tất cả” để xuất mọi trang vào 1 thư mục"));
@@ -97,7 +97,15 @@ public sealed class ScanView : UserControl, IPage
         var main = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         main.Children.Add(left); Grid.SetColumn(center, 1); main.Children.Add(center); Grid.SetColumn(right, 2); main.Children.Add(right);
         var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(main);
-        Content = root;
+        // 1.158: bỏ hộp "Tài liệu đã lưu" — tài liệu lưu để sửa tiếp hiện chung trong tab Đã lưu (cùng file PDF / JPG đã xuất)
+        _tabs = Ui.SubTabs(("Làm việc", root), ("Đã lưu", CongCuFiles.Panel("Scan tài liệu", new CongCuFiles.Extra
+        {
+            OpenLabel = "Mở để sửa tiếp",
+            List = () => Store.List().Select(d => new CongCuFiles.Item(d.Id, d.Name, d.Updated, $"Tài liệu scan · {d.Pages} trang", d.Bytes, "Bộ nhớ app (sửa tiếp được)")).ToList(),
+            Open = it => OpenDoc(it.Id),
+            Delete = async it => { var ok = await Ui.Run(this, () => Store.Delete(it.Id)); return ok; },
+        })));
+        Content = _tabs;
 
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, (_, e) => { e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None; });
@@ -418,45 +426,17 @@ public sealed class ScanView : UserControl, IPage
         _busy.Text = "Đang lưu…";
         var ok = await Ui.RunAsync(this, () => Task.Run(() => Store.Save(_doc)));
         _busy.Text = "";
-        if (ok) { _dirty = false; try { Store.Delete(ScanStore.DraftId); } catch { } _status.Text = $"Đã lưu “{_doc.Name}” ({_doc.Pages.Count} trang) vào bộ nhớ của tài khoản trên máy này."; }
+        if (ok) { _dirty = false; try { Store.Delete(ScanStore.DraftId); } catch { } _status.Text = $"Đã lưu “{_doc.Name}” ({_doc.Pages.Count} trang) — xem / mở lại ở tab “Đã lưu”."; CongCuFiles.Notify(); }
     }
 
-    private async Task OpenSaved()
+    /// <summary>Mở tài liệu đã lưu (từ tab Đã lưu) để sửa tiếp ở tab Làm việc.</summary>
+    private async Task OpenDoc(string id)
     {
-        var list = new StackPanel { Spacing = 4 };
-        var w = Ui.Dialog("Tài liệu đã lưu", new StackPanel(), 640);
-        void Paint()
-        {
-            list.Children.Clear();
-            var docs = Store.List();
-            if (docs.Count == 0) { list.Children.Add(Muted("Chưa có tài liệu nào. Bấm “💾 Lưu” để cất tài liệu đang làm.")); return; }
-            foreach (var d in docs)
-            {
-                var row = new DockPanel();
-                var bs = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-                bs.Children.Add(Btn("Mở", async () =>
-                {
-                    if (_doc.Pages.Count > 0 && _dirty && !await Ui.Confirm(this, "Tài liệu đang làm chưa lưu — vẫn mở tài liệu khác?", yes: "Mở")) return;
-                    var doc = Store.Load(d.Id); if (doc is null) { await Ui.Message(this, "Không mở được tài liệu này."); return; }
-                    _doc = doc; _name.Text = doc.Name; _cur = 0; _cropMode = false; _dirty = false; _thumbs.Clear(); _src.Clear(); _srcOrder.Clear();
-                    w.Close(); RenderAll(); _status.Text = $"Đã mở “{doc.Name}” ({doc.Pages.Count} trang).";
-                }));
-                bs.Children.Add(Btn("Xóa", async () => { if (!await Ui.Confirm(this, $"Xóa tài liệu “{d.Name}”?", yes: "Xóa")) return; if (await Ui.Run(this, () => Store.Delete(d.Id))) Paint(); }));
-                DockPanel.SetDock(bs, Dock.Right); row.Children.Add(bs);
-                var t = new StackPanel();
-                t.Children.Add(new TextBlock { Text = d.Name, FontWeight = FontWeight.SemiBold });
-                t.Children.Add(Muted($"{d.Pages} trang · {(d.Bytes >= 1048576 ? (d.Bytes / 1048576.0).ToString("0.0", Ui.Vi) + " MB" : Math.Max(1, d.Bytes / 1024) + " KB")} · {d.Updated:HH:mm dd/MM/yyyy}"));
-                row.Children.Add(t);
-                list.Children.Add(new Border { BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(0, 4), Child = row });
-            }
-        }
-        var close = new Button { Content = "Đóng", IsCancel = true }; close.Click += (_, _) => w.Close();
-        var body = new StackPanel { Spacing = 8 };
-        body.Children.Add(Muted("Tài liệu lưu riêng cho tài khoản đang đăng nhập, trên máy này."));
-        body.Children.Add(new ScrollViewer { Content = list, MaxHeight = 460 }); body.Children.Add(Ui.Buttons(close));
-        ((Border)w.Content!).Child = body;
-        Paint();
-        await Ui.Show(this, w);
+        if (_doc.Id == id && _doc.Pages.Count > 0) { _tabs.SelectedIndex = 0; return; }
+        if (_doc.Pages.Count > 0 && _dirty && !await Ui.Confirm(this, "Tài liệu đang làm chưa lưu — vẫn mở tài liệu khác?", yes: "Mở")) return;
+        var doc = await Task.Run(() => Store.Load(id)); if (doc is null) { await Ui.Message(this, "Không mở được tài liệu này."); return; }
+        _doc = doc; _name.Text = doc.Name; _cur = 0; _cropMode = false; _dirty = false; _thumbs.Clear(); _src.Clear(); _srcOrder.Clear();
+        _tabs.SelectedIndex = 0; RenderAll(); _status.Text = $"Đã mở “{doc.Name}” ({doc.Pages.Count} trang).";
     }
 
     private static string Clean(string s)
@@ -491,7 +471,7 @@ public sealed class ScanView : UserControl, IPage
             _status.Text = $"Đã tạo PDF {pages.Count} trang ({(bytes.Length >= 1048576 ? (bytes.Length / 1048576.0).ToString("0.0", Ui.Vi) + " MB" : Math.Max(1, bytes.Length / 1024) + " KB")}): {path}";
         });
         _busy.Text = "";
-        if (ok) Ui.Exported(this, path);
+        if (ok) CongCuFiles.Exported(this, "Scan tài liệu", path);
     }
 
     private async Task ExportJpg()
@@ -504,7 +484,7 @@ public sealed class ScanView : UserControl, IPage
         {
             var p = Cur!; var path = await Ui.SaveFile(this, "Lưu ảnh JPG", Clean(_doc.Name) + (_doc.Pages.Count > 1 ? $"_trang{_cur + 1}" : "") + ".jpg", "jpg", "Ảnh JPG");
             if (path is null) return;
-            if (await Ui.RunAsync(this, async () => await File.WriteAllBytesAsync(path, await Task.Run(() => ScanImaging.EncodeJpeg(Render(p), 92))))) { _status.Text = "Đã lưu " + path; Ui.Exported(this, path); }
+            if (await Ui.RunAsync(this, async () => await File.WriteAllBytesAsync(path, await Task.Run(() => ScanImaging.EncodeJpeg(Render(p), 92))))) { _status.Text = "Đã lưu " + path; CongCuFiles.Exported(this, "Scan tài liệu", path); }
             return;
         }
         var dir = await Ui.OpenFolder(this, "Chọn thư mục lưu ảnh"); if (dir is null) return;
@@ -519,6 +499,6 @@ public sealed class ScanView : UserControl, IPage
             }
         });
         _busy.Text = "";
-        if (ok) { _status.Text = $"Đã xuất {pages.Count} ảnh vào {dir}"; Ui.Exported(this, dir); }
+        if (ok) { _status.Text = $"Đã xuất {pages.Count} ảnh vào {dir}"; CongCuFiles.Exported(this, "Scan tài liệu", dir); }
     }
 }

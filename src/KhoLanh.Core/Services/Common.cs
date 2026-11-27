@@ -134,13 +134,17 @@ public class SettingsService
     private static readonly HashSet<string> MirrorKeys = new(StringComparer.Ordinal)
     {
         "lan_role", "lan_key", "lan_port", "lan_http_port", "lan_public", "lan_nodes", "lan_addrs", "lan_name", "lan_machine_id",
-        "lan_server_name", "lan_rieng", "lan_plan", "lan_enc",
+        "lan_server_name", "lan_rieng", "lan_ngoai_kho", "lan_plan", "lan_enc",
         "drive_mode", "drive_dir", "drive_every", "drive_key", "drive_bo", "drive_home",
         "acct_url", "acct_token", "acct_admin_key", "acct_keyblobs",
         "phone_webapp_url", "phone_pc_token", "lt_google_id", "lt_google_secret", "may_chu_chay_an",
+        "phone_sync_interval", "phone_sync_instant", "phone_sync_pick",
         "company_name", "company_address", "warehouse_name",
     };
-    private static bool Mirrored(string key) => MirrorKeys.Contains(key) || key.StartsWith("lx_mail_", StringComparison.Ordinal);
+    // 1.155: lịch tự sao lưu Drive cá nhân theo tài khoản (dcn:<tk> — Gmail + chu kỳ) + ô tự đồng bộ Công cụ: bảng settings bị làm trống thì
+    // đăng nhập Gmail vẫn được nhận lại từ Lưu trữ cá nhân (file riêng) nhưng chu kỳ về mặc định "Mỗi ngày" (người dùng: "chọn 1 giờ, sau cập nhật thành mỗi ngày").
+    private static readonly string[] MirrorPrefixes = { "lx_mail_", "dcn:", "cc_dongbo:" };
+    private static bool Mirrored(string key) => MirrorKeys.Contains(key) || MirrorPrefixes.Any(p => key.StartsWith(p, StringComparison.Ordinal));
 
     public string MirrorPath => _db.FilePath + ".cai-dat.json";
     private readonly object _mirrorLock = new();

@@ -235,7 +235,7 @@ public sealed class ChamCongService
         return new CcSua
         {
             Nv = S(o["nv"]), Ngay = CcCore.ParseDate(S(o["ngay"])) ?? default, Vao = T("vao"), Ra = T("ra"), ChepTu = T("chepTu"),
-            VSom = D("vsom"), Chot = D("chot"), SauSang = D("sauSang"), Loai = o["loai"] is null ? (S(o["phep"]) == "1" ? "P" : null) : CcCore.NormLoai(S(o["loai"])), GhiChu = S(o["ghiChu"]),
+            VSom = D("vsom"), TcTrua = D("tcTrua"), Chot = D("chot"), SauSang = D("sauSang"), Loai = o["loai"] is null ? (S(o["phep"]) == "1" ? "P" : null) : CcCore.NormLoai(S(o["loai"])), GhiChu = S(o["ghiChu"]),
         };
     }).Where(s => s.Nv.Length > 0 && s.Ngay != default).ToList();
 
@@ -246,6 +246,7 @@ public sealed class ChamCongService
         if (s.Ra is not null) o["ra"] = s.Ra;
         if (s.ChepTu is not null) o["chepTu"] = s.ChepTu;
         if (s.VSom is double v) o["vsom"] = v.ToString(CcCore.Inv);
+        if (s.TcTrua is double tc) o["tcTrua"] = tc.ToString(CcCore.Inv);
         if (s.Chot is double c) o["chot"] = c.ToString(CcCore.Inv);
         if (s.SauSang is double ss) o["sauSang"] = ss.ToString(CcCore.Inv);
         if (s.Loai is not null) o["loai"] = s.Loai;
@@ -290,6 +291,8 @@ public sealed class ChamCongService
         public double NgayPhep(CcNhanVien n) => Ngays.Sum(d => Dong[(n.Id, d)].NgayPhep);
         public int NgayLoai(CcNhanVien n, params string[] loai) => Ngays.Count(d => loai.Contains(Dong[(n.Id, d)].Loai));
         public double GioLe(CcNhanVien n) => Math.Round(Ngays.Sum(d => Dong[(n.Id, d)].GioLe), 2);
+        /// <summary>Tổng giờ tăng ca buổi trưa trong tháng (đã nằm trong giờ công / chốt).</summary>
+        public double GioTcTrua(CcNhanVien n) => Math.Round(Ngays.Sum(d => Dong[(n.Id, d)].GioTcTrua), 2);
         public double GioChuan = 8;
         /// <summary>Giờ dư tháng trước đã đưa vào bù / giờ dư còn lại cuối tháng (tăng ca chưa dùng), theo nhân viên.</summary>
         public Dictionary<string, double> DuTruoc = new(), DuCon = new();
@@ -355,7 +358,8 @@ public sealed class ChamCongService
                 if (s?.Ra is not null) { ra = s.Ra; r.SuaRa = true; }
                 r.Vao = vao; r.Ra = ra;
                 r.VSom = s?.VSom ?? 0; r.SuaVSom = s?.VSom is not null;
-                r.Ket = CcCore.Tinh(CcCore.ParseTime(vao), CcCore.ParseTime(ra), n.Nhom, r.VSom, c);
+                r.TcTrua = s?.TcTrua;
+                r.Ket = CcCore.Tinh(CcCore.ParseTime(vao), CcCore.ParseTime(ra), n.Nhom, r.VSom, c, r.TcTrua ?? 0);
                 r.Chot = s?.Chot ?? r.Ket.Gio; r.SuaChot = s?.Chot is not null;
                 r.CanhBao = r.SuaChot ? "" : r.Ket.CanhBao;
                 // loại ngày: đánh dấu tay > ngày lễ / Tết chung
@@ -404,7 +408,7 @@ public sealed class ChamCongService
         bc.Cell(1, 1).Style.Font.Bold = true; bc.Cell(1, 1).Style.Font.FontSize = 14;
         var head = new List<string> { "STT", "Mã NV", "Họ tên", "Bộ phận" };
         head.AddRange(t.Ngays.Select(d => d.Day.ToString()));
-        head.AddRange(new[] { "Ngày đủ công", "Nghỉ phép", "Lễ / Tết", "Công tác", "Giờ làm lễ / Tết", "Tổng giờ", "Giờ dư còn (tăng ca)" });
+        head.AddRange(new[] { "Ngày đủ công", "Nghỉ phép", "Lễ / Tết", "Công tác", "Giờ làm lễ / Tết", "Tổng giờ", "Giờ dư còn (tăng ca)", "Tăng ca trưa (giờ)" });
         for (var c = 0; c < head.Count; c++) bc.Cell(3, c + 1).Value = head[c];
         for (var i = 0; i < t.Ngays.Count; i++) bc.Cell(2, 5 + i).Value = CcCore.Thu(t.Ngays[i]);
         var row = 4;
@@ -427,6 +431,7 @@ public sealed class ChamCongService
             bc.Cell(row, 9 + t.Ngays.Count).Value = t.GioLe(n);
             bc.Cell(row, 10 + t.Ngays.Count).Value = t.TongSau(n);
             bc.Cell(row, 11 + t.Ngays.Count).Value = t.DuCon.GetValueOrDefault(n.Id);
+            if (t.GioTcTrua(n) is > 0 and var tcg) bc.Cell(row, 12 + t.Ngays.Count).Value = tcg;
             row++;
         }
         var hr = bc.Range(2, 1, 3, head.Count); hr.Style.Font.Bold = true; hr.Style.Fill.BackgroundColor = XLColor.FromHtml("#EDF1F6");
@@ -438,7 +443,7 @@ public sealed class ChamCongService
         var ct = wb.AddWorksheet("Chi tiết");
         ct.Cell(1, 1).Value = "CHI TIẾT CHẤM CÔNG";
         ct.Cell(2, 1).Value = $"Từ ngày {t.Ngays[0]:dd/MM/yyyy} đến ngày {t.Ngays[^1]:dd/MM/yyyy}";
-        var h2 = new[] { "Mã nhân viên", "Tên nhân viên", "Phòng ban", "Chức vụ", "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Vào", "Ra", "Nghỉ", "V.Sớm", "Công", "Chốt", "Sau sang công", "Sang công", "Ghi chú" };
+        var h2 = new[] { "Mã nhân viên", "Tên nhân viên", "Phòng ban", "Chức vụ", "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Vào", "Ra", "Nghỉ", "V.Sớm", "Tăng ca trưa", "Công", "Chốt", "Sau sang công", "Sang công", "Ghi chú" };
         for (var c = 0; c < h2.Length; c++) ct.Cell(3, c + 1).Value = h2[c];
         ct.Range(3, 1, 3, h2.Length).Style.Font.Bold = true;
         row = 4;
@@ -450,16 +455,17 @@ public sealed class ChamCongService
             ct.Cell(row, 9).Value = CcCore.HmShort(d.Ket.VaoTron); ct.Cell(row, 10).Value = CcCore.HmShort(d.Ket.RaTron);
             if (d.Ket.Nghi > 0) ct.Cell(row, 11).Value = CcCore.HmShort(d.Ket.Nghi);
             if (d.VSom != 0) ct.Cell(row, 12).Value = d.VSom;
-            if (d.Ket.Cong > 0) ct.Cell(row, 13).Value = CcCore.HmShort(d.Ket.Cong);
-            ct.Cell(row, 14).Value = d.Chot;
-            ct.Cell(row, 15).Value = d.SauSang;
-            if (SangText(d) is { Length: > 0 } st) ct.Cell(row, 16).Value = st;
+            if (d.Ket.TcTrua > 0) ct.Cell(row, 13).Value = CcCore.HmShort(d.Ket.TcTrua);
+            if (d.Ket.Cong > 0) ct.Cell(row, 14).Value = CcCore.HmShort(d.Ket.Cong);
+            ct.Cell(row, 15).Value = d.Chot;
+            ct.Cell(row, 16).Value = d.SauSang;
+            if (SangText(d) is { Length: > 0 } st) ct.Cell(row, 17).Value = st;
             var note = string.Join(" · ", new[] { d.Loai.Length > 0 ? CcCore.TenLoai(d.Loai) + (d.TenLe.Length > 0 ? " " + d.TenLe : "") + (d.DuCong ? " (tính đủ công)" : "") + (d.GioLe > 0 ? $" — đi làm {d.GioLe} giờ (kế toán nhân hệ số)" : "") : "", d.GhiChu, d.ChepTu.Length > 0 ? "giờ của " + d.ChepTu : "", d.SuaChot ? "chốt sửa tay" : "", d.SuaSang ? "sang công sửa tay" : "", d.CanhBao }.Where(x => x.Length > 0));
-            if (note.Length > 0) ct.Cell(row, 17).Value = note;
-            if (d.DaSua) ct.Range(row, 1, row, 17).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEEBFC");
+            if (note.Length > 0) ct.Cell(row, 18).Value = note;
+            if (d.DaSua) ct.Range(row, 1, row, 18).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEEBFC");
             row++;
         }
-        ct.Column(2).Width = 26; ct.Column(16).Width = 30; ct.Column(17).Width = 40;
+        ct.Column(2).Width = 26; ct.Column(17).Width = 30; ct.Column(18).Width = 40;
         ct.SheetView.FreezeRows(3);
 
         // giờ đi làm ngày lễ / Tết: kế toán nhân hệ số (app chỉ ghi giờ thật)
@@ -492,7 +498,7 @@ public sealed class ChamCongService
             row++;
         }
         sc.Column(2).Width = 26;
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 
     /// <summary>"nhận 1 giờ từ 05/10 · cho 0,5 giờ sang 07/10" của 1 ngày.</summary>

@@ -499,7 +499,7 @@ public sealed class TongHopService
         }
         ws.Columns().AdjustToContents(8, 60);
         ws.SheetView.FreezeRows(1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         _audit.Log(_session.Username, "Tổng hợp: xuất Excel Bảng 2", path);
     }
 
@@ -514,7 +514,7 @@ public sealed class TongHopService
         foreach (var row in rows) { for (var i = 0; i < row.Length; i++) ws.Cell(r, i + 1).Value = row[i]; r++; }
         ws.Columns().AdjustToContents(8, 80);
         ws.SheetView.FreezeRows(1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         _audit.Log(_session.Username, "Tổng hợp: xuất Excel", $"{title} → {path}");
     }
 

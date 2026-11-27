@@ -100,4 +100,17 @@ public class TimNhanhTests : IDisposable
         Assert.Equal(2, Gs.Search(d, "bot a", out _).Count);
         Assert.Contains(Gs.Search(d, "bot a hsd 31/01/2027", out _), r => r.Src == "M03");
     }
+
+    [Fact]
+    public void Tim_nhanh_co_ca_Ket_qua_khang_sinh_theo_lo()
+    {
+        var ent = _s.KhangSinh.MakeEntry("2026-11-20", "26.11.20-A", "tôm BTP 50", KhoLanh.Core.KhangSinh.KhangSinhCore.FieldKeys.ToDictionary(k => k, _ => "ND"));
+        _s.KhangSinh.Load(); _s.KhangSinh.SaveEntries(new[] { ent });
+        var d = new GsService(_s).Build();
+        var ks = Gs.Search(d, "26.11.20", out _).Where(r => r.Src == "KS").ToList();
+        Assert.Single(ks);
+        Assert.Equal("26.11.20-A", ks[0].Lo);
+        Assert.Contains("Kết quả kháng sinh", Gs.SrcName("KS"));
+        Assert.Single(Gs.Search(d, "btp 50", out _), r => r.Src == "KS");   // ghi chú cũng tìm được
+    }
 }

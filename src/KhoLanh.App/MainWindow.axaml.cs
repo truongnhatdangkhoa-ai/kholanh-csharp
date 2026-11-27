@@ -61,6 +61,7 @@ public partial class MainWindow : Window
         ApplyZoom();
         AddHandler(KeyDownEvent, (_, e) =>
         {
+            if (e.Key == Avalonia.Input.Key.H && e.KeyModifiers == Avalonia.Input.KeyModifiers.Alt) { e.Handled = true; OpenSearch(); return; }   // 1.161: Alt + H = Tìm nhanh
             if (!e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Control) || e.KeyModifiers.HasFlag(Avalonia.Input.KeyModifiers.Shift)) return;
             if (e.Key == Avalonia.Input.Key.K) { e.Handled = true; OpenSearch(); return; }
             if (e.Key is Avalonia.Input.Key.OemPlus or Avalonia.Input.Key.Add) { Zoom(0.1); e.Handled = true; }
@@ -152,6 +153,8 @@ public partial class MainWindow : Window
         // Module mới: thêm NavItem vào nhóm (hoặc nhóm mới) + biểu tượng trong NavIcons, thêm mục quyền trong Perm.Items.
         BuildNav();
         HelpButton.Content = Controls.Icon.Make("info", 17);
+        SearchButton.Content = Controls.Icon.Make("search", 16);   // 1.161: Tìm nhanh (Alt + H / Ctrl + K)
+        ToolTip.SetTip(SearchButton, "Tìm nhanh (Alt + H)");
         RefreshButton.Content = Controls.Icon.Make("refresh", 16);   // 1.139: làm mới trang đang mở
         ToolTip.SetTip(RefreshButton, "Làm mới");
         // 1.97: biểu tượng tài khoản theo quyền (phương án B): ô màu + hình khiên / cặp / người, tên, nhãn quyền
@@ -230,8 +233,10 @@ public partial class MainWindow : Window
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
         // 1.65: chỉ còn dấu chấm (xanh = có kết nối, đỏ = mất máy chủ / làm riêng); chữ trạng thái chuyển vào chú thích khi rê chuột.
-        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : "#3FB950");
-        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 2
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : lan.Health == 3 ? "#8A97A6" : "#3FB950");
+        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 3
+            ? "Máy ở ngoài mạng kho: làm việc ngoại tuyến, thay đổi được giữ lại và tự gửi khi máy về mạng kho."
+            : lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
             : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
@@ -319,7 +324,29 @@ public partial class MainWindow : Window
     {
         var v = AppUpdater.StagedVersion;
         if (v is null) { UpdateButton.IsVisible = false; return; }
-        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nTrước khi cập nhật, phần mềm kiểm tra GitHub một lần nữa: nếu đã có bản mới hơn thì tải luôn bản đó (vài chục giây) và cập nhật thẳng lên bản mới nhất; không có thì dùng bản đã tải.\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        await CheckNewerThenApply();
+    }
+
+    /// <summary>1.168: kiểm tra bản mới hơn bản đã tải (có hộp tiến độ + nút "Dùng bản đã tải"), rồi áp dụng bản đang chờ.</summary>
+    private async Task CheckNewerThenApply()
+    {
+        var cts = new CancellationTokenSource();
+        var text = new TextBlock { Text = "Đang kiểm tra bản mới nhất…", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        var bar = new ProgressBar { IsIndeterminate = true, Height = 8, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
+        var use = new Button { Content = "Dùng bản đã tải" };
+        use.Click += (_, _) => { use.IsEnabled = false; text.Text = "Đang dùng bản đã tải…"; cts.Cancel(); };
+        var body = new StackPanel(); body.Children.Add(text); body.Children.Add(bar); body.Children.Add(Ui.Buttons(use));
+        var w = Ui.Dialog("Cập nhật phần mềm", body, 460);
+        Ui.ApplyZoom(w);
+        w.Closing += (_, ev) => { if (!cts.IsCancellationRequested) { ev.Cancel = true; } };   // chỉ đóng khi xong / bấm "Dùng bản đã tải"
+        var shown = w.ShowDialog(this);
+        var progress = new Progress<(string Text, double? Pct)>(p => { text.Text = p.Text; if (p.Pct is double d) { bar.IsIndeterminate = false; bar.Value = d; } });
+        Version? newer = null;
+        try { newer = await AppUpdater.UpgradeStagedAsync(progress, cts.Token); }
+        finally { cts.Cancel(); w.Close(); await shown; }
+        var final = AppUpdater.StagedVersion;
+        if (final is null) { UpdateButton.IsVisible = false; return; }
         if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
             AppUpdater.ExitForUpdate();
     }
@@ -759,6 +786,8 @@ public partial class MainWindow : Window
 
     private bool _refreshing;
     /// <summary>1.139: nút Làm mới — tải lại danh sách dùng chung (tài khoản), thử nối lại máy chủ, bỏ trang giữ sẵn rồi dựng lại trang đang mở bằng dữ liệu mới.</summary>
+    private void OnSearchClick(object? sender, RoutedEventArgs e) => OpenSearch();
+
     private async void OnRefreshClick(object? sender, RoutedEventArgs e)
     {
         if (_refreshing) return;

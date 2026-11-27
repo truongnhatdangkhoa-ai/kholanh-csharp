@@ -247,6 +247,7 @@ public sealed partial class PhoneSyncService
     public static string KsCompact(string key, JsonNode? value)
     {
         string Raw() => value is JsonValue v && v.TryGetValue<string>(out var s) ? s : value is null ? "" : value.ToJsonString(J);
+        if (key.StartsWith(KhangSinh.KhangSinhNhapKhau.Prefix, StringComparison.Ordinal) || key.StartsWith(KhangSinh.KhangSinhNhapKhau.HistPrefix, StringComparison.Ordinal)) return KhangSinh.KhangSinhNhapKhau.Compact(key, Raw());   // 1.175: tôm nhập khẩu, bản gọn
         if (!key.StartsWith("s:batch:", StringComparison.Ordinal)) return Raw();
         JsonObject? r;
         try { r = value is JsonValue sv && sv.TryGetValue<string>(out var txt) ? JsonNode.Parse(txt) as JsonObject : value as JsonObject; }

@@ -53,7 +53,7 @@ public sealed class XlsxOut
     {
         using var wb = new XLWorkbook();
         foreach (var sh in Sheets) Write(wb, sh);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 
     public MemoryStream ToStream()

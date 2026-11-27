@@ -827,10 +827,46 @@ public sealed partial class LanService : ISheetSource, IDisposable
         var order = _goodEp.TryGetValue(key, out var good) && n.Addrs.Contains(good) ? n.Addrs.OrderBy(a => a == good ? 0 : 1).ToList() : n.Addrs;
         foreach (var ep in order)
         {
-            try { var r = await Conn(ep).CallAsync(req, timeout, ct); _goodEp[key] = ep; return r; }
-            catch (LanUnreachableException e) { last = e; }
+            try { var r = await Conn(ep).CallAsync(req, timeout, ct); _goodEp[key] = ep; _epErr.TryRemove(ep, out _); return r; }
+            catch (LanUnreachableException e) { last = e; _epErr[ep] = e.InnerException?.Message ?? e.Message; }
         }
         throw last ?? new LanUnreachableException("Không có địa chỉ.");
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _epErr = new();
+
+    /// <summary>1.176: lý do cụ thể máy chưa nối được máy chủ — từng địa chỉ đã thử + máy này đang ở dải mạng nào (để biết có cùng mạng kho không).</summary>
+    public List<string> Diagnose()
+    {
+        var o = new List<string>();
+        var mine = new List<string>();
+        try
+        {
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up || ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                foreach (var u in ni.GetIPProperties().UnicastAddresses)
+                    if (u.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork) mine.Add(u.Address.ToString());
+            }
+        }
+        catch { }
+        o.Add(mine.Count == 0 ? "Máy này không có mạng (không thấy địa chỉ IP nào đang bật) — kiểm tra Wi-Fi / dây mạng." : "Địa chỉ mạng của máy này: " + string.Join(", ", mine));
+        var any = false; var sameNet = false;
+        foreach (var n in KnownNodes())
+            foreach (var a in n.Addrs)
+            {
+                any = true;
+                var host = LanHttp.IsUrl(a) ? "" : a.Split(':')[0];
+                if (host.Length > 0 && mine.Any(m => m.Split('.').Take(3).SequenceEqual(host.Split('.').Take(3)))) sameNet = true;
+                var why = _epErr.TryGetValue(a, out var e) ? e : "chưa thử";
+                o.Add($"{n.Name} · {a} — {why}");
+            }
+        if (!KnownNodes().Any(n => n.Addrs.Any(LanHttp.IsUrl)))
+            o.Add("Internet: máy này chưa nhận được địa chỉ Internet của máy chủ (vd https://kho.kcenter.xyz). Cách sửa: trên máy chủ mở Đồng bộ & sao lưu › Máy chủ › ⋯ Thêm › Địa chỉ Internet của máy chủ… → Lưu (và đảm bảo Cloudflare Tunnel đang chạy); trên máy này bấm Làm mới (⟳) khi có mạng để nhận địa chỉ từ Google Sheet chung.");
+        if (!any) o.Add("Chưa biết địa chỉ máy chủ nào (chưa từng nối, hoặc cần đăng nhập tài khoản dùng chung để nhận địa chỉ).");
+        else if (!sameNet && o.Any(x => x.Contains('·') && !x.Contains("http"))) o.Add("→ Máy này KHÁC dải mạng với máy chủ (không cùng mạng kho) nên LAN không thể nối. Về cùng Wi-Fi / mạng kho, hoặc bật máy chủ địa chỉ Internet.");
+        else if (any) o.Add("→ Cùng dải mạng nhưng máy chủ không trả lời: kiểm tra máy chủ đang mở app, tường lửa Windows cho phép KhoLanh (cổng " + Port + "), và mạng không chặn thiết bị với nhau (AP isolation / mạng khách).");
+        return o;
     }
 
     /// <summary>Gọi máy đang làm chủ; mất kết nối → chuyển sang làm riêng.</summary>
@@ -963,8 +999,11 @@ public sealed partial class LanService : ISheetSource, IDisposable
     {
         Node? best = null; long bestEpoch = -1;
         Interlocked.Increment(ref FindRounds);
-        foreach (var n in KnownNodes())
+        var away = AwayMode;   // 1.176: ngoài mạng kho → chỉ thử địa chỉ LAN, bỏ đường Internet
+        foreach (var kn in KnownNodes())
         {
+            var n = away ? kn with { Addrs = kn.Addrs.Where(a => !LanHttp.IsUrl(a)).ToList() } : kn;
+            if (n.Addrs.Count == 0) continue;
             try
             {
                 var h = await CallNode(n, Req("hello"), TimeSpan.FromSeconds(2), ct);
@@ -1509,12 +1548,18 @@ public sealed partial class LanService : ISheetSource, IDisposable
             }
             var pend = PendingCount();
             if (Online) return $"LAN: nối {ServerName}" + (pend > 0 ? $" · {pend} chờ gửi" : "");
+            if (AwayMode) return "Ngoại tuyến (ngoài mạng kho)" + (pend > 0 ? $" · {pend} chờ gửi" : "");
             return $"LAN: mất máy chủ — làm riêng" + (pend > 0 ? $" · {pend} chờ gộp" : "");
         }
     }
 
-    /// <summary>0 = máy đơn, 1 = tốt, 2 = cảnh báo (làm riêng / chuyển máy chủ).</summary>
-    public int Health => !Enabled ? 0 : Role == RoleRemote ? 1 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : 2;
+    /// <summary>1.176: máy ở NGOÀI mạng kho, không có Internet tới máy chủ (settings <c>lan_ngoai_kho</c> = "1"): làm ngoại tuyến có chủ ý —
+    /// không báo lỗi đỏ, không tự thử đường Internet; vẫn giữ sổ chờ và tự nối + gộp khi tìm thấy máy chủ trong mạng kho.</summary>
+    public bool AwayMode => _settings.Get("lan_ngoai_kho") == "1";
+    public void SetAwayMode(bool on) { _settings.Set("lan_ngoai_kho", on ? "1" : ""); _lastTry = DateTime.MinValue; Raise(); }
+
+    /// <summary>0 = máy đơn, 1 = tốt, 2 = cảnh báo (làm riêng / chuyển máy chủ), 3 = ngoại tuyến có chủ ý (1.176, không phải lỗi).</summary>
+    public int Health => !Enabled ? 0 : Role == RoleRemote ? 1 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : AwayMode ? 3 : 2;
 
     private void Raise() { try { Changed?.Invoke(); } catch { } }
 

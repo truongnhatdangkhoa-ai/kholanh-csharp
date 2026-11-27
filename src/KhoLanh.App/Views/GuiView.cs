@@ -55,7 +55,7 @@ public sealed class GuiView : UserControl, IPage
                 new TabItem { Header = "Đối Soát", Content = BuildDs() },
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // 1.172
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(_status, Dock.Right);
         top.Children.Add(_status); top.Children.Add(_fileInfo);
@@ -338,7 +338,7 @@ public sealed class GuiView : UserControl, IPage
         if (_edit) lbar.Children.Add(Btn("🗑 Xóa phiếu", async () => await DeleteSlip(), danger: true));
         var list = Page(new StackPanel { Children = { lbar, Muted("Phiếu tô đỏ = thuộc đợt số liệu cũ (đã khóa: chỉ xem / xuất Excel / xóa, không hoàn tồn).") }, Margin = new Thickness(0) }, Framed(_plg));
         _pxTabs = new TabControl { Items = { new TabItem { Header = "Tạo phiếu xuất", Content = create }, new TabItem { Header = "Danh sách phiếu xuất", Content = list } } };
-        _pxTabs.SelectionChanged += (_, _) => { if (!_loading) RenderPx(); };
+        _pxTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _pxTabs) && !_loading) RenderPx(); };
         return _pxTabs;
     }
 
@@ -361,15 +361,16 @@ public sealed class GuiView : UserControl, IPage
         var cols = new List<GridColumn>
         {
             new("maHang", "Mã hàng", 190) { ReadOnly = true }, new("tenHang", "Tên hàng", 280) { ReadOnly = true }, new("soLo", "Số lô", 140) { ReadOnly = true }, new("size", "Size", 90) { ReadOnly = true },
-            new("phieuNhap", "Phiếu nhập", 130) { ReadOnly = true }, new("dacTinh", "Đặc tính", 100) { ReadOnly = true }, new("sk", "Số kiện", 80, "number") { ReadOnly = true }, new("tl", "Trọng lượng", 100, "number") { ReadOnly = true },
+            new("phieuNhap", "Phiếu nhập", 130) { ReadOnly = true }, new("dacTinh", "Đặc tính", 100) { ReadOnly = true }, new("sk", "Số kiện", 80, "number") { ReadOnly = true }, new("tl", "Tổng kg", 100, "number") { ReadOnly = true },
             new("x", _edit ? "SL xuất ✎" : "SL xuất", 90, "number") { ReadOnly = !_edit },
+            new("kgx", "Tổng kg xuất", 110, "number") { ReadOnly = true },
         };
         _pxm.ReadOnly = !_edit;
-        _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "" }));
+        _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "", _pxSel.TryGetValue(r, out var vk) ? Kg(GuiService.KgXuat(r, vk)) : "" }));
         _pxg.CheckCol = _pxQtyCol;   // 1.50: tích ô đầu dòng = xuất hết (số kiện; dòng chỉ có kg thì số kg)
         _pxg.CheckFill = r => r < _pxRows.Count ? (_pxRows[r].SoKien > 0 ? Raw(_pxRows[r].SoKien) : Raw(_pxRows[r].TrongLuong)) : "";
         _pxSnap = _pxm.Snapshot(); _pxg.Refresh();
-        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
+        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}, tổng {Kg(_pxSel.Sum(kv => GuiService.KgXuat(kv.Key, kv.Value)))} kg xuất. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
     }
 
     private void OnPxEdited()
@@ -476,7 +477,7 @@ public sealed class GuiView : UserControl, IPage
             _plTabs.Items.Add(new TabItem { Header = g.Label.Replace("Tôm ", ""), Content = panel.Root });
         }
         _plTabs.Items.Add(new TabItem { Header = "Điều kiện lọc", Content = BuildDk() });
-        _plTabs.SelectionChanged += (_, _) => { if (!_loading) RenderPl(); };
+        _plTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _plTabs) && !_loading) RenderPl(); };
         return _plTabs;
     }
     private void RenderPl() { var i = _plTabs.SelectedIndex; if (i >= 0 && i < _pl.Count) _pl[i].Render(); else if (i == _pl.Count) RenderDk(); }
@@ -600,7 +601,7 @@ public sealed class GuiView : UserControl, IPage
         var left = Page(new StackPanel { Children = { gbar, _dtInfo } }, Framed(_dtg));
         // 1.57: bảng danh sách nhóm (trước nằm bên phải) thành tab riêng — màn hình nhỏ bảng gộp rộng hết trang
         _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = left }, new TabItem { Header = "Nhóm đặc tính", Content = new Border { Padding = new Thickness(0, 8, 0, 0), Child = Framed(_dgg) } }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
-        _dtTabs.SelectionChanged += (_, _) => { if (!_loading) RenderDt(); };
+        _dtTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _dtTabs) && !_loading) RenderDt(); };
         return _dtTabs;
     }
 

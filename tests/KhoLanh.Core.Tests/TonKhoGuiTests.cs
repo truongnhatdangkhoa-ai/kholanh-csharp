@@ -148,6 +148,19 @@ public class TonKhoGuiTests : IDisposable
         using var w3 = new XLWorkbook(p3); Assert.Equal("TỔNG", w3.Worksheet(1).Cell(9, 3).GetString());
     }
     [Fact]
+    public void Tong_kg_xuat_theo_kien_hoac_theo_kg_va_logo_Long_An()
+    {
+        Assert.Equal(60.0, GuiService.KgXuat(new GuiRow { SoKien = 10, TrongLuong = 120 }, 5), 6);
+        Assert.Equal(37.5, GuiService.KgXuat(new GuiRow { SoKien = 0, TrongLuong = 100 }, 37.5), 6);
+        Assert.True(KhoLanh.Core.Grid.GridTotals.DefaultSum("Tổng kg"));
+        Assert.True(KhoLanh.Core.Grid.GridTotals.DefaultSum("Tổng kg xuất"));
+        var g = _s.Gui; g.Commit(g.Preview(Xlsx("lg.xlsx", Sample)));
+        var slip = g.CreateSlip(new[] { (0, 2.0) });
+        var p = Path.Combine(_dir, "logo.xlsx"); File.WriteAllBytes(p, GuiExport.SlipWorkbook(slip));
+        using var wb = new XLWorkbook(p); var pic = Assert.Single(wb.Worksheet(1).Pictures);
+        Assert.Equal(375.0 / 119, (double)pic.Width / pic.Height, 1);
+    }
+    [Fact]
     public void Xuat_file_HLSO_tu_chon_chi_gom_nhom_da_chon()
     {
         var g = _s.Gui; g.Commit(g.Preview(Xlsx("tc.xlsx", Sample)));

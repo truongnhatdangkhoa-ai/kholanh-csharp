@@ -33,6 +33,9 @@ public sealed class KhangSinhService
 
     private readonly List<(string Key, string Value)> _rows = new();   // giữ nguyên thứ tự + mọi khóa khác (l:…)
     public List<Rec> Records { get; private set; } = new();
+    /// <summary>1.175: kết quả tôm nhập khẩu (mỗi Size của một phiếu một bản ghi) + lịch sử bản bị phiếu cập nhật thay.</summary>
+    public List<KhangSinhNhapKhau.Nhom> NhapKhau { get; private set; } = new();
+    public List<KhangSinhNhapKhau.Nhom> NhapKhauCu { get; private set; } = new();
     public List<Rule> Rules { get; private set; } = DefaultRules();
     public bool RulesCustom { get; private set; }
     public bool Loaded { get; private set; }
@@ -61,6 +64,8 @@ public sealed class KhangSinhService
             try { if (JsonNode.Parse(v) is JsonObject j) recs.Add(new Rec { Key = k, J = j }); } catch { /* bỏ bản ghi hỏng như app cũ */ }
         }
         Records = recs.OrderByDescending(r => r.SavedAt, StringComparer.Ordinal).ToList();
+        NhapKhau = KhangSinhNhapKhau.ParseRows(_rows);
+        NhapKhauCu = KhangSinhNhapKhau.ParseRows(_rows, history: true);
         Rules = DefaultRules(); RulesCustom = false;
         var rv = _rows.FirstOrDefault(r => r.Key == RulesKey).Value;
         if (!string.IsNullOrEmpty(rv))
@@ -264,9 +269,55 @@ public sealed class KhangSinhService
     {
         RequireEdit();
         var n = Records.Count;
-        _rows.RemoveAll(r => r.Key.StartsWith(BatchPrefix, StringComparison.Ordinal));
+        _rows.RemoveAll(r => r.Key.StartsWith(BatchPrefix, StringComparison.Ordinal) || r.Key.StartsWith(KhangSinhNhapKhau.Prefix, StringComparison.Ordinal) || r.Key.StartsWith(KhangSinhNhapKhau.HistPrefix, StringComparison.Ordinal));
         Save();
         Log("Xóa toàn bộ dữ liệu", n + " bản ghi");
+        return n;
+    }
+
+    // ------------------------------------------------------------------ tôm nhập khẩu (1.175)
+
+    public sealed record NkResult(int Added, int Replaced, int Same, List<string> Notes);
+
+    /// <summary>Phiếu nào đã có (cùng INV + Contract + Size) → sẽ bị thay: [(bản cũ, bản mới)].</summary>
+    public List<(KhangSinhNhapKhau.Nhom Old, string NewSo, string Size)> NkConflicts(IEnumerable<KhangSinhNhapKhau.Phieu> list)
+    {
+        var o = new List<(KhangSinhNhapKhau.Nhom, string, string)>();
+        foreach (var p in list)
+            foreach (var r in KhangSinhNhapKhau.ToRecords(p, ""))
+                foreach (var old in NhapKhau.Where(n => KhangSinhNhapKhau.Replaces(n, r))) o.Add((old, p.So, Str(r["size"])));
+        return o;
+    }
+
+    /// <summary>Nạp phiếu tôm nhập khẩu. Cùng INV + Contract + Size: bản mới thay bản cũ, bản cũ giữ ở lịch sử (phiếu "Cập nhật").</summary>
+    public NkResult ImportNhapKhau(IEnumerable<KhangSinhNhapKhau.Phieu> list)
+    {
+        RequireEdit();
+        int add = 0, rep = 0, same = 0; var notes = new List<string>(); var now = Iso();
+        foreach (var p in list)
+            foreach (var r in KhangSinhNhapKhau.ToRecords(p, now))
+            {
+                var olds = NhapKhau.Where(n => KhangSinhNhapKhau.Replaces(n, r)).ToList();
+                if (olds.Any(o => o.So == Str(r["so"]) && o.Date == Str(r["date"]) && o.J["mau"]?.ToJsonString() == r["mau"]?.ToJsonString()))
+                { same++; continue; }
+                foreach (var old in olds)
+                {
+                    var h = (JsonObject)old.J.DeepClone(); h["replacedBy"] = Str(r["so"]); h["replacedAt"] = now;
+                    Del(old.Key); Set(KhangSinhNhapKhau.HistPrefix + old.Key[KhangSinhNhapKhau.Prefix.Length..], h);
+                    notes.Add($"INV {old.Invoice} · {old.Hang} {old.Size}: phiếu {Str(r["so"])} thay phiếu {old.So}");
+                }
+                Set(KhangSinhNhapKhau.Prefix + NewId(), r);
+                if (olds.Count > 0) rep++; else add++;
+            }
+        if (add + rep > 0) { Save(); Log("Nạp phiếu tôm nhập khẩu", $"{add} mới · {rep} thay thế"); }
+        return new NkResult(add, rep, same, notes);
+    }
+
+    public int DeleteNhapKhau(IEnumerable<KhangSinhNhapKhau.Nhom> list)
+    {
+        RequireEdit();
+        var n = 0; foreach (var x in list) { Del(x.Key); n++; }
+        if (n > 0) { Save(); Log("Xóa tôm nhập khẩu", n + " dòng"); }
         return n;
     }
 
@@ -540,7 +591,7 @@ public sealed class KhangSinhService
         }
         ws.SheetView.FreezeRows(1);
         ws.Columns().AdjustToContents(8, 60);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("Xuất Excel", $"{rows.Count} dòng → {Path.GetFileName(path)}");
     }
     public static string SavedText(string iso) =>

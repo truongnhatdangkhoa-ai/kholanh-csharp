@@ -38,7 +38,7 @@ public sealed class DoiChieuService
         public int Pair { get; set; } public string Side { get; set; } = ""; public string Ngay { get; set; } = ""; public string Ma { get; set; } = "";
         public string Ten { get; set; } = ""; public string Field { get; set; } = ""; public double? Before { get; set; } public double After { get; set; }
     }
-    public sealed class LogEntry { public string Id { get; set; } = ""; public string At { get; set; } = ""; public string By { get; set; } = ""; public string Desc { get; set; } = ""; public List<Op> Inv { get; set; } = new(); }
+    public sealed class LogEntry { public List<string>? Xk { get; set; } public string Id { get; set; } = ""; public string At { get; set; } = ""; public string By { get; set; } = ""; public string Desc { get; set; } = ""; public List<Op> Inv { get; set; } = new(); }
     public sealed class State
     {
         public int V { get; set; } = 1;
@@ -52,6 +52,8 @@ public sealed class DoiChieuService
         public List<ManualEdit> Edits { get; set; } = new();
         public List<LogEntry> Log { get; set; } = new();
         public bool HideZero { get; set; }
+        /// <summary>1.170: mã đã chuyển từ tab Xuất kiểm sang file Kho — khóa "pid|ngày|mã"; không đối chiếu với Xưởng.</summary>
+        public List<string> Xk { get; set; } = new();
     }
     private static readonly JsonSerializerOptions JsonOpt = new() { IncludeFields = true, WriteIndented = false };
 
@@ -450,7 +452,7 @@ public sealed class DoiChieuService
         p.Result = Compare(rows.kho, rows.xuong, new DcxEngine.CompareOptions
         {
             KhoTotals = totals.kho, XuongTotals = totals.xuong, KhoNoCode = p.Kho.Res.NoCode, XuongNoCode = p.Xuong.Res.NoCode,
-            SizeOf = SizeOf, WeightOf = WeightOfMa,
+            SizeOf = SizeOf, WeightOf = WeightOfMa, XuatKiem = (ngay, ma) => IsXk(p.Id, ngay, ma),
         });
         foreach (var it in p.Result.Items) if (!it.TheoSize) { it.KN -= it.KRows.Count(x => x == "sửa tay"); it.XN -= it.XRows.Count(x => x == "sửa tay"); }
     }
@@ -552,6 +554,45 @@ public sealed class DoiChieuService
         }
         return null;
     }
+    // ------------------------------------------------------------------ 1.170 chuyển mã Xuất kiểm sang file Kho
+
+    public const string XkNote = "Xuất kiểm";   // chữ ghi vào cột Ghi chú của file Excel Kho
+    private static string XkKey(int pid, string ngay, string ma) => pid + "|" + ngay + "|" + NormMa(ma);
+    public bool IsXk(int pid, string ngay, string ma) => St.Xk.Contains(XkKey(pid, ngay, ma));
+    /// <summary>Mã Xuất kiểm (ngày, mã) đã chuyển sang file nào: 1 / 2 (= <see cref="KN"/>), 0 nếu chưa.</summary>
+    public int XkTo(string ngay, string ma) => IsXk(1, ngay, ma) ? 1 : IsXk(2, ngay, ma) ? 2 : 0;
+    /// <summary>Xem trước: SL file Kho đang có sẵn ở (ngày, mã) — thêm vào sẽ CỘNG DỒN vào dòng đó.</summary>
+    public double KhoHas(int pid, string ngay, string ma) => Movable(PairOf(pid), ngay, NormMa(ma));
+
+    /// <summary>
+    /// Chuyển các mã của tab Xuất kiểm sang file Kho <paramref name="pid"/> (1 = Xuất thay thùng, 2 = Xuất rã đông): ghi thẳng vào file Excel (thêm dòng, giữ mẫu),
+    /// đánh dấu "Xuất kiểm" — các mã này hiện ghi chú Xuất kiểm và KHÔNG đối chiếu với Xưởng. Hoàn tác được ở Lịch sử ghi file.
+    /// </summary>
+    public ApplyResult ChuyenXuatKiem(int pid, IEnumerable<XuatKiem.Group> groups)
+    {
+        RequireEdit();
+        var gs = groups.Where(g => g.Sl > 0).ToList();
+        if (gs.Count == 0) throw new BusinessException("Không có mã nào (SL > 0) để chuyển.");
+        var keys = gs.Select(g => XkKey(pid, g.Ngay, g.Ma)).Distinct().ToList();
+        var added = new List<string>();   // đánh dấu TRƯỚC khi ghi để lần đọc lại sau ghi đã không đối chiếu
+        foreach (var k in keys) if (!St.Xk.Contains(k)) { St.Xk.Add(k); added.Add(k); }
+        try
+        {
+            var ops = gs.Select(g => new Op { Type = "add", Slot = pid, Ngay = g.Ngay, Ma = g.Ma, Ten = g.Ten, Sl = g.Sl, Tl = g.Tlg is > 0 ? g.Tlg : null }).ToList();
+            var tot = gs.Sum(g => g.Sl);
+            var noteKeys = gs.Select(g => g.Ngay + "|" + NormMa(g.Ma)).ToHashSet();
+            // ghi chữ "Xuất kiểm" vào cột Ghi chú của file Excel Kho (chưa có cột thì thêm cột cuối) cho các dòng vừa chuyển
+            byte[] Note(int id, byte[] bytes)
+            {
+                if (id != pid) return bytes;
+                var r = DcxXlsx.AddNoteColumn(bytes, PairOf(id).Kho!.Sheet, noteKeys, XkNote);
+                return r.Bytes ?? bytes;
+            }
+            return ApplyOps(ops, $"Chuyển {gs.Count} mã Xuất kiểm sang {KN(pid)} (SL {tot.ToString("#,0.###", CultureInfo.InvariantCulture)})", false, added, Note);
+        }
+        catch { foreach (var k in added) St.Xk.Remove(k); throw; }
+    }
+
     public sealed record RowNote(string Line, string Tip, bool MaFlag, bool Move, bool CanAddToKho, List<string> Flags);
     /// <summary>Ghi chú 1 dòng ngắn (Sai mã · Sai SL · Không có ở …) + chi tiết cho tooltip — chỉ báo, không tự sửa.</summary>
     public RowNote NoteOf(int pid, Item it)
@@ -581,6 +622,7 @@ public sealed class DoiChieuService
                 case "zero": flags.Add("Ghi 0 ở " + (it.KSl == 0 && it.KNet == 0 ? kho : "Xưởng")); break;
                 case "chi_xuong": if (!maFlag) flags.Add("Không có ở " + kho); else tips.Add("Không có trong file " + kho); break;
                 case "chi_kho": if (!maFlag) flags.Add("Không có ở Xưởng"); else tips.Add("Không có trong file Xưởng"); break;
+                case "xk": flags.Add("Xuất kiểm"); tips.Add("Đã chuyển từ tab Xuất kiểm — không đối chiếu với Xưởng"); break;
             }
             static string F0(double d) => d.ToString("#,0.###", CultureInfo.InvariantCulture);
             tips.AddRange(NetFixNotes(it, F0, d => d.ToString("#,0.00#", CultureInfo.InvariantCulture)));
@@ -832,7 +874,7 @@ public sealed class DoiChieuService
 
     public sealed record ApplyResult(string Message, int NetKept);
     /// <summary>Đổi thao tác → sửa file Kho (giữ mẫu) → ghi cả 2 file hoặc không file nào → đọc lại. Ghi lịch sử kèm thao tác ngược.</summary>
-    public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false)
+    public ApplyResult ApplyOps(List<Op> ops, string desc, bool noLog = false, List<string>? xk = null, Func<int, byte[], byte[]>? post = null)
     {
         RequireEdit();
         for (var attempt = 0; ; attempt++)
@@ -854,6 +896,7 @@ public sealed class DoiChieuService
                     Removes = sp.Rm.Select(kv => new DcxXlsx.Remove(kv.Key, kv.Value)).ToList(), Adds = sp.Adds, Renames = sp.Renames, Green = sp.Move, SizeOf = SizeOf,
                 });
                 try { var f = DcxXlsx.AddTotalFormulas(bytes, p.Kho.Sheet); if (f.Bytes is not null) bytes = f.Bytes; } catch { /* không quan trọng */ }
+                if (post is not null) bytes = post(id, bytes);   // 1.171: bước sửa thêm trước khi ghi (vd ghi chú "Xuất kiểm")
                 outs.Add((id, bytes, rep));
             }
             if (outs.Count == 0) throw new BusinessException("Không có gì để ghi.");
@@ -861,7 +904,7 @@ public sealed class DoiChieuService
             catch (CommitException e) when (e.Code == "CHANGED" && attempt == 0) { continue; }
             foreach (var o in outs) LoadFromLink(SlotOf(o.id));
             foreach (var p in Pairs) RefreshPair(p);
-            if (!noLog) St.Log.Add(new LogEntry { Id = NewId(), At = NowTxt(), By = User, Desc = desc, Inv = inverse });
+            if (!noLog) St.Log.Add(new LogEntry { Id = NewId(), At = NowTxt(), By = User, Desc = desc, Inv = inverse, Xk = xk });
             Persist();
             var kept = outs.Sum(o => o.rep.NetKept.Count);
             _audit.Log(User, "doi-chieu-ghi-file", desc);
@@ -872,6 +915,7 @@ public sealed class DoiChieuService
     {
         var e = St.Log.FirstOrDefault(x => x.Id == id) ?? throw new BusinessException("Không thấy mục lịch sử này.");
         var r = ApplyOps(e.Inv.Select(o => o.Clone()).ToList(), "Hoàn tác: " + e.Desc, true);
+        if (e.Xk is { Count: > 0 }) foreach (var k in e.Xk) St.Xk.Remove(k);   // hoàn tác phiếu chuyển Xuất kiểm → bỏ dấu Xuất kiểm
         St.Log.Remove(e); Persist();
         return r;
     }
@@ -1034,7 +1078,7 @@ public sealed class DoiChieuService
             foreach (var e in ed) Put(ws, row++, new object?[] { e.At.Replace('T', ' '), KN(e.Pair), Dmy(e.Ngay), e.Ma, e.Ten, (e.Field == "sl" ? "SL " : "Net ") + (e.Side == "kho" ? "Kho" : "Xưởng"), e.Before, e.After, e.By });
             Finish(ws, Array.Empty<int>(), new[] { 7, 8 });
         }
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
     private static void Header(IXLWorksheet ws, string[] h)
     {

@@ -233,6 +233,8 @@ public sealed class GuiService
     public static bool KgOnly(GuiRow r) => r.SoKien <= 0 && r.TrongLuong > 0;
     public static bool InStock(GuiRow r) => Math.Abs(r.SoKien) >= 0.005 || Math.Abs(r.TrongLuong) >= 0.005;
     public static double RowKg(GuiRow r, double qty) => r.SoKien <= 0 ? (r.TrongLuong > 0 ? qty : 0) : r.TrongLuong * (qty / r.SoKien);
+    /// <summary>Số kg sẽ xuất của dòng: dòng chỉ có kg thì SL xuất chính là số kg; dòng có kiện thì SL xuất × kg/kiện (= Tổng kg ÷ Số kiện).</summary>
+    public static double KgXuat(GuiRow r, double qty) => KgOnly(r) ? qty : r.SoKien > 0 ? r.TrongLuong * (qty / r.SoKien) : 0;
     public static double DefQty(GuiRow r) => KgOnly(r) ? r.TrongLuong : r.SoKien;
     private static string RowKey(string ma, string lo, string size, string phieu) => string.Join("|", new[] { ma, lo, size, phieu }.Select(v => JsText.JsTrim(v ?? "")));
     private Dictionary<string, List<GuiRow>> BuildIndex() { var m = new Dictionary<string, List<GuiRow>>(); foreach (var r in D.Rows) { var k = RowKey(r.MaHang, r.SoLo, r.Size, r.PhieuNhap); if (!m.TryGetValue(k, out var l)) m[k] = l = new(); l.Add(r); } return m; }

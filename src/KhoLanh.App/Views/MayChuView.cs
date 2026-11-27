@@ -319,6 +319,7 @@ public sealed class MayChuView : UserControl
 
     private void RenderOffline(LanService lan, int pending)
     {
+        if (lan.AwayMode) { RenderAway(lan, pending); return; }
         State = pending > 0 ? "may-don-cho" : "may-don-mat";
         _status.BorderBrush = AppTheme.Brush("#E2938A");
         _status.Background = AppTheme.Brush("#FFF8F7");
@@ -329,6 +330,8 @@ public sealed class MayChuView : UserControl
             Line(Muted("Chờ gửi: "), pending > 0 ? Warn($"{pending} thay đổi") : Plain("0")),
         };
         if (pending > 0) subs.Add(Line(Muted("Có thay đổi chờ gửi nên KHÔNG tải bản Drive (để không mất phần đang sửa).")));
+        subs.Add(Line(Muted("Lý do: ")));
+        foreach (var d in Diag(lan)) subs.Add(Line(Muted("  • " + d)));
         Control acts = RetryButton();
         if (Admin)
         {
@@ -338,6 +341,11 @@ public sealed class MayChuView : UserControl
             acts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { acts, mine } };
             subs.Add(Line(Muted("Nếu CHÍNH máy này là máy chủ của kho (vừa bị mất cài đặt): bấm «Đặt máy này làm máy chủ».")));
         }
+        // 1.176: máy ở ngoài mạng kho, không có Internet tới máy chủ → chuyển sang làm ngoại tuyến (hết báo đỏ)
+        var away = new Button { Content = "Máy này ở ngoài mạng kho" };
+        ToolTip.SetTip(away, "Làm ngoại tuyến: không báo lỗi, không thử Internet, thay đổi được giữ lại và tự gửi khi máy về mạng kho.");
+        away.Click += (_, _) => { S.Lan.SetAwayMode(true); Render(); };
+        acts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { acts, away } };
         _status.Child = Head("bad", "Máy đơn", "Không nối được máy chủ — đang làm trên dữ liệu của máy này", subs, acts);
         _boxes.Children.Add(SoftBox("#FFF2D6", "#9A5B00", "Bạn vẫn làm việc bình thường",
             "Mọi thay đổi được giữ trên máy này và tự gửi lên máy chủ khi nối lại. Nếu cùng một bảng bị sửa ở cả hai nơi, Quản trị chọn bản giữ lại ở tab Máy chủ trên máy chủ.\n"
@@ -346,6 +354,33 @@ public sealed class MayChuView : UserControl
     }
 
     // ---------------------------------------------------------------- d) máy đơn dùng bản Drive cá nhân của máy chủ
+
+    /// <summary>1.176: máy ngoài mạng kho (không Internet tới máy chủ) — trạng thái trung tính, không đỏ.</summary>
+    private void RenderAway(LanService lan, int pending)
+    {
+        State = "ngoai-kho";
+        var subs = new List<Control>
+        {
+            Line(Muted("Máy này đang làm việc ngoại tuyến trên dữ liệu của chính nó. Không cần Internet.")),
+            Line(Muted("Dữ liệu: "), Plain(lan.LastSyncedAt is { } t ? $"đồng bộ lần cuối {t:HH:mm dd/MM/yyyy}" : "chưa đồng bộ với máy chủ lần nào")),
+            Line(Muted("Chờ gửi: "), pending > 0 ? Warn($"{pending} thay đổi") : Plain("0")),
+            Line(Muted("Khi máy về mạng kho (cùng mạng với máy chủ) app tự nối, gửi các thay đổi lên và gộp — không cần làm gì thêm.")),
+        };
+        subs.Add(Line(Muted("Chi tiết lần thử nối gần nhất:")));
+        foreach (var d in Diag(lan)) subs.Add(Line(Muted("  • " + d)));
+        var off = new Button { Content = "Tắt chế độ ngoại tuyến" };
+        off.Click += (_, _) => { S.Lan.SetAwayMode(false); Render(); };
+        var retry = new Button { Content = "Thử nối mạng kho ngay" };
+        retry.Click += async (_, _) =>
+        {
+            retry.IsEnabled = false;
+            try { await Ui.Run(this, () => { S.Lan.RetryNow(); }); Hook(); }
+            finally { retry.IsEnabled = true; Render(); }
+        };
+        Control acts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { retry, off } };
+        _status.Child = Head("info", "Ngoại tuyến", "Đang làm ngoại tuyến — sẽ tự gửi khi về mạng kho", subs, acts);
+        FillPending(pending);
+    }
 
     private void RenderOfflineDrive(LanService lan, int pending)
     {
@@ -372,6 +407,8 @@ public sealed class MayChuView : UserControl
         _notes.Children.Add(Note("Máy chưa kết nối Drive cá nhân (Hệ thống › Kết nối › Gmail sao lưu) thì khi mất máy chủ, máy dùng dữ liệu đang có trên máy."));
         FillPending(pending);
     }
+
+    private static List<string> Diag(LanService lan) { try { return lan.Diagnose(); } catch { return new(); } }
 
     private Run[] TriedRuns()
     {

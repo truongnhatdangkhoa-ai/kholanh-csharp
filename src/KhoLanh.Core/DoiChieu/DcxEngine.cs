@@ -419,7 +419,8 @@ public static class DcxEngine
     {
         public string Ngay = "";
         public Side Kho = new(), Xuong = new();
-        public int NKhop, NLech, NChiKho, NChiXuong, NZero;
+        public int NKhop, NLech, NChiKho, NChiXuong, NZero, NXk;
+        public double XkSl, XkNet;   // 1.170: mã Xuất kiểm (đã chuyển từ tab Xuất kiểm) — nằm trong Kho nhưng KHÔNG đối chiếu với Xưởng
         public List<Item> Items = new();
         public Check? CheckKho, CheckXuong;
         public NcSum? NcKho, NcXuong;
@@ -430,7 +431,7 @@ public static class DcxEngine
     }
     public sealed class Summary
     {
-        public int NNgay, NNgayLech, NMuc, NKhop, NLech, NChiKho, NChiXuong, NZero, NNetFix;
+        public int NNgay, NNgayLech, NMuc, NKhop, NLech, NChiKho, NChiXuong, NZero, NXk, NNetFix;
         public double KSl, KNet, XSl, XNet, DSl, DNet;
         public NcSum NcKho = new(), NcXuong = new();
     }
@@ -450,12 +451,14 @@ public static class DcxEngine
         public List<NoCodeRow>? KhoNoCode, XuongNoCode;
         public Func<string, string, string>? SizeOf;
         public Func<string, double?>? WeightOf;
+        /// <summary>1.170: (ngày, mã) đã chuyển từ tab Xuất kiểm → dòng Kho có mã đó mang trạng thái "xk" (không so với Xưởng, không tính lệch).</summary>
+        public Func<string, string, bool>? XuatKiem;
     }
 
     public static int StatusRank(string s) => s switch { "lech" => 0, "chi_kho" => 1, "chi_xuong" => 2, "zero" => 3, _ => 4 };
     public static readonly Dictionary<string, string> StatusText = new()
     {
-        ["khop"] = "Khớp", ["lech"] = "Lệch", ["chi_kho"] = "Chỉ có ở Kho", ["chi_xuong"] = "Chỉ có ở Xưởng", ["zero"] = "Xưởng/Kho ghi 0",
+        ["khop"] = "Khớp", ["lech"] = "Lệch", ["chi_kho"] = "Chỉ có ở Kho", ["chi_xuong"] = "Chỉ có ở Xưởng", ["zero"] = "Xưởng/Kho ghi 0", ["xk"] = "Xuất kiểm",
     };
     private static int Ord(string a, string b) => string.CompareOrdinal(a, b);
 
@@ -500,6 +503,7 @@ public static class DcxEngine
             if (k is not null && x is not null) { it.DSl = x.Sl - k.Sl; it.DNet = x.Net - k.Net; it.Status = it.DSl == 0 && SameNet(x.Net, k.Net) ? "khop" : "lech"; }
             else if (k is not null) { it.Status = k.Sl == 0 && k.Net == 0 ? "zero" : "chi_kho"; it.DSl = -k.Sl; it.DNet = -k.Net; }
             else { it.Status = x!.Sl == 0 && x.Net == 0 ? "zero" : "chi_xuong"; it.DSl = x.Sl; it.DNet = x.Net; }
+            if (k is not null && opt.XuatKiem is { } xkf && xkf(b.Ngay, b.Ma)) { it.Status = "xk"; it.DSl = 0; it.DNet = 0; }   // 1.170: Xuất kiểm — không đối chiếu với Xưởng
             items.Add(it);
         }
         // đối chiếu nhanh theo SIZE + TRỌNG LƯỢNG
@@ -607,7 +611,7 @@ public static class DcxEngine
             var o = DayOf(it.Ngay); o.Items.Add(it);
             if (it.KSl is not null) { o.Kho.Sl += it.KSl.Value; o.Kho.Net += it.KNet ?? 0; o.Kho.NetFile += it.KNetFile ?? it.KNet ?? 0; o.Kho.N++; }
             if (it.XSl is not null) { o.Xuong.Sl += it.XSl.Value; o.Xuong.Net += it.XNet ?? 0; o.Xuong.NetFile += it.XNetFile ?? it.XNet ?? 0; o.Xuong.N++; }
-            switch (it.Status) { case "khop": o.NKhop++; break; case "lech": o.NLech++; break; case "chi_kho": o.NChiKho++; break; case "chi_xuong": o.NChiXuong++; break; default: o.NZero++; break; }
+            switch (it.Status) { case "khop": o.NKhop++; break; case "lech": o.NLech++; break; case "chi_kho": o.NChiKho++; break; case "chi_xuong": o.NChiXuong++; break; case "xk": o.NXk++; o.XkSl += it.KSl ?? 0; o.XkNet += it.KNet ?? 0; break; default: o.NZero++; break; }
         }
         foreach (var (side, tots) in new[] { (true, opt.KhoTotals), (false, opt.XuongTotals) })
             foreach (var t in tots ?? new())
@@ -624,7 +628,7 @@ public static class DcxEngine
         var list = days.Values.OrderBy(o => o.Ngay, StringComparer.Ordinal).ToList();
         foreach (var o in list)
         {
-            o.DSl = o.Xuong.Sl - o.Kho.Sl; o.DNet = o.Xuong.Net - o.Kho.Net;
+            o.DSl = o.Xuong.Sl - (o.Kho.Sl - o.XkSl); o.DNet = o.Xuong.Net - (o.Kho.Net - o.XkNet);   // mã Xuất kiểm không tính vào chênh Kho ↔ Xưởng
             o.Items = o.Items.OrderBy(a => StatusRank(a.Status)).ThenBy(a => a.Ma, StringComparer.Ordinal).ToList();
             o.CoLech = o.NLech + o.NChiKho + o.NChiXuong > 0;
             foreach (var side in new[] { true, false })
@@ -639,8 +643,8 @@ public static class DcxEngine
         var S = new Summary { NNgay = list.Count, NNgayLech = list.Count(o => o.CoLech), NMuc = items.Count };
         foreach (var it in items)
         {
-            switch (it.Status) { case "khop": S.NKhop++; break; case "lech": S.NLech++; break; case "chi_kho": S.NChiKho++; break; case "chi_xuong": S.NChiXuong++; break; default: S.NZero++; break; }
-            if (it.KSl is not null) { S.KSl += it.KSl.Value; S.KNet += it.KNet ?? 0; }
+            switch (it.Status) { case "khop": S.NKhop++; break; case "lech": S.NLech++; break; case "chi_kho": S.NChiKho++; break; case "chi_xuong": S.NChiXuong++; break; case "xk": S.NXk++; break; default: S.NZero++; break; }
+            if (it.KSl is not null && it.Status != "xk") { S.KSl += it.KSl.Value; S.KNet += it.KNet ?? 0; }
             if (it.XSl is not null) { S.XSl += it.XSl.Value; S.XNet += it.XNet ?? 0; }
         }
         S.DSl = S.XSl - S.KSl; S.DNet = S.XNet - S.KNet; S.NNetFix = items.Count(i => i.KFix || i.XFix);

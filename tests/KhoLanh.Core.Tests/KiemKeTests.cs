@@ -147,7 +147,7 @@ public class KiemKeTests : IDisposable
             new[] { "TG1.A.01.1.1", A, "", "", "10", "10", "", "lô L1" },
             new[] { "TG1.A.01.1.2", B, "", "", "12", "10", "", "lô L2" },
             new[] { "TG1.A.02.1.2", "VRHLBTNXECR004150IME9", "", "", "3", "10", "", "" });
-        _s.Entry.Create("Trang khác", EntryService.BuiltIn.First(t => t.Id == "nhap-kho"));
+        _s.Entry.Create("Trang khác", EntryService.BuiltIn.First(t => t.Id == "trong"));
         Kk.Load();
         Assert.Single(Kk.Pages);                       // trang mẫu Nhập kho không tính là trang kiểm kê
         Assert.Empty(Kk.Lines);

@@ -1074,7 +1074,7 @@ public sealed class SheetGrid : UserControl
         private static readonly IBrush Mut = AppTheme.Brush("#5D6B78");
         private static readonly IBrush AccentFg = AppTheme.Brush("#1859AE");
         private static readonly Typeface Bold = new(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);
-        private static readonly Typeface Norm = new(FontFamily.Default);
+        private static readonly Typeface Norm = new(FontFamily.Default, FontStyle.Normal, FontWeight.Medium);   // 1.167: chữ dữ liệu đậm thêm 1 chút (Inter Medium)
         public TotalsBar(SheetGrid g) { _g = g; ClipToBounds = true; }
 
         public void Update()
@@ -1157,7 +1157,7 @@ public sealed class SheetGrid : UserControl
         private static readonly IPen SelPen = new Pen(AppTheme.Brush("#1F6FD6"), 2);
         private static readonly IBrush Text = AppTheme.Brush("#1A2433");
         private static readonly IBrush HeadText = AppTheme.Brush("#1A2433");
-        private static readonly Typeface Face = new(FontFamily.Default);
+        private static readonly Typeface Face = new(FontFamily.Default, FontStyle.Normal, FontWeight.Medium);   // 1.167: chữ dữ liệu trong ô đậm thêm 1 chút (Inter Medium); tiêu đề cột / dòng đậm giữ nguyên
         private static readonly Typeface Bold = new(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold);
         private static readonly Typeface HeadFace = new(FontFamily.Default, FontStyle.Normal, FontWeight.Bold);   // tiêu đề cột đậm, sẫm — dễ đọc (1.49)
         private enum Drag { None, Cells, Rows, Cols, Resize }

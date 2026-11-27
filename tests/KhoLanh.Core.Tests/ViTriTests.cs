@@ -52,6 +52,7 @@ public class ViTriTests : IDisposable
         (B, TenB, "L3", "B.01.03", 5, 10));   // dòng trùng Mã|Lô|Vị trí → khóa #1
 
     private int Idx(string ma, string vt, string lo) => Vt.Rows.FindIndex(r => r.MaGoc == ma && r.Vt == vt && r.Lo == lo);
+    private ViTriService.Slip ReloadSlip(string id) => Reload().Slips.Single(x => x.Id == id);
     private ViTriService Reload() { var v = new ViTriService(() => _s.Lan, _s.Session, _s.Audit); v.Load(); return v; }
 
     [Fact]
@@ -370,5 +371,113 @@ public class ViTriTests : IDisposable
         Assert.Throws<BusinessException>(() => v.CreateSlip(new() { new(0, 1) }, false, "", DateTime.Today, ""));
         Assert.Throws<BusinessException>(() => v.ReadFile(F1()));
         Assert.Equal(Perm.Export, Perm.Defaults(Roles.Staff)["m7"]);
+    }
+
+    // ---- 1.160
+    private string XlFile(string name, params (string ma, DateTime ngay, string vt, double sl, string lenh)[] rows)
+    {
+        var p = Path.Combine(Path.GetTempPath(), "xg160_" + Guid.NewGuid().ToString("N") + "_" + name + ".xlsx");
+        using var wb = new XLWorkbook(); var ws = wb.AddWorksheet("Sheet");
+        ws.Cell(1, 1).Value = "Báo cáo - Kho - 07-Nhập xuất chi tiết";
+        var h = new[] { "Đối tác", "Ngày chứng từ", "Ca", "Số lệnh", "NV Lập", "Item ID", "Mã hàng", "Tên hàng", "TLg Net", "TLg Gross", "Số lượng tồn", "Net", "Gross", "ĐVT", "Ngày SX", "Vị trí" };
+        for (var c = 0; c < h.Length; c++) ws.Cell(3, c + 1).Value = h[c];
+        ws.Cell(3, 17).Value = "Loại chứng từ";
+        var r = 4;
+        foreach (var x in rows)
+        {
+            ws.Cell(r, 1).Value = "TPC"; ws.Cell(r, 2).Value = x.ngay; ws.Cell(r, 4).Value = x.lenh; ws.Cell(r, 6).Value = r; ws.Cell(r, 7).Value = x.ma;
+            ws.Cell(r, 8).Value = "Tôm (9 kg x 1 gói) - X - Y"; ws.Cell(r, 9).Value = 9; ws.Cell(r, 11).Value = x.sl; ws.Cell(r, 12).Value = x.sl * 9;
+            ws.Cell(r, 15).Value = new DateTime(2025, 12, 1); ws.Cell(r, 16).Value = x.vt; ws.Cell(r, 17).Value = "Xuất xả\r\n"; r++;
+        }
+        ws.Cell(r, 11).FormulaA1 = "SUBTOTAL(9,K4:K" + (r - 1) + ")";
+        wb.SaveAs(p); return p;
+    }
+
+    [Fact]
+    public void Nap_Excel_kho_goc_tach_rieng_cong_don_va_doi_chieu_voi_phieu_app()
+    {
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var i0 = Idx(A, "A.02.01", "L1");
+        var s = Vt.CreateSlip(new() { new(i0, 12) }, false, "xuatxa", DateTime.Today, "");
+        var f1 = XlFile("a", (A, DateTime.Today, "A.02.01", 12, "L1"), (B, DateTime.Today, "B.01.03", 5, "L2"), (A, DateTime.Today.AddDays(-3), "A.02.01", 7, "L3"));
+        var rd = Vt.ReadXuatGoc(f1);
+        Assert.Equal(3, rd.Rows.Count);                                   // dòng tổng cuối file bị bỏ
+        Assert.Equal("Xuất xả", rd.Rows[0].LoaiCt);                       // _x000d_ + xuống dòng được dọn
+        var r1 = Vt.ImportXuatGoc(rd);
+        Assert.Equal((3, 0, 3), (r1.Added, r1.Duplicate, r1.Total));
+        // nạp lại file chồng nhau + 1 dòng mới → không nhân đôi
+        var r2 = Vt.ImportXuatGoc(Vt.ReadXuatGoc(XlFile("b", (A, DateTime.Today, "A.02.01", 12, "L1"), (B, DateTime.Today, "B.01.03", 9, "L9"))));
+        Assert.Equal((1, 1, 4), (r2.Added, r2.Duplicate, r2.Total));
+        // 2 loại dữ liệu tách riêng; phiếu app không bị đụng
+        Assert.Single(Vt.Slips); Assert.Single(Vt.DaXuatList(excel: false));
+        Assert.Equal(4, Vt.DaXuatList(app: false).Count);
+        var all = Vt.DaXuatList();
+        Assert.Equal("Khớp Excel kho gốc", all.Single(x => x.Nguon == "app").DoiChieu);
+        Assert.Contains(all, x => x.Nguon == "excel" && x.Sl == 12 && x.DoiChieu == "Khớp phiếu app");
+        Assert.Equal(3, all.Count(x => x.Nguon == "excel" && x.DoiChieu == "Chỉ có ở Excel"));
+        // lưu + mở lại
+        Vt.Load(); Assert.Equal(4, Vt.XuatGoc.Count); Assert.Equal(DateTime.Today.AddDays(-3).ToString("yyyy-MM-dd"), Vt.XuatGocInfo.From);
+        Vt.ClearXuatGoc(); Vt.Load(); Assert.Empty(Vt.XuatGoc); Assert.Single(Vt.Slips);
+    }
+
+    [Fact]
+    public void Doc_file_Excel_kho_goc_that_neu_co()
+    {
+        var p = Environment.GetEnvironmentVariable("XUATGOC_REAL"); if (string.IsNullOrEmpty(p) || !File.Exists(p)) return;
+        Vt.Load(); var f = Vt.ReadXuatGoc(p);
+        File.WriteAllText(p + ".out", $"rows={f.Rows.Count} skipped={f.Skipped} first={f.Rows[0].Ngay}|{f.Rows[0].MaGoc}|{f.Rows[0].Vt}|{f.Rows[0].Sl}|{f.Rows[0].NgaySx}|[{f.Rows[0].LoaiCt}]|{f.Rows[0].Dt}|{f.Rows[0].Hd}\nloai=" + string.Join(",", f.Rows.Select(x => x.LoaiCt).Distinct()));
+        Assert.Equal(2468, f.Rows.Count);
+    }
+
+    [Fact]
+    public void Do_toc_do_33000_dong_Excel_kho_goc()
+    {
+        if (Environment.GetEnvironmentVariable("PERF33K") != "1") return;
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var rnd = new Random(1); var rows = new List<ViTriService.XuatGocRow>();
+        for (var i = 0; i < 33000; i++)
+            rows.Add(new ViTriService.XuatGocRow { Ngay = new DateTime(2026, 1, 1).AddDays(i % 330).ToString("yyyy-MM-dd"), SoLenh = "5DO-" + (30000 + i / 7), ItemId = i.ToString(), MaGoc = "TPC-VRHLBTNXECR00" + (3140 + i % 50) + "IME1",
+                Ten = "Tôm TCT PD (An An), IQF, Tạm, Có HC, EU, KANGMIUT, 20%, 31/40 (9 kg x 1 gói) - ASCDNA - XXX", Vt = "TG2.E." + (i % 40) + ".7.1", NgaySx = "2025-12-01", Sl = 1 + rnd.Next(30), Tl = 9, Net = 9, LoaiCt = "Xuất bán", Dt = "ASCDNA", Hd = "XXX" });
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = Vt.ImportXuatGoc(new ViTriService.XuatGocFile { FileName = "x.xlsx", Rows = rows });
+        Console.WriteLine($"PERF import {r.Added} dòng: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        Vt.Load(); Console.WriteLine($"PERF Load(): {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        var l = Vt.DaXuatCached(); Console.WriteLine($"PERF DaXuatCached {l.Count}: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        l = Vt.DaXuatCached(); Console.WriteLine($"PERF cached lần 2: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        var toks = new[] { "btp", "50" }; var n = 0;
+        foreach (var x in l) if (toks.All(t => x.Hay.Contains(t, StringComparison.Ordinal))) n++;
+        var gm = new KhoLanh.Core.Grid.GridModel { ReadOnly = true }; sw.Restart();
+        var cols = Enumerable.Range(0, 18).Select(i => new KhoLanh.Core.Grid.GridColumn("c" + i, "C" + i, 90, i == 8 ? "number" : "text")).ToArray();
+        foreach (var lim in new[] { 5000, 20000, 33000 })
+        {
+            sw.Restart(); gm.Load(cols, l.Take(lim).Select(x => new[] { x.Ngay, x.MaPhieu, x.Loai, x.Ma, x.Ten, x.Size, x.Lo, x.Vt, x.Sl.ToString(), x.TonVt.ToString(), x.Tl.ToString(), (x.Sl * x.Tl).ToString(), "Excel", x.NguoiTao, "Excel", x.DoiChieu, x.Dt, x.Hd }).ToList());
+            Console.WriteLine($"PERF GridModel.Load {lim} dòng: {sw.ElapsedMilliseconds} ms");
+        }
+        sw.Restart();
+        Console.WriteLine($"PERF lọc chữ (1 lần gõ): {sw.ElapsedMilliseconds} ms ({n})");
+    }
+
+    [Fact]
+    public void File_khong_dung_mau_bao_cot_thieu()
+    {
+        Vt.Load();
+        var bad = Path.Combine(Path.GetTempPath(), "xg160_bad.xlsx");
+        using (var wb = new XLWorkbook()) { wb.AddWorksheet("x").Cell(1, 1).Value = "Mã hàng"; wb.SaveAs(bad); }
+        Assert.Contains("Ngày chứng từ", Assert.Throws<BusinessException>(() => Vt.ReadXuatGoc(bad)).Message);
+    }
+
+    [Fact]
+    public void Phieu_vi_tri_gop_theo_ma_dac_tinh_hop_dong_va_danh_dau_da_tru_An_An()
+    {
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var a = Vt.CreateSlip(new() { new(Idx(A, "A.02.01", "L1"), 12), new(Idx(A, "A.10.01", "L1"), 8) }, false, "xuatxa", DateTime.Today, "");   // cùng mã + đặc tính + hợp đồng, 2 vị trí
+        var b = Vt.CreateSlip(new() { new(Idx(A, "A.02.01", "L2"), 5) }, false, "xuatxa", DateTime.Today, "");                                         // hợp đồng khác
+        var l = ViTriService.ToAnAnLines(new[] { a, b });
+        Assert.Equal(2, l.Count);
+        Assert.Contains(l, x => x.Ma == ViTriService.ShortCode(A) && x.Hd == "HD01" && x.Qty == 20);
+        Assert.Contains(l, x => x.Hd == "HD02" && x.Qty == 5);
+        Assert.Equal("", ViTriService.AnAnSlipOf(a));
+        Vt.MarkAnAn(new[] { a.Id }, "PX-0007");
+        Assert.Equal("PX-0007", ViTriService.AnAnSlipOf(ReloadSlip(a.Id)));
     }
 }

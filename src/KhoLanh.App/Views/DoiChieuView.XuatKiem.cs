@@ -25,11 +25,11 @@ public sealed partial class DoiChieuView
     private SheetGrid? _xkg;
     private readonly TextBlock _xkInfo = new() { FontSize = 12.5, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _xkWarn = new() { FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = AppTheme.Brush("#B23B00") };
-    private Button? _xkTen, _xkUndoBtn, _xkSave;
+    private Button? _xkTen, _xkUndoBtn, _xkSave, _xkMove;
 
     private Control BuildXuatKiem()
     {
-        _xkg = new SheetGrid(_xkm) { SpareRows = 0 };
+        _xkg = new SheetGrid(_xkm) { SpareRows = 0, RowChecks = true };   // 1.170: ô tích từng dòng + ô chọn tất cả ở góc
         _xkg.CellBackground = (r, c) =>
         {
             if (_xk is null || r >= _xk.Groups.Count) return null;
@@ -41,8 +41,9 @@ public sealed partial class DoiChieuView
         _xkTen = Btn("Cập nhật tên hàng…", async () => await XkTen(), tip: "Tra tên chuẩn theo mã hàng để thay tên bị cắt trong file gốc — xem trước rồi mới áp"); _xkTen.IsEnabled = false;
         _xkUndoBtn = Btn("↶ Hoàn tác tên hàng", () => XkUndo(), tip: "Trả lại tên hàng như trong file gốc"); _xkUndoBtn.IsVisible = false;
         _xkSave = Btn("📤 Xuất file rút gọn (.xlsx)", async () => await XkSave()); _xkSave.IsEnabled = false;
+        _xkMove = Btn("⇥ Chuyển sang file xuất…", async () => await XkChuyen(), tip: "Tích các mã (hoặc chọn 1 dòng) rồi chuyển sang file Xuất thay thùng / Xuất rã đông: ghi vào file Excel Kho (kèm chữ “Xuất kiểm” ở cột Ghi chú), không đối chiếu với Xưởng."); _xkMove.IsEnabled = false;
         var bar = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, Margin = new Thickness(0, 8, 0, 6) };
-        bar.Children.Add(pick); bar.Children.Add(_xkTen); bar.Children.Add(_xkUndoBtn); bar.Children.Add(_xkSave);
+        bar.Children.Add(pick); bar.Children.Add(_xkMove); bar.Children.Add(_xkTen); bar.Children.Add(_xkUndoBtn); bar.Children.Add(_xkSave);
         var hint = new TextBlock
         {
             Text = "Chọn file GỐC của phần mềm kho (báo cáo “Nhập xuất chi tiết”, .xlsx / .xlsm). App lấy riêng các dòng Xuất kiểm hàng, gộp theo Ngày + Mã hàng thành danh sách rút gọn (Ngày · Mã hàng · Tên hàng · TLg Net · Số lượng tồn · Net · SIZE · Hợp đồng). Không ghi vào file gốc hay hai file Xuất thay thùng / Xuất rã đông.",
@@ -60,7 +61,7 @@ public sealed partial class DoiChieuView
         var top = TopLevel.GetTopLevel(this); if (top is null) return;
         var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
         {
-            Title = "Chọn file gốc của phần mềm kho", AllowMultiple = false,
+            Title = "Chọn file gốc của phần mềm kho (hoặc file rút gọn đã xuất)", AllowMultiple = false,
             FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("Excel (.xlsx, .xlsm)") { Patterns = new[] { "*.xlsx", "*.xlsm" } } },
         });
         if (files.Count == 0 || Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(files[0]) is not { } path) return;
@@ -78,28 +79,57 @@ public sealed partial class DoiChieuView
     private void XkRender()
     {
         var r = _xk;
-        _xkTen!.IsEnabled = r is { Groups.Count: > 0 }; _xkSave!.IsEnabled = r is { Groups.Count: > 0 } && Svc.CanExport; _xkUndoBtn!.IsVisible = _xkUndo is not null;
+        _xkTen!.IsEnabled = r is { Groups.Count: > 0 }; _xkMove!.IsEnabled = r is { Groups.Count: > 0 } && Svc.CanEdit; _xkSave!.IsEnabled = r is { Groups.Count: > 0 } && Svc.CanExport; _xkUndoBtn!.IsVisible = _xkUndo is not null;
         if (r is null)
         {
             _xkInfo.Text = "Chưa chọn file gốc."; _xkWarn.Text = "";
             _xkm.Load(Array.Empty<GridColumn>(), Array.Empty<string[]>()); _xkg!.Refresh(); return;
         }
         var other = string.Join(", ", r.Khac.Select(x => $"{x.Loai} {x.N:#,0} dòng"));
-        _xkInfo.Text = $"File: {_xkFile} — {r.NRows:#,0} dòng · {r.NKiem:#,0} dòng Xuất kiểm hàng → gộp còn {r.Groups.Count:#,0} dòng" + (r.NGop > 0 ? $" ({r.NGop:#,0} dòng cùng ngày + mã được cộng dồn)" : "")
+        _xkInfo.Text = $"File{(r.Rutgon ? " rút gọn" : "")}: {_xkFile} — {r.NRows:#,0} dòng · {r.NKiem:#,0} dòng Xuất kiểm hàng → gộp còn {r.Groups.Count:#,0} dòng" + (r.NGop > 0 ? $" ({r.NGop:#,0} dòng cùng ngày + mã được cộng dồn)" : "")
             + $" · Tổng SL {r.TotSl:#,0} · Tổng Net {r.TotNet:#,0.####} kg"
             + (other.Length > 0 ? $"\nKhông lấy: {other}" + (r.BoQua > 0 ? $" · bỏ {r.BoQua:#,0} dòng thiếu mã / ngày (dòng tổng)" : "") : r.BoQua > 0 ? $"\nBỏ {r.BoQua:#,0} dòng thiếu mã / ngày (dòng tổng)." : "");
         _xkWarn.Text = r.Warn.Count == 0 ? "" : $"⚠ {r.Warn.Count} cảnh báo:\n" + string.Join("\n", r.Warn.Take(6)) + (r.Warn.Count > 6 ? $"\n… và {r.Warn.Count - 6} cảnh báo nữa." : "");
         var cols = new[]
         {
             new GridColumn("stt", "STT", 45, "number"), new GridColumn("ngay", "Ngày chứng từ", 105), new GridColumn("ma", "Mã hàng", 190), new GridColumn("ten", "Tên hàng", 430),
-            new GridColumn("tlg", "TLg Net", 75, "number"), new GridColumn("sl", "Số lượng tồn", 100, "number"), new GridColumn("net", "Net", 90, "number"), new GridColumn("size", "SIZE", 75), new GridColumn("hd", "Hợp đồng", 110),
+            new GridColumn("tlg", "TLg Net", 75, "number"), new GridColumn("sl", "Số lượng tồn", 100, "number"), new GridColumn("net", "Net", 90, "number"), new GridColumn("size", "SIZE", 75), new GridColumn("hd", "Hợp đồng", 110), new GridColumn("sang", "Đã chuyển", 150),
         };
         var rows = r.Groups.Select((g, i) => new[]
         {
             (i + 1).ToString(), XuatKiem.Dmy(g.Ngay), g.Ma, g.Ten, N(g.Tlg), N(g.Sl) + (g.NDong > 1 ? $" ({g.NDong})" : ""), N(g.Net), g.Size, g.Hopdong,
+            Svc.XkTo(g.Ngay, g.Ma) is var to and > 0 ? "✔ " + DoiChieuService.KN(to) : "",
         }).ToList();
-        if (r.Groups.Count > 0) rows.Add(new[] { "", "Tổng", "", "", "", N(r.TotSl), N(r.TotNet), "", "" });
+        if (r.Groups.Count > 0) rows.Add(new[] { "", "Tổng", "", "", "", N(r.TotSl), N(r.TotNet), "", "", "" });
         _xkm.Load(cols, rows); _xkg!.Refresh();
+    }
+
+    /// <summary>
+    /// 1.170: chuyển các mã đã tích (hoặc dòng đang chọn) sang file Xuất thay thùng / Xuất rã đông: ghi vào file Excel Kho, ghi chú "Xuất kiểm",
+    /// các mã này KHÔNG đối chiếu với Xưởng. Mã đã chuyển rồi thì bỏ qua (chặn chuyển trùng); hoàn tác ở Lịch sử ghi file.
+    /// </summary>
+    private async Task XkChuyen()
+    {
+        if (_xk is not { Groups.Count: > 0 } r) return;
+        if (!Svc.CanEdit) { await Ui.Message(this, "Tài khoản không có quyền sửa Đối chiếu hàng ngày.", "Chuyển sang file xuất"); return; }
+        var idx = _xkg!.CheckedRows.Where(i => i < r.Groups.Count).ToList();
+        if (idx.Count == 0 && _xkg.Row >= 0 && _xkg.Row < r.Groups.Count) idx.Add(_xkg.Row);
+        if (idx.Count == 0) { await Ui.Message(this, "Tích ô đầu dòng các mã cần chuyển (ô trên cùng = chọn tất cả), hoặc bấm chọn 1 dòng.", "Chuyển sang file xuất"); return; }
+        var sel = idx.Select(i => r.Groups[i]).ToList();
+        var done = sel.Where(g => Svc.XkTo(g.Ngay, g.Ma) != 0).ToList();
+        var todo = sel.Except(done).ToList();
+        if (todo.Count == 0) { await Ui.Message(this, $"{done.Count} mã đã chuyển trước đó ({string.Join(", ", done.Take(5).Select(g => g.Ma))}{(done.Count > 5 ? "…" : "")}) — không chuyển lại để tránh trừ trùng.", "Chuyển sang file xuất"); return; }
+        var pick = await Ui.Choose(this, $"Chuyển {todo.Count} mã (SL {N(todo.Sum(g => g.Sl))} · Net {N(todo.Sum(g => g.Net))} kg) sang file nào?", "Chuyển sang file xuất", new[] { "Xuất thay thùng", "Xuất rã đông (xả)" }, 0);
+        if (pick is null) return;
+        var pid = pick.Value.Index + 1;
+        if (!Svc.IsLinked(Svc.PairOf(pid))) { await Ui.Message(this, $"Chưa liên kết file Excel {DoiChieuService.KN(pid)} (tab Liên kết file) nên chưa ghi được.", "Chuyển sang file xuất"); return; }
+        var has = todo.Where(g => Svc.KhoHas(pid, g.Ngay, g.Ma) > 0).ToList();
+        var text = $"Chuyển {todo.Count} mã Xuất kiểm sang {DoiChieuService.KN(pid)}?\n\nGhi thêm dòng vào file Excel Kho (giữ mẫu). Chữ “Xuất kiểm” được ghi vào cột Ghi chú của file Excel (file chưa có cột Ghi chú thì thêm 1 cột cuối). Các mã này KHÔNG đối chiếu với Xưởng. Hoàn tác được ở Lịch sử ghi file."
+            + (done.Count > 0 ? $"\n\n{done.Count} mã đã chuyển trước đó sẽ bỏ qua." : "")
+            + (has.Count > 0 ? $"\n\n⚠ {has.Count} mã đã có sẵn ở file {DoiChieuService.KN(pid)} cùng ngày ({string.Join(", ", has.Take(3).Select(g => g.Ma))}{(has.Count > 3 ? "…" : "")}) — số lượng sẽ CỘNG DỒN vào dòng đó." : "");
+        if (!await Ui.Confirm(this, text, "Chuyển sang file xuất", "Chuyển")) return;
+        await Act(() => Svc.ChuyenXuatKiem(pid, todo).Message);
+        XkRender();
     }
 
     /// <summary>Tra tên chuẩn theo mã: Danh sách mã hàng (Tổng hợp), rồi ghép từ Mã hóa sản phẩm.</summary>

@@ -14,6 +14,9 @@ public sealed class VtbRow
 {
     public string Vt = "", Ma = "", Nsx = "", Hsd = "", Nhap = "", NgayXuat = "", VtCu = "", VtMoi = "", GhiChu = "";
     public double Sl;
+    /// <summary>1.177: "excel" = ngăn nạp từ file Excel (thay thế khi nạp lại); rỗng = ngăn NXT Bột/Sốt (đưa lên từ sổ kho, nhập trực tiếp).</summary>
+    public string Nguon = "";
+    public bool IsExcel => Nguon == "excel";
 }
 
 public sealed class VtbLine
@@ -27,7 +30,7 @@ public sealed class VtbSlip
 {
     public string Id = "", PhoneId = "", MaPhieu = "", NguoiTao = "", GhiChu = "", CreatedAt = "", DeductedAt = "", Nguon = "";
     public bool Deducted;
-    public double LoadAt;
+    public double LoadAt, LoadAtX;   // LoadAt = đợt NXT, LoadAtX = đợt Excel (1.177)
     public List<VtbLine> Lines = new();
     public JsonObject Extra = new();   // giữ nguyên các trường lạ của app cũ / điện thoại
     public bool IsPhone => PhoneId.Length > 0 || Nguon == "phone";
@@ -60,6 +63,15 @@ public sealed class VtbService
     public string DataDate { get; private set; } = "";
     public string Sheet { get; private set; } = "";
     public double ImportedAt { get; private set; }
+    /// <summary>Ngăn Excel (1.177): tên file, ngày số liệu, sheet, lúc nạp.</summary>
+    public string ExcelFile { get; private set; } = "";
+    public string ExcelDate { get; private set; } = "";
+    public string ExcelSheet { get; private set; } = "";
+    public double ExcelImportedAt { get; private set; }
+    /// <summary>Công tắc "đưa lên điện thoại" từng ngăn (mặc định bật cả hai).</summary>
+    public bool PushNxt { get; private set; } = true;
+    public bool PushExcel { get; private set; } = true;
+    public double LastLoadAt => Math.Max(ImportedAt, ExcelImportedAt);
     private JsonObject _meta = new();
 
     private JsonArray Read(string sheet) { try { return JsonNode.Parse(_src().Read(Db, sheet)) as JsonArray ?? new(); } catch { return new(); } }
@@ -78,6 +90,9 @@ public sealed class VtbService
         var m = Cell(Read(SMeta)) as JsonObject;
         _meta = m ?? new JsonObject();
         FileName = S(_meta["fileName"]); DataDate = S(_meta["dataDate"]); Sheet = S(_meta["sheet"]); ImportedAt = N(_meta["importedAt"]);
+        var ex = _meta["excel"] as JsonObject;
+        ExcelFile = S(ex?["fileName"]); ExcelDate = S(ex?["dataDate"]); ExcelSheet = S(ex?["sheet"]); ExcelImportedAt = N(ex?["importedAt"]);
+        PushNxt = _meta["pushNxt"] is null || Bool(_meta["pushNxt"]); PushExcel = _meta["pushExcel"] is null || Bool(_meta["pushExcel"]);
         Rows = m is null ? new() : Read(SRows).OfType<JsonObject>().Select(FromStored).Where(r => r.Vt.Length > 0 || r.Ma.Length > 0).ToList();
         var p = Cell(Read(SSlips)) as JsonObject;
         Seq = p?["seq"] is { } sq ? (int)N(sq) : 1; if (Seq < 1) Seq = 1;
@@ -87,9 +102,10 @@ public sealed class VtbService
     private static VtbRow FromStored(JsonObject o)
     {
         string G(string col) => S(o[col]).Trim();
-        return new VtbRow { Vt = G("VT"), Ma = G("MÃ HÀNG"), Sl = N(o["SL"]), Nsx = FmtDate(G("NSX")), Hsd = FmtDate(G("HSD")), Nhap = FmtDate(G("NHẬP")), NgayXuat = FmtDate(G("NGÀY XUẤT")), VtCu = G("VỊ TRÍ CŨ"), VtMoi = G("VỊ TRÍ MỚI"), GhiChu = G("GHI CHÚ") };
+        return new VtbRow { Vt = G("VT"), Ma = G("MÃ HÀNG"), Sl = N(o["SL"]), Nsx = FmtDate(G("NSX")), Hsd = FmtDate(G("HSD")), Nhap = FmtDate(G("NHẬP")), NgayXuat = FmtDate(G("NGÀY XUẤT")), VtCu = G("VỊ TRÍ CŨ"), VtMoi = G("VỊ TRÍ MỚI"), GhiChu = G("GHI CHÚ"), Nguon = G("NGUỒN") == "excel" ? "excel" : "" };
     }
-    private static JsonObject ToStored(VtbRow r) => new()
+    private static JsonObject ToStored(VtbRow r) { var o = ToStored0(r); if (r.IsExcel) o["NGUỒN"] = "excel"; return o; }
+    private static JsonObject ToStored0(VtbRow r) => new()
     {
         ["VT"] = r.Vt, ["MÃ HÀNG"] = r.Ma, ["SL"] = r.Sl, ["NSX"] = r.Nsx, ["HSD"] = r.Hsd, ["NHẬP"] = r.Nhap, ["NGÀY XUẤT"] = r.NgayXuat, ["VỊ TRÍ CŨ"] = r.VtCu, ["VỊ TRÍ MỚI"] = r.VtMoi, ["GHI CHÚ"] = r.GhiChu,
     };
@@ -99,7 +115,7 @@ public sealed class VtbService
         var s = new VtbSlip
         {
             Id = S(o["id"]), PhoneId = S(o["phoneId"]), MaPhieu = S(o["maPhieu"]), NguoiTao = S(o["nguoiTao"]), GhiChu = S(o["ghiChu"]), CreatedAt = S(o["createdAt"]),
-            DeductedAt = S(o["deductedAt"]), Nguon = S(o["nguon"]), Deducted = Bool(o["deducted"]), LoadAt = N(o["loadAt"]),
+            DeductedAt = S(o["deductedAt"]), Nguon = S(o["nguon"]), Deducted = Bool(o["deducted"]), LoadAt = N(o["loadAt"]), LoadAtX = N(o["loadAtX"]),
             Extra = (JsonObject)o.DeepClone(),
         };
         foreach (var l in (o["lines"] as JsonArray ?? new()).OfType<JsonObject>())
@@ -110,7 +126,7 @@ public sealed class VtbService
     {
         var o = (JsonObject)s.Extra.DeepClone();
         o["id"] = s.Id; o["phoneId"] = s.PhoneId; o["maPhieu"] = s.MaPhieu; o["nguoiTao"] = s.NguoiTao; o["ghiChu"] = s.GhiChu; o["createdAt"] = s.CreatedAt;
-        o["deducted"] = s.Deducted; o["deductedAt"] = s.DeductedAt; o["loadAt"] = s.LoadAt; if (s.Nguon.Length > 0) o["nguon"] = s.Nguon;
+        o["deducted"] = s.Deducted; o["deductedAt"] = s.DeductedAt; o["loadAt"] = s.LoadAt; o["loadAtX"] = s.LoadAtX; if (s.Nguon.Length > 0) o["nguon"] = s.Nguon;
         o["lines"] = new JsonArray(s.Lines.Select(l => (JsonNode)new JsonObject { ["key"] = l.Key, ["vt"] = l.Vt, ["ma"] = l.Ma, ["nsx"] = l.Nsx, ["hsd"] = l.Hsd, ["nhap"] = l.Nhap, ["ghiChu"] = l.GhiChu, ["qty"] = l.Qty }).ToArray());
         return o;
     }
@@ -120,7 +136,8 @@ public sealed class VtbService
     private void Save(bool rows, bool slips)
     {
         var d = new Dictionary<string, JsonArray?>();
-        if (rows) { d[SMeta] = Rows.Count > 0 || FileName.Length > 0 ? MetaCell() : new JsonArray(); d[SRows] = new JsonArray(Rows.Select(r => (JsonNode)ToStored(r)).ToArray()); }
+        _meta["pushNxt"] = PushNxt; _meta["pushExcel"] = PushExcel;
+        if (rows) { d[SMeta] = Rows.Count > 0 || FileName.Length > 0 || ExcelFile.Length > 0 ? MetaCell() : new JsonArray(); d[SRows] = new JsonArray(Rows.Select(r => (JsonNode)ToStored(r)).ToArray()); }
         if (slips) d[SSlips] = SlipCell();
         _src().Write(Db, d);
     }
@@ -132,12 +149,16 @@ public sealed class VtbService
         return rows.Select(r =>
         {
             var ma = r.Ma.Trim(); var vt = r.Vt.Trim(); if (ma.Length == 0 && vt.Length == 0) return "";
-            var b = string.Join("|", ma, vt, r.Nsx.Trim(), r.Hsd.Trim()); var n = seen.GetValueOrDefault(b); seen[b] = n + 1; return b + "#" + n;
+            var b = (r.IsExcel ? "X:" : "") + string.Join("|", ma, vt, r.Nsx.Trim(), r.Hsd.Trim()); var n = seen.GetValueOrDefault(b); seen[b] = n + 1; return b + "#" + n;
         }).ToList();
     }
 
     /// <summary>Phiếu của đợt dữ liệu cũ (đã đẩy / nạp lại tồn) — khóa, không trừ / hoàn được nữa.</summary>
-    public bool Locked(VtbSlip s) => Math.Abs(s.LoadAt - ImportedAt) > 0.5;
+    public bool Locked(VtbSlip s)
+    {
+        var hasX = s.Lines.Any(l => l.Key.StartsWith("X:", StringComparison.Ordinal)); var hasN = !hasX || s.Lines.Any(l => !l.Key.StartsWith("X:", StringComparison.Ordinal));
+        return (hasN && Math.Abs(s.LoadAt - ImportedAt) > 0.5) || (hasX && Math.Abs(s.LoadAtX - ExcelImportedAt) > 0.5);
+    }
 
     private int ApplySlip(VtbSlip s, int sign)
     {
@@ -160,11 +181,13 @@ public sealed class VtbService
     {
         if (!_session.Can(SoKhoService.PermKey, Perm.Edit) && !CanEdit) throw new BusinessException("Bạn không có quyền đưa tồn lên Vị Trí Bột.");
         if (rows.Count == 0) throw new BusinessException("Không có dòng tồn cuối > 0 để đẩy (kiểm tra lại ngày).");
+        _meta = (JsonObject)_meta.DeepClone();
         static string Nf(double v) => v.ToString("#,0.###", CultureInfo.InvariantCulture);
-        Rows = rows.Select(r => new VtbRow { Vt = r.ViTri, Ma = r.MaHang + (r.Size.Length > 0 ? " " + r.Size : ""), Sl = r.Sl, GhiChu = $"NXT Bột/Sốt · {Nf(r.Net)} kg" }).ToList();
+        var excel = Rows.Where(r => r.IsExcel).ToList();
+        Rows = rows.Select(r => new VtbRow { Vt = r.ViTri, Ma = r.MaHang + (r.Size.Length > 0 ? " " + r.Size : ""), Sl = r.Sl, GhiChu = $"NXT Bột/Sốt · {Nf(r.Net)} kg" }).Concat(excel).ToList();   // 1.177: chỉ thay ngăn NXT, giữ ngăn Excel
         var dmy = DateTime.TryParseExact(toIso, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : toIso;
         ImportedAt = new DateTimeOffset(Now()).ToUnixTimeMilliseconds();
-        _meta = new JsonObject { ["fileName"] = "NXT Bột/Sốt — tồn cuối " + dmy, ["importedAt"] = ImportedAt, ["dataDate"] = dmy, ["sheet"] = "NXT Bột/Sốt · Theo vị trí", ["headerRowNumber"] = 0, ["skippedRows"] = 0 };
+        _meta = new JsonObject { ["fileName"] = "NXT Bột/Sốt — tồn cuối " + dmy, ["importedAt"] = ImportedAt, ["dataDate"] = dmy, ["sheet"] = "NXT Bột/Sốt · Theo vị trí", ["headerRowNumber"] = 0, ["skippedRows"] = 0, ["excel"] = _meta["excel"]?.DeepClone() };
         FileName = S(_meta["fileName"]); DataDate = dmy; Sheet = S(_meta["sheet"]);
         Save(true, false);
         _audit?.Log(_session.Username, "Vị Trí Bột: Đưa tồn theo vị trí lên Vị Trí Bột", $"{Rows.Count} dòng · tồn cuối {dmy}");
@@ -191,7 +214,7 @@ public sealed class VtbService
         var s = new VtbSlip
         {
             Id = "VTB-" + Seq.ToString("0000", CultureInfo.InvariantCulture), MaPhieu = "PC-" + now.ToString("ddMMyy-HHmm", CultureInfo.InvariantCulture), NguoiTao = _session.Username, GhiChu = ghiChu.Trim(),
-            CreatedAt = now.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"), Lines = lines, Deducted = true, DeductedAt = now.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"), LoadAt = ImportedAt, Nguon = "pc",
+            CreatedAt = now.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"), Lines = lines, Deducted = true, DeductedAt = now.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"), LoadAt = ImportedAt, LoadAtX = ExcelImportedAt, Nguon = "pc",
         };
         Seq++;
         ApplySlip(s, -1);
@@ -231,7 +254,7 @@ public sealed class VtbService
     public static readonly string[] TemplateColumns = { "VT", "MÃ HÀNG", "SL", "NSX", "HSD", "NHẬP", "NGÀY XUẤT", "VỊ TRÍ CŨ", "VỊ TRÍ MỚI", "GHI CHÚ" };
     private static readonly (string F, string[] Aliases)[] ColAliases =
     {
-        ("vt", new[] { "vt", "vitri", "vitrikho" }), ("ma", new[] { "mahang", "mahh", "masanpham", "itemcode" }), ("sl", new[] { "sl", "soluong", "slton" }),
+        ("vt", new[] { "vt", "vitri", "vitrikho", "vitrihang", "vitrihientai", "location", "pos" }), ("ma", new[] { "mahang", "mahh", "masanpham", "itemcode", "mabot", "mabotsot", "mahangbot", "mavattu", "mavt", "ma" }), ("sl", new[] { "sl", "soluong", "slton", "soluongton", "slbao", "qty", "quantity", "ton" }),
         ("nsx", new[] { "nsx", "ngaysanxuat" }), ("hsd", new[] { "hsd", "hansudung" }), ("nhap", new[] { "nhap", "ngaynhap" }), ("ngayXuat", new[] { "ngayxuat", "ngayxuatkho" }),
         ("vtCu", new[] { "vitricu" }), ("vtMoi", new[] { "vitrimoi" }), ("ghiChu", new[] { "ghichu" }),
     };
@@ -247,7 +270,19 @@ public sealed class VtbService
     {
         var keys = row.Select(HeaderKey).ToList(); var map = new Dictionary<string, int>();
         foreach (var (f, al) in ColAliases) { var i = keys.FindIndex(k => al.Contains(k)); if (i >= 0) map[f] = i; }
+        // 1.177: file khác mẫu → dò gần đúng 3 cột bắt buộc (tiêu đề chứa "vị trí" / "mã (hàng|bột|sp)" / "số lượng")
+        bool Free(int i) => !map.ContainsValue(i);
+        if (!map.ContainsKey("vt")) { var i = keys.FindIndex(k => Free(keys.IndexOf(k)) && k.Contains("vitri") && !k.Contains("cu") && !k.Contains("moi")); if (i >= 0) map["vt"] = i; }
+        if (!map.ContainsKey("ma")) { var i = keys.FindIndex(k => k.Length > 2 && k.StartsWith("ma", StringComparison.Ordinal) && (k.Contains("bot") || k.Contains("hang") || k.Contains("sp") || k.Contains("hh"))); if (i >= 0 && Free(i)) map["ma"] = i; }
+        if (!map.ContainsKey("sl")) { var i = keys.FindIndex(k => k.Contains("soluong") || k.StartsWith("slton", StringComparison.Ordinal)); if (i >= 0 && Free(i)) map["sl"] = i; }
         return map;
+    }
+
+    /// <summary>Dòng có vẻ là dòng tiêu đề khi không nhận ra cột (≥ 3 ô có chữ, trong 25 dòng đầu) — để người dùng chọn cột bằng tay. -1 nếu không có.</summary>
+    public static int GuessHeaderRow(IReadOnlyList<IReadOnlyList<object?>> aoa)
+    {
+        for (var r = 0; r < Math.Min(aoa.Count, 25); r++) if (aoa[r].Count(x => CellText(x).Length > 0) >= 3) return r;
+        return -1;
     }
     private static string CellText(object? v) => v switch
     {
@@ -256,14 +291,18 @@ public sealed class VtbService
         _ => (Convert.ToString(v, CultureInfo.InvariantCulture) ?? "").Trim(),
     };
 
-    public sealed class FileParse { public bool Ok; public string Error = "", Sheet = "", DataDate = ""; public int HeaderRow, Skipped; public List<VtbRow> Rows = new(); }
+    public sealed class FileParse { public bool Ok; public string Error = "", Sheet = "", DataDate = ""; public int HeaderRow, Skipped, SkippedZero; public List<VtbRow> Rows = new(); public Dictionary<string, int> Map = new(); }
 
     /// <summary>Đọc 1 sheet file "Vị trí Bột": dòng "NGÀY:" (ngày số liệu) rồi dòng tiêu đề (cần VT, MÃ HÀNG, SL); dòng không có cả VT lẫn MÃ HÀNG bị bỏ.</summary>
-    public static FileParse ParseSheet(IReadOnlyList<IReadOnlyList<object?>> aoa, string sheet)
+    /// <param name="onlyStock">1.177 (ngăn Excel): chỉ giữ dòng có Vị trí + Mã + SL &gt; 0; dòng SL = 0 / thiếu Vị trí hoặc Mã bị bỏ và đếm riêng.</param>
+    /// <param name="manual">cột chọn tay (trường → chỉ số cột, 0-based) cùng dòng tiêu đề <paramref name="manualHeader"/> (0-based).</param>
+    public static FileParse ParseSheet(IReadOnlyList<IReadOnlyList<object?>> aoa, string sheet, bool onlyStock = false, Dictionary<string, int>? manual = null, int manualHeader = -1)
     {
         var res = new FileParse { Sheet = sheet };
         int hr = -1; Dictionary<string, int> map = new();
-        for (var r = 0; r < Math.Min(aoa.Count, 25); r++) { var m = MapColumns(aoa[r]); if (m.ContainsKey("vt") && m.ContainsKey("ma") && m.ContainsKey("sl")) { hr = r; map = m; break; } }
+        if (manual is not null && manualHeader >= 0 && manualHeader < aoa.Count && manual.ContainsKey("vt") && manual.ContainsKey("ma") && manual.ContainsKey("sl")) { hr = manualHeader; map = new(manual); var auto = MapColumns(aoa[hr]); foreach (var kv in auto) if (!map.ContainsKey(kv.Key) && !map.ContainsValue(kv.Value)) map[kv.Key] = kv.Value; }
+        else for (var r = 0; r < Math.Min(aoa.Count, 25); r++) { var m = MapColumns(aoa[r]); if (m.ContainsKey("vt") && m.ContainsKey("ma") && m.ContainsKey("sl")) { hr = r; map = m; break; } }
+        res.Map = map;
         if (hr < 0) { res.Error = "Không thấy dòng tiêu đề có đủ cột VT, MÃ HÀNG, SL."; return res; }
         // ngày số liệu: ô "NGÀY: dd/mm/yyyy" hoặc ô "NGÀY:" + ô kế bên, ở các dòng phía trên tiêu đề
         for (var r = 0; r < hr && res.DataDate.Length == 0; r++)
@@ -279,10 +318,18 @@ public sealed class VtbService
         for (var r = hr + 1; r < aoa.Count; r++)
         {
             var row = aoa[r]; var vt = G(row, "vt"); var ma = G(row, "ma");
+            if (onlyStock)
+            {
+                var sr = map.TryGetValue("sl", out var si0) && si0 < row.Count ? row[si0] : null;
+                var sv = sr is double sd0 ? sd0 : (JsText.LooseNum(CellText(sr)) is var x0 && !double.IsNaN(x0) ? x0 : 0);
+                if (vt.Length == 0 && ma.Length == 0 && sv <= 0) { continue; }
+                if (!(sv > 0)) { res.SkippedZero++; continue; }
+                if (vt.Length == 0 || ma.Length == 0) { res.Skipped++; continue; }
+            }
             if (vt.Length == 0 && ma.Length == 0) { if (row.Any(x => CellText(x).Length > 0)) res.Skipped++; continue; }
             var slRaw = map.TryGetValue("sl", out var si) && si < row.Count ? row[si] : null;
             var sl = slRaw is double sd ? (double.IsFinite(sd) ? sd : 0) : (JsText.LooseNum(CellText(slRaw)) is var x && !double.IsNaN(x) ? x : 0);
-            res.Rows.Add(new VtbRow { Vt = vt, Ma = ma, Sl = sl, Nsx = FmtDate(G(row, "nsx")), Hsd = FmtDate(G(row, "hsd")), Nhap = FmtDate(G(row, "nhap")), NgayXuat = FmtDate(G(row, "ngayXuat")), VtCu = G(row, "vtCu"), VtMoi = G(row, "vtMoi"), GhiChu = G(row, "ghiChu") });
+            res.Rows.Add(new VtbRow { Nguon = onlyStock ? "excel" : "", Vt = vt, Ma = ma, Sl = sl, Nsx = FmtDate(G(row, "nsx")), Hsd = FmtDate(G(row, "hsd")), Nhap = FmtDate(G(row, "nhap")), NgayXuat = FmtDate(G(row, "ngayXuat")), VtCu = G(row, "vtCu"), VtMoi = G(row, "vtMoi"), GhiChu = G(row, "ghiChu") });
         }
         res.HeaderRow = hr + 1; res.Ok = res.Rows.Count > 0; if (!res.Ok) res.Error = "Sheet không có dòng dữ liệu nào dưới tiêu đề.";
         return res;
@@ -313,21 +360,65 @@ public sealed class VtbService
         return Rows.Count;
     }
 
+    /// <summary>1.177: nạp file Excel vào NGĂN EXCEL — thay toàn bộ ngăn Excel cũ (không cộng dồn), giữ nguyên ngăn NXT. Phiếu của đợt Excel cũ bị khóa.</summary>
+    public int LoadExcel(FileParse p, string fileName)
+    {
+        if (!CanEdit) throw new BusinessException("Bạn chỉ có quyền xem.");
+        if (!p.Ok) throw new BusinessException(p.Error);
+        Rows = Rows.Where(r => !r.IsExcel).Concat(p.Rows.Select(r => { r.Nguon = "excel"; return r; })).ToList();
+        ExcelImportedAt = new DateTimeOffset(Now()).ToUnixTimeMilliseconds();
+        _meta = (JsonObject)_meta.DeepClone();
+        _meta["excel"] = new JsonObject { ["fileName"] = fileName, ["importedAt"] = ExcelImportedAt, ["dataDate"] = p.DataDate, ["sheet"] = p.Sheet, ["headerRowNumber"] = p.HeaderRow, ["skippedRows"] = p.Skipped + p.SkippedZero };
+        ExcelFile = fileName; ExcelDate = p.DataDate; ExcelSheet = p.Sheet;
+        Save(true, false);
+        _audit?.Log(_session.Username, "Vị Trí Bột: Nạp file Excel (thay ngăn Excel)", $"{fileName} · {p.Rows.Count} dòng" + (p.DataDate.Length > 0 ? " · ngày " + p.DataDate : ""));
+        return p.Rows.Count;
+    }
+
+    /// <summary>Công tắc đưa từng ngăn lên điện thoại (dữ liệu vẫn giữ khi tắt).</summary>
+    public void SetPush(bool nxt, bool excel)
+    {
+        if (!CanEdit && !_session.Can(SoKhoService.PermKey, Perm.Edit)) throw new BusinessException("Bạn không có quyền đổi.");
+        PushNxt = nxt; PushExcel = excel; Save(true, false);
+        _audit?.Log(_session.Username, "Vị Trí Bột: Đổi công tắc đưa lên điện thoại", $"NXT {(nxt ? "bật" : "tắt")} · Excel {(excel ? "bật" : "tắt")}");
+    }
+
+    public sealed record Overlap(string Vt, string Ma, double SlNxt, double SlExcel);
+    private static string NormMa(string s) => Regex.Replace(s.Trim().ToUpperInvariant(), @"\s+", " ");
+
+    /// <summary>Cùng mã hàng: bằng nhau, hoặc một bên là bên kia + " Size" (ngăn NXT ghi "Mã Size", file Excel thường chỉ có mã).</summary>
+    public static bool SameMa(string a, string b)
+    {
+        a = NormMa(a); b = NormMa(b); if (a.Length == 0 || b.Length == 0) return false;
+        return a == b || a.StartsWith(b + " ", StringComparison.Ordinal) || b.StartsWith(a + " ", StringComparison.Ordinal);
+    }
+
+    /// <summary>Đối chiếu 2 ngăn: cùng Mã hàng + Vị trí có tồn (SL &gt; 0) ở CẢ hai ngăn — nghi tính trùng một hàng 2 lần.</summary>
+    public List<Overlap> Overlaps()
+    {
+        var n = Rows.Where(r => !r.IsExcel && r.Sl > 1e-9).ToList();
+        return Rows.Where(r => r.IsExcel && r.Sl > 1e-9).GroupBy(r => (NormMa(r.Ma), r.Vt.Trim().ToUpperInvariant())).Select(g =>
+        {
+            var hit = n.Where(x => x.Vt.Trim().Equals(g.Key.Item2, StringComparison.OrdinalIgnoreCase) && SameMa(x.Ma, g.Key.Item1)).ToList();
+            return hit.Count == 0 ? null : new Overlap(g.Key.Item2, g.Key.Item1, hit.Sum(x => x.Sl), g.Sum(x => x.Sl));
+        }).OfType<Overlap>().OrderBy(o => o.Vt, StringComparer.Ordinal).ToList();
+    }
+
     // ------------------------------------------------------------ ĐIỆN THOẠI (Google Sheet qua Web App — giống main.js của app cũ)
     public const string TabStock = "TonKho_M01_ViTriBot", PhoneModule = "M01VTB";
     public const string DaXuLy = "Đã xử lý", LoiThieuDong = "Lỗi - không có dòng hàng";
     /// <summary>Cột đẩy lên tab TonKho_M01_ViTriBot (điện thoại + Code.gs đọc theo tên này) + "_key" để phiếu điện thoại chỉ đúng dòng.</summary>
-    public static readonly string[] PushColumns = { "Vị trí", "Mã hàng", "SL", "NSX", "HSD", "Nhập", "Ghi chú", "Vị trí mới", "_key" };
+    public static readonly string[] PushColumns = { "Vị trí", "Mã hàng", "SL", "NSX", "HSD", "Nhập", "Ghi chú", "Vị trí mới", "_key", "Nguồn" };
     private static readonly string[] SyncTables = { "M01", "M01VT", "M01VTB", "M02", "M03", "M08", "LX", "C3D" };
 
     /// <summary>Dòng đẩy lên điện thoại: đúng thứ tự dòng (khóa tính theo thứ tự này), GIỮ dòng SL = 0.</summary>
     public List<Dictionary<string, JsonNode?>> PushRows()
     {
-        var keys = Keys(Rows);
-        return Rows.Select((r, i) => new Dictionary<string, JsonNode?>
+        var keys = Keys(Rows);   // khóa tính trên TOÀN bộ dòng (kể cả ngăn đang tắt) để phiếu điện thoại không lệch
+        return Rows.Select((r, i) => (r, i)).Where(x => x.r.IsExcel ? PushExcel : PushNxt).Select(x => (r: x.r, i: x.i)).Select(x => { var (r, i) = x; return new Dictionary<string, JsonNode?>
         {
-            ["Vị trí"] = r.Vt.Trim(), ["Mã hàng"] = r.Ma.Trim(), ["SL"] = r.Sl, ["NSX"] = r.Nsx.Trim(), ["HSD"] = r.Hsd.Trim(), ["Nhập"] = r.Nhap.Trim(), ["Ghi chú"] = r.GhiChu.Trim(), ["Vị trí mới"] = r.VtMoi.Trim(), ["_key"] = keys[i],
-        }).Where(o => S(o["_key"]).Length > 0).ToList();
+            ["Vị trí"] = r.Vt.Trim(), ["Mã hàng"] = r.Ma.Trim(), ["SL"] = r.Sl, ["NSX"] = r.Nsx.Trim(), ["HSD"] = r.Hsd.Trim(), ["Nhập"] = r.Nhap.Trim(), ["Ghi chú"] = r.GhiChu.Trim(), ["Vị trí mới"] = r.VtMoi.Trim(), ["_key"] = keys[i], ["Nguồn"] = r.IsExcel ? "Excel" : "NXT",
+        }; }).Where(o => S(o["_key"]).Length > 0).ToList();
     }
 
     public sealed record PhoneItem(string ItemKey, double Qty);
@@ -350,7 +441,7 @@ public sealed class VtbService
                 var r = Rows[rows[k]]; r.Sl = Math.Round(r.Sl - it.Qty, 6);
                 return new VtbLine { Key = it.ItemKey, Vt = r.Vt, Ma = r.Ma, Nsx = r.Nsx, Hsd = r.Hsd, Nhap = r.Nhap, GhiChu = r.GhiChu, Qty = it.Qty };
             }).ToList();
-            Slips.Insert(0, new VtbSlip { Id = "VTB-" + Seq++.ToString("0000", CultureInfo.InvariantCulture), PhoneId = ph.Id, MaPhieu = ph.MaPhieu, NguoiTao = ph.NguoiTao, GhiChu = ph.GhiChu, CreatedAt = ph.NgayTao.Length > 0 ? ph.NgayTao : nowIso, Lines = lines, Deducted = true, DeductedAt = nowIso, LoadAt = ImportedAt });
+            Slips.Insert(0, new VtbSlip { Id = "VTB-" + Seq++.ToString("0000", CultureInfo.InvariantCulture), PhoneId = ph.Id, MaPhieu = ph.MaPhieu, NguoiTao = ph.NguoiTao, GhiChu = ph.GhiChu, CreatedAt = ph.NgayTao.Length > 0 ? ph.NgayTao : nowIso, Lines = lines, Deducted = true, DeductedAt = nowIso, LoadAt = ImportedAt, LoadAtX = ExcelImportedAt });
             imported.Add(ph.Id); n++;
         }
         if (n > 0) { Save(true, true); _audit?.Log(_session.Username, "Vị Trí Bột: Nhận phiếu điện thoại", $"{n} phiếu"); }
@@ -415,7 +506,7 @@ public sealed class VtbService
         var old = meta.GetValueOrDefault("lastPushAt") is { } lp ? PhoneWebApp.Str(lp) : "";
         var nowS = Now().ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture);
         meta["lastPushAt_M01VTB"] = nowS; meta["m01ViTriBotRows"] = rows.Count; meta["m01ViTriBotDataDate"] = DataDate;
-        meta["m01ViTriBotImportedAt"] = ImportedAt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds((long)ImportedAt).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture) : "";
+        meta["m01ViTriBotImportedAt"] = LastLoadAt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds((long)LastLoadAt).UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'", CultureInfo.InvariantCulture) : "";
         var stamps = SyncTables.Select(t => meta.GetValueOrDefault("lastPushAt_" + t) is { } v ? PhoneWebApp.Str(v) : "").Where(x => x.Length > 0).OrderBy(x => x, StringComparer.Ordinal).ToList();
         meta["lastPushAt"] = stamps.Count == SyncTables.Length ? stamps[0] : old;
         await w.WriteTableAsync(PhoneWebApp.TabMeta, new[] { "key", "value" }, meta.Select(kv => (IDictionary<string, JsonNode?>)new Dictionary<string, JsonNode?> { ["key"] = kv.Key, ["value"] = kv.Value?.DeepClone() }), ct);
