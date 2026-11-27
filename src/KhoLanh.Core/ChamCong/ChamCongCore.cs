@@ -95,13 +95,15 @@ public static class CcCore
     public static string Nhan(string loai) => loai == "P5" ? "P0.5" : loai;
     public static string TenLoai(string loai) => Loais.FirstOrDefault(x => x.Ma == loai).Ten ?? "";
 
-    public sealed record Ket(int? VaoTron, int? RaTron, int Nghi, int Cong, string CanhBao)
+    /// <param name="TcTrua">Phút tăng ca buổi trưa đã được tính (bớt khỏi nghỉ trưa) — 1.159.</param>
+    public sealed record Ket(int? VaoTron, int? RaTron, int Nghi, int Cong, string CanhBao, int TcTrua = 0)
     {
         public double Gio => Math.Round(Cong / 60.0, 2);
     }
 
-    /// <summary>Tính 1 ngày: giờ vào / ra (phút), bộ phận, V.Sớm (giờ bớt nghỉ trưa).</summary>
-    public static Ket Tinh(int? vao, int? ra, string nhom, double vsom, CcCauHinh c)
+    /// <summary>Tính 1 ngày: giờ vào / ra (phút), bộ phận, V.Sớm (giờ cộng thêm), tăng ca trưa
+    /// (<paramref name="tcTrua"/> giờ, <see cref="TcCaTrua"/> = cả buổi trưa; 1.159 — người dùng: "trường hợp tăng ca buổi trưa").</summary>
+    public static Ket Tinh(int? vao, int? ra, string nhom, double vsom, CcCauHinh c, double tcTrua = 0)
     {
         if (vao is null && ra is null) return new(null, null, 0, 0, "");
         if (vao is null || ra is null)
@@ -110,13 +112,37 @@ public static class CcCore
         var warn = vao.Value < c.VaoSomNhat ? $"Giờ vào {Hm(vao)} quá sớm — kiểm tra lại" : "";
         if (b <= a) return new(a, b, 0, 0, warn.Length > 0 ? warn : "Giờ ra không sau giờ vào");
         var span = b - a;
-        var nghi = 0;
-        if (span > c.NuaNgayToiDa) nghi = c.NghiTruaOf(nhom);
+        var nghi = 0; var tc = 0;
+        if (span > c.NuaNgayToiDa)
+        {
+            // làm xuyên trưa: bớt nghỉ trưa (tối đa = nghỉ trưa của bộ phận); ngày nửa buổi không trừ nghỉ trưa nên không có gì để bớt
+            var trua = c.NghiTruaOf(nhom);
+            tc = tcTrua < 0 ? trua : Math.Clamp((int)Math.Round(tcTrua * 60), 0, trua);
+            nghi = trua - tc;
+        }
         if (span >= c.NghiToiTu) nghi += c.NghiToiPhut;
         // V.Sớm = vào sớm / đi sớm (người dùng 26/11): giờ CỘNG THÊM vào ngày đó. Bảng Excel cũ trừ vào ô Nghỉ (cùng kết quả khi có nghỉ trưa);
         // cộng thẳng để ngày nửa buổi (không trừ nghỉ trưa) vẫn được tính.
-        return new(a, b, nghi, Math.Max(0, span - nghi + (int)Math.Round(vsom * 60)), warn);
+        return new(a, b, nghi, Math.Max(0, span - nghi + (int)Math.Round(vsom * 60)), warn, tc);
     }
+
+    /// <summary>Giá trị "cả buổi trưa" của ô Tăng ca trưa (không trừ nghỉ trưa ngày đó).</summary>
+    public const double TcCaTrua = -1;
+
+    /// <summary>Đọc ô Tăng ca trưa: "" → null · "x" / "cả" / "c" / "cả buổi" → cả buổi · số giờ (1, 1.5, 0,5) · "30p" / "30 phút" → phút. Sai → lỗi.</summary>
+    public static double? ParseTcTrua(string? text)
+    {
+        var t = (text ?? "").Trim().ToLowerInvariant();
+        if (t.Length == 0) return null;
+        if (t is "x" or "c" or "cả" or "ca" or "cả buổi" or "ca buoi" or "cả trưa") return TcCaTrua;
+        var m = System.Text.RegularExpressions.Regex.Match(t, @"^(\d+(?:[.,]\d+)?)\s*(p|ph|phút|phut|')$");
+        if (m.Success) return Math.Round(double.Parse(m.Groups[1].Value.Replace(',', '.'), Inv) / 60.0, 4);
+        if (double.TryParse(t.Replace(',', '.'), System.Globalization.NumberStyles.Float, Inv, out var h) && h >= 0) return h == 0 ? null : h;
+        throw new ArgumentException($"Tăng ca trưa \"{text}\" không hiểu — gõ số giờ (vd 1 hoặc 0.5), số phút (vd 30p) hoặc x = cả buổi trưa.");
+    }
+
+    /// <summary>Hiện ô Tăng ca trưa: cả buổi → "x", số giờ → "1,5".</summary>
+    public static string TcText(double? tc) => tc is null ? "" : tc < 0 ? "x" : tc.Value.ToString("0.##", Inv);
 
     /// <summary>1 lần sang công: <paramref name="Gio"/> giờ từ ngày <paramref name="Tu"/> (null = giờ dư tháng trước) sang ngày <paramref name="Den"/>.</summary>
     public sealed record Sang(DateOnly? Tu, DateOnly Den, double Gio);
@@ -247,12 +273,14 @@ public sealed class CcSua
     public DateOnly Ngay;
     public string? Vao, Ra, ChepTu;
     public double? VSom, Chot;
+    /// <summary>Tăng ca buổi trưa (giờ; <see cref="CcCore.TcCaTrua"/> = cả buổi) — bớt nghỉ trưa ngày đó, cộng vào công, được dùng sang công bù ngày thiếu.</summary>
+    public double? TcTrua;
     /// <summary>Giờ sau sang công sửa tay (ngày này không cho / nhận sang công tự động).</summary>
     public double? SauSang;
     /// <summary>Loại ngày đánh dấu tay (P / L / T / CT; null = theo ngày lễ / Tết chung; "" = ngày thường dù là ngày lễ chung).
     /// Người dùng 26/11: "nghỉ có phép thì không bù", "nghỉ lễ, nghỉ Tết, công tác".</summary>
     public string? Loai;
-    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && Chot is null && SauSang is null && Loai is null && GhiChu.Length == 0;
+    public bool Empty => Vao is null && Ra is null && ChepTu is null && VSom is null && TcTrua is null && Chot is null && SauSang is null && Loai is null && GhiChu.Length == 0;
 }
 
 /// <summary>Kết quả 1 nhân viên × 1 ngày.</summary>
@@ -266,6 +294,9 @@ public sealed class CcDong
     /// <summary>Giờ chốt (ghi đè tay nếu có).</summary>
     public double Chot;
     public bool SuaVao, SuaRa, SuaVSom, SuaChot, SuaSang, SuaLoai;
+    /// <summary>Ô Tăng ca trưa đã nhập (null = không); số giờ thực được tính ở <see cref="CcCore.Ket.TcTrua"/> (phút).</summary>
+    public double? TcTrua;
+    public double GioTcTrua => Math.Round((Ket?.TcTrua ?? 0) / 60.0, 2);
     /// <summary>Loại ngày (P / L / T / CT / ""), tên ngày lễ nếu có; <see cref="DuCong"/> = tính đủ 1 công vì nghỉ lễ / Tết / công tác không có giờ chấm.</summary>
     public string Loai = "", TenLe = "";
     public bool DuCong;
@@ -278,6 +309,6 @@ public sealed class CcDong
     public double SauSang;
     /// <summary>Lần sang công nhận vào / cho đi của ngày này.</summary>
     public List<CcCore.Sang> Nhan = new(), Cho = new();
-    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || SuaLoai || ChepTu.Length > 0;
+    public bool DaSua => SuaVao || SuaRa || SuaVSom || SuaChot || SuaSang || SuaLoai || TcTrua is not null || ChepTu.Length > 0;
     public bool CoMat => Chot > 0;
 }

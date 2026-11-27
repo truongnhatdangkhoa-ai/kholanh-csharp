@@ -2198,6 +2198,16 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "cc")
     var c9b = cc.Tinh("2026-10").Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 9))];
     Console.WriteLine($"[CC] sửa giờ ra ngày 9: {c9b.Vao}-{c9b.Ra} → chốt {c9b.Chot} (sửa tay {c9b.SuaRa})");
     if (!c9b.SuaRa || c9b.Ra != "17:00" || c9b.Chot <= 0) Bad("sửa giờ ra qua lưới không lưu");
+    // 1.159: tăng ca buổi trưa — gõ "x" (cả buổi) vào ô TC trưa ngày 12 → không trừ nghỉ trưa, công tăng đúng bằng nghỉ trưa của bộ phận
+    var r12 = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "12/10/2026");
+    var c12a = cc.Tinh("2026-10").Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 12))];
+    v._cm.SetCells(new[] { (r12, 11, "x") }); W(5);
+    v.SaveChiTiet().GetAwaiter().GetResult(); W(10);
+    var c12b = cc.Tinh("2026-10").Dong[(cc.NhanVien[2].Id, new DateOnly(2026, 10, 12))];
+    var trua = cc.CauHinh.NghiTruaOf(c12b.Nv.Nhom);
+    Console.WriteLine($"[CC] tăng ca trưa ngày 12: nghỉ {c12a.Ket.Nghi}→{c12b.Ket.Nghi} phút, công {c12a.Ket.Cong}→{c12b.Ket.Cong} phút (nghỉ trưa {c12b.Nv.Nhom} {trua})");
+    if (c12a.Ket.Nghi < trua || c12b.TcTrua is null || c12b.Ket.TcTrua != trua || c12b.Ket.Cong - c12a.Ket.Cong != trua) Bad("tăng ca trưa cả buổi không cộng đúng vào công");
+    v._cg.Select(r12, 11); W();
     Snap(main, "cc2-chi-tiet");
     cbo.SelectedIndex = 4; W();   // người thứ 4: công tác 21–22, lễ chung 20
     var r21 = Enumerable.Range(0, v._cm.RowCount).FirstOrDefault(i => v._cm.Get(i, 4) == "21/10/2026");
