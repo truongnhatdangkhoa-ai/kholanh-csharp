@@ -30,6 +30,7 @@ public sealed class MayChuView : UserControl
     private LanService? _sub;
 
     private readonly StackPanel _root = new() { Spacing = 12, Margin = new Thickness(0, 0, 8, 12) };
+    private readonly StackPanel _sysHost = new() { Spacing = 12 };   // 1.179: tình trạng hệ thống dùng chung (máy khác chỉ xem)
     private readonly Border _status = new() { Classes = { "card" }, Padding = new Thickness(18, 14) };
     private readonly Grid _tiles = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*"), ColumnSpacing = 10 };
     private readonly StackPanel _boxes = new() { Spacing = 10 };
@@ -69,6 +70,7 @@ public sealed class MayChuView : UserControl
         _pendSec.Children.Add(new TextBlock { Text = "Thay đổi chờ gửi lên máy chủ", Classes = { "section" } });
         _pendSec.Children.Add(_pend);
 
+        _root.Children.Add(_sysHost);
         _root.Children.Add(_status);
         _root.Children.Add(_tiles);
         _root.Children.Add(_boxes);
@@ -106,6 +108,8 @@ public sealed class MayChuView : UserControl
         _tiles.IsVisible = _machSec.IsVisible = _conflictSec.IsVisible = _sysSec.IsVisible = _pendSec.IsVisible = false;
         _status.ClearValue(Border.BorderBrushProperty); _status.ClearValue(Border.BackgroundProperty);
         int pending = 0; try { pending = lan.PendingCount(); } catch { }
+        _sysHost.Children.Clear();
+        try { if (HeThongUi.StatusCard() is { } sc) _sysHost.Children.Add(sc); } catch { }
 
         if (lan.Serving) RenderServer(lan);
         else if (lan.Enabled && lan.Online) RenderClient(lan, pending);

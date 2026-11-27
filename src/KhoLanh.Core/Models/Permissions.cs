@@ -31,8 +31,7 @@ public static class Perm
         new("m3dm", "Danh mục mã hàng", "Chức năng", new[] { View, Export, Edit }, "Sửa = thêm / sửa / xóa mã trong Danh sách mã hàng dùng chung (Tổng hợp), thêm mã đang dùng chưa có"),
         new("m24cc", "Chấm công", "Chức năng", new[] { View, Export, Edit }, "Nạp file máy chấm công, sửa giờ / nhân viên / quy tắc tính giờ (Sửa); xem / xuất Excel bảng công tháng"),
         new("m10", "Kết quả kháng sinh", "Chức năng", new[] { View, Export, Edit }, "Sửa = nhập kết quả (theo lô, Excel), xóa dữ liệu, sửa quy định kháng sinh"),
-        new("m12", "In chứng từ kho", "Chứng từ", new[] { View, Export, Edit }, "Xem + xuất file = in / xuất Excel phiếu; Sửa = nạp file, gộp / tách phiếu, người ký, bổ sung tên hàng"),
-        new("m11", "Phiếu xuất hệ thống", "Chứng từ", new[] { View, Export }, "Chỉ xem phiếu xuất của mọi module; Xem + xuất file = xuất Excel danh sách"),
+        new("m12", "In chứng từ kho", "Chức năng", new[] { View, Export, Edit }, "Xem + xuất file = in / xuất Excel phiếu; Sửa = nạp file, gộp / tách phiếu, người ký, bổ sung tên hàng"),
         new("m14", "Container 3D", "Công cụ", new[] { View, Export, Edit }, "Xem + xuất file = Excel / ảnh 3D; Sửa = lưu container, phương án, danh mục thùng"),
         new("m21", "Xử lý PDF & Excel", "Công cụ", new[] { Edit }, "Gộp / tách / xoay / đóng dấu PDF, ảnh ↔ PDF; gộp / tách / làm sạch Excel (chỉ tạo file mới)"),
         new("m22", "So sánh & Tra cứu bảng", "Công cụ", new[] { Edit }, "So 2 bảng Excel / CSV theo cột khóa (giống / khác / chỉ có ở A / B); kéo cột từ bảng B sang A kiểu VLOOKUP"),
@@ -47,6 +46,7 @@ public static class Perm
         // 1.110 (người dùng: "tài khoản được phân quyền tạo tài khoản là đồng bộ tài khoản lên Sheet được, app cũ làm được"): quyền theo tài khoản, máy nào cũng vậy.
         new("taikhoan", "Tạo / sửa tài khoản", "Hệ thống", new[] { Edit }, "Tạo, sửa, khóa, đặt lại mật khẩu tài khoản Nhân viên / Quản lý (tự đồng bộ lên Google Sheet chung). Không tạo / sửa được tài khoản Quản trị"),
         new("phone", "Đồng bộ điện thoại", "Hệ thống", new[] { Edit }, "Kết nối Web App, đẩy tồn các module lên điện thoại, nhận phiếu xuất điện thoại tạo (mỗi bảng chỉ khi được xem module đó)"),
+        new("m11", "Phiếu xuất hệ thống", "Hệ thống", new[] { View, Export }, "Chỉ xem phiếu xuất của mọi module; Xem + xuất file = xuất Excel danh sách"),
         // 1.121: bỏ "drivepush" (Gửi dữ liệu từ máy xem từ xa qua Drive) — bỏ hẳn Thư mục / Drive dùng chung; quyền đã lưu chứa khóa này bị bỏ qua.
     };
 

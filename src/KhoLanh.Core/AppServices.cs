@@ -58,6 +58,8 @@ public class AppServices
     public PhieuKhoService PhieuKho { get; }
     public CargoService Cargo { get; }
     public KhoLanh.Core.TroLy.TroLyService TroLy { get; }
+    /// <summary>1.179: mục Hệ thống chỉ máy chủ sửa + tình trạng dùng chung.</summary>
+    public KhoLanh.Core.Lan.HeThongService HeThong { get; }
     public KhoLanh.Core.LichXuat.LichXuatService LichXuat { get; }
     public KhoLanh.Core.SoKho.SoKhoService SoKho { get; }
     public KhoLanh.Core.DanhMuc.DanhMucService DanhMuc { get; }
@@ -158,6 +160,7 @@ public class AppServices
         // 1.121: đệm thư lịch xuất đã đọc cạnh database (lượt quét sau chỉ tải thư mới)
         if (LichXuat.Mail is KhoLanh.Core.LichXuat.ImapMailSource ims) ims.CachePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "email-lich-xuat-dem.json");
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".") { Settings = Settings };
+        HeThong = new KhoLanh.Core.Lan.HeThongService(this);
     }
 
     /// <summary>Đọc lại vai LAN vừa đổi (phân vai theo tài khoản lúc đăng nhập): dừng phần LAN cũ, chạy phần LAN mới.</summary>

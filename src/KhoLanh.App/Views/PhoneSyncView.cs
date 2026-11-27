@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using KhoLanh.App.Controls;
 using KhoLanh.Core.PhoneSync;
 
 namespace KhoLanh.App.Views;
@@ -17,6 +18,7 @@ public sealed class PhoneSyncView : UserControl, IPage
     public string Title => "Đồng bộ điện thoại";
     public string Subtitle => "Đẩy tồn lên Google Sheet cho điện thoại, nhận phiếu điện thoại về đúng module.";
 
+    private static KhoLanh.Core.AppServices S2 => App.Services;
     private static PhoneSyncService Svc => App.Services.PhoneSync;
     private static IBrush B(string c) => AppTheme.Brush(c);
     private readonly Border _connPill = new() { Classes = { "pill" }, VerticalAlignment = VerticalAlignment.Center, Child = new TextBlock() };
@@ -52,6 +54,16 @@ public sealed class PhoneSyncView : UserControl, IPage
         var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("3*,2*"), ColumnSpacing = 14 };
         cols.Children.Add(left); Grid.SetColumn(right, 1); cols.Children.Add(right);
         var body = new StackPanel { Spacing = 12, Margin = new Thickness(0, 0, 6, 0) };
+        if (HeThongUi.ChiXem)
+        {
+            // 1.179: máy khác (kể cả Quản trị qua Internet) chỉ XEM — tình trạng lấy từ bản máy chủ đã báo, không có nút sửa / đẩy / nhận.
+            if (HeThongUi.Banner() is { } bn) body.Children.Add(bn);
+            body.Children.Add(HeThongUi.ItemCard(HeThongUi.Phone(S2.HeThong.Read())));
+            var (k, txt) = KhoLanh.Core.Lan.HeThongService.MayChuText(S2.HeThong.Read(), DateTime.UtcNow);
+            body.Children.Add(new TextBlock { Text = txt, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, Tag = "keep", FontSize = 12.5 });
+            Content = new ScrollViewer { Content = body };
+            return;
+        }
         body.Children.Add(row); body.Children.Add(cols);
         Content = new ScrollViewer { Content = body };
         PhoneAutoSync.Ran += OnAutoRan;
