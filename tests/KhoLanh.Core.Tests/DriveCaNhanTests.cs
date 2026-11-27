@@ -1,3 +1,4 @@
+using KhoLanh.Core.Models;
 using System.IO.Compression;
 using System.Text.Json.Nodes;
 using KhoLanh.Core;
@@ -46,6 +47,40 @@ public class DriveCaNhanTests : IDisposable
     private static JsonArray Rows(params string[] v) => new(v.Select(x => (JsonNode)new JsonObject { ["ma"] = x }).ToArray());
     private static string Names(AppServices s) =>
         string.Join(",", JsonNode.Parse(s.Modules.ReadVersioned("ton-kho-an-an", "S").Json)!.AsArray().Select(r => r!["ma"]!.ToString()));
+
+    [Fact]
+    public async Task Luu_tru_ca_nhan_va_Sao_luu_dung_chung_mot_dang_nhap_Google()
+    {
+        var s = Machine("chung"); var g = new FakeGoogle();
+        var d = Svc(s, g, () => DateTime.Now);
+        var l = new KhoLanh.Core.LuuTru.LuuTruService(Path.Combine(_tmp, "chung", "luu-tru"), s.Session, s.Settings, g)
+        { ClientOverride = new("123.apps.googleusercontent.com", "sec") };
+        AppServices.LinkGoogleLogin(l, d);
+
+        // đăng nhập ở Sao lưu → Lưu trữ cá nhân dùng luôn
+        Assert.False(l.Config.Linked);
+        await SignIn(d);
+        Assert.True(l.Config.Linked);
+        Assert.Equal("nguoidung@gmail.com", l.Config.Email);
+        Assert.Equal(d.Config.Refresh, l.Config.Refresh);
+
+        // đăng xuất ở một nơi → cả hai cùng gỡ
+        await l.SignOutAsync();
+        Assert.False(l.Config.Linked); Assert.False(d.Config.Linked);
+
+        // đăng nhập ở Lưu trữ cá nhân → Sao lưu dùng luôn; token đã có từ trước (chưa chia sẻ) cũng được nhận
+        g.Email = "khac@gmail.com";
+        await l.SignInAsync(url =>
+        {
+            var q = LtGoogle.ParseQuery("GET /" + url[url.IndexOf('?')..] + " HTTP/1.1");
+            _ = Task.Run(async () => { using var h = new HttpClient(); await h.GetStringAsync(q["redirect_uri"] + "?state=" + Uri.EscapeDataString(q["state"]) + "&code=MA-2"); });
+        }, CancellationToken.None);
+        Assert.True(d.Config.Linked); Assert.Equal("khac@gmail.com", d.Config.Email);
+        // tài khoản phần mềm khác không thấy đăng nhập này
+        s.Auth.CreateUser("nv1", "Nhân viên", "matkhau2", Roles.Staff);
+        s.Auth.Login("nv1", "matkhau2");
+        Assert.False(d.Config.Linked); Assert.False(l.Config.Linked);
+    }
 
     [Fact]
     public async Task Backup_to_personal_drive_and_restore_on_a_new_machine_without_sync_code()

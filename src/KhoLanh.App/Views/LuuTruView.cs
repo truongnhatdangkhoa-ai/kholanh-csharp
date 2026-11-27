@@ -553,7 +553,7 @@ public sealed class LuuTruView : UserControl, IPage
         _gAcc.Children.Add(who);
         _gAcc.Children.Add(new TextBlock
         {
-            Text = "Mỗi tài khoản phần mềm đăng nhập Google CỦA RIÊNG MÌNH. Phần mềm chỉ thấy thư mục do nó tạo trên Drive (" + LuuTruService.DriveRoot + "), không đọc được tệp khác của bạn. Mã đăng nhập cất mã hóa theo tài khoản Windows của máy này.",
+            Text = "Đăng nhập Google 1 lần là dùng chung với Sao lưu (Hệ thống › Đồng bộ & sao lưu); mỗi tài khoản phần mềm có đăng nhập RIÊNG. Phần mềm chỉ thấy thư mục do nó tạo trên Drive (" + LuuTruService.DriveRoot + "), không đọc được tệp khác của bạn. Mã đăng nhập cất mã hóa theo tài khoản Windows của máy này.",
             TextWrapping = TextWrapping.Wrap, Classes = { "muted" }, Tag = "keep",
         });
         var ab = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };

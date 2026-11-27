@@ -54,7 +54,63 @@ public sealed class LuuTruService
     }
 
     private string CfgFile(LtStore s) => Path.Combine(s.Dir, "cai-dat.json");
-    public LtConfig Config => LtConfig.Load(CfgFile(Store));
+    public LtConfig Config => LoadCfg(Store);
+
+    // 1.145: MỘT đăng nhập Google cho cả Lưu trữ cá nhân và Sao lưu (Hệ thống › Đồng bộ & sao lưu) của cùng tài khoản phần mềm
+    // (cùng Client OAuth, cùng phạm vi drive.file, token riêng từng tài khoản phần mềm — không chia sẻ giữa các tài khoản).
+    /// <summary>Đăng nhập Google đang có ở Sao lưu của tài khoản này (Gmail, refresh đã mã hóa). Null = chưa có.</summary>
+    public Func<(string Email, string Refresh)?>? SharedLogin { get; set; }
+    /// <summary>Báo Sao lưu dùng đăng nhập mới (email, refresh đã mã hóa); email rỗng = đăng xuất.</summary>
+    public Action<string, string>? ShareLogin { get; set; }
+
+    /// <summary>Cài đặt thô, KHÔNG lấy đăng nhập chung (tránh vòng gọi với Sao lưu).</summary>
+    public LtConfig RawConfig => LtConfig.Load(CfgFile(Store));
+
+    private LtConfig LoadCfg(LtStore s)
+    {
+        var cfg = LtConfig.Load(CfgFile(s));
+        if (!cfg.Linked && SharedLogin?.Invoke() is { } sh && sh.Refresh.Length > 0)
+        {
+            ApplyShared(s, cfg, sh.Email, sh.Refresh);
+            cfg.AddRun(Clock(), true, "Google", "Dùng chung đăng nhập " + sh.Email + " từ Sao lưu");
+            try { cfg.Save(CfgFile(s)); } catch { /* lần sau thử lại */ }
+        }
+        return cfg;
+    }
+
+    private static void ApplyShared(LtStore s, LtConfig cfg, string email, string refresh)
+    {
+        if (cfg.Linked && !string.Equals(cfg.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            cfg.LastSeq = 0; cfg.LastOk = null;      // đổi sang Gmail khác: lần sao lưu tới tải lại toàn bộ
+            foreach (var r in s.D.Recs.Values) r.Fid = "";
+            s.Save();
+        }
+        cfg.Email = email; cfg.Refresh = refresh; cfg.NeedRelink = false; cfg.LastErr = "";
+    }
+
+    /// <summary>Sao lưu vừa đăng nhập / đổi Gmail → Lưu trữ cá nhân dùng luôn (không bắt đăng nhập lại).</summary>
+    public void AdoptLogin(string email, string refresh)
+    {
+        var s = Store; var cfg = LtConfig.Load(CfgFile(s));
+        if (cfg.Linked && cfg.Refresh == refresh) return;
+        ApplyShared(s, cfg, email, refresh);
+        cfg.AddRun(Clock(), true, "Google", "Dùng chung đăng nhập " + email + " từ Sao lưu");
+        cfg.Save(CfgFile(s));
+        StatusChanged?.Invoke();
+    }
+
+    /// <summary>Sao lưu vừa đăng xuất Google → Lưu trữ cá nhân cũng gỡ (một đăng nhập duy nhất).</summary>
+    public void DropLogin()
+    {
+        var s = Store; var cfg = LtConfig.Load(CfgFile(s));
+        if (!cfg.Linked) return;
+        cfg.Refresh = ""; cfg.NeedRelink = false; cfg.LastErr = "";
+        cfg.AddRun(Clock(), true, "Google", "Hủy liên kết " + cfg.Email + " (cùng Sao lưu)");
+        cfg.Save(CfgFile(s));
+        StatusChanged?.Invoke();
+    }
+
     public void SaveConfig(LtConfig c) => c.Save(CfgFile(Store));
 
     // ------------------------------------------------------------------ OAuth client (1 lần mỗi máy)
@@ -112,9 +168,9 @@ public sealed class LuuTruService
         if ((!Client.Ok || Client.Secret.Trim().Length == 0) && EnsureClient is { } ensure) { try { await ensure(ct); } catch { /* báo ở dưới */ } }
         if (Client.Ok && Client.Secret.Trim().Length == 0) throw new BusinessException("Máy này chưa có Client secret Google (mã OAuth dùng chung cho Gmail sao lưu / Lưu trữ cá nhân / Đăng nhập Google). Ở máy đã nhập Client secret, mở app (đăng nhập bất kỳ) để app tự chia sẻ lên Google Sheet chung rồi thử lại ở máy này — hoặc nhập Client secret ngay trên máy này.");
         var s = Store;
-        var cfg = LtConfig.Load(CfgFile(s));
+        var cfg = LoadCfg(s);
         var res = await Google.SignInAsync(Client, openBrowser, ct, cfg.Email.Length > 0 ? cfg.Email : null);
-        cfg = LtConfig.Load(CfgFile(s));
+        cfg = LoadCfg(s);
         if (cfg.Linked && !string.Equals(cfg.Email, res.Email, StringComparison.OrdinalIgnoreCase))
         {
             cfg.LastSeq = 0; cfg.LastOk = null;      // đổi sang Gmail khác: lần sao lưu tới tải lại toàn bộ
@@ -124,6 +180,7 @@ public sealed class LuuTruService
         cfg.Email = res.Email; cfg.Refresh = Secret.Protect(res.Refresh); cfg.NeedRelink = false; cfg.LastErr = "";
         cfg.AddRun(Clock(), true, "Google", "Đăng nhập " + res.Email);
         cfg.Save(CfgFile(s));
+        try { ShareLogin?.Invoke(res.Email, cfg.Refresh); } catch { /* không chặn đăng nhập */ }
         StatusChanged?.Invoke();
         return res.Email;
     }
@@ -131,12 +188,13 @@ public sealed class LuuTruService
     public async Task SignOutAsync()
     {
         var s = Store;
-        var cfg = LtConfig.Load(CfgFile(s));
+        var cfg = LoadCfg(s);
         await Google.RevokeAsync(Secret.Unprotect(cfg.Refresh));
         var mail = cfg.Email;
         cfg.Refresh = ""; cfg.NeedRelink = false; cfg.LastErr = "";
         cfg.AddRun(Clock(), true, "Google", "Hủy liên kết " + mail);
         cfg.Save(CfgFile(s));
+        try { ShareLogin?.Invoke("", ""); } catch { }
         StatusChanged?.Invoke();
     }
 
@@ -162,7 +220,7 @@ public sealed class LuuTruService
     {
         var s = Store;
         if (!await _gate.WaitAsync(0, ct)) throw new BusinessException("Đang sao lưu / khôi phục — chờ xong lượt này.");
-        var cfg = LtConfig.Load(CfgFile(s));
+        var cfg = LoadCfg(s);
         try
         {
             if (!cfg.Linked) throw new BusinessException("Chưa đăng nhập Google — bấm Đăng nhập Google ở tab Sao lưu & Google.");
@@ -224,7 +282,7 @@ public sealed class LuuTruService
     /// <summary>Các bản trên Drive để khôi phục: "data.json" (mới nhất) + bản theo ngày (mới nhất trước).</summary>
     public async Task<List<LtGoogle.DFile>> SnapshotsAsync(CancellationToken ct = default)
     {
-        var s = Store; var cfg = LtConfig.Load(CfgFile(s));
+        var s = Store; var cfg = LoadCfg(s);
         if (!cfg.Linked) throw new BusinessException("Chưa đăng nhập Google.");
         var access = await Google.AccessAsync(Client, Secret.Unprotect(cfg.Refresh), ct);
         var f = await EnsureFolders(access, s, ct);
@@ -243,7 +301,7 @@ public sealed class LuuTruService
     {
         var s = Store;
         if (!await _gate.WaitAsync(0, ct)) throw new BusinessException("Đang sao lưu / khôi phục — chờ xong lượt này.");
-        var cfg = LtConfig.Load(CfgFile(s));
+        var cfg = LoadCfg(s);
         try
         {
             if (!cfg.Linked) throw new BusinessException("Chưa đăng nhập Google.");
@@ -296,7 +354,7 @@ public sealed class LuuTruService
     public async Task<bool> TickAsync()
     {
         if (_session.CurrentUser is null || !CanUse || Busy) return false;
-        var s = Store; var cfg = LtConfig.Load(CfgFile(s));
+        var s = Store; var cfg = LoadCfg(s);
         if (!cfg.IsDue(Clock(), Dirty(s, cfg), LastChange(s))) return false;
         try { await BackupAsync(auto: true); } catch { /* lỗi đã ghi vào lịch sử / LastErr */ }
         return true;
