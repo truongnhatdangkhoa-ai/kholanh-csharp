@@ -31,3 +31,21 @@ public class LichSaoLuuDrive155Tests
         foreach (var s in new[] { a, b, d }) s.Lan.Dispose();
     }
 }
+
+/// <summary>1.156: sao lưu mỗi giờ → hôm nay giữ đủ 24 bản, qua ngày chỉ còn bản mới nhất của từng ngày cũ.</summary>
+public class GiuBanSaoLuu156Tests
+{
+    [Fact]
+    public void Moi_gio_1_ban_qua_ngay_chi_giu_ban_moi_nhat_cua_ngay_cu()
+    {
+        var now = new DateTime(2026, 11, 27, 9, 0, 0);
+        var files = new List<(string, DateTime)>();
+        for (var at = new DateTime(2026, 11, 25, 0, 0, 0); at <= now; at = at.AddHours(1)) files.Add((KhoLanh.Core.SaoLuu.DriveCaNhanService.FileName(at), at));
+        var keep = KhoLanh.Core.SaoLuu.DriveCaNhanService.KeepSet(files, now);
+        string N(int d, int h) => KhoLanh.Core.SaoLuu.DriveCaNhanService.FileName(new DateTime(2026, 11, d, h, 0, 0));
+        for (var h = 0; h <= 9; h++) Assert.Contains(N(27, h), keep);          // hôm nay: đủ 10 bản 0h–9h
+        Assert.Contains(N(26, 23), keep); Assert.Contains(N(25, 23), keep);   // ngày cũ: bản mới nhất (23 giờ)
+        for (var h = 0; h < 23; h++) { Assert.DoesNotContain(N(26, h), keep); Assert.DoesNotContain(N(25, h), keep); }
+        Assert.Equal(12, keep.Count);
+    }
+}
