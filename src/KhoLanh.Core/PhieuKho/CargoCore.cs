@@ -168,6 +168,8 @@ public static class CargoCore
     public sealed class KsIndex
     {
         internal readonly Dictionary<string, KhangSinhCore.Rec> Map = new();
+        /// <summary>1.175: kết quả tôm nhập khẩu (tra theo TP / INV / Contract + Size, không có lô).</summary>
+        public List<KhangSinhNhapKhau.Nhom> Nk = new();
         public int Size => Map.Count;
         public static KsIndex From(IEnumerable<KhangSinhCore.Rec> recs)
         {
@@ -212,19 +214,27 @@ public static class CargoCore
     /// <summary>Kết quả kháng sinh theo số thứ tự 1–83 (bảng mặc định) — dùng khi biết sẵn đặc tính từ mã hàng tồn kho.</summary>
     public static KsInfo? KsRule(int stt) => stt > 0 && RuleOf(stt) is { } r ? new KsInfo(stt, r.Ky, r.Dat, MarketFromDat(r.Dat), false, true) : null;
     /// <summary>1.115: Đặc tính theo lô (Nhập liệu › Kiểm kê) — cùng cách tra như phiếu xuất nội địa; không tra được → null.</summary>
-    public static string? DacTinhOfLo(KsIndex? ix, string? lo) => LookupKs(ix, ParseLo(lo)) is { } k ? KsLabel(k) : null;
+    public static string? DacTinhOfLo(KsIndex? ix, string? lo)
+    {
+        var p = ParseLo(lo);
+        if (LookupKs(ix, p) is { } k) return KsLabel(k);
+        if (!p.Ok && ix is { Nk.Count: > 0 } && KhangSinhNhapKhau.ForCargo(ix.Nk, lo ?? "").Ks is { } nk) return nk.KyHieu;     // 1.175: tôm nhập khẩu (TP / INV + Size)
+        return null;
+    }
 
     /// <summary>Chỉ mục kết quả kháng sinh từ các dòng sheet kết quả (key "s:batch:…" / "l:batch:…", value = JSON).</summary>
     public static KsIndex KsFromRows(System.Text.Json.Nodes.JsonArray rows)
     {
-        var recs = new List<KhangSinhCore.Rec>();
+        var recs = new List<KhangSinhCore.Rec>(); var nk = new List<(string, string)>();
         foreach (var o in rows.OfType<System.Text.Json.Nodes.JsonObject>())
         {
             var k = o["key"]?.ToString() ?? "";
+            if (k.StartsWith(KhangSinhNhapKhau.Prefix, StringComparison.Ordinal)) { nk.Add((k, o["value"]?.ToString() ?? "")); continue; }
             if (!(k.StartsWith("s:batch:") || k.StartsWith("l:batch:"))) continue;
             try { if (System.Text.Json.Nodes.JsonNode.Parse(o["value"]?.ToString() ?? "") is System.Text.Json.Nodes.JsonObject j) recs.Add(new KhangSinhCore.Rec { Key = k, J = j }); } catch { }
         }
-        return KsIndex.From(recs);
+        var ix = KsIndex.From(recs); ix.Nk = KhangSinhNhapKhau.ParseRows(nk);
+        return ix;
     }
 
     public static string KsLabel(KsInfo? k) => k is null ? "" : (k.KyHieu.Length > 0 ? k.KyHieu : k.Stt.ToString()) + (k.Lan2 ? " - L2" : "");
@@ -381,12 +391,20 @@ public static class CargoCore
             else r.Errors.Add($"Số kết quả \"{ln.KsTay}\" không có trong bảng 1–83.");
         }
         if (k is null && lo.Ok) k = LookupKs(ks, lo);
-        if (k is null) { r.ChuaCoKQ = true; r.Errors.Add(lo.Ok ? $"Chưa có kết quả kháng sinh cho {lo.Text} (Kết quả kháng sinh)." : lo.Err.Length > 0 ? lo.Err : "Chưa nhập lô."); }
+        string? nkErr = null;
+        if (k is null && !lo.Ok && ks is { Nk.Count: > 0 } && ln.Lo.Trim().Length > 0)
+        {
+            // 1.175: tôm nhập khẩu — Lô ghi TP / INV / Contract (+ Size), vd "TP143 31/40"
+            var pk = KhangSinhNhapKhau.ForCargo(ks.Nk, ln.Lo);
+            if (pk.Ks is { } nk) { k = new KsInfo(nk.Stt, RuleOf(nk.Stt)?.Ky ?? nk.KyHieu, nk.Dat, MarketFromDat(RuleOf(nk.Stt)?.Dat ?? nk.Dat), false); lo = lo with { Text = ln.Lo.Trim() }; }
+            else if (pk.Error.Length > 0) nkErr = pk.Error;
+        }
+        if (k is null) { r.ChuaCoKQ = true; if (nkErr is not null) r.Errors.Add(nkErr); else r.Errors.Add(lo.Ok ? $"Chưa có kết quả kháng sinh cho {lo.Text} (Kết quả kháng sinh)." : lo.Err.Length > 0 ? lo.Err : "Chưa nhập lô."); }
         else { r.Ks = k; r.Market = k.Market; r.KsText = KsLabel(k); if (k.Market.Length == 0) r.Errors.Add($"Kết quả {k.KyHieu} chưa ra được nhóm thị trường."); }
         r.Ma = MaHang(cfg, r.Loai, sn.Size4, sn.Digit, k?.Stt ?? 0);
         if (r.Ma.Length == 0 && !mism) r.Errors.Add($"Chưa ghép được mã hàng (loại {r.Loai}, quy cách {sn.Digit}).");
         var sl = SizeLabel(r.Ma); r.Size = sl.Length > 0 ? sl : r.Loai + long.Parse(sn.Size4);
-        r.Sn = sn; if (lo.Ok) r.LoText = lo.Text;
+        r.Sn = sn; if (lo.Ok || (k is not null && ln.Lo.Trim().Length > 0)) r.LoText = lo.Ok ? lo.Text : ln.Lo.Trim();
         return r;
     }
 

@@ -81,3 +81,24 @@ mỗi nguồn 200 phiếu mới nhất, tối đa 12.000 dòng hàng.
 Không đẩy `M08_RaDong`, `M08_SizeLabel` (app cũ cũng bỏ từ PC 1.38). Tài khoản / phân quyền điện thoại (`pq.*`) nằm trong Code.gs, không cần PC.
 
 **Tài khoản PC trên điện thoại (PC 1.76):** PC ghi đè tab `PhanQuyen` (cột `PQ_COLS` của Code.gs) bằng `pc.writeTable` — Code.gs tự sao lưu bản cũ (`PhanQuyen_BanLuu_…`). Dòng có `ten` trùng tài khoản PC do PC quyết định: `tokenHash` = sha256 hex mật khẩu PC (PC ghi khi người đó đăng nhập / đổi mật khẩu), `quyen` / `kho` / `trangThai` theo Hệ thống › Tài khoản › Điện thoại, `maTruyCap` rỗng (không lưu mật khẩu dạng chữ), `pcModules` giữ nguyên. Dòng tạo riêng trên điện thoại (tên không trùng tài khoản PC) giữ nguyên. Không đổi gì thì không ghi. Hai dòng đang bật cùng mật khẩu → Code.gs `resolveUser_` chỉ nhận dòng đầu, nên PC cảnh báo.
+
+## Kết quả kháng sinh TÔM NHẬP KHẨU (1.175)
+
+Cùng đợt đẩy kháng sinh (`pc.ksUpsert`, tab kháng sinh của Sheet): thêm các dòng có khóa bắt đầu bằng **`i:nk:`** (bản hiện hành) và **`i:nkh:`** (bản đã bị phiếu "Cập nhật" thay, lịch sử).
+Mỗi dòng = **một Size của một phiếu**. Giá trị (cột `value`) là JSON bắt đầu bằng `{` (không có tiền tố `~` như dòng lô `s:batch:`); các dòng khác giữ nguyên.
+
+| Trường | Ý nghĩa |
+|---|---|
+| `v` | phiên bản định dạng (1) |
+| `so` | số phiếu ("19/KS 11") · `d` ngày phân tích (ISO) |
+| `c` | nước nhập ("Ấn Độ") |
+| `inv` · `invd` | số INVOICE · ngày INV (ISO, có thể rỗng) |
+| `ct` · `tp` | Contract ("TP-143/24-MAA") · số TP ("143", rỗng nếu Contract không có TP) |
+| `h` · `sz` | hàng ("Tôm HLSO") · Size ("31/35", có thể "60") |
+| `n` · `kien` · `dn` | số mẫu · tổng kiện · ngày nhập (ISO) |
+| `g` | nhóm theo đặc tính: `[[đặc tính, kết quả, số mẫu, [số thứ tự mẫu…]]]`, vd `[["23.MKS","ĐẠT MKS",28,[1,2,…]],["10.N-AS2-M-H","ĐẠT NHẬT, ASC-A,B, MỸ, HQ",2,[29,30]]]` |
+| `x` | **mẫu nhiễm** (có chỉ tiêu phát hiện, không phải ND): `[[số mẫu, kiện, [[chỉ tiêu, giá trị]…], đặc tính, kết quả, ghi chú]]` |
+| `lod` | LOD từng chỉ tiêu (`enro cipro oxy doxy sulfo aoz cap`) |
+| `old`·`by` | chỉ ở `i:nkh:`: `old=1`, `by` = số phiếu thay thế |
+
+**Tra cứu trên điện thoại (giống PC):** tách câu gõ thành TP (`tp\s*-?\s*(\d+)`), Size (`\d{2,3}/\d{2,3}` hoặc `size N`) và các từ còn lại (INV / Contract / nước / số phiếu, bỏ dấu + bỏ ký tự không phải chữ số; số trần như `143` khớp TP 143). Chỉ xét dòng `i:nk:` (bỏ `i:nkh:` trừ khi người dùng chọn xem lịch sử). Hiển thị mỗi dòng khớp một thẻ: "N mẫu: a mẫu <đặc tính> · b mẫu nhiễm <đặc tính>" (xanh khi `g` chỉ có 1 nhóm và `x` rỗng, vàng khi có `x`), liệt kê `x` (mẫu, chỉ tiêu, giá trị), ngày nhập, tổng kiện, Contract. Không có kết quả: nếu có TP khớp mà khác Size thì báo "TP-143 chỉ có Size …".
