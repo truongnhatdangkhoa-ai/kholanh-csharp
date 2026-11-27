@@ -383,7 +383,10 @@ public sealed class PhieuKhoView : UserControl, IPage
             new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 160), new GridColumn("kien", "Số kiện", 80, "number"), new GridColumn("mks", "MKS (x / số)", 95),
             new GridColumn("nettay", "NET sửa tay", 90, "number"), new GridColumn("net", "NET / kiện", 90, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 120, "number") { ReadOnly = true },
         }, m.DongList.Select(d => new[] { d.Date, d.Size, d.Ma, d.Packing, d.Kien, d.Mks, d.NetTay, "", "" }));
-        var grid = new SheetGrid(gm) { SpareRows = 20 };
+        // 1.153: chỉ chừa 2 dòng trống dưới dữ liệu (gõ vào dòng trống cuối thì lưới tự dài thêm); bảng cao vừa đủ, quá ~16 dòng mới cuộn trong bảng.
+        var grid = new SheetGrid(gm) { SpareRows = MhSpare, MinRows = 3, VerticalAlignment = VerticalAlignment.Top };
+        void FitMh() => grid.Height = SheetGrid.FitHeight(Math.Min(gm.RowCount + MhSpare, 16)) + FilterExtra;
+        gm.Changed += FitMh; FitMh();
         ToolTip.SetTip(grid, null);
         grid.Display = (r, c, raw) =>
         {
@@ -403,10 +406,12 @@ public sealed class PhieuKhoView : UserControl, IPage
         var body = new DockPanel();
         head.Margin = new Thickness(0, 0, 0, 6);
         DockPanel.SetDock(head, Dock.Top); body.Children.Add(head);
-        body.Children.Add(Framed(grid));
+        var fr = Framed(grid); fr.VerticalAlignment = VerticalAlignment.Top;
+        body.Children.Add(fr);
         return PhieuShell.Card(body, new Thickness(8, 6, 8, 8));
     }
 
+    private const int MhSpare = 2, FilterExtra = 56; // dòng tìm cột + dòng Tổng
     private static string Fmt(double d) => d.ToString("#,0.###", Ui.Vi);
     private static double N0(string? s) => Num(s) is { } d && !double.IsNaN(d) ? d : 0;
     private static Dong RowOf(GridModel gm, int r) => new()
