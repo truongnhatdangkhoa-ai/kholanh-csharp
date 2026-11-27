@@ -113,4 +113,15 @@ public class UpdateTests : IDisposable
         _s.Auth.Login("nv1", "matkhau1");
         Assert.Throws<BusinessException>(() => _s.Updates.SaveConfig("", "x", true));
     }
+
+    [Fact]
+    public void Chi_tai_tiep_khi_GitHub_co_ban_moi_hon_ban_da_tai()
+    {
+        UpdateInfo I(string v) => new(Version.Parse(v), "v" + v, "", null, 1, 1, null);
+        Assert.False(UpdateService.IsNewerThanStaged(null, Version.Parse("1.166.0")));                      // không có bản nào
+        Assert.False(UpdateService.IsNewerThanStaged(I("1.166.0"), Version.Parse("1.166.0")));              // bằng bản đã tải
+        Assert.False(UpdateService.IsNewerThanStaged(I("1.165.0"), Version.Parse("1.166.0")));              // cũ hơn
+        Assert.True(UpdateService.IsNewerThanStaged(I("1.167.0"), Version.Parse("1.166.0")));               // 1.167 > 1.166 → tải tiếp
+        Assert.True(UpdateService.IsNewerThanStaged(I("1.167.0"), null));                                   // chưa có bản tải sẵn
+    }
 }

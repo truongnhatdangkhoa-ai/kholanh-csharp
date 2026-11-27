@@ -322,7 +322,29 @@ public partial class MainWindow : Window
     {
         var v = AppUpdater.StagedVersion;
         if (v is null) { UpdateButton.IsVisible = false; return; }
-        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        if (!await Ui.Confirm(this, $"Cập nhật lên bản {v} ngay bây giờ?\n\nTrước khi cập nhật, phần mềm kiểm tra GitHub một lần nữa: nếu đã có bản mới hơn thì tải luôn bản đó (vài chục giây) và cập nhật thẳng lên bản mới nhất; không có thì dùng bản đã tải.\n\nPhần mềm sẽ tự đóng và mở lại sau vài giây. Dữ liệu giữ nguyên. Nhớ lưu việc đang làm dở trước.", "Cập nhật phần mềm", "Cập nhật")) return;
+        await CheckNewerThenApply();
+    }
+
+    /// <summary>1.168: kiểm tra bản mới hơn bản đã tải (có hộp tiến độ + nút "Dùng bản đã tải"), rồi áp dụng bản đang chờ.</summary>
+    private async Task CheckNewerThenApply()
+    {
+        var cts = new CancellationTokenSource();
+        var text = new TextBlock { Text = "Đang kiểm tra bản mới nhất…", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        var bar = new ProgressBar { IsIndeterminate = true, Height = 8, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
+        var use = new Button { Content = "Dùng bản đã tải" };
+        use.Click += (_, _) => { use.IsEnabled = false; text.Text = "Đang dùng bản đã tải…"; cts.Cancel(); };
+        var body = new StackPanel(); body.Children.Add(text); body.Children.Add(bar); body.Children.Add(Ui.Buttons(use));
+        var w = Ui.Dialog("Cập nhật phần mềm", body, 460);
+        Ui.ApplyZoom(w);
+        w.Closing += (_, ev) => { if (!cts.IsCancellationRequested) { ev.Cancel = true; } };   // chỉ đóng khi xong / bấm "Dùng bản đã tải"
+        var shown = w.ShowDialog(this);
+        var progress = new Progress<(string Text, double? Pct)>(p => { text.Text = p.Text; if (p.Pct is double d) { bar.IsIndeterminate = false; bar.Value = d; } });
+        Version? newer = null;
+        try { newer = await AppUpdater.UpgradeStagedAsync(progress, cts.Token); }
+        finally { cts.Cancel(); w.Close(); await shown; }
+        var final = AppUpdater.StagedVersion;
+        if (final is null) { UpdateButton.IsVisible = false; return; }
         if (await Ui.Run(this, () => { if (!AppUpdater.ApplyAndRestart()) throw new KhoLanh.Core.Services.BusinessException("Không áp dụng được bản mới — thử lại sau khi mở lại phần mềm."); }))
             AppUpdater.ExitForUpdate();
     }
