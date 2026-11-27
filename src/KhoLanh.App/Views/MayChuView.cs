@@ -329,7 +329,16 @@ public sealed class MayChuView : UserControl
             Line(Muted("Chờ gửi: "), pending > 0 ? Warn($"{pending} thay đổi") : Plain("0")),
         };
         if (pending > 0) subs.Add(Line(Muted("Có thay đổi chờ gửi nên KHÔNG tải bản Drive (để không mất phần đang sửa).")));
-        _status.Child = Head("bad", "Máy đơn", "Không nối được máy chủ — đang làm trên dữ liệu của máy này", subs, RetryButton());
+        Control acts = RetryButton();
+        if (Admin)
+        {
+            // 1.144: máy chủ mất vai (cài đặt bị xóa) vẫn có lối bật lại ngay tại đây
+            var mine = new Button { Content = "Đặt máy này làm máy chủ" };
+            mine.Click += async (_, _) => await Claim();
+            acts = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { acts, mine } };
+            subs.Add(Line(Muted("Nếu CHÍNH máy này là máy chủ của kho (vừa bị mất cài đặt): bấm «Đặt máy này làm máy chủ».")));
+        }
+        _status.Child = Head("bad", "Máy đơn", "Không nối được máy chủ — đang làm trên dữ liệu của máy này", subs, acts);
         _boxes.Children.Add(SoftBox("#FFF2D6", "#9A5B00", "Bạn vẫn làm việc bình thường",
             "Mọi thay đổi được giữ trên máy này và tự gửi lên máy chủ khi nối lại. Nếu cùng một bảng bị sửa ở cả hai nơi, Quản trị chọn bản giữ lại ở tab Máy chủ trên máy chủ.\n"
             + "Kiểm tra: máy chủ còn bật · máy này có Internet (ở ngoài kho) hoặc cùng mạng kho."));

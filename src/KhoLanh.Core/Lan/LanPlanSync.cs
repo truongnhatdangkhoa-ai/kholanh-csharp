@@ -16,7 +16,7 @@ public static class LanPlanSync
         var lan = s.Lan;
         if (lan.Role == LanService.RoleRemote) return null;   // máy xem từ xa (Google Drive): không tự nhận vai LAN
         if (s.Settings.Get(BackupService.DetachedKey) == "1") return null;   // 1.114: máy đã tách ra dùng riêng sau khi khôi phục
-        var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role);
+        var d = plan.Decide(s.Session.Username, lan.MachineId, lan.Role, lan.MachineName);
         if (d is null) return null;
         var oldRole = lan.Role;
         // 1.131: vai đang CHẠY khác vai đúng (vd máy chủ cũ vừa trả vai cho máy khác: cài đặt đã là máy con nhưng LAN còn chạy vai máy chủ)
@@ -78,10 +78,10 @@ public static class LanPlanSync
         var plan = s.Accounts.Plan ?? new LanPlan();
         if (!s.Accounts.Enabled) throw new BusinessException("Chưa kết nối Google Sheet chung (Hệ thống › Kết nối).");
         if (plan.Chu?.Id == lan.MachineId && lan.Role == LanService.RoleServer) return "Máy này đã là máy chủ chính.";
-        if (lan.Enabled && lan.Role != LanService.RoleServer && !lan.Online && plan.Chu is not null)
+        if (lan.Enabled && lan.Role != LanService.RoleServer && !lan.Online && plan.Chu is not null && !plan.SameMachineByName(lan.MachineName))
             throw new BusinessException("Máy này đang không nối được máy chủ hiện tại nên chưa có đủ dữ liệu mới nhất. Nối lại rồi chuyển, hoặc chuyển ở chính máy chủ cũ khi nó tắt hẳn.");
         var oldName = plan.Chu?.Name ?? "";
-        var hadOther = plan.Chu is not null && plan.Chu.Id != lan.MachineId;
+        var hadOther = plan.Chu is not null && plan.Chu.Id != lan.MachineId && !plan.SameMachineByName(lan.MachineName);
         var key = lan.Key.Length > 0 ? lan.Key : plan.Key;
         var addrs = lan.Addresses();
         var user = s.Session.Username;
