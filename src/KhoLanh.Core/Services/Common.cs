@@ -95,11 +95,38 @@ public class SettingsService
 
     public string Get(string key, string fallback = "")
     {
+        try { return Read(key, fallback); }
+        catch (SqliteException ex) when (NoTable(ex))
+        {
+            // 1.142: file dữ liệu bị xóa / làm rỗng ngoài app (vd phần mềm dọn rác) → tạo lại bảng rồi đọc lại; vẫn lỗi thì dùng giá trị mặc định
+            // (lỗi này từng làm sập handler đóng cửa sổ ở ChayAn.Enabled).
+            try { Repair(); return Read(key, fallback); } catch { return fallback; }
+        }
+    }
+
+    private string Read(string key, string fallback)
+    {
         using var c = _db.Open();
         return c.ExecuteScalar<string?>("SELECT value FROM settings WHERE key=@key", new { key }) ?? fallback;
     }
 
+    public static bool NoTable(SqliteException ex) => ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Tạo lại cấu trúc CSDL khi thiếu bảng (file bị xóa / rỗng).</summary>
+    private void Repair()
+    {
+        _db.Initialize();
+        using var c = _db.Open();
+        c.Execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')");
+    }
+
     public void Set(string key, string value)
+    {
+        try { Write(key, value); }
+        catch (SqliteException ex) when (NoTable(ex)) { Repair(); Write(key, value); }
+    }
+
+    private void Write(string key, string value)
     {
         using var c = _db.Open();
         c.Execute("INSERT INTO settings(key, value) VALUES(@key, @value) ON CONFLICT(key) DO UPDATE SET value=excluded.value",

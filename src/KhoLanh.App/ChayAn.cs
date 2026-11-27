@@ -23,7 +23,7 @@ public static class ChayAn
     private static TrayIcon? _tray;
     private static MainWindow? _main;
 
-    public static bool Enabled => App.Services?.Settings.Get(Key) != "0";
+    public static bool Enabled { get { try { return App.Services?.Settings.Get(Key) != "0"; } catch { return true; } } }
     public static bool IsServer => App.Services is { } s && (s.Lan.Serving || s.Settings.Get("lan_serving") == "1");
     /// <summary>Đang có biểu tượng ở khay (công cụ chụp tự kiểm).</summary>
     public static bool TrayShown => _tray is not null;
