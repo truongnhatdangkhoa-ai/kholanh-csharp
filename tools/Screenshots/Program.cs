@@ -2686,6 +2686,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "kkchon")
     }
     s.Lan.Dispose(); Console.WriteLine("Xong (kkchon): " + outDir); if (!ok) Environment.Exit(1); return;
 }
+static double HeadHFit(int rows) => KhoLanh.App.Controls.SheetGrid.FitHeight(rows) + 80;
 // Phiếu xuất kho (1.61, danh sách / nhập liệu tách tab): SHOTS_ONLY=px
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "px")
 {
@@ -3401,7 +3402,9 @@ void PxScene()
     if (!pkv.EditorOpen) Fail("bấm đúp phiếu không mở khung soạn phiếu");
     var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
     Console.WriteLine($"[PX] soạn phiếu xuất khẩu: lưới mặt hàng cao {eg.Bounds.Height:0} px, rộng {eg.Bounds.Width:0} px (cửa sổ {main.Bounds.Width:0}×{main.Bounds.Height:0})");
-    if (eg.Bounds.Height < 0.38 * main.Bounds.Height) Fail("lưới mặt hàng còn thấp");
+    // 1.153: lưới mặt hàng gọn — chỉ chừa 2 dòng trống dưới dữ liệu
+    if (eg.SpareRows != 2) Fail("lưới mặt hàng phải chỉ chừa 2 dòng trống");
+    if (eg.Bounds.Height > HeadHFit(eg.Model.RowCount + 2)) Fail("lưới mặt hàng cao hơn mức vừa đủ");
     NoOverlap("soạn phiếu xuất khẩu");
     Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
     var closeX = (Func<Task>)Delegate.CreateDelegate(typeof(Func<Task>), pkv, pkv.GetType().GetMethod("CloseEditor", bfx)!);
