@@ -963,8 +963,11 @@ public sealed partial class LanService : ISheetSource, IDisposable
     {
         Node? best = null; long bestEpoch = -1;
         Interlocked.Increment(ref FindRounds);
-        foreach (var n in KnownNodes())
+        var away = AwayMode;   // 1.176: ngoài mạng kho → chỉ thử địa chỉ LAN, bỏ đường Internet
+        foreach (var kn in KnownNodes())
         {
+            var n = away ? kn with { Addrs = kn.Addrs.Where(a => !LanHttp.IsUrl(a)).ToList() } : kn;
+            if (n.Addrs.Count == 0) continue;
             try
             {
                 var h = await CallNode(n, Req("hello"), TimeSpan.FromSeconds(2), ct);
@@ -1509,12 +1512,18 @@ public sealed partial class LanService : ISheetSource, IDisposable
             }
             var pend = PendingCount();
             if (Online) return $"LAN: nối {ServerName}" + (pend > 0 ? $" · {pend} chờ gửi" : "");
+            if (AwayMode) return "Ngoại tuyến (ngoài mạng kho)" + (pend > 0 ? $" · {pend} chờ gửi" : "");
             return $"LAN: mất máy chủ — làm riêng" + (pend > 0 ? $" · {pend} chờ gộp" : "");
         }
     }
 
-    /// <summary>0 = máy đơn, 1 = tốt, 2 = cảnh báo (làm riêng / chuyển máy chủ).</summary>
-    public int Health => !Enabled ? 0 : Role == RoleRemote ? 1 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : 2;
+    /// <summary>1.176: máy ở NGOÀI mạng kho, không có Internet tới máy chủ (settings <c>lan_ngoai_kho</c> = "1"): làm ngoại tuyến có chủ ý —
+    /// không báo lỗi đỏ, không tự thử đường Internet; vẫn giữ sổ chờ và tự nối + gộp khi tìm thấy máy chủ trong mạng kho.</summary>
+    public bool AwayMode => _settings.Get("lan_ngoai_kho") == "1";
+    public void SetAwayMode(bool on) { _settings.Set("lan_ngoai_kho", on ? "1" : ""); _lastTry = DateTime.MinValue; Raise(); }
+
+    /// <summary>0 = máy đơn, 1 = tốt, 2 = cảnh báo (làm riêng / chuyển máy chủ), 3 = ngoại tuyến có chủ ý (1.176, không phải lỗi).</summary>
+    public int Health => !Enabled ? 0 : Role == RoleRemote ? 1 : Serving ? (_frozen ? 2 : 1) : Online ? 1 : AwayMode ? 3 : 2;
 
     private void Raise() { try { Changed?.Invoke(); } catch { } }
 

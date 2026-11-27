@@ -233,8 +233,10 @@ public partial class MainWindow : Window
         LanPill.IsVisible = lan.Enabled;
         if (!lan.Enabled) return;
         // 1.65: chỉ còn dấu chấm (xanh = có kết nối, đỏ = mất máy chủ / làm riêng); chữ trạng thái chuyển vào chú thích khi rê chuột.
-        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : "#3FB950");
-        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 2
+        LanDot.Fill = AppTheme.Brush(lan.Health == 2 ? "#E5534B" : lan.Health == 3 ? "#8A97A6" : "#3FB950");
+        ToolTip.SetTip(LanPill, lan.Short + "\n" + (lan.Health == 3
+            ? "Máy ở ngoài mạng kho: làm việc ngoại tuyến, thay đổi được giữ lại và tự gửi khi máy về mạng kho."
+            : lan.Health == 2
             ? "Không nối được máy chủ: vẫn làm việc bình thường trên dữ liệu của máy này; có máy chủ lại sẽ tự gửi lên và gộp."
             : "Đang dùng chung dữ liệu qua mạng LAN." + (lan.LastSync.Length > 0 ? "\n" + lan.LastSync : "")));
     }
