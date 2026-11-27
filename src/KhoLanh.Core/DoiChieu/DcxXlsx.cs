@@ -48,6 +48,7 @@ public static class DcxXlsx
         ("tl", new[] { "trong luong", "trongluong" }),
         ("net", new[] { "net", "net kg", "so luong (kg)", "so luong kg", "sl (kg)", "sl kg" }),
         ("size", new[] { "size", "loai size" }),
+        ("ghichu", new[] { "ghi chu", "ghichu" }),   // 1.171: cột "Ghi chú" của file Kho (chữ "Xuất kiểm" cho mã chuyển từ tab Xuất kiểm)
     };
 
     // ------------------------------------------------------------------ công thức
@@ -836,18 +837,28 @@ public static class DcxXlsx
     }
     /// <summary>Thêm cột "Size" SAU cột cuối đang dùng (không dịch ô / công thức nào); chỉ ghi chữ, chép kiểu ô từ ô Tên hàng / Mã hàng. Đã có cột Size → chỉ điền ô TRỐNG của dòng chi tiết.</summary>
     public static (byte[]? Bytes, SizeReport Report) AddSizeColumn(byte[] bytes, string sheetName, Func<string, string, string> sizeOf, bool fitWidth = false, bool dry = false)
+        => AddColumn(bytes, sheetName, "size", "Size", (ma, ten, _) => sizeOf(ma, ten), fitWidth, dry);
+
+    /// <summary>
+    /// 1.171: ghi chữ <paramref name="note"/> vào cột "Ghi chú" của các dòng chi tiết có (ngày, mã) trong <paramref name="keys"/> (khóa "yyyy-MM-dd|MÃ"). File chưa có cột Ghi chú →
+    /// thêm cột SAU cột cuối (cùng cách "Thêm cột Size": không dịch ô / công thức nào); đã có → chỉ điền ô TRỐNG.
+    /// </summary>
+    public static (byte[]? Bytes, SizeReport Report) AddNoteColumn(byte[] bytes, string sheetName, ISet<string> keys, string note)
+        => AddColumn(bytes, sheetName, "ghichu", "Ghi chú", (ma, _, dk) => dk is not null && keys.Contains(dk + "|" + NormMa(ma)) ? note : "", false, false);
+
+    private static (byte[]? Bytes, SizeReport Report) AddColumn(byte[] bytes, string sheetName, string fieldKey, string header, Func<string, string, string?, string> textOf, bool fitWidth, bool dry)
     {
         var book = OpenBook(bytes, sheetName); var info = FindCols(book); Classify(book, info);
         var hdr = book.Rows.FirstOrDefault(r => r.R == info.Header);
         var lastIdx = 0; foreach (var r in book.Rows) foreach (var c in r.Cells) lastIdx = Math.Max(lastIdx, ColIdx(c.Col));
-        var exists = info["size"] is not null; var col = exists ? info["size"]! : ColName(lastIdx + 1); var newIdx = ColIdx(col);
+        var exists = info[fieldKey] is not null; var col = exists ? info[fieldKey]! : ColName(lastIdx + 1); var newIdx = ColIdx(col);
         var rep = new SizeReport { Sheet = book.SheetName, Header = info.Header, Col = col, Mode = exists ? "fill" : "add" };
         string? StyleOf(XRow row, params string?[] cols) { foreach (var k in cols) { var c = k is null ? null : CellOf(row, k); if (c?.S is not null) return c.S; } return null; }
         string NoSpans(string a) => Regex.Replace(a, @"\sspans=""[^""]*""", "");
         var maxLen = 4;
         if (!exists && hdr is not null)
         {
-            hdr.Cells.Add(new XCell { Col = col, S = StyleOf(hdr, info["ten"], info["ma"]), T = "inlineStr", Is = "<is><t>Size</t></is>" }); hdr.Attrs = NoSpans(hdr.Attrs);
+            hdr.Cells.Add(new XCell { Col = col, S = StyleOf(hdr, info["ten"], info["ma"]), T = "inlineStr", Is = "<is><t>" + Xesc(header) + "</t></is>" }); hdr.Attrs = NoSpans(hdr.Attrs);
         }
         foreach (var row in book.Rows)
         {
@@ -857,7 +868,7 @@ public static class DcxXlsx
             {
                 rep.Rows++;
                 var ma = TextOf(book, CellOf(row, info["ma"])).Trim(); var ten = info["ten"] is null ? "" : TextOf(book, CellOf(row, info["ten"])).Trim();
-                var z = ""; try { z = (sizeOf(ma, ten) ?? "").Trim(); } catch { z = ""; }
+                var z = ""; try { z = (textOf(ma, ten, row.Dk) ?? "").Trim(); } catch { z = ""; }
                 var cur = exists ? CellOf(row, col) : null; var curTxt = cur is null ? "" : TextOf(book, cur).Trim();
                 if (exists && curTxt.Length > 0) continue;
                 if (z.Length == 0) { rep.Empty++; if (rep.NoSize.Count < 12 && ma.Length > 0) rep.NoSize.Add(ma); if (!exists && s0 is not null) row.Cells.Add(new XCell { Col = col, S = s0 }); continue; }
