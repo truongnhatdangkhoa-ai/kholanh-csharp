@@ -90,6 +90,7 @@ public sealed class C3dView : UserControl, IPage
             new TabItem { Header = "1  Hàng hóa", Content = BuildGoods() },
             new TabItem { Header = "2  Loại container", Content = new ScrollViewer { Content = _contPanel, Padding = new Thickness(0, 4, 12, 4) } },
             new TabItem { Header = "3  Mô phỏng 3D & Báo cáo", Content = BuildSim() },
+            CongCuFiles.Tab("Container 3D", "4  Đã lưu"),
         };
         var root = new DockPanel(); DockPanel.SetDock(head, Dock.Top); root.Children.Add(head); root.Children.Add(_tabs);
         Content = root;
@@ -818,7 +819,7 @@ public sealed class C3dView : UserControl, IPage
         if (_plan is null || _plan.Totals.Requested == 0) { await Ui.Message(this, "Chưa có phương án để xuất."); return; }
         var path = await Ui.SaveFile(this, "Xuất Excel phương án xếp hàng", $"XepContainer_{C3dService.SafeName(St.Cont!.Name)}_{DateTime.Now:yyyy-MM-dd}.xlsx", "xlsx", "Excel");
         if (path is null) return;
-        if (await Ui.Run(this, () => C3dService.BuildExcel(_plan).Save(path))) Ui.Exported(this, path);
+        if (await Ui.Run(this, () => C3dService.BuildExcel(_plan).Save(path))) CongCuFiles.Exported(this, "Container 3D", path);
     }
 
     private async Task ExportPng()
