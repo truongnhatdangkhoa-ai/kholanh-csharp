@@ -85,17 +85,23 @@ public sealed class LanPlan
     /// không cài tay IP / mã LAN. Máy chủ chính = máy mà Quản trị bấm "Bật máy chủ trên máy này" (giữ vai dù ai đăng nhập, Quản trị tắt được);
     /// mọi tài khoản khác (Quản lý, Nhân viên…) = máy con, tự nối máy chủ theo địa chỉ ghi trên Google Sheet. <see cref="On"/> / <see cref="Vai"/> cũ bỏ qua.
     /// </summary>
-    public Decision? Decide(string username, string machineId, string currentRole)
+    public Decision? Decide(string username, string machineId, string currentRole, string machineName = "")
     {
         // 1.131 (người dùng: "bỏ máy dự phòng, chỉ dùng 1 máy chính; máy chính tắt thì máy con tự làm riêng, máy chủ mở lại thì ghép lại"):
         // không còn vai dự phòng — máy từng làm dự phòng thành máy con (phần đã sửa khi nó tạm làm chủ được gửi lên máy chủ để gộp).
         if (Chu?.Id == machineId) return new(LanService.RoleServer, false, false, "máy này là máy chủ chính");
+        // 1.144: mã máy đổi (cài đặt bị xóa ngoài app → mã máy sinh lại) nhưng Sheet vẫn ghi máy chủ cùng TÊN máy → vẫn là máy chủ này, đừng thành máy con của chính mình
+        if (SameMachineByName(machineName)) return new(LanService.RoleServer, true, false, "máy này trùng tên với máy chủ ghi trên Sheet (mã máy đã đổi)");
         var haveServer = Chu is not null && Key.Length > 0;
         if (currentRole == LanService.RoleServer && Chu is null)
             return new(LanService.RoleServer, true, false, "máy này đang làm máy chủ, chưa có máy chủ ghi nhận");
         if (haveServer || currentRole is LanService.RoleClient) return new(LanService.RoleClient, false, false, haveServer ? $"máy chủ chính là {Chu!.Name}" : "chưa có máy chủ chính");
         return new(LanService.RoleSingle, false, false, "chưa bật máy chủ nào");
     }
+
+    /// <summary>1.144: máy chủ ghi trên Sheet mang mã khác nhưng cùng tên máy (so không phân biệt hoa thường).</summary>
+    public bool SameMachineByName(string machineName) =>
+        machineName.Length > 0 && Chu is { Name.Length: > 0 } c && string.Equals(c.Name, machineName, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sửa kế hoạch cho khớp với máy này: máy chủ chính ghi tên / địa chỉ / khóa / cổng của mình (1.131: bỏ máy dự phòng — ô dự phòng cũ bị xóa).
@@ -106,7 +112,7 @@ public sealed class LanPlan
         var changed = false;
         var now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
         bool Same(Slot? s, string id, string name, List<string> a) => s is not null && s.Id == id && s.Name == name && s.Addrs.SequenceEqual(a);
-        if (role == LanService.RoleServer && (Chu is null || Chu.Id == machineId))
+        if (role == LanService.RoleServer && (Chu is null || Chu.Id == machineId || SameMachineByName(machineName)))
         {
             if (!Same(Chu, machineId, machineName, addrs)) { Chu = new Slot(machineId, machineName, addrs, now, Chu?.User is { Length: > 0 } u0 ? u0 : user); changed = true; }
             if (Key != key) { Key = key; changed = true; }
