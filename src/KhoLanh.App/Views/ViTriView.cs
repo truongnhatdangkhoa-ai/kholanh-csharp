@@ -290,7 +290,7 @@ public sealed class ViTriView : UserControl, IPage
     private readonly CheckBox _xTon = new() { Content = "Chỉ dòng file tồn còn hàng ở vị trí", FontSize = 12.5 };
     private readonly ComboBox _xNguon = new() { ItemsSource = new[] { "Mọi nguồn", "Phiếu app tạo", "Excel kho gốc" }, SelectedIndex = 0, MinWidth = 130 };
     private readonly CheckBox _xChua = new() { Content = "Chỉ dòng chưa đối chiếu được", FontSize = 12.5 };
-    private const int XPage = 5000;
+    private const int XPage = 20000;   // bảng hiện tối đa 20.000 dòng đầu (nạp mô hình 33.000 dòng chỉ ~40 ms); "Hiện tất cả" nạp hết
     private int _xLimit = XPage, _xAll;
     private readonly Button _xMore = new() { Content = "Hiện thêm", IsVisible = false, Padding = new Thickness(10, 4), FontSize = 12.5 };
     private readonly Avalonia.Threading.DispatcherTimer _xDebounce = new() { Interval = TimeSpan.FromMilliseconds(220) };
@@ -309,7 +309,7 @@ public sealed class ViTriView : UserControl, IPage
         _xTon.IsCheckedChanged += (_, _) => Re();
         _xChua.IsCheckedChanged += (_, _) => Re();
         _xNguon.SelectionChanged += (_, _) => Re();
-        _xMore.Click += (_, _) => { _xLimit += XPage; RenderDaXuat(); };
+        _xMore.Click += (_, _) => { _xLimit = int.MaxValue; RenderDaXuat(); };
         var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
         bar.Children.Add(_xq); bar.Children.Add(_xNguon); bar.Children.Add(_xTon); bar.Children.Add(_xChua); bar.Children.Add(_xInfo); bar.Children.Add(_xMore);
         bar.Children.Add(ToolRow.Gap());
@@ -356,8 +356,9 @@ public sealed class ViTriView : UserControl, IPage
         }).ToList());
         _xg.Refresh();
         var xi = Svc.XuatGocInfo;
-        _xMore.IsVisible = matched.Count > _xRows.Count; _xMore.Content = $"Hiện thêm {Math.Min(XPage, matched.Count - _xRows.Count):#,0} dòng (còn {matched.Count - _xRows.Count:#,0})";
-        _xInfo.Text = $"{(matched.Count > _xRows.Count ? $"{_xRows.Count:#,0} trong {matched.Count:#,0}" : $"{_xRows.Count:#,0}")} / {all.Count:#,0} dòng · {_xRows.Where(x => x.Nguon == "app").Select(x => x.SlipId).Distinct().Count()} phiếu app"
+        _xMore.IsVisible = matched.Count > _xRows.Count; _xMore.Content = $"Hiện tất cả (còn {matched.Count - _xRows.Count:#,0} dòng)";
+        var tongSl = matched.Sum(x => x.Sl); var tongNet = matched.Sum(x => x.Sl * x.Tl);   // tổng của TOÀN BỘ kết quả khớp (không chỉ phần bảng đang hiện)
+        _xInfo.Text = $"{(matched.Count > _xRows.Count ? $"{_xRows.Count:#,0} trong {matched.Count:#,0}" : $"{_xRows.Count:#,0}")} / {all.Count:#,0} dòng · Tổng SL xuất {tongSl.ToString("#,0.##", Ui.Vi)} · Net {tongNet.ToString("#,0.##", Ui.Vi)} kg" + (matched.Count > _xRows.Count ? " (toàn bộ kết quả; sắp xếp / lọc cột / dòng Tổng của bảng chỉ tính phần đang hiện)" : "") + $" · {_xRows.Where(x => x.Nguon == "app").Select(x => x.SlipId).Distinct().Count()} phiếu app"
             + (Svc.XuatGoc.Count > 0 ? $" · Excel: {Svc.XuatGoc.Count:#,0} dòng {ViTriService.Dmy(xi.From)}–{ViTriService.Dmy(xi.To)}" : " · chưa nạp Excel kho gốc");
     }
 
