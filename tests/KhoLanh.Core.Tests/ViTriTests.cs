@@ -429,6 +429,26 @@ public class ViTriTests : IDisposable
     }
 
     [Fact]
+    public void Do_toc_do_33000_dong_Excel_kho_goc()
+    {
+        if (Environment.GetEnvironmentVariable("PERF33K") != "1") return;
+        Vt.Load(); Vt.Import(Vt.ReadFile(F1()));
+        var rnd = new Random(1); var rows = new List<ViTriService.XuatGocRow>();
+        for (var i = 0; i < 33000; i++)
+            rows.Add(new ViTriService.XuatGocRow { Ngay = new DateTime(2026, 1, 1).AddDays(i % 330).ToString("yyyy-MM-dd"), SoLenh = "5DO-" + (30000 + i / 7), ItemId = i.ToString(), MaGoc = "TPC-VRHLBTNXECR00" + (3140 + i % 50) + "IME1",
+                Ten = "Tôm TCT PD (An An), IQF, Tạm, Có HC, EU, KANGMIUT, 20%, 31/40 (9 kg x 1 gói) - ASCDNA - XXX", Vt = "TG2.E." + (i % 40) + ".7.1", NgaySx = "2025-12-01", Sl = 1 + rnd.Next(30), Tl = 9, Net = 9, LoaiCt = "Xuất bán", Dt = "ASCDNA", Hd = "XXX" });
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var r = Vt.ImportXuatGoc(new ViTriService.XuatGocFile { FileName = "x.xlsx", Rows = rows });
+        Console.WriteLine($"PERF import {r.Added} dòng: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        Vt.Load(); Console.WriteLine($"PERF Load(): {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        var l = Vt.DaXuatCached(); Console.WriteLine($"PERF DaXuatCached {l.Count}: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        l = Vt.DaXuatCached(); Console.WriteLine($"PERF cached lần 2: {sw.ElapsedMilliseconds} ms"); sw.Restart();
+        var toks = new[] { "btp", "50" }; var n = 0;
+        foreach (var x in l) if (toks.All(t => x.Hay.Contains(t, StringComparison.Ordinal))) n++;
+        Console.WriteLine($"PERF lọc chữ (1 lần gõ): {sw.ElapsedMilliseconds} ms ({n})");
+    }
+
+    [Fact]
     public void File_khong_dung_mau_bao_cot_thieu()
     {
         Vt.Load();

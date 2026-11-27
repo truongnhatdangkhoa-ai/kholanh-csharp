@@ -173,7 +173,7 @@ public sealed partial class ViTriService
         var sj = JsonCell(Read(Db, SheetSlips));
         var st = sj is null ? null : Try(() => JsonSerializer.Deserialize<SlipStore>(sj, Json));
         Slips = st?.Slips ?? new(); _seq = st?.Seq ?? 1;
-        LoadXuatGoc();
+        ResetXuatGocLoad();   // bảng Excel kho gốc nạp khi tab Tra cứu cần
         LoadDictionaries();
         Loaded = true;
     }
@@ -213,6 +213,7 @@ public sealed partial class ViTriService
     /// <summary>Lưu tồn + phiếu (+ thông tin file) trong 1 lần ghi. Máy khác vừa sửa → SheetConflictException (giao diện tải lại).</summary>
     private void Persist(bool meta = false)
     {
+        InvalidateDaXuat();
         var sheets = new Dictionary<string, JsonArray?>
         {
             [SheetRows] = new JsonArray(Rows.Where(r => !r.Ghost || r.Sl > 1e-9).Select(r => (JsonNode)ToStored(r)).ToArray()),
@@ -1026,6 +1027,9 @@ public sealed partial class ViTriService
         public string Khach { get; init; } = "";
         public string GhiChu { get; init; } = "";
         public string DoiChieu { get; init; } = "";
+        private string? _hay;
+        /// <summary>Chuỗi tìm đã bỏ dấu (dựng 1 lần, dùng cho mọi lần gõ).</summary>
+        public string Hay => _hay ??= KhoLanh.Core.Grid.GridFilter.Fold($"{Ma} {MaGoc} {Ten} {Size} {Vt} {Lo} {MaPhieu} {Loai} {NguoiTao} {Dt} {Hd} {Khach} {GhiChu}");
     }
 
     /// <summary>
