@@ -281,16 +281,26 @@ public static class KhangSinhCore
         var k = Regex.Replace(Regex.Replace(NormText(v), @"\s+", ""), @"^(lo|l)(?=\w)[.\-:]?", "");
         return Regex.IsMatch(k, @"^\d+$") ? long.Parse(k.Length > 15 ? k[..15] : k).ToString(CultureInfo.InvariantCulture) : k;
     }
-    private const string MkInner = "mcsks|mcks|mkscho|mksc|mcs|mks|mc";
+    // 1.162: + MCKSS; "MAU" / "M" (= mẫu) chỉ tính là mẫu chờ khi ĐI KÈM SỐ (M2, MAU2, M 2) — "M" trơn không phải mẫu (lần 1 tên lô là L2, không có M2)
+    private const string MkInner = "mcsks|mckss|mcks|mkscho|mksc|mcs|mks|mc";
+    private const string MkNumInner = MkInner + "|mau|m";
     private static readonly Regex MkOnly = new("^(?:" + MkInner + ")$");
-    private static readonly Regex MkNum = new(@"^(?:" + MkInner + @")[.\-_:#]*(\d+)$");
+    private static readonly Regex MkNum = new(@"^(?:" + MkNumInner + @")[.\-_:#]*(\d+)$");
+    private static readonly Regex MkPhrase = new(@"(?<![a-z0-9])(?:mau|m)\s*(?:khang\s*sinh|ks)\s*(cho)?(?![a-z])");
+    private static readonly Regex MauCho = new(@"(?<![a-z0-9])mau\s*cho(?![a-z])");
+    /// <summary>Gõ đủ chữ ("mẫu kháng sinh chờ 2", "maukhangsinhcho2", "mẫu chờ2") → dạng gọn "mks cho 2" cho các mẫu so khớp bên dưới.</summary>
+    public static string MauNorm(string? normText)
+    {
+        var t = MkPhrase.Replace(normText ?? "", m => m.Groups[1].Success ? "mks cho " : "mks ");
+        return MauCho.Replace(t, "mks cho ");
+    }
     private static readonly Regex Mau1 = new(@"(?:^|[\s(\[])(?:" + MkInner + @"|mau)\s*cho\s*(?:so|mau|no|#)?\s*[.\-:]?\s*(\d+)");
-    private static readonly Regex Mau2 = new(@"^(?:" + MkInner + @")\s*[.\-_:#]?\s*(?:so|mau|no)?\s*[.\-_:#]?\s*(\d+)(?!\d|[./\-]\d)");
+    private static readonly Regex Mau2 = new(@"^(?:" + MkNumInner + @")\s*[.\-_:#]?\s*(?:so|mau|no)?\s*[.\-_:#]?\s*(\d+)(?!\d|[./\-]\d)");
     private static readonly Regex Mau3 = new(@"(?:^|[\s(\[])(?:" + MkInner + @"|mau)\s*cho(?![a-z])");
     /// <summary>Tên mẫu → (mẫu chờ?, số mẫu).</summary>
     public static (bool Cho, int? No) MauInfo(string? name)
     {
-        var t = Regex.Replace(NormText(name), @"\s+", " ").Trim();
+        var t = Regex.Replace(MauNorm(NormText(name)), @"\s+", " ").Trim();
         if (t.Length == 0) return (false, null);
         var m = Mau1.Match(t); if (m.Success) return (true, int.Parse(m.Groups[1].Value));
         m = Mau2.Match(t); if (m.Success) return (true, int.Parse(m.Groups[1].Value));
@@ -313,7 +323,7 @@ public static class KhangSinhCore
     }
     public static Matcher Match(string? q)
     {
-        var toks = NormText(q).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var toks = MauNorm(NormText(q)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var conds = new List<Func<Row, bool>>(); var dates = new List<(int d, int m, int? y)>();
         int? mks = null; var mksAny = false; var lotGiven = false;
         static string Cmp(string v) => Regex.Replace(v, @"\s+", "");
@@ -323,7 +333,7 @@ public static class KhangSinhCore
             var t = toks[i];
             var mm = MkNum.Match(t);
             if (mm.Success) { mks = int.Parse(mm.Groups[1].Value); continue; }
-            bool isMk = MkOnly.IsMatch(t), isMau = t == "mau" && i + 1 < toks.Length && toks[i + 1] == "cho";
+            bool isMk = MkOnly.IsMatch(t) || (t is "m" or "mau" && i + 1 < toks.Length && Regex.IsMatch(toks[i + 1], @"^\d+$")), isMau = t == "mau" && i + 1 < toks.Length && toks[i + 1] == "cho";
             if (isMk || isMau)
             {
                 int j = i + 1; var sawCho = isMau;

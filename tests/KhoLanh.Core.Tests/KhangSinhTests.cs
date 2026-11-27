@@ -76,6 +76,23 @@ public class KhangSinhTests : IDisposable
         Assert.Equal(new[] { "1", "10", "2" }, Sort(rows, ModeL1).Select(r => r.Batch));
     }
 
+    [Fact]
+    public void Mau_cho_lan_2_nhan_nhieu_cach_viet_co_va_khong_khoang_trang()
+    {
+        // 1.162: MKSC2 · MCKSS2 · MAU2 · M2 · "mẫu kháng sinh chờ 2" … đều = mẫu chờ số 2; "M" / "MAU" không kèm số thì KHÔNG phải mẫu
+        var rec2 = Rec("2026-05-03", "2", lan2: (date: "2026-05-09", mau: "MKS chờ 2 ngày 09.05"));
+        var kl = BaseRows(new[] { rec2 }, ModeKl).Single();
+        foreach (var q in new[] { "MKSC2", "MKSC 2", "MCKSS2", "MCKSS 2", "MAU2", "MAU 2", "M2", "M 2", "m-2", "mẫu 2", "MKS2", "mks cho 2", "MKSCHO2",
+                                  "MẪU KHÁNG SINH CHỜ 2", "mau khang sinh cho 2", "MAUKHANGSINHCHO2", "mẫu ks chờ 2", "mẫu chờ 2", "maucho2", "mẫu chờ  2" })
+        { var m = Match(q); Assert.True(m.MksMode, q); Assert.True(m.Test(kl), q); Assert.False(Match(q.Replace("2", "3")).Test(kl), q + " → 3"); }
+        // tên mẫu trong dữ liệu cũng nhận các dạng đó
+        foreach (var n in new[] { "MAU2", "M2", "M 2", "MCKSS2", "MKSC 2", "Mẫu kháng sinh chờ 2", "mau 2 ngay 09.05" }) Assert.Equal((true, 2), MauInfo(n));
+        // "M" / "MAU" trơn, hay "M" dính chữ khác, không phải mẫu; lô L2 không bị nhầm
+        foreach (var n in new[] { "M", "MAU", "Lô 2", "L2", "ISHIMITSU", "MAN 2", "Mart 2" }) Assert.False(MauInfo(n).Cho, n);
+        Assert.False(Match("M").MksMode); Assert.False(Match("mau").MksMode); Assert.False(Match("L2").MksMode);
+        Assert.True(Match("L2").Test(BaseRows(new[] { Rec("2026-05-03", "2") }, ModeL1).Single()));
+    }
+
     private static Rec Rec(string date, string batch, string? lan1Ngay = null, (string date, string mau)? lan2 = null)
     {
         var j = new JsonObject { ["date"] = date, ["batch"] = batch, ["note"] = "", ["inputs"] = InputsJson(In()), ["dat"] = "ĐẠT MKS", ["kyhieu"] = "23.MKS", ["savedAt"] = "2026-10-02T09:00:00.000Z" };
