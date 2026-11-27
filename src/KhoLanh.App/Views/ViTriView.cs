@@ -156,7 +156,7 @@ public sealed partial class ViTriView : UserControl, IPage
                 new TabItem { Header = "Tra cứu đã xuất", Content = BuildDaXuat() },   // 1.132: thêm cuối — giữ số thứ tự tab cũ
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // 1.172
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(_status, Dock.Right);
         top.Children.Add(_status);

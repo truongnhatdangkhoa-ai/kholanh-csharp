@@ -55,7 +55,7 @@ public sealed class GuiView : UserControl, IPage
                 new TabItem { Header = "Đối Soát", Content = BuildDs() },
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // 1.172
         var top = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
         DockPanel.SetDock(_status, Dock.Right);
         top.Children.Add(_status); top.Children.Add(_fileInfo);
@@ -338,7 +338,7 @@ public sealed class GuiView : UserControl, IPage
         if (_edit) lbar.Children.Add(Btn("🗑 Xóa phiếu", async () => await DeleteSlip(), danger: true));
         var list = Page(new StackPanel { Children = { lbar, Muted("Phiếu tô đỏ = thuộc đợt số liệu cũ (đã khóa: chỉ xem / xuất Excel / xóa, không hoàn tồn).") }, Margin = new Thickness(0) }, Framed(_plg));
         _pxTabs = new TabControl { Items = { new TabItem { Header = "Tạo phiếu xuất", Content = create }, new TabItem { Header = "Danh sách phiếu xuất", Content = list } } };
-        _pxTabs.SelectionChanged += (_, _) => { if (!_loading) RenderPx(); };
+        _pxTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _pxTabs) && !_loading) RenderPx(); };
         return _pxTabs;
     }
 
@@ -476,7 +476,7 @@ public sealed class GuiView : UserControl, IPage
             _plTabs.Items.Add(new TabItem { Header = g.Label.Replace("Tôm ", ""), Content = panel.Root });
         }
         _plTabs.Items.Add(new TabItem { Header = "Điều kiện lọc", Content = BuildDk() });
-        _plTabs.SelectionChanged += (_, _) => { if (!_loading) RenderPl(); };
+        _plTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _plTabs) && !_loading) RenderPl(); };
         return _plTabs;
     }
     private void RenderPl() { var i = _plTabs.SelectedIndex; if (i >= 0 && i < _pl.Count) _pl[i].Render(); else if (i == _pl.Count) RenderDk(); }
@@ -600,7 +600,7 @@ public sealed class GuiView : UserControl, IPage
         var left = Page(new StackPanel { Children = { gbar, _dtInfo } }, Framed(_dtg));
         // 1.57: bảng danh sách nhóm (trước nằm bên phải) thành tab riêng — màn hình nhỏ bảng gộp rộng hết trang
         _dtTabs = new TabControl { Items = { new TabItem { Header = "Gộp đặc tính", Content = left }, new TabItem { Header = "Nhóm đặc tính", Content = new Border { Padding = new Thickness(0, 8, 0, 0), Child = Framed(_dgg) } }, new TabItem { Header = "Dữ liệu đặc tính nhập tay", Content = manual } } };
-        _dtTabs.SelectionChanged += (_, _) => { if (!_loading) RenderDt(); };
+        _dtTabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _dtTabs) && !_loading) RenderDt(); };
         return _dtTabs;
     }
 

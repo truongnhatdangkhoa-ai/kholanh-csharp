@@ -148,7 +148,7 @@ public sealed partial class KiemKeView : UserControl, IPage
                 new TabItem { Header = "Chốt kỳ", Content = BuildChot() },
             },
         };
-        _tabs.SelectionChanged += (_, _) => { if (!_loading && Svc.Loaded) RenderTab(); };
+        _tabs.SelectionChanged += (_, e) => { if (ReferenceEquals(e.Source, _tabs) && !_loading && Svc.Loaded) RenderTab(); };   // 1.172
         var tools = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
         tools.Children.Add(Btn("⟳ Tải lại", async () => await LoadAsync()));
         if (_export) tools.Children.Add(Btn("Xuất báo cáo Excel", async () => await ExportReport(), tip: "Đối chiếu An An, kế toán, chi tiết kiểm kê, theo vị trí — mỗi phần 1 sheet"));

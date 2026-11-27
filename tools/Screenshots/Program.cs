@@ -1067,6 +1067,28 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v228")
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v228) — ĐẠT: " : "Xong (v228) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.154: SHOTS_ONLY=v250 — module Công cụ có tab "Đã lưu" + ô tích "Tự lưu file vào Lưu trữ cá nhân": xuất file → vào danh sách; tích → chép vào Lưu trữ cá nhân. Thoát mã 1 nếu hỏng.
+// 1.172: SHOTS_ONLY=v251 — chọn 1 phiếu trong danh sách bên trái của NXT Bột/Sốt không được báo lỗi "Cannot change source while update is in progress"
+// (SelectionChanged của danh sách nổi lên TabControl cha → bị hiểu nhầm là đổi tab → Reload() gán lại ItemsSource giữa lúc danh sách đang xử lý chọn). Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v251")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v251] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    s.SoKho.Load();
+    var sk0 = new List<KhoLanh.Core.SoKho.SkLine>();
+    for (var i = 0; i < 6; i++) sk0.Add(new() { Id = "q" + i, Loai = "nhap", Ngay = $"2026-11-{1 + i / 3:00}", ChungTu = "NL-" + i / 3, ViTri = "K1", MaHang = "BOT" + i, Size = "25kg", SoLuong = 10 + i, Net = 25 * (10 + i) });
+    s.SoKho.SavePhieu(sk0, null, "nhap", "v251");
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P();
+    w.Navigate("m3sk"); P(40);
+    var lb = w.PageHost.GetVisualDescendants().OfType<ListBox>().FirstOrDefault(l => l.IsEffectivelyVisible && l.ItemCount >= 2);
+    if (lb is null) Bad("không thấy danh sách phiếu");
+    else
+        foreach (var idx in new[] { 0, 1, 0 })
+        {
+            try { lb.SelectedIndex = idx; P(10); } catch (Exception ex) { Bad($"chọn phiếu {idx}: {ex.GetType().Name}: {ex.Message}"); }
+        }
+    Snap(w, "v251-nxt-chon-phieu");
+    w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v251) — ĐẠT: " : "Xong (v251) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v250")
 {
     var ok = true; void Bad(string m) { Console.WriteLine("[v250] LỖI: " + m); ok = false; }
