@@ -406,6 +406,86 @@ public sealed partial class PhoneSyncService
         };
     }
 
+    // ---------------------------------------------------------------- 1.145: đẩy NGAY khi có thay đổi (gom, chạy nền, chỉ bảng đổi)
+    /// <summary>Chỉ 1 lần đồng bộ / đẩy điện thoại chạy cùng lúc (đồng bộ định kỳ, nút bấm, đẩy ngay dùng chung).</summary>
+    public static readonly SemaphoreSlim Gate = new(1, 1);
+    /// <summary>Thời gian gom thay đổi: đẩy sau lần sửa cuối chừng này (mỗi lần ghi 1 bảng lên Apps Script ~3 giây nên phải gom).</summary>
+    public TimeSpan InstantDelay { get; set; } = TimeSpan.FromSeconds(25);
+    /// <summary>Bảng điện thoại bị ảnh hưởng khi ghi sheet của 1 database module (rỗng = không liên quan điện thoại).</summary>
+    public static IReadOnlyList<string> TablesOfWrite(string db, IEnumerable<string> sheets)
+    {
+        var l = new List<string>();
+        switch (db)
+        {
+            case "ton-kho-an-an": l.Add("M01"); l.Add("M01VTB"); break;
+            case "ton-vi-tri-an-an": l.Add("M01VT"); break;
+            case "ton-kho-gui": l.Add("M02"); break;
+            case "tong-hop": case "ket-qua-khang-sinh": case "danh-muc": l.Add("M08"); break;
+            case "lichxuat": l.Add("LX"); break;
+            case "container-3d": l.Add("C3D"); break;
+            default: if (db == SoKhoCore.Db) l.Add("M03"); break;
+        }
+        return l;
+    }
+    /// <summary>Chế độ "Đẩy ngay khi có thay đổi" đang bật (settings phone_sync_instant = 1).</summary>
+    public bool InstantOn { get => _s.Settings.Get(KeyInstant, "0") == "1"; set => _s.Settings.Set(KeyInstant, value ? "1" : "0"); }
+    public const string KeyInstant = "phone_sync_instant";
+    /// <summary>Đang trong lần đồng bộ / đẩy của chính dịch vụ này: các ghi do nó gây ra (vd "DacTinh_DaGhiNhan", phiếu nhận từ điện thoại) không được tính là thay đổi mới — tránh vòng đẩy lặp.</summary>
+    private static readonly AsyncLocal<bool> InSync = new();
+    private readonly HashSet<string> _dirty = new();
+    private CancellationTokenSource? _instCts;
+    private bool _instHooked;
+    public string LastInstant { get; private set; } = "";
+    /// <summary>Số lần đẩy ngay đã chạy (thử nghiệm).</summary>
+    internal int InstantRuns;
+    /// <summary>Nghe ghi CSDL module: bảng nào đổi thì đánh dấu, sau <see cref="InstantDelay"/> yên lặng mới đẩy RIÊNG các bảng đó (nền, không chồng lần đang chạy).
+    /// Máy con LAN không đẩy (dữ liệu về máy con do kéo từ máy chủ; máy chủ / máy đơn đẩy).</summary>
+    public void StartInstantPush()
+    {
+        if (_instHooked) return; _instHooked = true;
+        _s.Modules.Written += (db, sheets) =>
+        {
+            try
+            {
+                if (InSync.Value || !InstantOn || !W.Enabled || _s.Lan.Role == KhoLanh.Core.Lan.LanService.RoleClient) return;
+                var t = TablesOfWrite(db, sheets).Where(Pick.Contains).ToList();
+                if (t.Count == 0) return;
+                lock (_dirty) foreach (var x in t) _dirty.Add(x);
+                ScheduleInstant(InstantDelay);
+            }
+            catch { /* người nghe lỗi không ảnh hưởng ghi */ }
+        };
+    }
+    private void ScheduleInstant(TimeSpan delay)
+    {
+        _instCts?.Cancel();
+        var cts = _instCts = new CancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(delay, cts.Token); await FlushInstantAsync(cts.Token); }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { LastInstant = $"Chưa đẩy ngay được lúc {Now():HH:mm:ss} ({e.Message}) — lượt đồng bộ định kỳ sẽ đẩy lại"; }
+        });
+    }
+    /// <summary>Đẩy các bảng đang đánh dấu đổi. Đang có lần đồng bộ khác chạy → hoãn thêm, không chạy chồng.</summary>
+    public async Task<int> FlushInstantAsync(CancellationToken ct = default)
+    {
+        if (!await Gate.WaitAsync(0, ct)) { ScheduleInstant(InstantDelay); return -1; }
+        List<string> todo;
+        lock (_dirty) { todo = _dirty.ToList(); _dirty.Clear(); }
+        try
+        {
+            if (todo.Count == 0 || !InstantOn || !W.Enabled) return 0;
+            Interlocked.Increment(ref InstantRuns);
+            var res = await PushAsync(todo, ct);
+            LastInstant = res.Errors.Count == 0 ? $"Đã đẩy ngay {string.Join(", ", res.Tables)} lúc {Now():HH:mm:ss}" : $"Đẩy ngay có lỗi lúc {Now():HH:mm:ss}: {res.Errors[0]}";
+            if (res.Errors.Count > 0) lock (_dirty) foreach (var x in todo) _dirty.Add(x);   // lần sau thử lại
+            return res.Tables.Count;
+        }
+        catch { lock (_dirty) foreach (var x in todo) _dirty.Add(x); throw; }
+        finally { Gate.Release(); }
+    }
+
     public (List<Dictionary<string, JsonNode?>> Phieu, List<Dictionary<string, JsonNode?>> Items, List<string> Errors) CollectPcSlips()
     {
         var sources = new List<(string K, Func<List<PcSlip>> F)>
@@ -468,6 +548,7 @@ public sealed partial class PhoneSyncService
     /// <summary>Đẩy các bảng chọn (mặc định: bảng đã tick) + phiếu PC + Meta (ghi SAU CÙNG).</summary>
     public async Task<PushResult> PushAsync(IEnumerable<string>? tables = null, CancellationToken ct = default)
     {
+        InSync.Value = true;
         using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đẩy lên điện thoại", tables is null ? "mọi bảng đã chọn" : string.Join(", ", tables));
         var pick = (tables ?? Pick).Where(SyncTables.Contains).Where(CanTable).Distinct().ToList();
         var res = new PushResult(pick, new(), new());
@@ -610,6 +691,7 @@ public sealed partial class PhoneSyncService
     /// <summary>Kéo phiếu rồi đẩy lại bảng đã tick + bảng vừa nhận phiếu (điện thoại thấy tồn mới ngay).</summary>
     public async Task<(PullResult Pull, PushResult Push)> SyncAsync(bool pull = true, CancellationToken ct = default)
     {
+        InSync.Value = true;
         using var _perf = KhoLanh.Core.TroLy.Perf.Measure("Đồng bộ điện thoại", pull ? "kéo + đẩy" : "đẩy");
         var p = pull ? await PullAsync(ct) : new PullResult(0, 0, new(), new(), new());
         if (pull)

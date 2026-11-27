@@ -30,8 +30,9 @@ public sealed class PhoneSyncView : UserControl, IPage
     {
         // 1.105: nằm trong Hệ thống › Đồng bộ & sao lưu › Điện thoại. 1 hàng: trạng thái kết nối (đổi ở Hệ thống › Kết nối) · tự đồng bộ · nút chạy (nút chính cuối).
         _auto.SelectionChanged += (_, _) => { if (_auto.SelectedIndex >= 0) PhoneAutoSync.Minutes = PhoneAutoSync.Choices[_auto.SelectedIndex].Min; };
+        // -1 = "Ngay khi có thay đổi": đẩy bảng vừa đổi sau ~25 giây yên lặng (nền), vẫn đồng bộ đủ mỗi 5 phút làm dự phòng.
         var autoLbl = new TextBlock { Text = "Tự đồng bộ", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) };
-        ToolTip.SetTip(autoLbl, "Chỉ chạy khi app đang mở và đã đăng nhập trên máy này.");
+        ToolTip.SetTip(autoLbl, "Chỉ chạy khi app đang mở và đã đăng nhập trên máy này.\n\"Ngay khi có thay đổi\": gom các sửa trong ~25 giây rồi chỉ đẩy bảng vừa đổi (chạy nền, không chặn); máy con LAN không đẩy; vẫn đồng bộ đủ mỗi 5 phút làm dự phòng.");
         var row = new KhoLanh.App.Controls.ToolRow { Margin = new Thickness(0, 0, 0, 10) };
         row.Children.Add(_connPill);
         row.Children.Add(_connBtn);
@@ -122,15 +123,19 @@ public sealed class PhoneSyncView : UserControl, IPage
 /// <summary>Tự đồng bộ điện thoại theo chu kỳ (mặc định tắt — giống app cũ); chỉ 1 lần chạy cùng lúc.</summary>
 public static class PhoneAutoSync
 {
-    public static readonly (int Min, string Label)[] Choices = { (0, "Tắt"), (5, "Mỗi 5 phút"), (10, "Mỗi 10 phút"), (15, "Mỗi 15 phút"), (30, "Mỗi 30 phút"), (60, "Mỗi 60 phút") };
+    public static readonly (int Min, string Label)[] Choices = { (0, "Tắt"), (-1, "Ngay khi có thay đổi"), (5, "Mỗi 5 phút"), (10, "Mỗi 10 phút"), (15, "Mỗi 15 phút"), (30, "Mỗi 30 phút"), (60, "Mỗi 60 phút") };
     private const string Key = "phone_sync_interval";
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private static readonly SemaphoreSlim Gate = PhoneSyncService.Gate;
     private static DispatcherTimer? _timer; private static DateTime _last = DateTime.MinValue;
     public static event Action<string>? Ran;
     public static int Minutes
     {
-        get => int.TryParse(App.Services.Settings.Get(Key, "0"), out var m) ? m : 0;
-        set => App.Services.Settings.Set(Key, value.ToString(CultureInfo.InvariantCulture));
+        get => App.Services.PhoneSync.InstantOn ? -1 : int.TryParse(App.Services.Settings.Get(Key, "0"), out var m) ? Math.Max(0, m) : 0;
+        set
+        {
+            App.Services.PhoneSync.InstantOn = value < 0;
+            App.Services.Settings.Set(Key, (value < 0 ? 5 : value).ToString(CultureInfo.InvariantCulture));   // đẩy ngay: vẫn chạy 5 phút làm dự phòng
+        }
     }
     public static async Task<T> Exclusive<T>(Func<Task<T>> f)
     {
@@ -145,7 +150,7 @@ public static class PhoneAutoSync
     }
     private static async Task Tick()
     {
-        var m = Minutes; if (m <= 0 || !App.Services.Phone.Enabled || App.Services.Session.CurrentUser is null) return;
+        var m = Minutes; if (m < 0) m = 5; if (m <= 0 || !App.Services.Phone.Enabled || App.Services.Session.CurrentUser is null) return;
         if ((DateTime.Now - _last).TotalMinutes < m) return;
         _last = DateTime.Now;
         try

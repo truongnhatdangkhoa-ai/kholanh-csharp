@@ -108,6 +108,35 @@ public class PhoneSyncTests : IDisposable
         Assert.Contains(Tab("PhieuXuatItems_PC"), x => x["soLuongXuat"] == "5");
     }
 
+    /// <summary>1.145: "Đẩy ngay khi có thay đổi" — gom nhiều lần sửa thành 1 lượt, chỉ đẩy bảng vừa đổi, không chạy khi tắt / khi đang có lần khác chạy.</summary>
+    [Fact]
+    public async Task Day_ngay_gom_thay_doi_va_chi_day_bang_vua_doi()
+    {
+        Assert.Equal(new[] { "M02" }, PhoneSyncService.TablesOfWrite("ton-kho-gui", new[] { "DuLieuChinh" }));
+        Assert.Empty(PhoneSyncService.TablesOfWrite("nhap-lieu", new[] { "x" }));
+        var ps = Seed();
+        ps.Pick = new HashSet<string> { "M02", "M03" };
+        ps.InstantDelay = TimeSpan.FromMilliseconds(300);
+        ps.StartInstantPush();
+        void Edit(string ma) => _s.Lan.Write("ton-kho-gui", new Dictionary<string, JsonArray?> { ["DuLieuChinh"] = A(new JsonObject { ["Mã hàng"] = ma, ["Tên hàng"] = "TÔM", ["Số lô"] = "L", ["Size"] = "50", ["Phiếu nhập/Voucher"] = "P", ["Số kiện"] = 1, ["Trọng Lượng (KG)"] = 10 }) });
+        Edit("T0"); await Task.Delay(800);                 // chế độ tắt → không đẩy gì
+        Assert.Equal(0, ps.InstantRuns); Assert.False(_fake.Tabs.ContainsKey("TonKho_M02"));
+        ps.InstantOn = true;
+        Edit("T1"); Edit("T2"); Edit("T3");                // 3 lần sửa liên tiếp trong thời gian gom
+        for (var i = 0; i < 100 && ps.InstantRuns == 0; i++) await Task.Delay(100);
+        await Task.Delay(700);
+        Assert.Equal(1, ps.InstantRuns);                   // gom thành 1 lượt
+        Assert.Contains(Tab("TonKho_M02"), x => x.Values.Contains("T3"));
+        Assert.False(_fake.Tabs.ContainsKey("TonKho_M03")); // bảng không đổi thì không đẩy
+        Assert.StartsWith("Đã đẩy ngay M02", ps.LastInstant);
+        // đang có lần đồng bộ khác chạy → hoãn, không chạy chồng
+        await PhoneSyncService.Gate.WaitAsync();
+        try { Edit("T4"); await Task.Delay(1200); Assert.Equal(1, ps.InstantRuns); }
+        finally { PhoneSyncService.Gate.Release(); }
+        for (var i = 0; i < 100 && ps.InstantRuns < 2; i++) await Task.Delay(100);
+        Assert.Equal(2, ps.InstantRuns);
+    }
+
     private PhoneSyncService Svc() => Seed();
     private List<Dictionary<string, string>> Tab(string n) { var t = _fake.Tabs[n]; return t.Rows.Select(r => t.H.Select((h, i) => (h, v: r[i]?.ToString() ?? "")).ToDictionary(x => x.h, x => x.v)).ToList(); }
 
