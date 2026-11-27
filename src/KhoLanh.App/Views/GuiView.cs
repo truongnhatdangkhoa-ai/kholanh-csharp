@@ -361,15 +361,16 @@ public sealed class GuiView : UserControl, IPage
         var cols = new List<GridColumn>
         {
             new("maHang", "Mã hàng", 190) { ReadOnly = true }, new("tenHang", "Tên hàng", 280) { ReadOnly = true }, new("soLo", "Số lô", 140) { ReadOnly = true }, new("size", "Size", 90) { ReadOnly = true },
-            new("phieuNhap", "Phiếu nhập", 130) { ReadOnly = true }, new("dacTinh", "Đặc tính", 100) { ReadOnly = true }, new("sk", "Số kiện", 80, "number") { ReadOnly = true }, new("tl", "Trọng lượng", 100, "number") { ReadOnly = true },
+            new("phieuNhap", "Phiếu nhập", 130) { ReadOnly = true }, new("dacTinh", "Đặc tính", 100) { ReadOnly = true }, new("sk", "Số kiện", 80, "number") { ReadOnly = true }, new("tl", "Tổng kg", 100, "number") { ReadOnly = true },
             new("x", _edit ? "SL xuất ✎" : "SL xuất", 90, "number") { ReadOnly = !_edit },
+            new("kgx", "Tổng kg xuất", 110, "number") { ReadOnly = true },
         };
         _pxm.ReadOnly = !_edit;
-        _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "" }));
+        _pxm.Load(cols, _pxRows.Select(r => new[] { r.MaHang, r.TenHang, r.SoLo, r.Size, r.PhieuNhap, D.DeriveDacTinh(r.TenHang, r.SoLo), N(r.SoKien), Kg(r.TrongLuong), _pxSel.TryGetValue(r, out var v) ? Raw(v) : "", _pxSel.TryGetValue(r, out var vk) ? Kg(GuiService.KgXuat(r, vk)) : "" }));
         _pxg.CheckCol = _pxQtyCol;   // 1.50: tích ô đầu dòng = xuất hết (số kiện; dòng chỉ có kg thì số kg)
         _pxg.CheckFill = r => r < _pxRows.Count ? (_pxRows[r].SoKien > 0 ? Raw(_pxRows[r].SoKien) : Raw(_pxRows[r].TrongLuong)) : "";
         _pxSnap = _pxm.Snapshot(); _pxg.Refresh();
-        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
+        _pxInfo.Text = $"{N(_pxRows.Count)} dòng còn tồn · đang chọn {N(_pxSel.Count)} dòng, tổng SL {N(_pxSel.Sum(kv => kv.Value))}, tổng {Kg(_pxSel.Sum(kv => GuiService.KgXuat(kv.Key, kv.Value)))} kg xuất. Tích ô đầu dòng = lấy hết (hoặc gõ SL). Dòng chỉ có kg (0 kiện) thì SL xuất là SỐ KG. Phiếu trừ tồn NGAY khi tạo.";
     }
 
     private void OnPxEdited()
