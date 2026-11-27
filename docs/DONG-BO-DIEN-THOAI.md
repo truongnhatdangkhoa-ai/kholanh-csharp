@@ -34,7 +34,7 @@ Mã bảng (cũng là giá trị cột `module` của phiếu điện thoại): 
 |---|---|---|---|
 | M01 Tồn kho An An | `TonKho_M01` | cột thật của Load Data (trống → `Cột n`, trùng → `Tên (2)`), mã bỏ `TPC-`, + `_key`, `_row` | `id:<Item ID>` nếu có cột Item ID, không thì `r:<thứ tự dòng>` |
 | M01VT Tồn theo vị trí | `TonKho_M01_ViTri` | `Mã hàng, Tên hàng, ĐVT, Lô (Batch), Vị trí, SL Tồn, T.Lượng, Đã xuất, Xuất hôm nay, Nhóm đặc tính, _key` | `Mã|Lô|Vị trí#n` (n = thứ tự trùng; dòng không mã bỏ) |
-| M01VTB Vị Trí Bột | `TonKho_M01_ViTriBot` | `Vị trí, Mã hàng, SL, NSX, HSD, Nhập, Ghi chú, Vị trí mới, _key` (giữ dòng SL = 0) | `Mã|Vị trí|NSX|HSD#n` |
+| M01VTB Vị Trí Bột | `TonKho_M01_ViTriBot` | `Vị trí, Mã hàng, SL, NSX, HSD, Nhập, Ghi chú, Vị trí mới, _key, Nguồn` (giữ dòng SL = 0; từ 1.177 cột `Nguồn` = `NXT` / `Excel`, ngăn bị tắt công tắc không được đẩy) | `Mã|Vị trí|NSX|HSD#n`, ngăn Excel thêm tiền tố `X:` |
 | M02 Tồn kho gửi | `TonKho_M02` | `Mã hàng, Tên hàng, Đặc tính, Số lô, Size, Quy cách, Ngày nhập kho, Phiếu nhập/Voucher, Số kiện, Trọng Lượng (KG)` | phiếu khớp theo `Mã hàng|Số lô|Size|Phiếu nhập` |
 | M03 NXT Bột/Sốt | `TonKho_M03` + `DanhMuc_M03_LSX` | mỗi LÔ còn tồn 1 dòng: `Mã phiếu, Ngày nhập, Vị trí, Loại Hàng (= mã), Mã Hàng (= size), LSX / Hợp đồng, Khách hàng, Trọng lượng (kg) (kg/bao), Kiện/Bao, Tổng (kg), Ghi chú, _key`; LSX: `id, code, name, khachHang` | `encodeURIComponent` của `Vị trí|Mã|Size|Hạn dùng|Ngày nhập` |
 | M08 Tổng hợp | `M08_MaHoa` (`seg, code, name`), `M08_MaDaTao` (`stt, code, note`), `M08_TongHop` (cột của bảng tổng hợp), `M08_AnhXa` (`pv, ma, full, short`: dòng `SEG` = loại quy tắc, `CB` = kết hợp, `CFG` = tuỳ chọn) | — | — |
