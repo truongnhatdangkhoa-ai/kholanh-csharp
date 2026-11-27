@@ -445,6 +445,14 @@ public class ViTriTests : IDisposable
         l = Vt.DaXuatCached(); Console.WriteLine($"PERF cached lần 2: {sw.ElapsedMilliseconds} ms"); sw.Restart();
         var toks = new[] { "btp", "50" }; var n = 0;
         foreach (var x in l) if (toks.All(t => x.Hay.Contains(t, StringComparison.Ordinal))) n++;
+        var gm = new KhoLanh.Core.Grid.GridModel { ReadOnly = true }; sw.Restart();
+        var cols = Enumerable.Range(0, 18).Select(i => new KhoLanh.Core.Grid.GridColumn("c" + i, "C" + i, 90, i == 8 ? "number" : "text")).ToArray();
+        foreach (var lim in new[] { 5000, 20000, 33000 })
+        {
+            sw.Restart(); gm.Load(cols, l.Take(lim).Select(x => new[] { x.Ngay, x.MaPhieu, x.Loai, x.Ma, x.Ten, x.Size, x.Lo, x.Vt, x.Sl.ToString(), x.TonVt.ToString(), x.Tl.ToString(), (x.Sl * x.Tl).ToString(), "Excel", x.NguoiTao, "Excel", x.DoiChieu, x.Dt, x.Hd }).ToList());
+            Console.WriteLine($"PERF GridModel.Load {lim} dòng: {sw.ElapsedMilliseconds} ms");
+        }
+        sw.Restart();
         Console.WriteLine($"PERF lọc chữ (1 lần gõ): {sw.ElapsedMilliseconds} ms ({n})");
     }
 
