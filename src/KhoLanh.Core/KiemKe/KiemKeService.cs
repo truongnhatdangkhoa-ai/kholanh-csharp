@@ -464,7 +464,7 @@ public sealed class KiemKeService
                     .SelectMany(c => c.Items.Count == 0 ? new[] { new object?[] { c.P.Code, VtText(c.St), "", "", c.Exp, c.Cnt, R2(c.Cnt - c.Exp), "" } }
                         : c.Items.Where(i => c.St != VtLech || Math.Abs(i.Diff) > VtTol).Select(i => new object?[] { c.P.Code, VtText(c.St), i.Ma, i.Lo, i.Exp, i.Cnt, i.Diff, i.Note })),
                 "ĐỐI CHIẾU THEO VỊ TRÍ — vị trí chưa đếm / lệch / thừa");
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("xuất báo cáo Excel", Path.GetFileName(path));
     }
     /// <summary>Phiếu đếm Excel: mỗi lệnh (dãy) 1 sheet — vị trí · mã · lô · sổ sách · cột trống để ghi số đếm.</summary>
@@ -490,7 +490,7 @@ public sealed class KiemKeService
             ws.PageSetup.PageOrientation = XLPageOrientation.Portrait;
         }
         if (orders.Count == 0) wb.AddWorksheet("Trong");
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("xuất phiếu đếm", $"{orders.Count} lệnh — {Path.GetFileName(path)}");
     }
     public SoDoService SoDo => _sodo;

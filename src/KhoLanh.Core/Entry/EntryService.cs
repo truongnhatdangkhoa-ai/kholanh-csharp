@@ -458,7 +458,7 @@ public sealed class EntryService
         range.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         ws.SheetView.FreezeRows(1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         _audit.Log(_session.Username, "Nhập liệu: xuất Excel", $"{title} → {path}");
     }
 

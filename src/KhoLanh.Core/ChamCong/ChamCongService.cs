@@ -492,7 +492,7 @@ public sealed class ChamCongService
             row++;
         }
         sc.Column(2).Width = 26;
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 
     /// <summary>"nhận 1 giờ từ 05/10 · cho 0,5 giờ sang 07/10" của 1 ngày.</summary>

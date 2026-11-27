@@ -1127,7 +1127,7 @@ public sealed class ViTriService
         ws.Columns(1, 5).AdjustToContents(2, r); foreach (var col in ws.Columns(1, 5)) col.Width = Math.Max(col.Width * 1.15, 10);
         ws.SheetView.FreezeRows(2);
         ws.PageSetup.PageOrientation = XLPageOrientation.Portrait; ws.PageSetup.FitToPages(1, 0);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
         Log("xuất Excel phiếu", Path.GetFileName(path));
     }
     /// <summary>File mẫu để nạp (đúng tên cột).</summary>
@@ -1142,6 +1142,6 @@ public sealed class ViTriService
             h.Style.Fill.BackgroundColor = XLColor.FromHtml("#1F4E78"); h.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         }
         ws.Columns().AdjustToContents(); ws.SheetView.FreezeRows(1);
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 }

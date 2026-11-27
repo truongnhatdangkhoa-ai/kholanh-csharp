@@ -1145,7 +1145,7 @@ public sealed class RaDongService
         }
         wsY.Column(1).Width = 19.1; for (var c = 2; c <= 13; c++) wsY.Column(c).Width = 19.9;
         wsY.SetTabActive(); wsY.Select();
-        try { wb.SaveAs(path); }
+        try { wb.SaveInPlace(path); }
         catch (IOException e) { throw new BusinessException("Không ghi được file (file đang mở trong Excel?): " + e.Message); }
         Log("Xuất Excel năm", $"{year}: {rows.Count} dòng");
     }

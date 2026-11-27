@@ -38,7 +38,7 @@ public static class ExcelOps
             try { ws.Columns(1, Math.Max(1, t.Head.Count)).AdjustToContents(1, Math.Min(t.Rows.Count + 1, 300), 6, 60); } catch { /* máy không có phông: bỏ qua căn cột */ }
         }
         if (!wb.Worksheets.Any()) wb.AddWorksheet("Sheet1");
-        wb.SaveAs(path);
+        wb.SaveInPlace(path);
     }
 
     /// <summary>Giá trị ô để hiện trên lưới: ngày → dd/MM/yyyy (kèm giờ nếu có), còn lại như <see cref="CcBang.Str"/>.</summary>
