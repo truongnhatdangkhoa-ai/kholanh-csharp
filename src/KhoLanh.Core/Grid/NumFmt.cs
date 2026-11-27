@@ -36,9 +36,10 @@ public static class NumFmt
         return Cls.None;
     }
 
-    public static string Kg(double v) => Math.Round(v, 2, MidpointRounding.AwayFromZero).ToString("#,0.00", Inv);
-    public static string Count(double v) => Math.Round(v, 2, MidpointRounding.AwayFromZero).ToString("#,0.##", Inv);
-    public static string Num(double v) => Math.Round(v, 3, MidpointRounding.AwayFromZero).ToString("#,0.###", Inv);
+    // 26/11: số âm rất nhỏ làm tròn ra -0 → .NET in "-0.00"; "+ 0.0" đổi -0 thành 0
+    public static string Kg(double v) => (Math.Round(v, 2, MidpointRounding.AwayFromZero) + 0.0).ToString("#,0.00", Inv);
+    public static string Count(double v) => (Math.Round(v, 2, MidpointRounding.AwayFromZero) + 0.0).ToString("#,0.##", Inv);
+    public static string Num(double v) => (Math.Round(v, 3, MidpointRounding.AwayFromZero) + 0.0).ToString("#,0.###", Inv);
     public static string Of(double v, Cls cls) => cls == Cls.Kg ? Kg(v) : cls == Cls.Count ? Count(v) : Num(v);
 
     private static readonly Regex Strict = new(@"^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$|^[+-]?\.\d+$", RegexOptions.Compiled);
