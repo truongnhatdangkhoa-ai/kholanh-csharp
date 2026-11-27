@@ -1087,7 +1087,23 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v250")
     var l = s.CongCuFiles.List("Scan tài liệu");
     Console.WriteLine("[v250] " + string.Join(" | ", l.Select(f => f.Name + ":" + f.Sync + ":" + f.Note)));
     if (l.Count != 2) Bad("danh sách đã lưu phải có 2 mục"); else if (l.First(f => f.Path == f2).Sync == "") Bad("file xuất sau khi tích chưa đồng bộ");
+    // 1.158: tài liệu scan lưu để sửa tiếp hiện chung trong tab Đã lưu (bỏ hộp "Tài liệu đã lưu"); Mở → về tab Làm việc với đúng tài liệu
+    var px = new KhoLanh.Core.Scan.RgbaImage(40, 60); Array.Fill(px.Px, (byte)230);
+    var sd = new KhoLanh.Core.Scan.ScanDoc { Id = KhoLanh.Core.Scan.ScanStore.NewId(), Name = "XX 26.11" };
+    sd.Pages.Add(new KhoLanh.Core.Scan.ScanPage { Source = KhoLanh.App.Controls.ScanImaging.EncodeJpeg(px) });
+    s.Scan.Save(sd); KhoLanh.App.Controls.CongCuFiles.Notify(); P(20);
+    if (cw.PageHost.GetVisualDescendants().OfType<Button>().Any(b2 => KhoLanh.App.Controls.Icon.TextOf(b2.Content) == "Tài liệu đã lưu")) Bad("còn nút “Tài liệu đã lưu”");
+    var dg = tabs.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(g => g.IsEffectivelyVisible);
+    var rows = Enumerable.Range(0, dg.Model.RowCount).Select(r => dg.Model.Get(r, 0)).ToList();
+    Console.WriteLine("[v250] Đã lưu: " + string.Join(" | ", rows));
+    if (rows.Count != 3 || rows[0] != "XX 26.11") Bad("tab Đã lưu phải có tài liệu scan XX 26.11 (đầu bảng) + 2 file");
     P(20); Snap(cw, "v250-scan-da-luu");
+    dg.Select(0, 0); P(5);
+    var openBtn = tabs.GetVisualDescendants().OfType<Button>().First(b2 => KhoLanh.App.Controls.Icon.TextOf(b2.Content) == "Mở file" && b2.IsEffectivelyVisible);
+    openBtn.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(40);
+    var nameBox = cw.PageHost.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(t => t.Text == "XX 26.11");
+    if (tabs.SelectedIndex != 0 || nameBox is null) Bad($"Mở tài liệu scan phải về tab Làm việc với tên XX 26.11 (tab {tabs.SelectedIndex}, ô tên {(nameBox is null ? "không thấy" : "ok")})");
+    P(20); Snap(cw, "v250-scan-mo-tai-lieu");
     foreach (var (k, hd) in new[] { ("m14", "4  Đã lưu"), ("m21", "Đã lưu"), ("m22", "Đã lưu") })
     {
         cw.Navigate(k); P(40);
