@@ -117,8 +117,8 @@ public static class GuiExport
         ws.Cell("A6").Style.Font.Bold = true; ws.Cell("A6").Style.Font.FontColor = ClosedXML.Excel.XLColor.Red; ws.Cell("A6").Style.Alignment.Horizontal = ClosedXML.Excel.XLAlignmentHorizontalValues.Center;
         try
         {
-            using var s = typeof(GuiExport).Assembly.GetManifestResourceStream("KhoLanh.Core.ChungTu.logo-phieu.png");
-            if (s is not null) { var pic = ws.AddPicture(s).MoveTo(ws.Cell("A1")); pic.Width = 230; pic.Height = 63; }
+            using var s = typeof(GuiExport).Assembly.GetManifestResourceStream("KhoLanh.Core.ChungTu.logo-long-an.png");
+            if (s is not null) { var pic = ws.AddPicture(s).MoveTo(ws.Cell("A1")); pic.Width = 250; pic.Height = 79; }   // logo 375×119 → giữ tỉ lệ
         }
         catch { /* không có logo thì bỏ qua */ }
         var headers = new[] { "STT", "Mã hàng", "Tên hàng", "Số phiếu nhập", "GHI CHÚ - LÔ ( IN TRÊN THÙNG )", "Kích cỡ/size", "Số lượng \n(thùng/bao)" };
