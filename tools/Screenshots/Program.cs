@@ -999,6 +999,37 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v228")
     if (bg.Model.Get(2, 1).Length == 0) Bad("chọn gợi ý không điền Size-quy cách");
     hw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v228) — ĐẠT: " : "Xong (v228) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.149: SHOTS_ONLY=v249 — cỡ chữ 90–130 %: thanh menu (44px) phải nằm đúng mép trên cửa sổ, không bị đẩy lên / cắt, ở mọi màn hình. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v249")
+{
+    var ok = true;
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var zw = new MainWindow { Width = int.Parse(Environment.GetEnvironmentVariable("WIN_W") ?? "1366"), Height = int.Parse(Environment.GetEnvironmentVariable("WIN_H") ?? "768"), WindowState = WindowState.Normal }; zw.Show(); P();
+    var keys = new[] { "lx", "m6", "m13", "m1", "m2", "m3sk", "m8", "m4", "m5", "m9", "m3", "m3dm", "m12", "m11", "m14", "m15", "m19", "m21", "m22", "users", "ketnoi", "dongbo", "backup", "troly" };
+    if (Environment.GetEnvironmentVariable("SMALL_KEYS") is { Length: > 0 } zk) keys = zk.Split(',');
+    var scales = (Environment.GetEnvironmentVariable("ZOOMS") ?? "1,1.1,1.2,1.3").Split(',').Select(x => double.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+    foreach (var sc in scales)
+    {
+        AppTheme.Apply(AppTheme.Current, sc); zw.GetType().GetMethod("ApplyZoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(zw, null); P(10);
+        foreach (var k in keys)
+        {
+            zw.Navigate(k); P(40);
+            var tcs = zw.PageHost.GetVisualDescendants().OfType<TabControl>().Where(x => x.IsEffectivelyVisible).Take(1).ToList();
+            for (var t = 0; t < Math.Max(1, tcs.Count > 0 ? tcs[0].ItemCount : 1); t++)
+            {
+                if (tcs.Count > 0) { tcs[0].SelectedIndex = t; P(20); }
+                var nav = zw.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Height == 44);
+                var ny = nav?.TranslatePoint(new Point(0, 0), zw)?.Y ?? 999;
+                var pa = zw.PageArea.TranslatePoint(new Point(0, 0), zw)?.Y ?? 999;
+                var top = zw.PageHost.GetVisualDescendants().OfType<Control>().Where(c => c.IsEffectivelyVisible && c.Bounds.Height > 0 && c is TextBlock or Button or TextBox or ComboBox)
+                    .Select(c => c.TranslatePoint(new Point(0, 0), zw)?.Y ?? 999).DefaultIfEmpty(999).Min();
+                if (ny < -0.5 || pa < 43.5 * sc - 1 || top < 43.5 * sc - 1) { Console.WriteLine($"[v249] LỖI zoom {sc} {k}.{t}: menu y={ny:0.#} · trang y={pa:0.#} · nội dung y={top:0.#}"); ok = false; Snap(zw, $"v249-{sc}-{k}-{t}"); }
+            }
+        }
+    }
+    AppTheme.Apply(AppTheme.Current, 1);
+    zw.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v249) — ĐẠT: " : "Xong (v249) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.127: SHOTS_ONLY=v227 — In chứng từ kho › "Sửa thông tin" (InfoLine) ở 1366×768: khung không bị cắt (FlyoutPresenter mặc định MaxWidth 456),
 // mọi ô + 5 cột người ký nằm trọn trong khung và trong cửa sổ, không cuộn ngang — cả 3 loại phiếu. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v227")

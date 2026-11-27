@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="KhoLanh.App.MainWindow"
-        Title="Kho Lạnh" Width="1360" Height="820" MinWidth="1024" MinHeight="640"
+        Title="Kho Lạnh" Width="1360" Height="820" MinWidth="880" MinHeight="460"
         WindowStartupLocation="CenterScreen" WindowState="Maximized" Icon="/Assets/app.ico"
         Background="{DynamicResource PageBg}">
   <!-- 1.83 "header gọn": 1 thanh 44px (logo · menu · LAN / Trợ lý / cập nhật · tài khoản), rồi 1 hàng 36px tên trang + tab cấp 1 của trang
