@@ -123,11 +123,7 @@ public partial class MainWindow : Window
                 new NavItem("m3dm", "Danh mục mã hàng", () => new DanhMucMaView()),
                 new NavItem("m10", "Kết quả kháng sinh", () => new KhangSinhView()),
                 new NavItem("m24cc", "Chấm công", () => new ChamCongView()),
-            }),
-            ("CHỨNG TỪ", new[]
-            {
-                new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),
-                new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),
+                new NavItem("m12", "In chứng từ kho", () => new ChungTuView()),   // 1.179: chuyển từ nhóm Chứng từ (đã bỏ)
             }),
             ("CÔNG CỤ", new[]
             {
@@ -147,6 +143,7 @@ public partial class MainWindow : Window
                 new NavItem("backup", "Cài đặt máy", () => new BackupView()),
                 new NavItem("audit", "Nhật ký thao tác", () => new AuditView()),
                 new NavItem("troly", "Trợ lý hệ thống", () => new TroLyView()),
+                new NavItem("m11", "Phiếu xuất hệ thống", () => new PxhtView()),   // 1.179: chuyển từ nhóm Chứng từ (đã bỏ)
             }),
         };
         // Menu ngang 2 tầng (1.54): tầng 2 = nhóm (nhóm 1 mục bấm mở luôn, nhóm nhiều mục thả xuống chỉ có tên module) + số việc cần xử lý.
@@ -201,6 +198,8 @@ public partial class MainWindow : Window
         if (s.DriveCaNhan.CanUse) { s.DriveCaNhan.StartAuto(); Closed += (_, _) => s.DriveCaNhan.StopAuto(); }
         // Trợ lý giai đoạn 5: mọi máy (mọi tài khoản) ghi ảnh chụp tình trạng lên database dùng chung — 2 phút sau khi mở rồi mỗi 15 phút
         s.TroLy.StartStatus(TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(15)); Closed += (_, _) => s.TroLy.StopStatus();
+        // 1.179: máy chủ ghi tình trạng hệ thống dùng chung (máy khác chỉ xem); thoát app → ghi dấu thoát / tắt theo lịch
+        s.HeThong.Start(TimeSpan.FromSeconds(30)); Closed += (_, _) => { s.HeThong.Stop(); s.HeThong.PublishOnExit(); };
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
         if (Roles.IsAdmin(s.Session.Role))
         {
@@ -366,7 +365,7 @@ public partial class MainWindow : Window
     /// <summary>Biểu tượng nhóm trên tầng 2 của menu.</summary>
     private static readonly Dictionary<string, string> GroupIcons = new()
     {
-        ["TỒN KHO"] = "box", ["CHỨC NĂNG"] = "chart", ["CHỨNG TỪ"] = "doc", ["CÔNG CỤ"] = "tool", ["HỆ THỐNG"] = "gear",
+        ["TỒN KHO"] = "box", ["CHỨC NĂNG"] = "chart", ["CÔNG CỤ"] = "tool", ["HỆ THỐNG"] = "gear",
     };
     private sealed class NavGroup
     {

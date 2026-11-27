@@ -51,9 +51,12 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
     {
         _cards.Children.Clear(); Shown.Clear();
         _cards.Children.Add(SheetCard());
-        if (S.DriveCaNhan.CanUse) _cards.Children.Add(GmailBackupCard());
-        if (S.LichXuat.CanMail) _cards.Children.Add(MailCard());
-        if (Admin) _cards.Children.Add(GithubCard());
+        // 1.179: máy khác (không phải máy chủ) chỉ XEM các kết nối của máy chủ — không có nút đăng nhập / sửa
+        var ro = HeThongUi.ChiXem; var snap = ro ? S.HeThong.Read() : null;
+        if (ro && HeThongUi.Banner() is { } bn) _cards.Children.Insert(0, bn);
+        if (S.DriveCaNhan.CanUse) _cards.Children.Add(ro ? Shared(HeThongUi.Drive(snap), "cloud", "#FDEDE4") : GmailBackupCard());
+        if (S.LichXuat.CanMail) _cards.Children.Add(ro ? Shared(HeThongUi.Mail(snap), "mail", "#FFF2D6") : MailCard());
+        if (Admin) _cards.Children.Add(ro ? Shared(HeThongUi.Git(snap), "download", "#EEF1F5") : GithubCard());
         var ok = Shown.Count(x => x.State == "ok"); var bad = Shown.Where(x => x.State == "bad").Select(x => x.Name).ToList();
         var miss = Shown.Where(x => x.State is "off" or "warn").Select(x => x.Name).ToList();
         var (bg, fg, text) = bad.Count > 0 ? ("#FDE8E6", "#B42318", $"Có {bad.Count} kết nối bị lỗi: {string.Join(", ", bad)}. Xem dòng đỏ trong thẻ để biết cách sửa.")
@@ -401,6 +404,10 @@ public sealed class KetNoiView : UserControl, IPage, IKeepFresh
     } };
 
     // ---------------- các thẻ khác ----------------
+
+    /// <summary>Thẻ chỉ xem lấy từ bản chụp của máy chủ (1.179).</summary>
+    private Border Shared(HeThongUi.Item it, string icon, string bg) =>
+        Card(it.Name, icon, bg, it.Kind, it.Pill, "Theo máy chủ — chỉ chỉnh được khi đăng nhập trên máy chủ.", it.Detail);
 
     private Border GmailBackupCard()
     {

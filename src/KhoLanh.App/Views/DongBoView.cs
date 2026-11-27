@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
 using KhoLanh.Core.Models;
 
 namespace KhoLanh.App.Views;
@@ -20,7 +21,7 @@ public sealed class DongBoView : UserControl, IPage, IKeepFresh
     private static KhoLanh.Core.AppServices S => App.Services;
     private static bool Admin => Roles.IsAdmin(S.Session.Role);
     private static bool CanBackup => Admin || S.Session.Can("backup");
-    private static bool CanPhone => S.Session.Can("phone");
+    private static bool CanPhone => Admin || S.Session.Can("phone");
 
     internal TabControl Tabs { get; } = new();
     internal MayChuView MayChu { get; } = new();
@@ -42,7 +43,18 @@ public sealed class DongBoView : UserControl, IPage, IKeepFresh
 
     private static Control BuildBackup(string start)
     {
-        var sub = Ui.SubTabs(("Trên máy này", new LocalBackupPanel()), ("Google Drive cá nhân (Gmail)", new DriveCaNhanPanel()));
+        // 1.179: sao lưu Google Drive là việc của máy chủ — máy khác chỉ xem tình trạng (bản máy chủ báo), không đăng nhập / đổi lịch / khôi phục từ đây.
+        Control drive = new DriveCaNhanPanel();
+        if (KhoLanh.App.Controls.HeThongUi.ChiXem)
+        {
+            var box = new StackPanel { Spacing = 10, Margin = new Thickness(0, 0, 8, 12) };
+            if (KhoLanh.App.Controls.HeThongUi.Banner() is { } bn) box.Children.Add(bn);
+            var t = S.HeThong.Read();
+            box.Children.Add(KhoLanh.App.Controls.HeThongUi.ItemCard(KhoLanh.App.Controls.HeThongUi.Drive(t)));
+            box.Children.Add(new TextBlock { Text = KhoLanh.Core.Lan.HeThongService.MayChuText(t, DateTime.UtcNow).Text, Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, Tag = "keep", FontSize = 12.5 });
+            drive = new ScrollViewer { Content = box };
+        }
+        var sub = Ui.SubTabs(("Trên máy này", new LocalBackupPanel()), ("Google Drive cá nhân (Gmail)", drive));
         if (start == "dcn") sub.SelectedIndex = 1;
         return sub;
     }
