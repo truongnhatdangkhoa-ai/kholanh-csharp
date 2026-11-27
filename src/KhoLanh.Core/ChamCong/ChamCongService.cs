@@ -287,7 +287,7 @@ public sealed class ChamCongService
         public double TongSau(CcNhanVien n) => Math.Round(Ngays.Sum(d => Dong[(n.Id, d)].SauSang), 2);
         /// <summary>Số ngày đủ công (sau sang ≥ giờ chuẩn).</summary>
         public int NgayDu(CcNhanVien n) => Ngays.Count(d => Dong[(n.Id, d)].SauSang >= GioChuan - 1e-9);
-        public int NgayPhep(CcNhanVien n) => Ngays.Count(d => Dong[(n.Id, d)].Phep);
+        public double NgayPhep(CcNhanVien n) => Ngays.Sum(d => Dong[(n.Id, d)].NgayPhep);
         public int NgayLoai(CcNhanVien n, params string[] loai) => Ngays.Count(d => loai.Contains(Dong[(n.Id, d)].Loai));
         public double GioLe(CcNhanVien n) => Math.Round(Ngays.Sum(d => Dong[(n.Id, d)].GioLe), 2);
         public double GioChuan = 8;
@@ -414,7 +414,7 @@ public sealed class ChamCongService
             for (var i = 0; i < t.Ngays.Count; i++)
             {
                 var d = t.Dong[(n.Id, t.Ngays[i])];
-                if (d.Loai.Length > 0 && (d.DuCong || d.SauSang == 0)) bc.Cell(row, 5 + i).Value = d.Loai;
+                if (d.Loai.Length > 0 && (d.DuCong || d.SauSang == 0)) bc.Cell(row, 5 + i).Value = CcCore.Nhan(d.Loai);
                 else if (d.SauSang != 0) bc.Cell(row, 5 + i).Value = d.SauSang;
                 if (d.CanhBao.Length > 0) bc.Cell(row, 5 + i).Style.Fill.BackgroundColor = XLColor.FromHtml("#FFF2D6");
                 else if (d.Nhan.Count > 0) bc.Cell(row, 5 + i).Style.Fill.BackgroundColor = XLColor.FromHtml("#E3F4EA");
@@ -454,13 +454,30 @@ public sealed class ChamCongService
             ct.Cell(row, 14).Value = d.Chot;
             ct.Cell(row, 15).Value = d.SauSang;
             if (SangText(d) is { Length: > 0 } st) ct.Cell(row, 16).Value = st;
-            var note = string.Join(" · ", new[] { d.Loai.Length > 0 ? CcCore.TenLoai(d.Loai) + (d.TenLe.Length > 0 ? " " + d.TenLe : "") + (d.DuCong ? " (tính đủ công)" : "") : "", d.GhiChu, d.ChepTu.Length > 0 ? "giờ của " + d.ChepTu : "", d.SuaChot ? "chốt sửa tay" : "", d.SuaSang ? "sang công sửa tay" : "", d.CanhBao }.Where(x => x.Length > 0));
+            var note = string.Join(" · ", new[] { d.Loai.Length > 0 ? CcCore.TenLoai(d.Loai) + (d.TenLe.Length > 0 ? " " + d.TenLe : "") + (d.DuCong ? " (tính đủ công)" : "") + (d.GioLe > 0 ? $" — đi làm {d.GioLe} giờ (kế toán nhân hệ số)" : "") : "", d.GhiChu, d.ChepTu.Length > 0 ? "giờ của " + d.ChepTu : "", d.SuaChot ? "chốt sửa tay" : "", d.SuaSang ? "sang công sửa tay" : "", d.CanhBao }.Where(x => x.Length > 0));
             if (note.Length > 0) ct.Cell(row, 17).Value = note;
             if (d.DaSua) ct.Range(row, 1, row, 17).Style.Fill.BackgroundColor = XLColor.FromHtml("#EEEBFC");
             row++;
         }
         ct.Column(2).Width = 26; ct.Column(16).Width = 30; ct.Column(17).Width = 40;
         ct.SheetView.FreezeRows(3);
+
+        // giờ đi làm ngày lễ / Tết: kế toán nhân hệ số (app chỉ ghi giờ thật)
+        var ll = wb.AddWorksheet("Làm ngày lễ");
+        var h4 = new[] { "Mã nhân viên", "Tên nhân viên", "Bộ phận", "Ngày", "Loại", "Tên ngày lễ", "Giờ làm", "Công (giờ ÷ giờ chuẩn)" };
+        for (var c = 0; c < h4.Length; c++) ll.Cell(1, c + 1).Value = h4[c];
+        ll.Range(1, 1, 1, h4.Length).Style.Font.Bold = true;
+        var lr = 2;
+        foreach (var n in t.Nvs)
+            foreach (var d in t.Ngays)
+            {
+                var x = t.Dong[(n.Id, d)];
+                if (x.GioLe <= 0) continue;
+                ll.Cell(lr, 1).Value = n.Ma; ll.Cell(lr, 2).Value = n.Ten; ll.Cell(lr, 3).Value = n.Nhom; ll.Cell(lr, 4).Value = d.ToString("dd/MM/yyyy");
+                ll.Cell(lr, 5).Value = x.Loai; ll.Cell(lr, 6).Value = x.TenLe; ll.Cell(lr, 7).Value = x.GioLe;
+                ll.Cell(lr, 8).Value = Math.Round(x.GioLe / t.GioChuan, 2); lr++;
+            }
+        ll.Column(2).Width = 26; ll.Column(6).Width = 24;
 
         var sc = wb.AddWorksheet("Sang công");
         var h3 = new[] { "Mã nhân viên", "Tên nhân viên", "Từ ngày", "Sang ngày", "Số giờ" };

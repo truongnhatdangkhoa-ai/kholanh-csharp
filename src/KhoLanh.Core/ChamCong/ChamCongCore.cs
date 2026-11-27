@@ -76,7 +76,7 @@ public static class CcCore
     }
 
     /// <summary>Loại ngày đặc biệt: P nghỉ có phép · L nghỉ lễ · T nghỉ Tết · CT công tác ("" = ngày thường).</summary>
-    public static readonly (string Ma, string Ten)[] Loais = { ("P", "Nghỉ có phép"), ("L", "Nghỉ lễ"), ("T", "Nghỉ Tết"), ("CT", "Công tác") };
+    public static readonly (string Ma, string Ten)[] Loais = { ("P", "Nghỉ có phép"), ("P5", "Nghỉ phép nửa ngày (P 0,5)"), ("L", "Nghỉ lễ"), ("T", "Nghỉ Tết"), ("CT", "Công tác") };
     public static string NormLoai(string? s)
     {
         var t = CcCoreText.Fold(s).Replace(".", "").Replace(" ", "");
@@ -84,12 +84,15 @@ public static class CcCore
         {
             "" => "",
             "p" or "phep" or "x" or "nghiphep" or "nghicophep" or "cophep" => "P",
+            "p05" or "p0,5" or "p5" or "p1/2" or "p/2" or "pnua" or "phepnua" or "nuaphep" or "nghiphepnua" => "P5",
             "l" or "le" or "nghile" => "L",
             "t" or "tet" or "nghitet" => "T",
             "ct" or "congtac" => "CT",
             _ => "?",
         };
     }
+    /// <summary>Ký hiệu hiện trong ô: P5 hiện "P0.5", còn lại giữ nguyên.</summary>
+    public static string Nhan(string loai) => loai == "P5" ? "P0.5" : loai;
     public static string TenLoai(string loai) => Loais.FirstOrDefault(x => x.Ma == loai).Ten ?? "";
 
     public sealed record Ket(int? VaoTron, int? RaTron, int Nghi, int Cong, string CanhBao)
@@ -268,7 +271,9 @@ public sealed class CcDong
     public bool DuCong;
     /// <summary>Giờ đi làm vào ngày lễ / Tết (tính riêng, không đem bù).</summary>
     public double GioLe;
-    public bool Phep => Loai == "P";
+    public bool Phep => Loai is "P" or "P5";
+    /// <summary>Số ngày nghỉ phép của ngày này: P = 1, P0.5 = 0,5.</summary>
+    public double NgayPhep => Loai == "P" ? 1 : Loai == "P5" ? 0.5 : 0;
     /// <summary>Giờ sau sang công (= <see cref="Chot"/> khi không sang).</summary>
     public double SauSang;
     /// <summary>Lần sang công nhận vào / cho đi của ngày này.</summary>
