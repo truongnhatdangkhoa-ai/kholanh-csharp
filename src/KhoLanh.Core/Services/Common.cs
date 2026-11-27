@@ -134,7 +134,7 @@ public class SettingsService
     private static readonly HashSet<string> MirrorKeys = new(StringComparer.Ordinal)
     {
         "lan_role", "lan_key", "lan_port", "lan_http_port", "lan_public", "lan_nodes", "lan_addrs", "lan_name", "lan_machine_id",
-        "lan_server_name", "lan_rieng", "lan_plan", "lan_enc",
+        "lan_server_name", "lan_rieng", "lan_ngoai_kho", "lan_plan", "lan_enc",
         "drive_mode", "drive_dir", "drive_every", "drive_key", "drive_bo", "drive_home",
         "acct_url", "acct_token", "acct_admin_key", "acct_keyblobs",
         "phone_webapp_url", "phone_pc_token", "lt_google_id", "lt_google_secret", "may_chu_chay_an",

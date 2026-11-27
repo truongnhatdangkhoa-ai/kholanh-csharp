@@ -400,6 +400,30 @@ public class LanTests : IDisposable
     }
 
     [Fact]
+    public void Ngoai_mat_kho_lam_ngoai_tuyen_khong_bao_do_va_van_noi_lai_khi_ve_LAN()
+    {
+        // 1.176: máy ngoài mạng kho (không Internet tới máy chủ) bật "ngoại tuyến": Health = 3 (không đỏ), vẫn giữ sổ chờ, về LAN thì tự gửi.
+        var (srv, cli, ms, _) = Pair();
+        cli.Lan.Write(Db, One("S", Rows("a")));
+        Until(() => cli.Lan.PendingCount() == 0 && Local(srv, "S") == "a", "dữ liệu ban đầu lên máy chủ");
+        Stop(srv);
+        cli.Lan.SetAwayMode(true);
+        cli.Lan.Write(Db, One("S", Rows("a", "b")));
+        Assert.True(cli.Lan.AwayMode);
+        Until(() => !cli.Lan.Online, "máy con mất máy chủ");
+        Assert.Equal(3, cli.Lan.Health);
+        Assert.StartsWith("Ngoại tuyến", cli.Lan.Short);
+        Assert.Equal(1, cli.Lan.PendingCount());
+
+        var srv2 = Boot(ms);
+        Until(() => cli.Lan.Online && cli.Lan.PendingCount() == 0, "về LAN: tự nối và gửi sổ chờ");
+        Assert.Equal("a,b", Local(srv2, "S"));
+        Assert.Equal(1, cli.Lan.Health);
+        cli.Lan.SetAwayMode(false);
+        Assert.False(cli.Lan.AwayMode);
+    }
+
+    [Fact]
     public void Offline_client_keeps_working_and_syncs_when_the_server_returns()
     {
         var (srv, cli, ms, _) = Pair();
