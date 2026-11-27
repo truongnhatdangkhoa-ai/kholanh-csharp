@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -12,7 +13,7 @@ using KhoLanh.Core.TimNhanh;
 namespace KhoLanh.App.Views;
 
 /// <summary>
-/// TÌM NHANH TOÀN APP (Ctrl + K, theo global-search.js của app cũ): gõ tên module → nhảy tới; gõ mã hàng / tên / size (BTP 50) /
+/// TÌM NHANH TOÀN APP (Ctrl + K hoặc Alt + H, theo global-search.js của app cũ): gõ tên module → nhảy tới; gõ mã hàng / tên / size (BTP 50) /
 /// vị trí / lô / hợp đồng → bảng tồn hiện tại ở mọi module (Tồn kho An An, Tồn vị trí, Tồn bột, Tồn kho gửi, NXT Bột/Sốt).
 /// Chọn 1 dòng → chi tiết mã đó (theo nguồn, các vị trí, hợp đồng) + nút mở module. Dữ liệu đọc lại mỗi lần mở.
 /// </summary>
@@ -22,7 +23,7 @@ public sealed class TimNhanhWindow : Window
 
     private const int Page = 400;
     private static readonly IBrush Dark = AppTheme.Brush("#0B2A45"), Line_ = AppTheme.Brush("#D0D7E2"), Hit = AppTheme.Brush("#FFF2B3");
-    private static readonly Dictionary<string, string> SrcColor = new() { ["M01"] = "#1F8FD1", ["M01VT"] = "#7C3AED", ["M01VTB"] = "#C2410C", ["M02"] = "#1E8E3E", ["M03"] = "#B45309" };
+    private static readonly Dictionary<string, string> SrcColor = new() { ["M01"] = "#1F8FD1", ["M01VT"] = "#7C3AED", ["M01VTB"] = "#C2410C", ["M02"] = "#1E8E3E", ["M03"] = "#B45309", ["KS"] = "#0F766E" };
 
     private readonly IReadOnlyList<ModuleLink> _mods;
     private readonly Action<string> _go;
@@ -30,9 +31,11 @@ public sealed class TimNhanhWindow : Window
     private readonly WrapPanel _docPanel = new();
     private List<GsDoc> _docs = new();
     // Lọc theo cột (lọc phân tầng: giá trị của 1 cột lấy từ các dòng khớp ô tìm + bộ lọc các cột khác)
-    private static readonly (string Key, string Label)[] FilterCols = { ("src", "Nguồn"), ("vt", "Khu vị trí"), ("size", "Size"), ("hd", "Hợp đồng"), ("dt", "Đặc tính") };
+    private static readonly (string Key, string Label)[] FilterCols = { ("vt", "Khu vị trí"), ("size", "Size"), ("hd", "Hợp đồng"), ("dt", "Đặc tính") };
     private readonly Dictionary<string, ComboBox> _cf = new();
     private readonly Button _cfClear = new() { Content = "Bỏ lọc cột", IsVisible = false, Padding = new Thickness(8, 3), FontSize = 12.5 };
+    private readonly WrapPanel _srcPanel = new();
+    private readonly HashSet<string> _srcSel = new();   // module kho đã chọn để lọc (rỗng = tất cả)
     private readonly StackPanel _cfPanel = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
     private bool _cfBusy;
     private List<GsRow> _base = new();
@@ -82,13 +85,13 @@ public sealed class TimNhanhWindow : Window
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) { if (_detailKey is not null) CloseDetail(); else Close(); e.Handled = true; }
-            else if (e.Key == Key.K && e.KeyModifiers.HasFlag(KeyModifiers.Control)) { _q.Focus(); _q.SelectAll(); e.Handled = true; }
+            else if ((e.Key == Key.K && e.KeyModifiers.HasFlag(KeyModifiers.Control)) || (e.Key == Key.H && e.KeyModifiers.HasFlag(KeyModifiers.Alt))) { _q.Focus(); _q.SelectAll(); e.Handled = true; }
         };
 
         _detailBox = new Border { Width = 360, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(14, 12), Background = AppTheme.Card, BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), IsVisible = false, Child = new ScrollViewer { Content = _detail } };
 
         var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 0, 0, 8) };
-        top.Children.Add(_q); top.Children.Add(_status); top.Children.Add(_modPanel); top.Children.Add(_docPanel); top.Children.Add(_cfPanel);
+        top.Children.Add(_q); top.Children.Add(_srcPanel); top.Children.Add(_status); top.Children.Add(_modPanel); top.Children.Add(_docPanel); top.Children.Add(_cfPanel);
         var tbl = new DockPanel();
         var foot = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 }; foot.Children.Add(_foot); foot.Children.Add(_more); _more.Margin = new Thickness(0, 4, 0, 0);
         DockPanel.SetDock(foot, Dock.Bottom); tbl.Children.Add(foot);
@@ -123,11 +126,37 @@ public sealed class TimNhanhWindow : Window
     {
         if (_loading) _status.Text = _data is null ? "Đang đọc dữ liệu tồn kho…" : "Đang cập nhật dữ liệu mới nhất…";
         else if (_data is { Errors.Count: > 0 }) _status.Text = "Một phần dữ liệu không đọc được — " + string.Join(" · ", _data.Errors);
-        else if (_data is not null) _status.Text = $"Đang có {_data.Rows.Count:#,0} dòng tồn kho (Tồn kho An An, Tồn vị trí, Tồn bột, Tồn kho gửi, NXT Bột/Sốt — theo quyền của tài khoản). Esc để đóng.";
+        else if (_data is not null) _status.Text = $"Đang có {_data.Rows.Count:#,0} dòng tồn kho (Tồn kho An An, Tồn vị trí, Tồn bột, Tồn kho gửi, NXT Bột/Sốt, Kết quả kháng sinh — theo quyền của tài khoản). Esc để đóng.";
     }
 
+    /// <summary>Hàng chọn module kho để lọc (bấm để bật / tắt; không chọn gì = tìm ở tất cả). Chỉ hiện module có dữ liệu.</summary>
+    private void FillSources()
+    {
+        _srcPanel.Children.Clear();
+        if (_data is null) { _srcPanel.IsVisible = false; return; }
+        var counts = _data.Rows.GroupBy(r => r.Src).ToDictionary(g => g.Key, g => g.Count());
+        _srcPanel.Children.Add(new TextBlock { Text = "Tìm trong:", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        foreach (var (src, name, _, _) in Gs.Sources.Where(x => counts.ContainsKey(x.Src)))
+        {
+            var t = new ToggleButton { Content = $"{name} ({counts[src]:#,0})", IsChecked = _srcSel.Contains(src), Padding = new Thickness(9, 3), Margin = new Thickness(0, 0, 6, 4), FontSize = 12.5 };
+            ToolTip.SetTip(t, "Bấm để chỉ tìm ở module này (chọn nhiều được); bỏ chọn hết = tìm tất cả");
+            var key = src;
+            t.IsCheckedChanged += (_, _) => { if (t.IsChecked == true) _srcSel.Add(key); else _srcSel.Remove(key); _limit = Page; Render(); };
+            _srcPanel.Children.Add(t);
+        }
+        if (_srcSel.Count > 0)
+        {
+            var all = new Button { Content = "Tất cả", Padding = new Thickness(9, 3), Margin = new Thickness(0, 0, 6, 4), FontSize = 12.5 };
+            all.Click += (_, _) => { _srcSel.Clear(); _limit = Page; FillSources(); Render(); };
+            _srcPanel.Children.Add(all);
+        }
+        _srcPanel.IsVisible = counts.Count > 1;
+    }
+
+    private bool _srcFilled;
     private void Render()
     {
+        if (_data is not null && !_srcFilled) { _srcFilled = true; FillSources(); }
         RenderStatus();
         var q = _q.Text ?? "";
         // module khớp tên
@@ -162,6 +191,7 @@ public sealed class TimNhanhWindow : Window
             _foot.Text = nq.Length == 0 ? "Gõ để tìm. Ví dụ: BTP 50 · VRHLBTN · A.01 · HD-2614 · bột chiên." : ""; _more.IsVisible = false; return;
         }
         _base = Gs.Search(_data, q, out _terms);
+        if (_srcSel.Count > 0) _base = _base.Where(r => _srcSel.Contains(r.Src)).ToList();
         _list = _base.Where(r => PassFilters(r, null)).ToList();
         FillFilters();
         LoadGrid();

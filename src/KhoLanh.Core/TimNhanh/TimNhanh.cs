@@ -29,6 +29,7 @@ public static class Gs
     {
         ("M01", "Tồn kho An An", "m1", "m1"), ("M01VT", "Tồn vị trí", "m7", "m7"), ("M01VTB", "Tồn bột", "m1vtb", "m1vtb"),
         ("M02", "Tồn kho gửi", "m2", "m2"), ("M03", "NXT Bột/Sốt", "m3sk", "m3sk"),
+        ("KS", "Kết quả kháng sinh", "m10", "m10"),
     };
     public static string SrcName(string src) => Sources.FirstOrDefault(s => s.Src == src).Name ?? src;
     public static int SrcOrder(string src) { var i = Array.FindIndex(Sources, s => s.Src == src); return i < 0 ? 99 : i; }
@@ -225,6 +226,26 @@ public sealed class GsService
             }
         }
         catch (Exception e) { errors.Add("NXT Bột/Sốt: " + e.Message); }
+
+        // ---- Kết quả kháng sinh (KS): mỗi lô 1 dòng — tìm theo lô / ký hiệu / ghi chú / các tiêu chí đầu vào (không có tồn)
+        try
+        {
+            if (Can(KhoLanh.Core.KhangSinh.KhangSinhService.PermKey))
+            {
+                var ks = _s.KhangSinh; if (!ks.Loaded) ks.Load();
+                foreach (var r in ks.Records.OrderByDescending(r => r.Date, StringComparer.Ordinal))
+                {
+                    var lo = r.Batch.Trim(); if (lo.Length == 0) continue;
+                    var kq = string.Join(" ", new[] { r.Dat, r.KyHieu }.Where(x => x.Length > 0));
+                    rows.Add(new GsRow
+                    {
+                        Src = "KS", Ma = lo, Ten = kq.Length > 0 ? "Kết quả: " + kq : "Chưa có kết quả", Dt = r.KyHieu.Length > 0 ? r.KyHieu : r.Dat, Lo = lo,
+                        Extra = string.Join(" · ", new[] { r.Date.Length >= 10 ? "Kiểm " + r.Date[8..10] + "/" + r.Date[5..7] + "/" + r.Date[..4] : "", r.Note, r.MoTa, string.Join(" ", r.Inputs.Values.Where(v => v.Length > 0 && v != "ND")) }.Where(x => x.Trim().Length > 0)),
+                    });
+                }
+            }
+        }
+        catch (Exception e) { errors.Add("Kết quả kháng sinh: " + e.Message); }
 
         var data = Gs.Prepare(rows, errors);
         data.AnAn = anAn;
