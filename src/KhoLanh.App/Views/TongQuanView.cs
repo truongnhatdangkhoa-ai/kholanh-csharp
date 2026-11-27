@@ -35,7 +35,9 @@ public sealed partial class TongQuanView : UserControl, IPage
     internal static readonly string[] Wd = { "Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy" };
 
     private int _dayOff;
-    private string _rTab = "recent", _rCo = "all";
+    private string _rTab = "recent", _rCo = "all"; private int _rPage; private const int RPageSize = 10;
+    private readonly TextBlock _rPageLb = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center, MinWidth = 88, TextAlignment = TextAlignment.Center };
+    private readonly StackPanel _rPager = new() { Orientation = Orientation.Horizontal, Spacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
     private DateTime _month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
     private int _year = DateTime.Today.Year;
     private bool _loaded;
@@ -66,7 +68,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         _email.IsVisible = Svc.CanMail;
         _pick.SelectedDateChanged += (_, _) => { if (_picking || _pick.SelectedDate is not { } d) return; _dayOff = (int)Math.Round((d.Date - DateTime.Today).TotalDays); PaintDay(); };
         var deb = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-        deb.Tick += (_, _) => { deb.Stop(); PaintRecent(); };
+        deb.Tick += (_, _) => { deb.Stop(); _rPage = 0; PaintRecent(); };
         _rq.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
 
         var tabs = new TabControl();
@@ -131,12 +133,17 @@ public sealed partial class TongQuanView : UserControl, IPage
         if (Svc.CanEdit) dayBox.Children.Add(new Button { Content = "＋ Thêm lịch ngày này", Margin = new Thickness(0, 6, 0, 0), FontSize = 12.5, Command = null }.Also(b => b.Click += async (_, _) => await EditDialog(null, DayKey())));
 
         foreach (var (k, t) in new[] { ("recent", "Lịch xuất gần đây"), ("up", "Lịch xuất dự kiến") })
-            _rSeg.Children.Add(new ToggleButton { Content = t, Tag = k, FontSize = 12.5, Padding = new Thickness(10, 3) }.Also(b => b.Click += (_, _) => { _rTab = k; PaintRecent(); }));
+            _rSeg.Children.Add(new ToggleButton { Content = t, Tag = k, FontSize = 12.5, Padding = new Thickness(10, 3) }.Also(b => b.Click += (_, _) => { _rTab = k; _rPage = 0; PaintRecent(); }));
         foreach (var (k, t) in new[] { ("all", "Tất cả"), ("an", "An An"), ("tp", "Thuận Phước") })
-            _rCoBar.Children.Add(new ToggleButton { Content = t, Tag = k, FontSize = 12, Padding = new Thickness(8, 2) }.Also(b => b.Click += (_, _) => { _rCo = k; PaintRecent(); }));
+            _rCoBar.Children.Add(new ToggleButton { Content = t, Tag = k, FontSize = 12, Padding = new Thickness(8, 2) }.Also(b => b.Click += (_, _) => { _rCo = k; _rPage = 0; PaintRecent(); }));
         var rHead = new WrapPanel { ItemSpacing = 10, LineSpacing = 6, Margin = new Thickness(0, 0, 0, 6) };
         rHead.Children.Add(_rSeg); rHead.Children.Add(_rCoBar); rHead.Children.Add(_rq);
-        var recentBox = new StackPanel(); recentBox.Children.Add(rHead); recentBox.Children.Add(_recentNote); recentBox.Children.Add(_recent);
+        var recentBox = new StackPanel(); recentBox.Children.Add(rHead); var noteRow = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+        _rPager.Children.Add(new Button { Content = "‹ Trước", FontSize = 12, Padding = new Thickness(8, 2) }.Also(b => b.Click += (_, _) => { _rPage--; PaintRecent(); }));
+        _rPager.Children.Add(_rPageLb);
+        _rPager.Children.Add(new Button { Content = "Sau ›", FontSize = 12, Padding = new Thickness(8, 2) }.Also(b => b.Click += (_, _) => { _rPage++; PaintRecent(); }));
+        DockPanel.SetDock(_rPager, Dock.Right); noteRow.Children.Add(_rPager); noteRow.Children.Add(_recentNote);
+        recentBox.Children.Add(noteRow); recentBox.Children.Add(_recent);
 
         // 1.52: bỏ khung "Thao tác nhanh" (đã có menu bên trái); "Việc cần làm" thành tab 2 của khung Lịch xuất trong ngày;
         // hai khung còn lại rộng hết trang.
@@ -313,17 +320,20 @@ public sealed partial class TongQuanView : UserControl, IPage
         ((ToggleButton)_rSeg.Children[0]).Content = $"Lịch xuất gần đây ({h.Recent.Count})"; ((ToggleButton)_rSeg.Children[1]).Content = $"Lịch xuất dự kiến ({h.Upcoming.Count})";
         var q = Core.ChungTu.ChungTuService.StripAccents(_rq.Text ?? "");
         var list = (_rTab == "up" ? h.Upcoming : h.Recent).Where(x => (_rCo == "all" || x.Co == _rCo) && (q.Length == 0 || Core.ChungTu.ChungTuService.StripAccents(x.Lsx + " " + x.Khach + " " + x.Cont).Contains(q))).ToList();
-        var shown = list.Take(12).ToList();
-        _recentNote.Text = list.Count > 0 ? $"Hiện {shown.Count} / {list.Count} · " + (_rTab == "up" ? "chưa xuất, ngày gần nhất trước" : "đã xuất / đang đóng hàng, mới nhất trước") : "";
+        var pages = LichXuatCore.PageCount(list.Count, RPageSize); _rPage = Math.Clamp(_rPage, 0, pages - 1);
+        var from = _rPage * RPageSize; var shown = list.Skip(from).Take(RPageSize).ToList();
+        _recentNote.Text = list.Count > 0 ? $"Dòng {from + 1}–{from + shown.Count} / {list.Count} · " + (_rTab == "up" ? "chưa xuất, ngày gần nhất trước" : "tháng này, đã xuất / đang đóng hàng, mới nhất trước") + " · # đếm từ dưới lên" : "";
+        _rPager.IsVisible = pages > 1; _rPageLb.Text = $"Trang {_rPage + 1} / {pages}";
+        ((Button)_rPager.Children[0]).IsEnabled = _rPage > 0; ((Button)_rPager.Children[2]).IsEnabled = _rPage < pages - 1;
         _recent.Children.Clear();
         var head = Row(new[] { "#", "Ngày", "Số LSX", "Kho", "Khách hàng", "Tấn", "Cont", "Trạng thái" }, true, null);
         _recent.Children.Add(head);
         if (shown.Count == 0) { _recent.Children.Add(new TextBlock { Text = _rTab == "up" ? "Không có lịch xuất dự kiến." : "Chưa có lịch xuất nào.", Foreground = Muted, Margin = new Thickness(6, 8) }); return; }
-        string? prev = null; var band = -1; var i = 0;
+        string? prev = null; var band = -1; var i = from;
         foreach (var x in shown)
         {
             var first = x.Ngay != prev; if (first) { band++; prev = x.Ngay; }
-            var r = Row(new[] { (++i).ToString(), first ? Dm(x.Ngay) : "″", x.Lsx, "", x.Khach, x.Kg > 0 ? Tan(x.Kg) : "—", x.Cont.Length > 0 ? x.Cont : "—", "" }, false, band % 2 == 1 ? "#F7FAFC" : null);
+            var r = Row(new[] { LichXuatCore.Stt(list.Count, i++).ToString(), first ? Dm(x.Ngay) : "″", x.Lsx, "", x.Khach, x.Kg > 0 ? Tan(x.Kg) : "—", x.Cont.Length > 0 ? x.Cont : "—", "" }, false, band % 2 == 1 ? "#F7FAFC" : null);
             var g = (Grid)r.Child!;
             var co = CoBadge(x.Co); co.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(co, 3); g.Children.Add(co);
             var sp = StPill(x.St); sp.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(sp, 7); g.Children.Add(sp);
