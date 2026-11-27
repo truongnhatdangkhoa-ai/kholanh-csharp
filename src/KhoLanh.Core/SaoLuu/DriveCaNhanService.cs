@@ -77,7 +77,45 @@ public sealed class DriveCaNhanService
     }
 
     private string Key => "dcn:" + _session.Username.ToLowerInvariant();
-    public Cfg Config { get { _session.RequireLogin(); return Cfg.From(_settings.Get(Key)); } }
+    /// <summary>Cài đặt thô của tài khoản này, KHÔNG lấy đăng nhập chung (tránh vòng gọi với Lưu trữ cá nhân).</summary>
+    public Cfg RawConfig { get { _session.RequireLogin(); return Cfg.From(_settings.Get(Key)); } }
+
+    /// <summary>Lưu trữ cá nhân vừa đăng nhập / đổi Gmail → Sao lưu dùng luôn.</summary>
+    public void AdoptLogin(string email, string refresh)
+    {
+        var c = RawConfig;
+        if (c.Linked && c.Refresh == refresh) return;
+        c.Email = email; c.Refresh = refresh; c.LastErr = "";
+        Save(c);
+    }
+
+    /// <summary>Lưu trữ cá nhân vừa đăng xuất Google → Sao lưu cũng gỡ.</summary>
+    public void DropLogin()
+    {
+        var c = RawConfig;
+        if (!c.Linked) return;
+        c.Refresh = ""; c.LastErr = "";
+        Save(c);
+    }
+
+    public Cfg Config
+    {
+        get
+        {
+            var c = RawConfig;
+            // 1.145: đã đăng nhập Google ở Lưu trữ cá nhân thì dùng chung, không bắt đăng nhập lại
+            if (!c.Linked && SharedLogin?.Invoke() is { } sh && sh.Refresh.Length > 0)
+            {
+                c.Email = sh.Email; c.Refresh = sh.Refresh; c.LastErr = "";
+                _settings.Set(Key, c.ToJson().ToJsonString());
+            }
+            return c;
+        }
+    }
+    /// <summary>Đăng nhập Google đang có ở Lưu trữ cá nhân của tài khoản này (email, refresh đã mã hóa). Null = chưa có.</summary>
+    public Func<(string Email, string Refresh)?>? SharedLogin { get; set; }
+    /// <summary>Báo Lưu trữ cá nhân dùng đăng nhập mới; email rỗng = đăng xuất.</summary>
+    public Action<string, string>? ShareLogin { get; set; }
     private void Save(Cfg c) { _settings.Set(Key, c.ToJson().ToJsonString()); StatusChanged?.Invoke(); }
 
     public void SetEvery(int hours)
@@ -130,6 +168,7 @@ public sealed class DriveCaNhanService
         c = Config;
         c.Email = res.Email; c.Refresh = Secret.Protect(res.Refresh); c.LastErr = "";
         Save(c);
+        try { ShareLogin?.Invoke(c.Email, c.Refresh); } catch { /* không chặn đăng nhập */ }
         return res.Email;
     }
 
@@ -139,6 +178,7 @@ public sealed class DriveCaNhanService
         try { await Google.RevokeAsync(Secret.Unprotect(c.Refresh)); } catch { /* mất mạng: vẫn gỡ trên máy */ }
         c.Refresh = ""; c.LastErr = "";
         Save(c);
+        try { ShareLogin?.Invoke("", ""); } catch { }
     }
 
     private async Task<string> AccessAsync(Cfg c, CancellationToken ct)

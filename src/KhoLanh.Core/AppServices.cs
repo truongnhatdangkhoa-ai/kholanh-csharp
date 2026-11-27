@@ -73,6 +73,15 @@ public class AppServices
     /// <summary>1.143: câu báo khi cài đặt máy bị mất / được khôi phục lúc mở app (rỗng = bình thường).</summary>
     public string SettingsNotice { get; private set; } = "";
 
+    /// <summary>1.145: Lưu trữ cá nhân và Sao lưu dùng CHUNG một đăng nhập Google (theo tài khoản phần mềm).</summary>
+    public static void LinkGoogleLogin(KhoLanh.Core.LuuTru.LuuTruService luuTru, KhoLanh.Core.SaoLuu.DriveCaNhanService drive)
+    {
+        luuTru.SharedLogin = () => { try { var c = drive.RawConfig; return c.Linked ? (c.Email, c.Refresh) : null; } catch { return null; } };
+        luuTru.ShareLogin = (mail, rt) => { try { if (mail.Length == 0) drive.DropLogin(); else drive.AdoptLogin(mail, rt); } catch { } };
+        drive.SharedLogin = () => { try { var c = luuTru.RawConfig; return c.Linked ? (c.Email, c.Refresh) : null; } catch { return null; } };
+        drive.ShareLogin = (mail, rt) => { try { if (mail.Length == 0) luuTru.DropLogin(); else luuTru.AdoptLogin(mail, rt); } catch { } };
+    }
+
     public AppServices(string dbPath)
     {
         Db = new Database(dbPath);
@@ -138,6 +147,7 @@ public class AppServices
             try { Backup.BackupTo(Path.Combine(Backup.AutoBackupFolder, $"truoc-tai-drive_{DateTime.Now:yyyy-MM-dd_HHmmss}.db")); } catch { }
         };
         LuuTru.EnsureClient = ct => Accounts.SyncGoogleClientAsync(ct);
+        LinkGoogleLogin(LuuTru, DriveCaNhan);
         Google = new GoogleSignIn(Settings);
         PhoneSync = new PhoneSync.PhoneSyncService(this);
         PhoneAccounts = new PhoneSync.PhoneAccounts(() => Lan, Session);
