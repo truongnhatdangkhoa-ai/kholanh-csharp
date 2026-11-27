@@ -198,6 +198,7 @@ public partial class MainWindow : Window
         if (s.DriveCaNhan.CanUse) { s.DriveCaNhan.StartAuto(); Closed += (_, _) => s.DriveCaNhan.StopAuto(); }
         // Trợ lý giai đoạn 5: mọi máy (mọi tài khoản) ghi ảnh chụp tình trạng lên database dùng chung — 2 phút sau khi mở rồi mỗi 15 phút
         s.TroLy.StartStatus(TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(15)); Closed += (_, _) => s.TroLy.StopStatus();
+        StartPreload();   // 1.181: nạp sẵn trang hay mở lúc rảnh
         // 1.179: máy chủ ghi tình trạng hệ thống dùng chung (máy khác chỉ xem); thoát app → ghi dấu thoát / tắt theo lịch
         s.HeThong.Start(TimeSpan.FromSeconds(30)); Closed += (_, _) => { s.HeThong.Stop(); s.HeThong.PublishOnExit(); };
         // Trợ lý hệ thống: chỉ Quản trị — quét nhanh tự động 90 giây sau khi đăng nhập rồi mỗi 6 giờ; có cảnh báo Nặng thì hiện nút trên thanh menu.
@@ -496,16 +497,20 @@ public partial class MainWindow : Window
         if (page is null && CacheEnabled && _cache.TryGetValue(key, out var c0)
             && (c0.Seq == seq || (vers is not null && c0.Vers is not null && ReadTrack.Fresh(DepsOf(key), c0.Vers, vers))))
         { page = c0.Page; reused = true; _cache[key] = (c0.Page, seq, vers, DateTime.Now); }
+        else if (_cache.TryGetValue(key, out var stale)) DropPre(stale.Page);   // 1.181: bản nạp sẵn đã cũ → gỡ khỏi chỗ nạp ngầm
+        if (page is not null) DropPre(page);   // 1.181: trang nạp sẵn còn đang gắn ở chỗ nạp ngầm → gỡ ra trước khi hiện
         if (page is null)
         {
             lock (_deps) { _deps[key] = new HashSet<string>(StringComparer.Ordinal); _building = key; }
             try { using (var m = KhoLanh.Core.TroLy.Perf.Measure("Mở module", item.Label)) page = item.Create(); }
             finally { lock (_deps) _building = null; }
             if (page is not IKeepFresh && CacheEnabled) _cache[key] = (page, seq, vers, DateTime.Now);
-            while (_cache.Count > CacheMax) { var old = _cache.OrderBy(x => x.Value.At).First().Key; _cache.Remove(old); lock (_deps) _deps.Remove(old); }   // bỏ màn hình lâu không mở
+            TrimCache();
         }
+        NoteUse(key);
         lock (_deps) _shownAt[key] = DateTime.UtcNow;
         PageHost.IsVisible = true;
+        LastShowReused = reused;
         if (reused)
         {
             Ui.Reusing = page;   // màn hình con tự nạp lúc gắn (Ui.SkipReload) biết là không cần đọc lại
@@ -688,6 +693,8 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, HashSet<string>> _deps = new();
     private readonly Dictionary<string, DateTime> _shownAt = new();
     private string? _building;
+    private string? _preloading;   // 1.181: trang đang nạp sẵn ở khung ẩn
+    private DateTime _lastRead;
     private static readonly TimeSpan DepWindow = TimeSpan.FromSeconds(20);
     private void OnModuleRead(string db)
     {
@@ -695,7 +702,8 @@ public partial class MainWindow : Window
         {
             var now = DateTime.UtcNow;
             foreach (var (k, set) in _deps)
-                if (k == _building || k == _current || (_shownAt.TryGetValue(k, out var at) && now - at < DepWindow)) set.Add(db);
+                if (k == _building || k == _current || k == _preloading || (_shownAt.TryGetValue(k, out var at) && now - at < DepWindow)) set.Add(db);
+            _lastRead = now;
         }
     }
     private IReadOnlyCollection<string> DepsOf(string key) { lock (_deps) return _deps.TryGetValue(key, out var d) ? d.ToArray() : Array.Empty<string>(); }
@@ -703,7 +711,157 @@ public partial class MainWindow : Window
     /// <summary>Mốc dữ liệu module (tăng mỗi lần có sheet đổi, kể cả nhận từ LAN / Drive) — đổi thì dựng lại màn hình khi mở.</summary>
     private static long DataSeq() { try { return App.Services.Modules.CurrentSeq(); } catch { return -1; } }
     /// <summary>Bỏ các màn hình đã giữ (đổi giao diện / cỡ chữ, đổi quyền…).</summary>
-    public void ClearPageCache() { _cache.Clear(); lock (_deps) _deps.Clear(); }
+    public void ClearPageCache() { _cache.Clear(); _preHost.Children.Clear(); lock (_deps) _deps.Clear(); }
+    private void TrimCache()
+    {
+        while (_cache.Count > CacheMax)   // bỏ màn hình lâu không mở
+        {
+            var old = _cache.OrderBy(x => x.Value.At).First();
+            _cache.Remove(old.Key); DropPre(old.Value.Page); lock (_deps) _deps.Remove(old.Key);
+        }
+    }
+
+    // ------------------------------------------------------------------ 1.181: nạp sẵn trang lúc rảnh sau đăng nhập
+    // Sau khi đăng nhập, lúc người dùng không thao tác, dựng trước các trang hay mở nhất (đếm theo tài khoản, chưa có thì Nhập liệu /
+    // Phiếu xuất kho / Tồn kho An An / Tồn theo vị trí): gắn tạm vào một khung ẩn để trang tự đọc dữ liệu như khi mở, rồi gỡ ra và
+    // giữ trong bộ giữ màn hình (1.72 / 1.136). Mở trang đó lần đầu = dùng lại trang đã giữ (nếu dữ liệu nó đọc chưa đổi) → gần như tức thì.
+    // Mỗi lần chỉ dựng 1 trang, chỉ khi không có thao tác ≥ 2 giây và không có hộp thoại; settings ui_napsan = "0" để tắt.
+    private readonly Panel _preHost = new() { IsVisible = false };
+    internal static TimeSpan PreloadStart = TimeSpan.FromSeconds(8);
+    internal static TimeSpan PreloadIdle = TimeSpan.FromSeconds(2);
+    internal static TimeSpan PreloadHold = TimeSpan.FromSeconds(5);
+    internal const int PreloadMax = 4;
+    private static readonly string[] PreloadDefaults = { "m6", "m13", "m1", "m7" };
+    private static readonly HashSet<string> PreloadSkip = new(StringComparer.Ordinal) { "lx", "users", "ketnoi", "dongbo", "backup", "audit", "troly", "hengio" };
+    private DateTime _lastInput = DateTime.UtcNow;
+    private bool _closedPre;
+    /// <summary>Trang đã nạp sẵn (công cụ chụp kiểm tra).</summary>
+    internal readonly List<string> Preloaded = new();
+    /// <summary>Trang lấy từ bộ giữ màn hình ở lần mở gần nhất (công cụ chụp kiểm tra).</summary>
+    internal bool LastShowReused { get; private set; }
+
+    private static string UseKey => "ui_mo:" + (App.Services.Session.Username ?? "").ToLowerInvariant();
+    private Dictionary<string, int>? _use;
+    private Dictionary<string, int> Use()
+    {
+        if (_use is not null) return _use;
+        try { _use = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(App.Services.Settings.Get(UseKey, "{}")); } catch { }
+        return _use ??= new Dictionary<string, int>(StringComparer.Ordinal);
+    }
+    private void NoteUse(string key)
+    {
+        if (PreloadSkip.Contains(key)) return;
+        var u = Use();
+        u[key] = u.TryGetValue(key, out var n) ? n + 1 : 1;
+        if (u.Values.Max() > 10000) foreach (var k in u.Keys.ToList()) u[k] /= 2;   // giữ số nhỏ, vẫn đúng thứ tự
+        try { App.Services.Settings.Set(UseKey, System.Text.Json.JsonSerializer.Serialize(u)); } catch { }
+    }
+
+    /// <summary>Danh sách trang sẽ nạp sẵn: hay mở nhất trước, rồi trang mặc định; bỏ trang không có quyền / hệ thống.</summary>
+    internal List<string> PreloadCandidates()
+    {
+        var items = _menu.SelectMany(m => m.items).ToDictionary(i => i.Key, StringComparer.Ordinal);
+        var keys = Use().Where(x => x.Value > 0).OrderByDescending(x => x.Value).Select(x => x.Key).Concat(PreloadDefaults);
+        return keys.Distinct().Where(k => !PreloadSkip.Contains(k) && items.TryGetValue(k, out var it) && Allowed(it)).Take(PreloadMax).ToList();
+    }
+
+    private void StartPreload()
+    {
+        if (!CacheEnabled) return;
+        try { if (App.Services.Settings.Get("ui_napsan", "1") == "0") return; } catch { }
+        if (!EnsurePreHost()) return;
+        void Touch(object? s, RoutedEventArgs e) => _lastInput = DateTime.UtcNow;
+        AddHandler(KeyDownEvent, Touch, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerPressedEvent, Touch, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerMovedEvent, Touch, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerWheelChangedEvent, Touch, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        Closed += (_, _) => _closedPre = true;
+        _ = PreloadLoopAsync();
+    }
+    /// <summary>Công cụ chụp: chạy vòng nạp sẵn (khi CacheEnabled bật sau lúc dựng cửa sổ).</summary>
+    internal Task RunPreloadLoop() => EnsurePreHost() ? PreloadLoopAsync() : Task.CompletedTask;
+    private bool EnsurePreHost()
+    {
+        if (_preHost.Parent is not null) return true;
+        if ((Content is LayoutTransformControl { Child: var ch } ? ch : Content) is not DockPanel root) return false;
+        DockPanel.SetDock(_preHost, Dock.Bottom); root.Children.Insert(0, _preHost);
+        Ui.PreloadBlock = PreloadBlocked;
+        Closed += (_, _) => { if (Ui.PreloadBlock == PreloadBlocked) Ui.PreloadBlock = null; };
+        return true;
+    }
+
+    private bool Idle()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastInput < PreloadIdle || OwnedWindows.Count > 0) return false;
+        lock (_deps) if (_shownAt.TryGetValue(_current, out var at) && now - at < PreloadIdle) return false;
+        return true;
+    }
+
+    private async Task PreloadLoopAsync()
+    {
+        try
+        {
+            await Task.Delay(PreloadStart);
+            foreach (var key in PreloadCandidates())
+            {
+                while (!_closedPre && !Idle()) await Task.Delay(500);
+                if (_closedPre) return;
+                var page = PreloadOne(key);
+                if (page is null) continue;
+                // trang tự đọc dữ liệu (nền) lúc gắn: chờ ít nhất PreloadHold rồi tới khi 1,5 giây không còn lần đọc nào (tối đa 20 giây)
+                // — mọi lần đọc trong lúc này ghi vào database của trang (không ghi cho trang nạp sẵn trước đó)
+                var t0 = DateTime.UtcNow;
+                await Task.Delay(PreloadHold);
+                while (!_closedPre && DateTime.UtcNow - t0 < DepWindow) { DateTime lr; lock (_deps) lr = _lastRead; if (DateTime.UtcNow - lr >= TimeSpan.FromSeconds(1.5)) break; await Task.Delay(300); }
+                lock (_deps) _preloading = null;
+                DropPre(page);
+            }
+        }
+        catch (Exception ex) { try { Ui.Describe(ex); } catch { } }   // ghi logs/loi.log, không báo người dùng
+    }
+
+    /// <summary>Dựng 1 trang và gắn vào khung ẩn (trang tự nạp dữ liệu như khi mở). Trả null nếu bỏ qua.</summary>
+    internal Control? PreloadOne(string key)
+    {
+        if (!CacheEnabled || key == _current || _cache.ContainsKey(key) || !EnsurePreHost()) return null;
+        var item = _menu.SelectMany(m => m.items).FirstOrDefault(i => i.Key == key);
+        if (item is null || !Allowed(item)) return null;
+        var seq = DataSeq();
+        var vers = DbVersions();
+        Control page;
+        lock (_deps) { _deps[key] = new HashSet<string>(StringComparer.Ordinal); _building = key; }
+        try { page = item.Create(); }
+        catch { lock (_deps) _deps.Remove(key); return null; }
+        finally { lock (_deps) _building = null; }
+        if (page is IKeepFresh) { lock (_deps) _deps.Remove(key); return null; }
+        _cache[key] = (page, seq, vers, DateTime.Now);
+        lock (_deps) { _shownAt.Remove(key); _preloading = key; }   // lần đọc nền của trang (tới khi gỡ khỏi khung ẩn) ghi vào database của nó
+        TrimCache();
+        if (!_cache.ContainsKey(key)) return null;
+        _preHost.Children.Add(page);
+        Preloaded.Add(key);
+        return page;
+    }
+
+    /// <summary>Hộp thoại từ trang đang nạp ngầm (lỗi lúc nạp…): không hiện, bỏ trang khỏi bộ giữ để lần mở thật dựng lại.</summary>
+    private bool PreloadBlocked(Visual v)
+    {
+        Control? page = null;
+        for (var e = v as StyledElement; e is not null; e = e.Parent)
+            if (ReferenceEquals(e.Parent, _preHost)) { page = e as Control; break; }
+        if (page is null) return false;
+        var key = _cache.FirstOrDefault(x => ReferenceEquals(x.Value.Page, page)).Key;
+        if (key is not null) { _cache.Remove(key); lock (_deps) _deps.Remove(key); }
+        PreloadDropped.Add(key ?? "?");
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => DropPre(page));
+        return true;
+    }
+    /// <summary>Trang nạp sẵn bị bỏ vì muốn hiện hộp thoại (công cụ chụp kiểm tra).</summary>
+    internal readonly List<string> PreloadDropped = new();
+    internal void DropPre(Control page) { if (ReferenceEquals(page.Parent, _preHost)) _preHost.Children.Remove(page); }
+    /// <summary>Công cụ chụp: trang đang nạp sẵn đã đọc xong → thôi ghi lần đọc cho nó.</summary>
+    internal void EndPreload() { lock (_deps) _preloading = null; }
 
     private async void OnChangePassword(object? sender, RoutedEventArgs e)
     {
@@ -802,7 +960,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Dựng lại màn hình đang mở (để các ô vẽ tay lấy màu mới).</summary>
-    private void ReloadPage() { _cache.Clear(); if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
+    private void ReloadPage() { _cache.Clear(); _preHost.Children.Clear(); if (_current.Length > 0 && PageHost.Content is Control) Show(_current, null); }
 
     private void Zoom(double delta)
     {

@@ -846,6 +846,102 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf")
         }
     s.Lan.Dispose(); Console.WriteLine("Xong (perf)"); return;
 }
+// 1.181: SHOTS_ONLY=napsan — nạp sẵn trang lúc rảnh: dữ liệu lớn (NAPSAN_ROWS, mặc định 8000) rồi so mở Tồn kho An An / Tồn theo vị trí
+// lần đầu KHÔNG nạp sẵn với CÓ nạp sẵn (trang đã nạp phải được dùng lại, có dữ liệu, nhanh hơn); vòng nạp sẵn tự chọn trang hay mở;
+// dữ liệu đổi sau khi nạp sẵn → dựng lại. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "napsan")
+{
+    var ok = true;
+    void Fail(string m) { ok = false; Console.WriteLine("[NAPSAN] HỎNG: " + m); }
+    var n = int.TryParse(Environment.GetEnvironmentVariable("NAPSAN_ROWS"), out var nn) ? nn : 8000;
+    var tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "napsan-" + Guid.NewGuid().ToString("N")[..6]); Directory.CreateDirectory(tmp);
+    string Xl(string name, string[] head, int rows, Func<string, int, ClosedXML.Excel.XLCellValue> val)
+    {
+        var fp = System.IO.Path.Combine(tmp, name);
+        using var wbk = new ClosedXML.Excel.XLWorkbook(); var ws = wbk.AddWorksheet("Sheet1");
+        for (var c = 0; c < head.Length; c++) ws.Cell(1, c + 1).Value = head[c];
+        for (var i = 0; i < rows; i++) for (var c = 0; c < head.Length; c++) ws.Cell(i + 2, c + 1).Value = val(head[c], i);
+        wbk.SaveAs(fp); return fp;
+    }
+    string MaOf(int i) => $"VRHLBTNXECR00{1000 + i % 9000}IME1";
+    var hA = new[] { "Tình trạng", "Mã hàng", "Tên hàng", "Đặc tính", "Size", "Hợp đồng", "ĐVT", "Tồn cuối", "Tồn cuối (NET)", "Trọng lượng" };
+    s.AnAn.Commit(s.AnAn.Preview(Xl("Ton kho An An 20.11.2026.xlsx", hA, n, (h, i) => h switch
+    { "Mã hàng" => MaOf(i), "Tên hàng" => "Tôm thẻ mẫu " + i, "Đặc tính" => "IQF " + i % 40, "Size" => (30 + i % 40) + "/" + (40 + i % 40), "Hợp đồng" => "HD-" + i % 300, "ĐVT" => "Thùng", "Tồn cuối" => 20 + i % 90, "Tồn cuối (NET)" => (20 + i % 90) * 10, "Tình trạng" => "Thành phẩm", _ => 10 })));
+    var hV = new[] { "Mã hàng", "Tên hàng", "Lô (Batch)", "Vị trí", "SL Tồn", "T.Lượng" };
+    var vf = s.ViTri.ReadFile(Xl("Ton theo vi tri 21.11.xlsx", hV, n, (h, i) => h switch
+    { "Mã hàng" => MaOf(i), "Tên hàng" => "Tôm thẻ mẫu " + i, "Lô (Batch)" => $"{i % 28 + 1:00}.05.26 L{i % 30}", "Vị trí" => $"TG{i % 4 + 1}.{(char)('A' + i % 6)}.{i / 40 % 30 + 1:00}.{i % 3 + 1}.{i % 2 + 1}", "SL Tồn" => 5 + i % 60, _ => 10 }));
+    vf.Sha = "napsan"; s.ViTri.Import(vf);
+    void J() { Dispatcher.UIThread.RunJobs(); Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick(1); Dispatcher.UIThread.RunJobs(); }
+    void Wait(int ms) { var t = System.Diagnostics.Stopwatch.StartNew(); while (t.ElapsedMilliseconds < ms) { Thread.Sleep(20); J(); } }
+    int Rows() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Where(g => g.IsEffectivelyVisible).Select(g => g.Model.RowCount).DefaultIfEmpty(0).Max();
+    // Đo thời gian luồng giao diện bận từ lúc bấm mở tới khi bảng có dữ liệu (≤ 15 giây) + 3 giây sau đó, trừ thời gian ngủ chờ.
+    double Open(string k)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew(); double slept = 0;
+        main.Navigate(k); J();
+        for (var i = 0; i < 500 && k == "m1" && Rows() < n / 2; i++) { Thread.Sleep(30); slept += 30; J(); }
+        for (var i = 0; i < 100; i++) { Thread.Sleep(30); slept += 30; J(); }   // + 3 giây: phần trang tự nạp nền rồi vẽ lên luồng giao diện
+        return sw.Elapsed.TotalMilliseconds - slept;
+    }
+    KhoLanh.App.MainWindow.CacheEnabled = true;
+    main.Navigate("lx"); Wait(300);
+    foreach (var k in new[] { "m1", "m7" })
+    {
+        main.ClearPageCache(); main.Navigate("lx"); Wait(300);
+        var cold = Open(k); var coldRows = Rows();
+        main.Navigate("lx"); Wait(200); main.ClearPageCache(); Wait(200);
+        var page = main.PreloadOne(k);
+        if (page is null) { Fail($"{k}: không nạp sẵn được"); continue; }
+        Wait(3000); main.EndPreload(); main.DropPre(page);
+        var warm = Open(k); var warmRows = Rows();
+        Console.WriteLine($"[NAPSAN] {k}: mở lần đầu không nạp sẵn {cold,6:0} ms ({coldRows} dòng) · có nạp sẵn {warm,6:0} ms ({warmRows} dòng) · dùng lại = {main.LastShowReused}");
+        if (!main.LastShowReused) Fail($"{k}: trang nạp sẵn không được dùng lại");
+        if (warmRows < coldRows) Fail($"{k}: trang nạp sẵn thiếu dữ liệu ({warmRows} so với {coldRows})");
+        if (warm > cold * 0.7) Fail($"{k}: có nạp sẵn không nhanh hơn rõ ({warm:0} so với {cold:0} ms)");
+    }
+    // Dữ liệu trang đã đọc đổi sau khi nạp sẵn → mở là dựng lại (không dùng bản cũ)
+    main.Navigate("lx"); Wait(200); main.ClearPageCache();
+    var pg2 = main.PreloadOne("m7"); Wait(2500); main.EndPreload(); if (pg2 is not null) main.DropPre(pg2);
+    vf.Sha = "napsan-2"; s.ViTri.Import(vf); Wait(200);
+    Open("m7");
+    Console.WriteLine($"[NAPSAN] dữ liệu đổi sau khi nạp sẵn → dùng lại = {main.LastShowReused}");
+    if (main.LastShowReused) Fail("dữ liệu đã đổi mà vẫn dùng trang nạp sẵn");
+    // Vòng nạp sẵn: chọn trang theo số lần mở (Tồn theo vị trí mở nhiều nhất → nạp trước), bỏ trang đang mở / hệ thống
+    main.Navigate("lx"); Wait(200); main.ClearPageCache(); main.Preloaded.Clear();
+    var cand = main.PreloadCandidates();
+    Console.WriteLine($"[NAPSAN] trang sẽ nạp sẵn: {string.Join(", ", cand)}");
+    if (cand.FirstOrDefault() != "m7") Fail("trang mở nhiều nhất (m7) không đứng đầu");
+    if (cand.Contains("lx") || cand.Count > KhoLanh.App.MainWindow.PreloadMax) Fail("danh sách nạp sẵn sai");
+    KhoLanh.App.MainWindow.PreloadStart = TimeSpan.FromMilliseconds(200);
+    KhoLanh.App.MainWindow.PreloadIdle = TimeSpan.FromMilliseconds(300);
+    KhoLanh.App.MainWindow.PreloadHold = TimeSpan.FromMilliseconds(1500);
+    var loop = main.RunPreloadLoop();
+    for (var i = 0; i < 1500 && !loop.IsCompleted; i++) { Thread.Sleep(20); J(); }
+    Console.WriteLine($"[NAPSAN] vòng nạp sẵn xong = {loop.IsCompleted}, đã nạp: {string.Join(", ", main.Preloaded)}");
+    if (!loop.IsCompleted || !main.Preloaded.SequenceEqual(cand)) Fail("vòng nạp sẵn không nạp đủ các trang");
+    var tFirst = Open(cand[0]);
+    Console.WriteLine($"[NAPSAN] sau vòng nạp sẵn mở {cand[0]}: {tFirst:0} ms · dùng lại = {main.LastShowReused}");
+    if (!main.LastShowReused) Fail("sau vòng nạp sẵn trang không được dùng lại");
+    // Trang đang nạp ngầm muốn hiện hộp thoại (vd lỗi lúc nạp) → không hiện, trang bị bỏ khỏi bộ giữ (mở thật dựng lại)
+    main.Navigate("lx"); Wait(200); main.ClearPageCache();
+    var pg3 = main.PreloadOne("m1");
+    if (pg3 is null) Fail("không nạp sẵn được m1 (kiểm hộp thoại)");
+    else
+    {
+        var inner = pg3.GetVisualDescendants().OfType<Control>().FirstOrDefault() ?? pg3;
+        var msg = KhoLanh.App.Ui.Message(inner, "Lỗi giả lúc nạp sẵn");
+        Wait(300);
+        main.EndPreload();
+        Console.WriteLine($"[NAPSAN] hộp thoại lúc nạp ngầm: xong ngay = {msg.IsCompleted}, cửa sổ con = {main.OwnedWindows.Count}, bỏ trang = {string.Join(",", main.PreloadDropped)}");
+        if (!msg.IsCompleted || main.OwnedWindows.Count > 0) Fail("trang nạp ngầm vẫn hiện hộp thoại");
+        if (!main.PreloadDropped.Contains("m1") || pg3.Parent is not null) Fail("trang nạp ngầm lỗi chưa bị bỏ");
+        Open("m1");
+        if (main.LastShowReused) Fail("trang nạp ngầm lỗi vẫn được dùng lại");
+    }
+    Console.WriteLine(ok ? "[NAPSAN] ĐẠT" : "[NAPSAN] HỎNG");
+    if (!ok) Environment.ExitCode = 1;
+    s.Lan.Dispose(); return;
+}
 // 1.153: SHOTS_ONLY=perf2 — dữ liệu LỚN (PERF2_ROWS dòng, mặc định 8000) rồi mở từng module + bấm từng tab; thời gian luồng giao diện
 // (dựng + bố cục + việc chờ). Quá PERF2_MAX_MS (mặc định 2500) → thoát mã 1. Dùng làm kiểm tra hiệu năng tự động.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "perf2")
