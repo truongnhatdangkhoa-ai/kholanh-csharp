@@ -70,12 +70,23 @@ public class AppServices
     /// <summary>Tài khoản PC dùng trên điện thoại + quyền điện thoại riêng (1.76).</summary>
     public PhoneSync.PhoneAccounts PhoneAccounts { get; }
 
+    /// <summary>1.143: câu báo khi cài đặt máy bị mất / được khôi phục lúc mở app (rỗng = bình thường).</summary>
+    public string SettingsNotice { get; private set; } = "";
+
     public AppServices(string dbPath)
     {
         Db = new Database(dbPath);
         Db.Initialize();
         Audit = new AuditService(Db);
         Settings = new SettingsService(Db);
+        // 1.143: cài đặt quan trọng (vai máy, khóa LAN…) bị xóa ngoài app (phần mềm dọn rác) → nạp lại từ file dự phòng TRƯỚC khi dựng LanService.
+        var lost = Settings.LostWithoutBackup();
+        var restored = Settings.RestoreFromMirror();
+        if (restored.Count > 0 && SettingsService.Meaningful(restored))
+            SettingsNotice = "Cài đặt của máy (" + string.Join(", ", restored.Take(6)) + (restored.Count > 6 ? "…" : "") + ") bị xóa ngoài app — đã tự khôi phục từ bản dự phòng. Nếu máy này là máy chủ, hãy kiểm tra lại ở Đồng bộ & sao lưu › Máy chủ.";
+        else if (lost)
+            SettingsNotice = "Cài đặt của máy (vai máy chủ / máy con, mạng LAN, kết nối) đã bị mất — thường do phần mềm dọn rác. Máy đang chạy như MÁY ĐƠN. Nếu đây là máy chủ: vào Đồng bộ & sao lưu › Máy chủ, đăng nhập Quản trị rồi bấm bật lại vai máy chủ; máy con: đăng nhập lại để tự nhận vai.";
+        Settings.SaveMirror();
         Auth = new AuthService(Db, Session, Audit);
         Backup = new BackupService(Db, Session, Audit);
         Modules = new ModuleStore(Db, Session);

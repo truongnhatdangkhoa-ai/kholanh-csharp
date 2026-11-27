@@ -229,6 +229,11 @@ public partial class App : Application
                 var note = LanNote; LanNote = "";
                 Avalonia.Threading.DispatcherTimer.RunOnce(() => _ = Ui.Message(main, note + "\n\nVai mạng LAN do Quản trị gán theo tài khoản (Đồng bộ & sao lưu › Máy chủ)."), TimeSpan.FromMilliseconds(600));
             }
+            if (Services.SettingsNotice.Length > 0)
+            {
+                var sn = Services.SettingsNotice;
+                Avalonia.Threading.DispatcherTimer.RunOnce(() => _ = Ui.Message(main, sn, "Cài đặt máy"), TimeSpan.FromMilliseconds(900));
+            }
             main.LoggedOut += () => { ShowLogin(desktop, afterLogout: true); main.Close(); };
             main.Closed += (_, _) => { if (!main.IsLoggingOut) desktop.Shutdown(); };
             desktop.MainWindow = main;
