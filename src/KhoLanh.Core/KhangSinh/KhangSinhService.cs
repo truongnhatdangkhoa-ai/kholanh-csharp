@@ -277,7 +277,9 @@ public sealed class KhangSinhService
 
     // ------------------------------------------------------------------ tôm nhập khẩu (1.175)
 
-    public sealed record NkResult(int Added, int Replaced, int Same, List<string> Notes);
+    /// <summary>1.183: vết 1 dòng vừa nạp để hoàn tác: khóa dòng mới + các bản cũ bị thay (khóa cũ, khóa lịch sử, nội dung cũ).</summary>
+    public sealed record NkUndo(string NewKey, List<(string OldKey, string HistKey, JsonObject OldJson)> Replaced);
+    public sealed record NkResult(int Added, int Replaced, int Same, List<string> Notes, List<NkUndo>? Undo = null);
 
     /// <summary>Phiếu nào đã có (cùng INV + Contract + Size) → sẽ bị thay: [(bản cũ, bản mới)].</summary>
     public List<(KhangSinhNhapKhau.Nhom Old, string NewSo, string Size)> NkConflicts(IEnumerable<KhangSinhNhapKhau.Phieu> list)
@@ -293,24 +295,43 @@ public sealed class KhangSinhService
     public NkResult ImportNhapKhau(IEnumerable<KhangSinhNhapKhau.Phieu> list)
     {
         RequireEdit();
-        int add = 0, rep = 0, same = 0; var notes = new List<string>(); var now = Iso();
+        int add = 0, rep = 0, same = 0; var notes = new List<string>(); var now = Iso(); var undo = new List<NkUndo>();
         foreach (var p in list)
             foreach (var r in KhangSinhNhapKhau.ToRecords(p, now))
             {
                 var olds = NhapKhau.Where(n => KhangSinhNhapKhau.Replaces(n, r)).ToList();
                 if (olds.Any(o => o.So == Str(r["so"]) && o.Date == Str(r["date"]) && o.J["mau"]?.ToJsonString() == r["mau"]?.ToJsonString()))
                 { same++; continue; }
+                var rep1 = new List<(string, string, JsonObject)>();
                 foreach (var old in olds)
                 {
                     var h = (JsonObject)old.J.DeepClone(); h["replacedBy"] = Str(r["so"]); h["replacedAt"] = now;
-                    Del(old.Key); Set(KhangSinhNhapKhau.HistPrefix + old.Key[KhangSinhNhapKhau.Prefix.Length..], h);
+                    var hk = KhangSinhNhapKhau.HistPrefix + old.Key[KhangSinhNhapKhau.Prefix.Length..];
+                    rep1.Add((old.Key, hk, (JsonObject)old.J.DeepClone()));
+                    Del(old.Key); Set(hk, h);
                     notes.Add($"INV {old.Invoice} · {old.Hang} {old.Size}: phiếu {Str(r["so"])} thay phiếu {old.So}");
                 }
-                Set(KhangSinhNhapKhau.Prefix + NewId(), r);
+                var nk = KhangSinhNhapKhau.Prefix + NewId();
+                Set(nk, r); undo.Add(new NkUndo(nk, rep1));
                 if (olds.Count > 0) rep++; else add++;
             }
         if (add + rep > 0) { Save(); Log("Nạp phiếu tôm nhập khẩu", $"{add} mới · {rep} thay thế"); }
-        return new NkResult(add, rep, same, notes);
+        return new NkResult(add, rep, same, notes, undo);
+    }
+
+    /// <summary>Hoàn tác 1 lần nạp: xóa các dòng mới nạp, đưa các bản cũ bị thay trở lại (bỏ bản lịch sử tương ứng).</summary>
+    public int UndoNhapKhau(NkResult res)
+    {
+        RequireEdit();
+        var n = 0;
+        foreach (var u in res.Undo ?? new())
+        {
+            Del(u.NewKey);
+            foreach (var (ok, hk, oj) in u.Replaced) { Del(hk); Set(ok, oj); }
+            n++;
+        }
+        if (n > 0) { Save(); Log("Hoàn tác nạp tôm nhập khẩu", n + " dòng"); }
+        return n;
     }
 
     public int DeleteNhapKhau(IEnumerable<KhangSinhNhapKhau.Nhom> list)
