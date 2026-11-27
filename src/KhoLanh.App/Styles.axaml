@@ -8,7 +8,16 @@
   </Style>
   <Style Selector="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource Text}"/>
+    <!-- 1.167: chữ dữ liệu / nội dung đậm thêm 1 chút (Inter Medium). Chữ có font riêng (tiêu đề, nhãn lớp title / section / kpi…, đặt FontWeight trực tiếp)
+         và nút / menu / tab / tiêu đề cột (các luật bên dưới trả về đúng độ đậm của control chứa) KHÔNG đổi. -->
+    <Setter Property="FontWeight" Value="Medium"/>
   </Style>
+  <Style Selector="Button TextBlock"><Setter Property="FontWeight" Value="{Binding $parent[Button].FontWeight}"/></Style>
+  <Style Selector="ToggleButton TextBlock"><Setter Property="FontWeight" Value="{Binding $parent[ToggleButton].FontWeight}"/></Style>
+  <Style Selector="MenuItem TextBlock"><Setter Property="FontWeight" Value="{Binding $parent[MenuItem].FontWeight}"/></Style>
+  <Style Selector="TabItem TextBlock"><Setter Property="FontWeight" Value="{Binding $parent[TabItem].FontWeight}"/></Style>
+  <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="FontWeight" Value="{Binding $parent[DataGridColumnHeader].FontWeight}"/></Style>
+  <Style Selector="TextBox"><Setter Property="FontWeight" Value="Medium"/></Style>
 
   <!-- Thẻ -->
   <Style Selector="Border.card">
