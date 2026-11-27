@@ -1229,6 +1229,41 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v253")
         texts = w.PageHost.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).Select(t => t.Text ?? "").ToList();
         if (!texts.Any(t => t.Contains("chỉ có Size 31/40, 51/60"))) Bad("không gợi ý Size có trong TP219");
     }
+    // 1.182: nạp NHIỀU file cùng lúc (ảnh người dùng: hộp xác nhận cao hơn màn hình, khuất nút) + mẫu "Ngày 02.02, 60 kiện, Mẫu N :" không ghi Size
+    var many = new List<KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Phieu>();
+    for (var i = 0; i < 12; i++) many.Add(MkPhieu($"{i + 1:00}/KS 0{i % 9 + 1}", $"F37AQ2611100{i:0000}", $"TP-{230 + i}/25-ITC", (230 + i).ToString(), ("31/40", 28, i == 3 ? 1 : 0)));
+    foreach (var j in new[] { 29, 30, 31, 32 })
+        many[0].Mau.Add(new KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Mau { Stt = j, Ten = $"Ngày 02.02, 60 kiện, Mẫu {j} :", Kien = 60, Kq = "ĐẠT MKS", DatTinh = "23.MKS", Inputs = ky.ToDictionary(k => k, _ => "ND") });
+    KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.FillMissingSize(many[0]);
+    KhoLanh.Core.KhangSinh.KhangSinhNhapKhau.Check(many[0]);
+    if (many[0].BySize().Count != 1) Bad("mẫu \"Ngày 02.02 …\" vẫn tách thành Size riêng");
+    var ksv = w.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Views.KhangSinhView>().First();
+    var pend = ksv.NkConfirm(many); P(40);
+    var dlg = KhoLanh.App.Views.KhangSinhView.LastNkDialog;
+    if (dlg is null) Bad("không mở hộp xác nhận nạp");
+    else
+    {
+        Snap(dlg, "v253-nap-nhieu-file-tom-nhap-khau");
+        var napBtn = dlg.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => (b.Content as string ?? KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").StartsWith("Nạp"));
+        var gridNk = dlg.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().FirstOrDefault();
+        Console.WriteLine($"[v253] hộp nạp nhiều file: {dlg.Bounds.Width:0}×{dlg.Bounds.Height:0}, bảng {gridNk?.Model.RowCount} dòng, nút Nạp {(napBtn is null ? "KHÔNG THẤY" : napBtn.TranslatePoint(new Point(0, napBtn.Bounds.Height), dlg)?.Y.ToString("0"))}");
+        if (dlg.Bounds.Height > 768) Bad("hộp xác nhận cao hơn màn hình 768");
+        if (napBtn is null || (napBtn.TranslatePoint(new Point(0, napBtn.Bounds.Height), dlg)?.Y ?? 9999) > dlg.Bounds.Height) Bad("nút Nạp nằm ngoài hộp");
+        if (gridNk?.Model.RowCount != 12) Bad($"bảng phải 12 dòng (mỗi Size 1 dòng), có {gridNk?.Model.RowCount}");
+        dlg.Close(); P(10);
+    }
+    if (!pend.IsCompleted || pend.Result) Bad("đóng hộp phải trả về không nạp");
+    // Hộp thông báo chữ dài: phần chữ cuộn, nút Đóng không bị đẩy khuất
+    var msg = KhoLanh.App.Ui.Message(w, string.Join("\n", Enumerable.Range(1, 80).Select(i => $"Dòng thông báo dài số {i}"))); P(30);
+    var mw = w.OwnedWindows.LastOrDefault();
+    if (mw is null) Bad("không mở hộp thông báo dài");
+    else
+    {
+        Snap(mw, "v253-thong-bao-dai-cuon");
+        Console.WriteLine($"[v253] hộp thông báo 80 dòng cao {mw.Bounds.Height:0}");
+        if (mw.Bounds.Height > 640) Bad("hộp thông báo chữ dài vẫn cao hơn 640");
+        mw.Close(); P(10);
+    }
     w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v253) — ĐẠT: " : "Xong (v253) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.177: SHOTS_ONLY=v254 — Vị Trí Bột 2 ngăn: ngăn NXT (đưa từ sổ kho) + ngăn Excel (nạp file, nhận diện cột Vị trí / Mã bột / Số lượng), công tắc, cột Nguồn, đối chiếu. Thoát mã 1 nếu hỏng.

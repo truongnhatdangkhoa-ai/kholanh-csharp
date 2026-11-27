@@ -163,11 +163,19 @@ public static class Ui
         return p;
     }
 
+    /// <summary>1.182: chữ của hộp Thông báo / Xác nhận — dài quá thì cuộn trong khung (trước đây hộp cao hơn màn hình, nút bị khuất).</summary>
+    internal static Control LongText(string text)
+    {
+        var tb = new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        if (text.Length < 600 && text.Count(ch => ch == '\n') < 14) return tb;
+        return new ScrollViewer { Content = tb, MaxHeight = 440, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Padding = new Thickness(0, 0, 10, 0) };
+    }
+
     public static async Task Message(Visual v, string text, string title = "Thông báo")
     {
         var ok = new Button { Content = "Đóng", IsDefault = true, IsCancel = true, Classes = { "primary" } };
         var body = new StackPanel();
-        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(LongText(text));
         body.Children.Add(Buttons(ok));
         var w = Dialog(title, body);
         ok.Click += (_, _) => w.Close();
@@ -180,7 +188,7 @@ public static class Ui
         var y = new Button { Content = yes, IsDefault = true, Classes = { "primary" } };
         var n = new Button { Content = "Đóng", IsCancel = true };
         var body = new StackPanel();
-        body.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(LongText(text));
         body.Children.Add(Buttons(n, y));
         var w = Dialog(title, body);
         y.Click += (_, _) => { result = true; w.Close(); };

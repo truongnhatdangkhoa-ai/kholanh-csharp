@@ -259,6 +259,7 @@ public static class KhangSinhNhapKhau
             }
         }
         res.Mau = res.Mau.OrderBy(m => m.Stt).ToList();
+        FillMissingSize(res);
         Check(res);
         return res;
     }
@@ -270,6 +271,26 @@ public static class KhangSinhNhapKhau
         return bd < 22 ? best : -1;
     }
     private static string Titled(string s) => string.Join(" ", s.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(w => w.Length == 0 ? w : char.ToUpperInvariant(w[0]) + w[1..].ToLowerInvariant()));
+
+    /// <summary>
+    /// 1.182: mẫu có ô tên hàng không ghi Size (vd "Ngày 02.02, 60 kiện, Mẫu 28 :" — mẫu lấy thêm theo ngày) mà các mẫu còn lại của phiếu
+    /// cùng MỘT hàng + Size → mẫu đó thuộc Size ấy (tên hàng lấy của mẫu khác, chữ gốc chuyển vào Ghi chú, ghi chú đọc ở Issues).
+    /// Phiếu có nhiều Size → không đoán (vẫn báo "không đọc được tên hàng / Size"). Trước đây mỗi mẫu như vậy thành 1 "Size" rỗng riêng.
+    /// </summary>
+    public static void FillMissingSize(Phieu p)
+    {
+        var known = p.Mau.Where(m => HangSize(m.Ten).Size.Length > 0).ToList();
+        var sizes = known.Select(m => HangSize(m.Ten)).Distinct().ToList();
+        if (sizes.Count != 1) return;
+        var ten = known[0].Ten;
+        foreach (var m in p.Mau.Where(m => HangSize(m.Ten).Size.Length == 0))
+        {
+            var goc = m.Ten.Trim().TrimEnd(':', ' ').Trim();
+            m.Ten = ten;
+            if (goc.Length > 0) m.GhiChu = (goc + (m.GhiChu.Length > 0 ? " · " + m.GhiChu : "")).Trim();
+            p.Issues.Add($"– Mẫu {m.Stt}: tên hàng ghi \"{(goc.Length > 0 ? goc : "(trống)")}\" → lấy theo {sizes[0].Hang} {sizes[0].Size} của phiếu.");
+        }
+    }
 
     /// <summary>Kiểm tra sau khi đọc: thiếu thông tin, số mẫu không liên tục, kết quả lệch bảng Quy định.</summary>
     public static void Check(Phieu p, IReadOnlyList<KhangSinhCore.Rule>? rules = null)

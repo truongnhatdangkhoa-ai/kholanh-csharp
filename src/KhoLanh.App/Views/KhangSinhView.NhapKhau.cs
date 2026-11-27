@@ -156,26 +156,7 @@ public sealed partial class KhangSinhView
     /// <summary>Nạp phiếu tôm nhập khẩu đã đọc: tóm tắt từng Size, cảnh báo đọc, phiếu cập nhật thay bản cũ.</summary>
     private async Task NkImport(List<Nk.Phieu> list)
     {
-        var sb = new System.Text.StringBuilder();
-        foreach (var p in list)
-        {
-            sb.AppendLine($"■ {p.File}\n   Phiếu {p.So} · phân tích {Dmy(p.Date)} · {p.Country} · INV {p.Invoice} · Contract {p.Contract}" + (p.Tp.Length > 0 ? $" (TP {p.Tp})" : ""));
-            foreach (var (h, sz, mau) in p.BySize())
-            {
-                var n = Nk.Nhom.Parse("x", Nk.ToRecords(p, "").First(r => KhangSinhCore.Str(r["size"]) == sz).ToJsonString())!;
-                var s = Nk.Summarize(n);
-                sb.AppendLine($"   {h} {sz}: {s.Text} · {s.Kien:#,0} kiện" + (s.Nhiem > 0 ? $"\n      ⚠ mẫu nhiễm: {s.NhiemText}" : ""));
-            }
-            foreach (var i in p.Issues.Take(8)) sb.AppendLine("   " + i);
-            if (p.Issues.Count > 8) sb.AppendLine($"   … còn {p.Issues.Count - 8} cảnh báo.");
-        }
-        var conf = Svc.NkConflicts(list);
-        if (conf.Count > 0)
-        {
-            sb.AppendLine("\nĐã có phiếu cùng INV + Contract + Size — bản mới sẽ THAY bản cũ (bản cũ giữ trong lịch sử):");
-            foreach (var (old, neu, sz) in conf.Take(10)) sb.AppendLine($"   • {old.Label}: phiếu {old.So} → phiếu {neu}");
-        }
-        if (!await Ui.Confirm(this, sb.ToString().TrimEnd(), "Nạp phiếu tôm nhập khẩu", "Nạp")) return;
+        if (!await NkConfirm(list)) return;
         Nk.Phieu? first = list.FirstOrDefault();
         KhangSinhService.NkResult? res = null;
         try { await Task.Run(() => res = Svc.ImportNhapKhau(list)); }
@@ -186,4 +167,95 @@ public sealed partial class KhangSinhView
         _pInfo.Text = "";
         await Ui.Message(this, $"Đã nạp: {res!.Added} dòng mới · {res.Replaced} dòng thay bản cũ · {res.Same} dòng đã có (giữ nguyên)." + (res.Notes.Count > 0 ? "\n" + string.Join("\n", res.Notes) : ""));
     }
+
+    /// <summary>
+    /// 1.182: hộp xác nhận nạp — trước là 1 khối chữ (mỗi file / Size vài dòng) nên nạp nhiều file thì hộp cao hơn màn hình, khuất nút Nạp.
+    /// Nay: dòng tóm tắt · bảng mỗi Size 1 dòng (mẫu nhiễm tô vàng, cột Nạp = Mới / Thay phiếu cũ) · khung cảnh báo đọc có thanh cuộn ·
+    /// nút luôn ở đáy, cửa sổ kéo giãn được.
+    /// </summary>
+    internal async Task<bool> NkConfirm(List<Nk.Phieu> list)
+    {
+        var conf = Svc.NkConflicts(list);
+        var cols = new List<GridColumn>
+        {
+            new("file", "File", 170), new("so", "Phiếu", 78), new("d", "Ngày PT", 84), new("c", "Nước", 70), new("inv", "INVOICE", 140),
+            new("ct", "Contract", 150), new("h", "Hàng", 100), new("sz", "Size", 60), new("mau", "Mẫu · đặc tính", 220), new("kien", "Kiện", 64),
+            new("nhiem", "Mẫu nhiễm", 200), new("nap", "Nạp", 150),
+        };
+        var rows = new List<string?[]>(); var nhiemRow = new HashSet<int>(); var thayRow = new HashSet<int>();
+        int mau = 0;
+        foreach (var p in list)
+            foreach (var (h, sz, ms) in p.BySize())
+            {
+                var n = Nk.Nhom.Parse("x", Nk.ToRecords(p, "").First(r => KhangSinhCore.Str(r["size"]) == sz).ToJsonString())!;
+                var t = Nk.Summarize(n); mau += t.Total;
+                var old = conf.FirstOrDefault(c => c.NewSo == p.So && c.Size == sz);
+                if (t.Nhiem > 0) nhiemRow.Add(rows.Count);
+                if (old.Old is not null) thayRow.Add(rows.Count);
+                rows.Add(new string?[] { p.File, p.So, Dmy(p.Date), p.Country, p.Invoice, p.Contract + (p.Tp.Length > 0 ? $" (TP {p.Tp})" : ""), h, sz, t.Text,
+                    t.Kien.ToString("#,0", Ui.Vi), t.Nhiem > 0 ? t.NhiemText : "", old.Old is not null ? $"Thay phiếu {old.Old.So}" : "Mới" });
+            }
+        var model = new GridModel { ReadOnly = true };
+        model.Load(cols, rows);
+        var grid = new SheetGrid(model)
+        {
+            SpareRows = 0, MinRows = 3,
+            CellBackground = (r, c) => nhiemRow.Contains(r) && c >= 8 ? NkAmber : thayRow.Contains(r) && c == 11 ? AppTheme.Brush("#EEEBFC") : null,
+        };
+        int loi = list.Sum(p => p.Issues.Count(i => i.StartsWith("•"))), ghi = list.Sum(p => p.Issues.Count(i => !i.StartsWith("•")));
+        var warn = new System.Text.StringBuilder();
+        foreach (var p in list.Where(p => p.Issues.Count > 0))
+        {
+            warn.AppendLine("■ " + p.File);
+            foreach (var i in p.Issues) warn.AppendLine("   " + i);
+        }
+        var head = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap, FontSize = 13.5, Margin = new Thickness(0, 0, 0, 8),
+            Text = $"{list.Count} file · {rows.Count} dòng (mỗi Size 1 dòng) · {mau:#,0} mẫu"
+                + (nhiemRow.Count > 0 ? $" · {nhiemRow.Count} dòng có mẫu nhiễm (tô vàng)" : " · không có mẫu nhiễm")
+                + (thayRow.Count > 0 ? $" · {thayRow.Count} dòng thay bản cũ (bản cũ giữ trong lịch sử)" : "")
+                + (loi > 0 ? $" · {loi} cảnh báo đọc — xem khung dưới" : ""),
+        };
+        var warnBox = new Border
+        {
+            BorderBrush = AppTheme.Brush(loi > 0 ? "#E0B25C" : "#D8DEE6"), Background = AppTheme.Brush(loi > 0 ? "#FFF2D6" : "#F6F8FA"),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(6), Padding = new Thickness(10, 6), Margin = new Thickness(0, 8, 0, 0),
+            Child = new ScrollViewer
+            {
+                MaxHeight = 150, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = new SelectableTextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap, FontSize = 12.5,
+                    Text = warn.Length == 0 ? "Đọc đủ thông tin, không có cảnh báo." : (loi > 0 ? $"{loi} cảnh báo cần xem" : "Không có cảnh báo") + (ghi > 0 ? $" · {ghi} ghi chú" : "") + ":\n" + warn.ToString().TrimEnd(),
+                },
+            },
+        };
+        var ok = new Button { Content = $"Nạp {rows.Count} dòng", IsDefault = true, Classes = { "primary" } };
+        var no = new Button { Content = "Đóng", IsCancel = true };
+        var body = new DockPanel();
+        DockPanel.SetDock(head, Dock.Top); body.Children.Add(head);
+        var btns = Ui.Buttons(no, ok); DockPanel.SetDock(btns, Dock.Bottom); body.Children.Add(btns);
+        DockPanel.SetDock(warnBox, Dock.Bottom); body.Children.Add(warnBox);
+        body.Children.Add(grid);
+        var w = new Window
+        {
+            Title = "Nạp phiếu tôm nhập khẩu", Width = 1180, Height = 600, MinWidth = 640, MinHeight = 360, CanResize = true,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Background = AppTheme.Card,
+            Content = new Border { Padding = new Thickness(18, 14), Child = body },
+        };
+        if (Ui.Owner(this) is { } owner)
+        {
+            var sc = owner.Screens.ScreenFromVisual(owner)?.WorkingArea;
+            if (sc is { } a) { var k = owner.RenderScaling; w.Width = Math.Min(w.Width, a.Width / k - 40); w.Height = Math.Min(w.Height, a.Height / k - 60); }
+        }
+        var result = false;
+        ok.Click += (_, _) => { result = true; w.Close(); };
+        no.Click += (_, _) => w.Close();
+        LastNkDialog = w;
+        await Ui.Show(this, w);
+        return result;
+    }
+    /// <summary>Công cụ chụp: hộp xác nhận nạp tôm nhập khẩu vừa mở.</summary>
+    internal static Window? LastNkDialog;
 }
