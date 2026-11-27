@@ -25,7 +25,7 @@ public class EntryTests : IDisposable
     public void Pages_save_load_trash_and_restore()
     {
         var e = _s.Entry;
-        var tpl = EntryService.BuiltIn[1];
+        var tpl = EntryService.BuiltIn[0];
         var p = e.Create("Nhập 1", tpl);
         var rows = new List<string[]> { new[] { "01/11/2026", "A1", "Tôm", "16/20", "10", "20", "200", "K1", "", "" }, new string[10].Select(_ => "").ToArray() };
         p = e.Save(p, tpl.Columns, rows);
