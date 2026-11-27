@@ -27,7 +27,7 @@ public sealed class VtbView : UserControl, IPage
     private readonly GridModel _m = new();
     private readonly SheetGrid _g;
     private readonly TextBox _q = new() { Watermark = "Tìm vị trí, mã hàng, ghi chú… (không dấu cũng được)", Width = 320 };
-    private readonly TextBlock _info = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _info = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Tag = "keep" };
     private readonly TextBlock _pickInfo = new() { FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _note = new() { Watermark = "Ghi chú phiếu (không bắt buộc)", Width = 260 };
     private readonly StackPanel _slips = new() { Spacing = 4 };
@@ -38,8 +38,9 @@ public sealed class VtbView : UserControl, IPage
     public VtbView()
     {
         _g = new SheetGrid(_m) { SpareRows = 0, CellBackground = (r, _) => r < _view.Count && _picks.ContainsKey(_view[r]) ? Pick : null,
-            CheckCol = 3, CheckFill = r => _m.Get(r, 2) };   // 1.50: tích ô đầu dòng = xuất hết SL
+            CheckCol = 4, CheckFill = r => _m.Get(r, 3) };   // 1.50: tích ô đầu dòng = xuất hết SL
         _m.Changed += OnEdit;
+        _cbNxt.IsCheckedChanged += (_, _) => _ = TogglePush(); _cbXl.IsCheckedChanged += (_, _) => _ = TogglePush();
         var deb = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) }; deb.Tick += (_, _) => { deb.Stop(); Paint(); };
         _q.TextChanged += (_, _) => { deb.Stop(); deb.Start(); };
         var bar = new ToolRow { };
@@ -50,9 +51,10 @@ public sealed class VtbView : UserControl, IPage
             bar.Children.Add(Btn("📱 Đồng bộ điện thoại", SyncPhone, true));
             bar.Children.Add(Btn("Kết nối điện thoại…", PhoneSettings));
         }
-        if (Svc.CanEdit) { bar.Children.Add(Btn("📄 Nạp file Vị trí Bột…", LoadFile)); bar.Children.Add(Btn("Tải file mẫu…", SaveTemplate)); }
+        if (Svc.CanEdit) { bar.Children.Add(Btn("📄 Nạp Excel…", async () => { if (await VtbExcelUi.Load(this)) { _picks.Clear(); Paint(); PaintSlips(); } })); bar.Children.Add(Btn("Tải file mẫu…", SaveTemplate)); }
+        bar.Children.Add(Btn("Đối chiếu 2 ngăn…", () => VtbExcelUi.Compare(this)));
         bar.Children.Add(_phone);
-        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(_info);
+        var top = new StackPanel { Spacing = 4, Margin = new Thickness(0, 0, 0, 6) }; top.Children.Add(bar); top.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, Children = { _cbNxt, _cbXl } }); top.Children.Add(_info);
         var pickBar = new ToolRow { Margin = new Thickness(0, 6, 0, 0) };
         pickBar.Children.Add(_pickInfo);
         if (Svc.CanEdit) { pickBar.Children.Add(_note); pickBar.Children.Add(Btn("📝 Tạo phiếu xuất (trừ ngay)", CreateSlip, true)); pickBar.Children.Add(Btn("Bỏ chọn", () => { _picks.Clear(); Paint(); })); }
@@ -83,19 +85,13 @@ public sealed class VtbView : UserControl, IPage
     private readonly TextBlock _phone = new() { FontSize = 12, Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
     private static KhoLanh.Core.Services.PhoneWebApp Phone => App.Services.Phone;
 
-    /// <summary>Nạp file "Vị trí Bột" kiểu cũ (dòng "NGÀY:" + tiêu đề VT, MÃ HÀNG, SL, NSX, HSD…) — THAY dữ liệu hiện có.</summary>
-    private async Task LoadFile()
+    private readonly CheckBox _cbNxt = new() { Content = "Điện thoại thấy: ngăn NXT", FontSize = 12.5 }, _cbXl = new() { Content = "ngăn Excel", FontSize = 12.5 };
+    private async Task TogglePush()
     {
-        var path = await Ui.OpenFile(this, "Chọn file Vị trí Bột", "xlsx;xlsm;xls;csv", "Excel"); if (path is null) return;
-        KhoLanh.Core.SoKho.VtbService.FileParse? p = null;
-        if (!await Ui.RunAsync(this, async () => p = await Task.Run(() => { var (b, n) = KhoLanh.Core.CuoiKy.CkService.ReadExcel(path, keepDates: true); return KhoLanh.Core.SoKho.VtbService.ParseBook(b, n); }))) return;
-        if (!p!.Ok) { await Ui.Message(this, p.Error + "\n\nFile cần: dòng \"NGÀY:\" (ngày số liệu), dòng tiêu đề VT · MÃ HÀNG · SL · NSX · HSD · NHẬP · NGÀY XUẤT · VỊ TRÍ CŨ · VỊ TRÍ MỚI · GHI CHÚ (bấm \"Tải file mẫu\").", "Không đọc được file"); return; }
-        var msg = $"Nạp {p.Rows.Count} dòng từ {Path.GetFileName(path)} (sheet {p.Sheet}" + (p.DataDate.Length > 0 ? $", ngày {p.DataDate}" : "") + ")" + (p.Skipped > 0 ? $" — bỏ {p.Skipped} dòng không có VT / MÃ HÀNG" : "") + "?"
-            + (Svc.Rows.Count > 0 ? $"\n\nDữ liệu Vị Trí Bột hiện có ({Svc.Rows.Count} dòng · {Svc.FileName}) sẽ bị THAY; phiếu xuất đã tạo trước đó sẽ bị khóa." : "");
-        if (!await Ui.Confirm(this, msg, "Nạp file Vị trí Bột", "Nạp")) return;
-        if (!await Ui.Run(this, () => Svc.LoadFile(p, Path.GetFileName(path)))) return;
-        _picks.Clear(); Paint(); PaintSlips();
-        if (Phone.Enabled && await Ui.Confirm(this, "Đẩy tồn mới lên điện thoại luôn?", "Điện thoại", "Đẩy lên")) await SyncPhone();
+        if (_painting) return;
+        if (!await Ui.Run(this, () => Svc.SetPush(_cbNxt.IsChecked == true, _cbXl.IsChecked == true))) { Paint(); return; }
+        var ph = Phone;
+        if (ph.Enabled && await Ui.Confirm(this, "Đẩy ngay thay đổi này lên điện thoại?", "Điện thoại", "Đẩy lên")) await SyncPhone(); else Paint();
     }
 
     private async Task SaveTemplate()
@@ -141,14 +137,17 @@ public sealed class VtbView : UserControl, IPage
         var ro = (string k, string h, double w, string t) => new GridColumn(k, h, w, t) { ReadOnly = true };
         _m.Load(new[]
         {
-            ro("vt", "VT", 90, "text"), ro("ma", "Mã hàng", 170, "text"), ro("sl", "SL", 80, "number"), new GridColumn("x", "SL XUẤT", 90, "number") { ReadOnly = !Svc.CanEdit },
+            ro("vt", "VT", 90, "text"), ro("ma", "Mã hàng", 170, "text"), ro("ng", "Nguồn", 66, "text"), ro("sl", "SL", 80, "number"), new GridColumn("x", "SL XUẤT", 90, "number") { ReadOnly = !Svc.CanEdit },
             ro("nsx", "NSX", 85, "text"), ro("hsd", "HSD", 85, "text"), ro("nhap", "Nhập", 85, "text"), ro("gc", "Ghi chú", 200, "text"),
-        }, _view.Select(i => { var r = Svc.Rows[i]; return new[] { r.Vt, r.Ma, F(r.Sl), _picks.TryGetValue(i, out var p) ? F(p) : "", r.Nsx, r.Hsd, r.Nhap, r.GhiChu }; }));
+        }, _view.Select(i => { var r = Svc.Rows[i]; return new[] { r.Vt, r.Ma, r.IsExcel ? "Excel" : "NXT", F(r.Sl), _picks.TryGetValue(i, out var p) ? F(p) : "", r.Nsx, r.Hsd, r.Nhap, r.GhiChu }; }));
         _g.Refresh();
+        _cbNxt.IsChecked = Svc.PushNxt; _cbXl.IsChecked = Svc.PushExcel;   // trong lúc _painting: không kích hoạt TogglePush
         _painting = false;
         var total = Svc.Rows.Where(r => r.Sl > 1e-9).ToList();
-        _info.Text = Svc.Rows.Count == 0 ? "Chưa có dữ liệu. Vào NXT Bột/Sốt › Tồn kho › “📱 Đưa lên Vị Trí Bột…” để đưa tồn theo vị trí lên."
-            : $"{Svc.FileName} · số liệu ngày {Svc.DataDate} · {total.Count} dòng còn tồn (đã ẩn dòng SL = 0) · tổng SL {F(total.Sum(r => r.Sl))}" + (_view.Count != total.Count ? $" · đang lọc {_view.Count} dòng" : "") + ". Gõ số vào cột SL XUẤT (“x” = lấy hết) rồi bấm Tạo phiếu xuất.";
+        var nx = total.Count(r => !r.IsExcel); var xl = total.Count - nx;
+        var layers = $"Ngăn NXT: {(Svc.FileName.Length > 0 ? Svc.FileName : "chưa có")} · {nx} dòng còn tồn.  Ngăn Excel: {(Svc.ExcelFile.Length > 0 ? Svc.ExcelFile + (Svc.ExcelDate.Length > 0 ? " (ngày " + Svc.ExcelDate + ")" : "") : "chưa nạp")} · {xl} dòng còn tồn. Nạp Excel mới thì THAY ngăn Excel cũ; ngăn NXT cộng dồn theo sổ kho.";
+        _info.Text = Svc.Rows.Count == 0 ? "Chưa có dữ liệu. Nạp file Excel, hoặc vào NXT Bột/Sốt › Tồn kho › “📱 Đưa lên Vị Trí Bột…” để đưa tồn theo vị trí lên."
+            : $"{layers}\n{total.Count} dòng còn tồn (đã ẩn dòng SL = 0) · tổng SL {F(total.Sum(r => r.Sl))}" + (_view.Count != total.Count ? $" · đang lọc {_view.Count} dòng" : "") + ". Gõ số vào cột SL XUẤT (“x” = lấy hết) rồi bấm Tạo phiếu xuất.";
         _pickInfo.Text = _picks.Count == 0 ? "Chưa chọn dòng xuất." : $"Đang chọn {_picks.Count} dòng · SL xuất {F(_picks.Values.Sum())}";
     }
 
@@ -157,7 +156,7 @@ public sealed class VtbView : UserControl, IPage
         if (_painting) return;
         for (var r = 0; r < _m.RowCount && r < _view.Count; r++)
         {
-            var i = _view[r]; var t = _m.Get(r, 3).Trim();
+            var i = _view[r]; var t = _m.Get(r, 4).Trim();
             if (t.Length == 0) { _picks.Remove(i); continue; }
             double v;
             if (t.Equals("x", StringComparison.OrdinalIgnoreCase)) v = Svc.Rows[i].Sl;

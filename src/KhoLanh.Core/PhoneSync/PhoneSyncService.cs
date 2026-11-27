@@ -118,7 +118,7 @@ public sealed partial class PhoneSyncService
             {
                 var v = _s.Vtb; v.Load(); var rows = v.PushRows();
                 outp.Add(new Built(Tab.M01VTB, rows.Count > 0 ? VtbService.PushColumns.ToList() : new(), rows));
-                meta["lastPushAt_M01VTB"] = now; meta["m01ViTriBotRows"] = rows.Count; meta["m01ViTriBotDataDate"] = v.DataDate; meta["m01ViTriBotImportedAt"] = MsIso(v.ImportedAt);
+                meta["lastPushAt_M01VTB"] = now; meta["m01ViTriBotRows"] = rows.Count; meta["m01ViTriBotDataDate"] = v.DataDate; meta["m01ViTriBotImportedAt"] = MsIso(v.LastLoadAt);
                 break;
             }
             case "M02": outp.Add(BuildM02(meta)); meta["lastPushAt_M02"] = now; break;

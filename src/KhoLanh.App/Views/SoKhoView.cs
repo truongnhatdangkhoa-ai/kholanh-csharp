@@ -377,6 +377,7 @@ public sealed class SoKhoView : UserControl, IPage
             bar.Children.Add(_mode); bar.Children.Add(_fromLb); bar.Children.Add(_from); bar.Children.Add(_toLb); bar.Children.Add(_to); bar.Children.Add(_q);
             if (Svc.CanExport) bar.Children.Add(Btn("Xuất Excel", async () => { var p = await SaveXlsx(this, "TonKho_BotSot_" + IsoOf(_to)); if (p is not null) await Ui.Run(this, () => SoKhoService.ExportTable("Ton kho", _head, _rows.Select(r => r.Select(x => (object?)(double.TryParse(x.Replace(",", ""), NumberStyles.Float, Ic, out var d) && x.Length > 0 && char.IsDigit(x[^1]) && !x.Contains('/') ? d : x)).ToArray()), p)); }));
             if (Svc.CanEdit) bar.Children.Add(Btn("Chốt tồn đầu kỳ…", Chot, "Tồn cuối ngày trước → dòng Tồn đầu của ngày chọn; các báo cáo sau đó tính từ mốc này"));
+            if (Svc.CanEdit) bar.Children.Add(Btn("📄 Nạp Excel Vị Trí Bột…", async () => { if (await VtbExcelUi.Load(this)) Paint(); }, "Nạp file Excel (Vị trí · Mã bột · Số lượng) vào ngăn Excel của Vị Trí Bột — nạp lại thì THAY ngăn Excel cũ, không cộng dồn; điện thoại xem ở Vị Trí Bột"));
             if (Svc.CanEdit) bar.Children.Add(Btn("📱 Đưa lên Vị Trí Bột…", PushVtb, "Thay dữ liệu Vị Trí Bột (điện thoại xem / xuất) bằng tồn theo vị trí đến ngày đang chọn"));
             var top = new StackPanel { Spacing = 6, Margin = new Thickness(0, 6) }; top.Children.Add(bar); top.Children.Add(_sum);
             var root = new DockPanel(); DockPanel.SetDock(top, Dock.Top); root.Children.Add(top); root.Children.Add(new DetailPane(Framed(_g), _g, "Chi tiết dòng"));   // 1.53
@@ -389,7 +390,7 @@ public sealed class SoKhoView : UserControl, IPage
             if (rows.Count == 0) { await Ui.Message(this, "Không có dòng tồn cuối > 0 để đẩy (kiểm tra lại ngày)."); return; }
             var v = App.Services.Vtb; try { v.Load(); } catch { }
             var msg = $"Đưa {rows.Count} dòng tồn theo vị trí (tồn cuối đến ngày {Dmy(to)} · SL {F(rows.Sum(r => r.Sl))} · {F(rows.Sum(r => r.Net))} kg) lên Vị Trí Bột?"
-                + (v.Rows.Count > 0 ? $"\n\nDữ liệu Vị Trí Bột hiện có ({v.Rows.Count} dòng · {v.FileName}) sẽ bị THAY bằng số liệu này; các phiếu xuất Vị Trí Bột đã tạo trước đó sẽ bị khóa." : "");
+                + (v.Rows.Count > 0 ? $"\n\nNgăn NXT hiện có ({v.Rows.Count(r => !r.IsExcel)} dòng) sẽ bị THAY bằng số liệu này; các phiếu xuất đã tạo trên ngăn NXT sẽ bị khóa. Ngăn Excel ({v.Rows.Count(r => r.IsExcel)} dòng) giữ nguyên." : "");
             if (!await Ui.Confirm(this, msg, "Đưa lên Vị Trí Bột", "Đưa lên")) return;
             if (!await Ui.Run(this, () => v.Push(rows, to))) return;
             // như app cũ (pushViTriBot): đã kết nối điện thoại thì đẩy luôn tồn mới lên điện thoại

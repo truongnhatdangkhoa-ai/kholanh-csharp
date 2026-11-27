@@ -1135,6 +1135,31 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v253")
     }
     w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v253) — ĐẠT: " : "Xong (v253) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.177: SHOTS_ONLY=v254 — Vị Trí Bột 2 ngăn: ngăn NXT (đưa từ sổ kho) + ngăn Excel (nạp file, nhận diện cột Vị trí / Mã bột / Số lượng), công tắc, cột Nguồn, đối chiếu. Thoát mã 1 nếu hỏng.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v254")
+{
+    var ok = true; void Bad(string m) { Console.WriteLine("[v254] LỖI: " + m); ok = false; }
+    void P(int n = 30) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    var v = s.Vtb; v.Load();
+    v.Push(new List<KhoLanh.Core.SoKho.VtbService.PushRow> { new("A.13.5.4", "BE6FD", "25kg", 30, 750), new("A.13.5.5", "WBC1", "", 12, 300) }, "2026-11-27");
+    var aoa = new List<IReadOnlyList<object?>> { new object?[] { "NGÀY:", new DateTime(2026, 11, 7) }, new object?[] { "STT", "Vị trí", "Mã bột", "Số lượng", "Ghi chú lạ" },
+        new object?[] { 1, "A.13.5.4", "BE6FD", 8.0, "" }, new object?[] { 2, "A.13.6.1", "WBC1", 30.0, "" }, new object?[] { 3, "A.13.6.2", "WBC1", 0.0, "" } };
+    var p = KhoLanh.Core.SoKho.VtbService.ParseSheet(aoa, "VỊ TRÍ BỘT", true);
+    if (!p.Ok || p.Rows.Count != 2) Bad("không nhận diện cột Vị trí / Mã bột / Số lượng");
+    else v.LoadExcel(p, "VỊ TRÍ BỘT.xlsx");
+    if (v.Overlaps().Count != 1) Bad("đối chiếu không thấy dòng trùng");
+    var w = new MainWindow { Width = 1366, Height = 768, WindowState = WindowState.Normal }; w.Show(); P();
+    w.Navigate("m1vtb"); P(40);
+    Snap(w, "v254-vi-tri-bot-2-ngan");
+    var cb = w.PageHost.GetVisualDescendants().OfType<CheckBox>().Where(c => c.IsEffectivelyVisible).ToList();
+    if (cb.Count < 2) Bad("không thấy 2 công tắc ngăn");
+    w.Navigate("m3sk"); P(40);
+    var tabs = w.PageHost.GetVisualDescendants().OfType<TabControl>().First(t => t.IsEffectivelyVisible);
+    tabs.SelectedIndex = 3; P(30);
+    if (!w.PageHost.GetVisualDescendants().OfType<Button>().Any(b => b.IsEffectivelyVisible && b.GetVisualDescendants().OfType<TextBlock>().Any(t => (t.Text ?? "").Contains("Nạp Excel Vị Trí Bột")))) Console.WriteLine("[v254] nút nạp Excel nằm trong ⋯ Thêm hoặc không hiện — xem ảnh");
+    Snap(w, "v254-nxt-ton-kho");
+    w.Close(); s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v254) — ĐẠT: " : "Xong (v254) — HỎNG: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.174: SHOTS_ONLY=v252 — NXT Bột/Sốt › Phiếu xuất: "Chọn hàng từ tồn…" mở bảng tồn theo lô, tích dòng → SL = tồn, Xong → dòng vào phiếu. Thoát mã 1 nếu hỏng.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v252")
 {
