@@ -277,7 +277,7 @@ public sealed class ViTriView : UserControl, IPage
             case 2: RenderArchive(); break;
             case 3: RenderStats(); break;
             case 4: RenderFile(); break;
-            case 5: RenderDaXuat(); break;
+            case 5: _ = RenderDaXuatAsync(); break;
         }
     }
     // =====================================================================================
@@ -290,6 +290,10 @@ public sealed class ViTriView : UserControl, IPage
     private readonly CheckBox _xTon = new() { Content = "Chỉ dòng file tồn còn hàng ở vị trí", FontSize = 12.5 };
     private readonly ComboBox _xNguon = new() { ItemsSource = new[] { "Mọi nguồn", "Phiếu app tạo", "Excel kho gốc" }, SelectedIndex = 0, MinWidth = 130 };
     private readonly CheckBox _xChua = new() { Content = "Chỉ dòng chưa đối chiếu được", FontSize = 12.5 };
+    private const int XPage = 5000;
+    private int _xLimit = XPage, _xAll;
+    private readonly Button _xMore = new() { Content = "Hiện thêm", IsVisible = false, Padding = new Thickness(10, 4), FontSize = 12.5 };
+    private readonly Avalonia.Threading.DispatcherTimer _xDebounce = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private readonly TextBlock _xInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     internal List<ViTriService.DaXuat> _xRows = new();
     private const int XTonCol = 9;
@@ -299,12 +303,15 @@ public sealed class ViTriView : UserControl, IPage
         _xg = new SheetGrid(_xm) { SpareRows = 0, LargeTitle = "Tra cứu hàng đã xuất" };
         _xg.CellTip = (r, c) => r < _xRows.Count && c == XTonCol ? "Tồn trong file đang nạp ở đúng Mã · Lô · Vị trí của dòng (trống = ô đã hết mã này)" : null;
         _xg.DoubleTapped += async (_, _) => await OpenXuat();
-        _xq.TextChanged += (_, _) => RenderDaXuat();
-        _xTon.IsCheckedChanged += (_, _) => RenderDaXuat();
-        _xChua.IsCheckedChanged += (_, _) => RenderDaXuat();
-        _xNguon.SelectionChanged += (_, _) => RenderDaXuat();
+        void Re() { _xLimit = XPage; RenderDaXuat(); }
+        _xDebounce.Tick += (_, _) => { _xDebounce.Stop(); Re(); };   // gõ liên tục chỉ lọc 1 lần khi dừng tay
+        _xq.TextChanged += (_, _) => { if (_xAll < 3000) { Re(); return; } _xDebounce.Stop(); _xDebounce.Start(); };   // ít dòng: lọc ngay; nhiều dòng: chờ dừng tay
+        _xTon.IsCheckedChanged += (_, _) => Re();
+        _xChua.IsCheckedChanged += (_, _) => Re();
+        _xNguon.SelectionChanged += (_, _) => Re();
+        _xMore.Click += (_, _) => { _xLimit += XPage; RenderDaXuat(); };
         var bar = new ToolRow { Margin = new Thickness(0, 8, 0, 6) };
-        bar.Children.Add(_xq); bar.Children.Add(_xNguon); bar.Children.Add(_xTon); bar.Children.Add(_xChua); bar.Children.Add(_xInfo);
+        bar.Children.Add(_xq); bar.Children.Add(_xNguon); bar.Children.Add(_xTon); bar.Children.Add(_xChua); bar.Children.Add(_xInfo); bar.Children.Add(_xMore);
         bar.Children.Add(ToolRow.Gap());
         bar.Children.Add(Btn("📂 Nạp Excel kho gốc…", async () => await ImportXuatGoc(), primary: true, tip: "Báo cáo “Kho - Nhập xuất chi tiết” của phần mềm kho gốc. Lưu riêng, nạp nhiều lần thì cộng dồn (không nhân đôi)."));
         bar.Children.Add(ToolRow.More(Btn("Xóa dữ liệu Excel đã nạp", async () => await ClearXuatGoc(), danger: true, tip: "Chỉ xóa phần nạp từ Excel; phiếu do app tạo giữ nguyên")));
@@ -315,16 +322,24 @@ public sealed class ViTriView : UserControl, IPage
         return dock;
     }
 
+    /// <summary>Lần đầu (hoặc sau khi dữ liệu đổi) dựng danh sách ~33.000 dòng ở luồng nền để giao diện không đứng.</summary>
+    private async Task RenderDaXuatAsync()
+    {
+        if (!Svc.DaXuatReady) { _xInfo.Text = "Đang dựng danh sách đã xuất…"; try { await Task.Run(() => Svc.DaXuatCached()); } catch (Exception e) { _xInfo.Text = Ui.Describe(e); return; } }
+        RenderDaXuat();
+    }
+
     private void RenderDaXuat()
     {
         if (_xg is null) return;
-        var all = Svc.DaXuatList();
+        var all = Svc.DaXuatCached(); _xAll = all.Count;   // 1.163: dựng sẵn, gõ tìm chỉ lọc (file Excel kho gốc cả năm ~33.000 dòng)
         var nguon = _xNguon.SelectedIndex;   // 0 mọi nguồn · 1 app · 2 Excel
         var toks = GridFilter.Fold(_xq.Text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        _xRows = all.Where(x => (nguon == 0 || (nguon == 1) == (x.Nguon == "app"))
+        var matched = all.Where(x => (nguon == 0 || (nguon == 1) == (x.Nguon == "app"))
             && (_xTon.IsChecked != true || x.TonVt > 0)
             && (_xChua.IsChecked != true || x.DoiChieu is "Chưa thấy ở Excel" or "Chỉ có ở Excel")
-            && toks.All(t => GridFilter.Fold($"{x.Ma} {x.MaGoc} {x.Ten} {x.Size} {x.Vt} {x.Lo} {x.MaPhieu} {x.Loai} {x.NguoiTao} {x.Dt} {x.Hd} {x.Khach} {x.GhiChu}").Contains(t))).ToList();
+            && toks.All(t => x.Hay.Contains(t, StringComparison.Ordinal))).ToList();
+        _xRows = matched.Count > _xLimit ? matched.Take(_xLimit).ToList() : matched;   // bảng chỉ nạp phần đầu cho nhẹ; còn lại bấm "Hiện thêm" hoặc gõ thêm để lọc
         _xm.Load(new[]
         {
             new GridColumn("ngay", "Ngày xuất", 90, "date"), new GridColumn("phieu", "Số phiếu", 120), new GridColumn("loai", "Loại", 120),
@@ -341,7 +356,8 @@ public sealed class ViTriView : UserControl, IPage
         }).ToList());
         _xg.Refresh();
         var xi = Svc.XuatGocInfo;
-        _xInfo.Text = $"{_xRows.Count:#,0} / {all.Count:#,0} dòng · {_xRows.Where(x => x.Nguon == "app").Select(x => x.SlipId).Distinct().Count()} phiếu app"
+        _xMore.IsVisible = matched.Count > _xRows.Count; _xMore.Content = $"Hiện thêm {Math.Min(XPage, matched.Count - _xRows.Count):#,0} dòng (còn {matched.Count - _xRows.Count:#,0})";
+        _xInfo.Text = $"{(matched.Count > _xRows.Count ? $"{_xRows.Count:#,0} trong {matched.Count:#,0}" : $"{_xRows.Count:#,0}")} / {all.Count:#,0} dòng · {_xRows.Where(x => x.Nguon == "app").Select(x => x.SlipId).Distinct().Count()} phiếu app"
             + (Svc.XuatGoc.Count > 0 ? $" · Excel: {Svc.XuatGoc.Count:#,0} dòng {ViTriService.Dmy(xi.From)}–{ViTriService.Dmy(xi.To)}" : " · chưa nạp Excel kho gốc");
     }
 
@@ -359,7 +375,7 @@ public sealed class ViTriView : UserControl, IPage
         ViTriService.XuatGocResult? r = null;
         try { var (_, rr) = await Ui.Busy(this, "Đang lưu…", () => Svc.ImportXuatGoc(f), op: "Nạp file Excel", detail: "Tra cứu đã xuất"); r = rr; }
         catch (Exception ex) { await Ui.Message(this, ex is BusinessException ? ex.Message : Ui.Describe(ex), "Không nạp được"); return; }
-        RenderDaXuat();
+        await RenderDaXuatAsync();
         _status.Text = $"Đã nạp Excel kho gốc: +{r!.Added:#,0} dòng ({DateTime.Now:HH:mm:ss})";
         await Ui.Message(this, $"Thêm mới {r.Added:#,0} dòng · {r.Duplicate:#,0} dòng đã có từ trước" + (f.Skipped > 0 ? $" · bỏ qua {f.Skipped} dòng không đọc được" : "") + $".\nTổng dữ liệu Excel: {r.Total:#,0} dòng ({ViTriService.Dmy(r.From)} – {ViTriService.Dmy(r.To)}).\n\nCột “Đối chiếu” cho biết dòng nào của app khớp với Excel, dòng nào chỉ có một bên.", "Nạp Excel kho gốc xong");
     }
@@ -368,7 +384,7 @@ public sealed class ViTriView : UserControl, IPage
     {
         if (Svc.XuatGoc.Count == 0) { _status.Text = "Chưa có dữ liệu Excel kho gốc."; return; }
         if (!await Ui.Confirm(this, $"Xóa {Svc.XuatGoc.Count:#,0} dòng đã nạp từ Excel kho gốc? Phiếu do app tạo không bị ảnh hưởng.", "Xóa dữ liệu Excel")) return;
-        Svc.ClearXuatGoc(); RenderDaXuat();
+        Svc.ClearXuatGoc(); await RenderDaXuatAsync();
     }
 
     /// <summary>Mở phiếu của dòng đang chọn: phiếu đang mở → tab Phiếu xuất; đã lưu trữ → tab Lưu trữ theo ngày (đúng ngày + loại).</summary>

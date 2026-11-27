@@ -34,8 +34,15 @@ public sealed partial class ViTriService
     public sealed class XuatGocFile { public string FileName = "", Sheet = ""; public List<XuatGocRow> Rows = new(); public int Skipped; }
     public sealed record XuatGocResult(int Added, int Duplicate, int Total, string From, string To);
 
-    public List<XuatGocRow> XuatGoc { get; private set; } = new();
+    // 1.163: file thật ~33.000 dòng/năm → nạp LƯỜI (chỉ khi tab cần, không làm chậm mở module) + nhớ danh sách đã dựng (gõ tìm không dựng lại)
+    private List<XuatGocRow> _xg = new();
+    private bool _xgLoaded;
+    private List<DaXuat>? _daXuatCache;
+    public List<XuatGocRow> XuatGoc { get { if (!_xgLoaded) LoadXuatGoc(); return _xg; } private set { _xg = value; _xgLoaded = true; } }
     public XuatGocMeta XuatGocInfo { get; private set; } = new();
+    /// <summary>Gọi khi dữ liệu nguồn đổi (nạp lại, lưu phiếu, nạp / xóa Excel).</summary>
+    private void InvalidateDaXuat() { _daXuatCache = null; }
+    public bool DaXuatReady => _daXuatCache is not null;
 
     private static readonly (string F, string[] Alias)[] XgAliases =
     {
@@ -48,10 +55,13 @@ public sealed partial class ViTriService
 
     private void LoadXuatGoc()
     {
+        _xgLoaded = true;   // đặt trước để getter không gọi lại
         var meta = JsonCell(Read(Db, SheetXuatGocMeta));
         XuatGocInfo = meta is null ? new XuatGocMeta() : (Try(() => JsonSerializer.Deserialize<XuatGocMeta>(meta, Json)) ?? new XuatGocMeta());
-        XuatGoc = Read(Db, SheetXuatGoc).OfType<JsonObject>().Select(XgFromStored).Where(r => r.MaGoc.Length > 0).ToList();
+        _xg = Read(Db, SheetXuatGoc).OfType<JsonObject>().Select(XgFromStored).Where(r => r.MaGoc.Length > 0).ToList();
+        InvalidateDaXuat();
     }
+    internal void ResetXuatGocLoad() { _xgLoaded = false; InvalidateDaXuat(); }
     private static JsonObject XgToStored(XuatGocRow r) => new()
     {
         ["ng"] = r.Ngay, ["sl"] = r.SoLenh, ["id"] = r.ItemId, ["ma"] = r.MaGoc, ["ten"] = r.Ten, ["dvt"] = r.Dvt, ["sx"] = r.NgaySx, ["vt"] = r.Vt,
@@ -149,7 +159,7 @@ public sealed partial class ViTriService
             FileName = f.FileName, ImportedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), Count = XuatGoc.Count,
             From = XuatGoc.Count > 0 ? XuatGoc[0].Ngay : "", To = XuatGoc.Count > 0 ? XuatGoc[^1].Ngay : "",
         };
-        PersistXuatGoc();
+        PersistXuatGoc(); InvalidateDaXuat();
         Log("nạp Excel kho gốc (đã xuất)", $"{f.FileName}: +{added} dòng, {dup} dòng đã có");
         return new XuatGocResult(added, dup, XuatGoc.Count, XuatGocInfo.From, XuatGocInfo.To);
     }
@@ -158,7 +168,7 @@ public sealed partial class ViTriService
     {
         RequireEdit();
         XuatGoc = new(); XuatGocInfo = new();
-        PersistXuatGoc();
+        PersistXuatGoc(); InvalidateDaXuat();
         Log("xóa dữ liệu Excel kho gốc (đã xuất)", "");
     }
     private void PersistXuatGoc() => _src().Write(Db, new Dictionary<string, JsonArray?>
@@ -166,6 +176,14 @@ public sealed partial class ViTriService
         [SheetXuatGoc] = new JsonArray(XuatGoc.Select(r => (JsonNode)XgToStored(r)).ToArray()),
         [SheetXuatGocMeta] = XuatGoc.Count > 0 ? JsonCellOf(XuatGocInfo) : new JsonArray(),
     });
+
+    /// <summary>Danh sách tra cứu đã dựng sẵn (nhớ tới khi dữ liệu đổi) — gõ tìm chỉ lọc trên bản này.</summary>
+    public List<DaXuat> DaXuatCached()
+    {
+        if (_daXuatCache is { } c) return c;
+        var all = DaXuatList(); foreach (var x in all) _ = x.Hay;   // dựng sẵn chuỗi tìm 1 lần
+        return _daXuatCache = all;
+    }
 
     /// <summary>Dòng Excel kho gốc ở dạng chung với dòng phiếu app (cột Lô = ngày SX; Tồn = tổng tồn file ở đúng Mã · Vị trí).</summary>
     private List<DaXuat> XuatGocAsDaXuat(Dictionary<string, double> tonMv)
