@@ -14,7 +14,7 @@ namespace KhoLanh.Core.TonKho;
 ///   • Theo Dõi Tồn: ảnh chụp tồn theo tháng + ghi chú.
 /// Quyền: m1 (Xem / Xuất / Sửa) — Sửa = nạp file, Đặc tính, chuyển mã, phiếu (như "Quản lý" của app cũ).
 /// </summary>
-public sealed class AnAnService
+public sealed partial class AnAnService
 {
     public const string PermKey = "m1";
     public const string KeyTpcThreshold = "m1_tpc_threshold", SetKhoGuiSig = "m1_khogui_sig", SetNapDays = "nap_keep_days";
@@ -372,7 +372,7 @@ public sealed class AnAnService
     private void SaveSlips() => Write(new() { [AnAnStore.SPhieu] = AnAnStore.JsonCell(new JsonObject { ["slips"] = new JsonArray(Slips.Select(x => (JsonNode)x.DeepClone()).ToArray()), ["seq"] = SlipSeq }) });
 
     /// <summary>Tạo phiếu từ các dòng chọn (chỉ ghi nhận, CHƯA trừ tồn).</summary>
-    public JsonObject? CreateSlip(string modId, IReadOnlyDictionary<int, double> qtyByRow)
+    public JsonObject? CreateSlip(string modId, IReadOnlyDictionary<int, double> qtyByRow, string? label = null, Action<JsonObject>? decorate = null)
     {
         RequireEdit();
         var cols = D.FilterCols();
@@ -386,12 +386,13 @@ public sealed class AnAnService
             lines.Add(new JsonObject { ["i"] = i, ["maHang"] = V(cMa), ["tenHang"] = V(cTen), ["size"] = V(cSize), ["hopDong"] = V(cHd), ["qty"] = q });
         }
         if (lines.Count == 0) return null;
-        var label = AnAnData.FilterModules.FirstOrDefault(m => m.Id == modId)?.Label ?? modId;
+        label ??= AnAnData.FilterModules.FirstOrDefault(m => m.Id == modId)?.Label ?? modId;
         var slip = new JsonObject
         {
             ["id"] = "PX-" + ((long)SlipSeq).ToString(CultureInfo.InvariantCulture).PadLeft(4, '0'), ["moduleId"] = modId, ["moduleLabel"] = label,
             ["createdAt"] = NapExcel.IsoNow(), ["lines"] = lines, ["deducted"] = false, ["deductedAt"] = null,
         };
+        decorate?.Invoke(slip);
         SlipSeq++;
         Slips.Insert(0, slip);
         SaveSlips();
