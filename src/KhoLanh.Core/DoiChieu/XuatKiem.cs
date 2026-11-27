@@ -29,7 +29,7 @@ public static class XuatKiem
     public sealed record Other(string Loai, int N);
     public sealed class Result
     {
-        public bool Ok; public string Err = "";
+        public bool Ok, Rutgon; public string Err = "";   // Rutgon: nạp lại FILE RÚT GỌN (8 cột, không có "Loại chứng từ") — coi mọi dòng có mã + ngày là Xuất kiểm hàng
         public int Header, NRows, NKiem, BoQua, NGop;
         public List<Other> Khac = new();
         public List<Group> Groups = new();
@@ -54,6 +54,7 @@ public static class XuatKiem
         ("ngay", new[] { "ngay chung tu" }), ("ma", new[] { "ma hang" }), ("ten", new[] { "ten hang" }), ("tlg", new[] { "tlg net" }), ("sl", new[] { "so luong ton", "so luong" }),
         ("net", new[] { "net" }), ("loai", new[] { "loai chung tu" }), ("size", new[] { "qui cach dong", "quy cach dong", "size" }), ("hd", new[] { "hop dong", "so hop dong" }), ("dt", new[] { "dac tinh" }),
     };
+    private static readonly string[] RutgonKeys = { "ngay", "ma", "ten", "tlg", "sl", "net", "size", "hd" };
     private static readonly (string Key, string Label)[] Need = { ("ngay", "Ngày chứng từ"), ("ma", "Mã hàng"), ("sl", "Số lượng tồn"), ("net", "Net"), ("loai", "Loại chứng từ") };
 
     /// <summary>Tìm dòng tiêu đề (≤ 40 dòng đầu) và vị trí các cột theo TÊN cột.</summary>
@@ -78,14 +79,18 @@ public static class XuatKiem
         var f = FindColumns(aoa);
         if (f is null) return new Result { Err = "Không tìm thấy dòng tiêu đề (cần có cột Ngày chứng từ và Mã hàng)." };
         var c = f.Value.Cols;
-        var miss = Need.Where(n => !c.ContainsKey(n.Key)).Select(n => n.Label).ToList();
-        if (miss.Count > 0) return new Result { Err = "Thiếu cột: " + string.Join(", ", miss) + ". Hãy dùng file gốc “Nhập xuất chi tiết” của phần mềm kho." };
-        var res = new Result { Ok = true, Header = f.Value.Header };
+        // 1.169: file RÚT GỌN do chính tab này xuất ra (Ngày · Mã hàng · Tên hàng · TLg Net · Số lượng tồn · Net · SIZE · Hợp đồng) không có cột "Loại chứng từ"
+        // → nhận ra bằng đủ 8 cột đó, mọi dòng có mã + ngày coi là Xuất kiểm hàng. Thiếu cột khác thì vẫn báo lỗi như file gốc.
+        var rutgon = !c.ContainsKey("loai") && RutgonKeys.All(c.ContainsKey);
+        var miss = Need.Where(n => !(rutgon && n.Key == "loai") && !c.ContainsKey(n.Key)).Select(n => n.Label).ToList();
+        if (miss.Count > 0) return new Result { Err = "Thiếu cột: " + string.Join(", ", miss) + ". Hãy dùng file gốc “Nhập xuất chi tiết” của phần mềm kho (hoặc file rút gọn đã xuất từ tab này)." };
+        var res = new Result { Ok = true, Header = f.Value.Header, Rutgon = rutgon };
         var other = new Dictionary<string, int>(); var otherOrder = new List<string>(); var byKey = new Dictionary<string, Group>(); var order = new List<Group>();
         for (var r = f.Value.Header + 1; r < aoa.Count; r++)
         {
             var row = aoa[r] ?? Array.Empty<object?>();
-            var loai = Str(At(row, c["loai"])); var ma = NormMa(At(row, c["ma"])); var ngay = DcxEngine.ParseDate(At(row, c["ngay"]));
+            var ma = NormMa(At(row, c["ma"])); var ngay = DcxEngine.ParseDate(At(row, c["ngay"]));
+            var loai = rutgon ? (ma.Length > 0 || ngay is not null ? "Xuất kiểm hàng" : "") : Str(At(row, c["loai"]));
             if (loai.Length == 0 && ma.Length == 0 && ngay is null) continue;   // dòng trống
             res.NRows++;
             if (ma.Length == 0 || ngay is null) { res.BoQua++; continue; }       // dòng tổng / dòng thiếu mã hoặc ngày

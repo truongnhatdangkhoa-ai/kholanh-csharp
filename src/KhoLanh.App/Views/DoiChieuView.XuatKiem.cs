@@ -60,7 +60,7 @@ public sealed partial class DoiChieuView
         var top = TopLevel.GetTopLevel(this); if (top is null) return;
         var files = await top.StorageProvider.OpenFilePickerAsync(new Avalonia.Platform.Storage.FilePickerOpenOptions
         {
-            Title = "Chọn file gốc của phần mềm kho", AllowMultiple = false,
+            Title = "Chọn file gốc của phần mềm kho (hoặc file rút gọn đã xuất)", AllowMultiple = false,
             FileTypeFilter = new[] { new Avalonia.Platform.Storage.FilePickerFileType("Excel (.xlsx, .xlsm)") { Patterns = new[] { "*.xlsx", "*.xlsm" } } },
         });
         if (files.Count == 0 || Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(files[0]) is not { } path) return;
@@ -85,7 +85,7 @@ public sealed partial class DoiChieuView
             _xkm.Load(Array.Empty<GridColumn>(), Array.Empty<string[]>()); _xkg!.Refresh(); return;
         }
         var other = string.Join(", ", r.Khac.Select(x => $"{x.Loai} {x.N:#,0} dòng"));
-        _xkInfo.Text = $"File: {_xkFile} — {r.NRows:#,0} dòng · {r.NKiem:#,0} dòng Xuất kiểm hàng → gộp còn {r.Groups.Count:#,0} dòng" + (r.NGop > 0 ? $" ({r.NGop:#,0} dòng cùng ngày + mã được cộng dồn)" : "")
+        _xkInfo.Text = $"File{(r.Rutgon ? " rút gọn" : "")}: {_xkFile} — {r.NRows:#,0} dòng · {r.NKiem:#,0} dòng Xuất kiểm hàng → gộp còn {r.Groups.Count:#,0} dòng" + (r.NGop > 0 ? $" ({r.NGop:#,0} dòng cùng ngày + mã được cộng dồn)" : "")
             + $" · Tổng SL {r.TotSl:#,0} · Tổng Net {r.TotNet:#,0.####} kg"
             + (other.Length > 0 ? $"\nKhông lấy: {other}" + (r.BoQua > 0 ? $" · bỏ {r.BoQua:#,0} dòng thiếu mã / ngày (dòng tổng)" : "") : r.BoQua > 0 ? $"\nBỏ {r.BoQua:#,0} dòng thiếu mã / ngày (dòng tổng)." : "");
         _xkWarn.Text = r.Warn.Count == 0 ? "" : $"⚠ {r.Warn.Count} cảnh báo:\n" + string.Join("\n", r.Warn.Take(6)) + (r.Warn.Count > 6 ? $"\n… và {r.Warn.Count - 6} cảnh báo nữa." : "");

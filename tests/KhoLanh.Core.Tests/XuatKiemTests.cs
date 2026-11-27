@@ -99,4 +99,35 @@ public class XuatKiemTests
         }
         finally { try { Directory.Delete(dir, true); } catch { } }
     }
+
+    [Fact]
+    public void File_rut_gon_xuat_ra_nap_lai_duoc_va_ra_dung_so_lieu()
+    {
+        // 1.169: file rút gọn (8 cột, KHÔNG có "Loại chứng từ") nạp lại được — mọi dòng có mã + ngày là Xuất kiểm hàng
+        var src = Build(A(
+            Row(D(5), M2, "Tên A - MVSMKS - 26.9.028A-16/09", 3.6, 1, "15gr", Kiem, "MVSMKS", "26.9.028A-16/09"),
+            Row(D(5), M2, "Tên A - MVS-ND - 26.9.028A-15/09", 3.6, 1, "15gr", Kiem, "MVS-ND", "26.9.028A-15/09"),
+            Row(D(3), M1, "Tên B - MVS - 26.10.044-21/09", 5, 1, "12.5gr", Kiem, "MVS", "26.10.044-21/09"),
+            Row(D(3), M3, "Tên C", 8, 1, "51/60", "Xuất xả", "MVS", "26.10.078-22/09")));
+        var path = Path.Combine(Path.GetTempPath(), "xk169_" + Guid.NewGuid().ToString("N") + ".xlsx");
+        Export(src, path);
+        var back = BuildFromBook(ReadBook(path));
+        Assert.True(back.Ok, back.Err);
+        Assert.Equal(src.Groups.Count, back.Groups.Count);
+        for (var i = 0; i < src.Groups.Count; i++)
+        {
+            var a = src.Groups[i]; var b = back.Groups[i];
+            Assert.Equal((a.Ngay, a.Ma, a.Ten, a.Size, a.Hopdong), (b.Ngay, b.Ma, b.Ten, b.Size, b.Hopdong));
+            Assert.Equal((a.Tlg, a.Sl, a.Net), (b.Tlg, b.Sl, b.Net));
+        }
+        Assert.Equal((src.TotSl, src.TotNet), (back.TotSl, back.TotNet));
+        Assert.True(back.Rutgon); Assert.False(src.Rutgon);
+        Assert.Equal(src.Groups.Count, back.NKiem);   // dòng "Tổng" cuối file (không mã, không ngày) được bỏ qua, không lẫn vào dữ liệu
+        // xuất lại từ bản đọc về → cùng nội dung (vòng gốc → rút gọn → rút gọn)
+        var path2 = Path.Combine(Path.GetTempPath(), "xk169b_" + Guid.NewGuid().ToString("N") + ".xlsx");
+        Export(back, path2);
+        Assert.Equal(src.Groups.Count, BuildFromBook(ReadBook(path2)).Groups.Count);
+        // file thiếu cột khác vẫn báo lỗi rõ (không nhận nhầm là file rút gọn)
+        Assert.False(Build(new List<object?[]> { new object?[] { "Ngày chứng từ", "Mã hàng", "Tên hàng", "Số lượng tồn" }, new object?[] { D(3), M1, "x", 1.0 } }).Ok);
+    }
 }

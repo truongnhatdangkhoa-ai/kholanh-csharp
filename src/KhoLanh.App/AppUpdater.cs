@@ -104,6 +104,42 @@ public static class AppUpdater
         finally { _busy = false; }
     }
 
+    /// <summary>
+    /// 1.168: người dùng bấm "Cập nhật" khi đã có bản tải sẵn → hỏi GitHub lần nữa; có bản MỚI HƠN bản đã tải thì tải tiếp (thay vào chỗ bản chờ)
+    /// để cập nhật thẳng lên bản mới nhất. Trả về bản mới hơn vừa tải xong, hoặc null (không có bản mới hơn / mất mạng / hỏi quá <paramref name="askTimeout"/> /
+    /// người dùng bỏ qua) — khi đó nơi gọi áp dụng bản đã tải như cũ. Bản đã tải chỉ bị thay SAU KHI bản mới tải + kiểm SHA-256 xong, hủy giữa chừng không hỏng gì.
+    /// </summary>
+    public static async Task<Version?> UpgradeStagedAsync(IProgress<(string Text, double? Pct)> status, CancellationToken ct, TimeSpan? askTimeout = null)
+    {
+        if (ExePath is null || !OperatingSystem.IsWindows()) return null;
+        try
+        {
+            while (_busy) await Task.Delay(300, ct);   // đang tải ngầm: chờ xong rồi mới hỏi (tránh tải trùng)
+            _busy = true;
+            try
+            {
+                var svc = App.Services.Updates;
+                status.Report(("Đang kiểm tra bản mới nhất…", null));
+                UpdateInfo? info;
+                using (var ask = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    ask.CancelAfter(askTimeout ?? TimeSpan.FromSeconds(10));
+                    try { info = await svc.CheckAsync(ask.Token); }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }   // hỏi quá lâu: dùng bản đã tải
+                }
+                if (!UpdateService.IsNewerThanStaged(info, StagedVersion) || !CanWriteHere()) return null;
+                status.Report(($"Có bản mới hơn: {info!.Version}. Đang tải…", 0));
+                await svc.DownloadAsync(info, Staged, new Progress<double>(p => status.Report(($"Đang tải bản {info.Version}: {(int)(p * 100)}%", p * 100))), ct);
+                File.WriteAllText(StagedMeta, JsonSerializer.Serialize(new { version = info.Version.ToString(), tag = info.Tag, notes = info.Notes, at = DateTime.Now }));
+                Ready?.Invoke(info.Version);
+                return info.Version;
+            }
+            finally { _busy = false; }
+        }
+        catch (OperationCanceledException) { return null; }
+        catch (Exception) { return null; }   // lỗi mạng / GitHub: không chặn việc cập nhật bản đã tải
+    }
+
     /// <summary>Tự hỏi lúc mở app và mỗi 30 phút (nếu bật tự động). Lỗi mạng bỏ qua, không làm phiền.</summary>
     public static void StartAuto()
     {

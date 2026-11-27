@@ -103,6 +103,9 @@ public class UpdateService
         return h;
     }
 
+    /// <summary>1.168: bản GitHub vừa hỏi có MỚI HƠN bản đã tải sẵn không (không có bản tải sẵn: mới hơn bản đang chạy là đủ).</summary>
+    public static bool IsNewerThanStaged(UpdateInfo? info, Version? staged) => info is not null && (staged is null || info.Version > staged);
+
     /// <summary>Hỏi bản phát hành mới nhất. Trả null nếu đang dùng bản mới nhất.</summary>
     public async Task<UpdateInfo?> CheckAsync(CancellationToken ct = default)
     {

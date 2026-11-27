@@ -23,6 +23,7 @@ App quản lý kho lạnh **viết lại bằng C#** (.NET 8, Avalonia, SQLite) 
 - SDK mới: mảng `.Reverse()` lỗi → dùng `Enumerable.Reverse(...)`.
 - Lưới: `SheetGrid` + `GridModel`; dòng Tổng / Đã chọn cố định đáy bảng (`TotalsBar`, cột cộng theo `Core/Grid/GridTotals.DefaultSum`, bật / tắt theo tên cột: settings `ui_sum_on` / `ui_sum_off`, `ShowTotals = false` để tắt); gợi ý khi gõ `SheetGrid.Suggest` + `SuggestionPicked` (Nhập liệu › cột Mã hàng dùng `Core/Entry/MaGoiY`); cột tính toán dùng `SheetGrid.Display`, giữ mã dòng bằng cột ẩn rộng 0 (xem `DanhMucMaView`).
 - Exe một file: thư viện nạp từ chính file exe khi cần lần đầu → `AppUpdater.Warmup()` nạp sẵn lúc mở app; không thay exe khi còn cửa sổ KhoLanh khác chạy (`UpdateScript`).
+- Cập nhật app (1.168): nút Cập nhật khi đã có bản tải sẵn → `MainWindow.CheckNewerThenApply` / `AppUpdater.UpgradeStagedAsync` hỏi GitHub thêm 1 lần (≤ 10 giây), có bản MỚI HƠN thì tải thay vào `KhoLanh.exe.moi` (qua `.tai`, chỉ thay sau khi kiểm SHA-256 → hủy giữa chừng không hỏng bản cũ) rồi áp dụng; lỗi mạng / bỏ qua → áp dụng bản đã tải. Mở app sau `--da-cap-nhat` KHÔNG hỏi GitHub trước đăng nhập (1.59) — việc hỏi chạy nền sau 20 giây khi cửa sổ chính mở.
 - Lỗi chưa bắt: `Program.cs` (AppDomain / Task) + `App` (`Dispatcher.UIThread.UnhandledException` → ghi `logs/loi.log`, báo người dùng, KHÔNG sập app). Trợ lý hệ thống đọc lại log.
 - Công cụ chụp màn hình chạy đủ mất > 10 phút: chạy nền, hoặc `SHOTS_ONLY=dm|ck|tools` để chụp riêng.
 - Repo app cũ chỉ đọc; không chép token cố định trong `core/app-config` của app cũ.
