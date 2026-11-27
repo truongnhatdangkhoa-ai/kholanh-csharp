@@ -25,8 +25,6 @@ public sealed partial class DoiChieuView : UserControl, IPage
 
     private static DoiChieuService Svc => App.Services.DoiChieu;
     // 1.95: màu đậm hơn (người dùng: "tô màu khá nhạt nên khó nhận biết"); dòng tổng ngày = vàng + chữ đậm
-    private static readonly IBrush DayBg = AppTheme.Brush("#FFE680");
-    private static readonly IBrush WarnDayBg = AppTheme.Brush("#FFE680");
     private static readonly IBrush EditedBg = AppTheme.Brush("#FFE08A");
     private static readonly IBrush LechBg = AppTheme.Brush("#FFD24D");
     private static readonly IBrush ChiKhoBg = AppTheme.Brush("#F7B98F");
@@ -68,7 +66,7 @@ public sealed partial class DoiChieuView : UserControl, IPage
     public DoiChieuView()
     {
         _edit = Svc.CanEdit;
-        _grid = new SheetGrid(_gm) { SpareRows = 0, Display = Disp, CellBackground = Bg, RowBold = r => r < _rowItem.Count && _rowItem[r] is null };
+        _grid = new SheetGrid(_gm) { SpareRows = 0, Display = Disp, CellBackground = Bg, CellForeground = Fg, RowBold = r => r < _rowItem.Count && _rowItem[r] is null };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
         _grid.SelectionChanged += ShowRowNote;
         _tabs = new TabControl
@@ -283,9 +281,6 @@ public sealed partial class DoiChieuView : UserControl, IPage
                 if (d.NcKho is { } nk) warn.Add($"Kho có {nk.N} dòng chưa mã ({N(nk.Sl)})");
                 if (d.NcXuong is { } nx) warn.Add($"Xưởng có {nx.N} dòng chưa mã ({N(nx.Sl)})");
                 var sum = $"{d.Items.Count} mục · {d.NLech} lệch · {d.NChiKho + d.NChiXuong} chỉ 1 bên";
-                rows.Add(new[] { Dmy(d.Ngay), "TỔNG NGÀY " + DoiChieuService.Weekday(d.Ngay), sum,
-                    Inv(d.Kho.Sl), Inv(d.Kho.Net), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", sum + (warn.Count > 0 ? " · ⚠ " + string.Join(" · ", warn) : "") });
-                _rowItem.Add(null); _rowDay.Add(d);
                 foreach (var it in items)
                 {
                     var note = Svc.NoteOf(_pid, it);
@@ -293,6 +288,10 @@ public sealed partial class DoiChieuView : UserControl, IPage
                         it.Status == "khop" ? "" : Inv(it.DSl), it.Status == "khop" ? "" : Inv(it.DNet), StatusText.GetValueOrDefault(it.Status, it.Status), note.Line });
                     _rowItem.Add(it); _rowDay.Add(d);
                 }
+                // 1.166: dòng TỔNG nằm DƯỚI khối chi tiết của ngày (như file Excel Kho / Xưởng)
+                rows.Add(new[] { Dmy(d.Ngay), "TỔNG", sum,
+                    Inv(d.Kho.Sl), Inv(d.Kho.Net), Inv(d.Xuong.Sl), Inv(d.Xuong.Net), Inv(d.DSl), Inv(d.DNet), d.CoLech ? "Có lệch" : "Khớp", sum + (warn.Count > 0 ? " · ⚠ " + string.Join(" · ", warn) : "") });
+                _rowItem.Add(null); _rowDay.Add(d);
             }
         }
         _loading = true;
@@ -311,11 +310,21 @@ public sealed partial class DoiChieuView : UserControl, IPage
         return c is 7 or 8 ? (c == 7 ? SgnN(d) : SgnKg(d)) : c is 4 or 6 ? Kg(d) : N(d);
     }
 
+    private static readonly IBrush TotOk = AppTheme.Brush("#1E7B4A"), TotBad = AppTheme.Brush("#B42318");
+    /// <summary>1.166: dòng TỔNG — số màu xanh lá, lệch (Δ, "Có lệch") màu đỏ; chữ còn lại giữ màu đen.</summary>
+    private IBrush? Fg(int r, int c)
+    {
+        if (r >= _rowItem.Count || _rowItem[r] is not null || _rowDay[r] is not { } d) return null;
+        if (c is 7 or 8) return d.CoLech ? TotBad : TotOk;
+        if (c == 9) return d.CoLech ? TotBad : null;
+        return c is >= 3 and <= 6 ? TotOk : null;
+    }
+
     private IBrush? Bg(int r, int c)
     {
         if (r >= _rowItem.Count) return null;
         var it = _rowItem[r];
-        if (it is null) return c == 9 && _rowDay[r] is { CoLech: true } ? ChiKhoBg : _rowDay[r] is { } d && (d.HasWarn || d.CoLech) ? WarnDayBg : DayBg;
+        if (it is null) return null;   // 1.166: dòng TỔNG không tô nền ô — chỉ đổi màu chữ số (CellFg)
         if (c is 5 or 6 && Svc.EditOf(_pid, "xuong", it.Ngay, it.Ma, c == 5 ? "sl" : "net") is not null) return EditedBg;
         if (c is 3 or 4 && Svc.EditOf(_pid, "kho", it.Ngay, it.Ma, c == 3 ? "sl" : "net") is not null) return EditedBg;
         if (c == 9) return it.Status switch { "lech" => LechBg, "chi_kho" => ChiKhoBg, "chi_xuong" => ChiXuongBg, "khop" => KhopBg, "zero" => ZeroBg, _ => null };
