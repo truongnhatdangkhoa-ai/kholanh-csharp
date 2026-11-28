@@ -52,6 +52,16 @@ public class ThongTinXeEmailTests : IDisposable
     }
 
     [Fact]
+    public void So_xe_tu_thu_hien_o_Tong_quan_khi_chua_co_phieu()
+    {
+        var lich = Lx.Add(new LichXuatService.Input { Ngay = "2026-11-26", Lsx = "26.09.020" });
+        Assert.Equal("", Lx.BuildHome("2026-11-26").Today.Single().Xe);
+        Lx.ProcessMessages(Chuoi(M("x", "t", Now.AddMinutes(-40), "tien ha <ha@x.vn>", "Re: LSX 26.09.020 - KEO DONG", XeMail)), Cfg);
+        var row = Lx.BuildHome("2026-11-26").Today.Single();
+        Assert.Equal("51C-63773", row.Xe); Assert.Equal("IAAU8692960", row.Cont); Assert.False(row.HasPhieu);
+    }
+
+    [Fact]
     public void Phieu_tao_tay_sau_khi_thu_den_luot_quet_sau_tu_dien_va_thu_moi_thang()
     {
         Lx.Add(new LichXuatService.Input { Ngay = "2026-11-26", Lsx = "26.09.020" });
