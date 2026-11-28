@@ -99,6 +99,17 @@ public static class MaGoiY
             .ThenByDescending(s => s.Ton > 0).ThenBy(s => s.Ma, StringComparer.Ordinal).Take(lim).ToList();
     }
 
+    /// <summary>1.187: 1 gợi ý có khớp chữ đang gõ không (cùng luật <see cref="Search"/>: mã còn tồn, mọi từ có trong mã / tên / size / đặc tính) — cho ô tự gợi ý lọc theo từng mục.</summary>
+    public static bool Match(Sug s, string? text)
+    {
+        if (!s.CoTon) return false;
+        var words = Gs.Norm(text ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(Gs.Cmp).Where(w => w.Length > 0).ToList();
+        if (words.Sum(w => w.Length) < 2) return false;
+        var head = Gs.Norm(Gs.MaKey(text));
+        if (System.Text.RegularExpressions.Regex.IsMatch(head, @"^\d{4}$")) return SizeSeg(s.Ma) == head || s.Hay.Contains(head, StringComparison.Ordinal) && SizeSeg(s.Ma).Length == 0;
+        return words.All(w => s.Hay.Contains(w, StringComparison.Ordinal));
+    }
+
     /// <summary>Mã có trong tồn hoặc danh mục không (mã gõ tay lạ → tô vàng nhạt).</summary>
     public static HashSet<string> Known(IEnumerable<Sug> all) => all.Select(s => s.Ma).ToHashSet(StringComparer.Ordinal);
 }

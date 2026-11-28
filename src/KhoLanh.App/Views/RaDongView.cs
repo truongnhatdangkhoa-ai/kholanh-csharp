@@ -8,6 +8,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using KhoLanh.App.Controls;
+using KhoLanh.Core.Entry;
 using KhoLanh.Core.Grid;
 using KhoLanh.Core.Modules;
 using KhoLanh.Core.RaDong;
@@ -59,6 +60,20 @@ public sealed class RaDongView : UserControl, IPage
     private readonly TextBlock _sInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _undoUpd, _delMonth, _exportYear;
     private readonly Border _addBox = new() { IsVisible = false };
+    // 1.187: thêm mã hàng vào Số liệu nạp (Dòng gốc) — chỉ nhập Mã + Số lượng, gợi ý mã từ Tồn kho An An
+    private readonly Border _raBox = new() { IsVisible = false };
+    private readonly TextBox _raDate = new() { Watermark = "dd/mm/yyyy", Width = 110 }, _raSl = new() { Watermark = "Số lượng", Width = 110 };
+    private readonly TextBlock _raDateLb = new() { Text = "Ngày", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 };
+    private readonly TextBlock _raInfo = new() { Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly AutoCompleteBox _raMa = new()
+    {
+        Watermark = "Gõ mã / tên / size → chọn từ Tồn kho An An", Width = 420, MinimumPrefixLength = 2, MaxDropDownHeight = 320, FilterMode = AutoCompleteFilterMode.Custom,
+        ItemFilter = (t, o) => o is MaGoiY.Sug x && MaGoiY.Match(x, t),
+        ItemSelector = (t, o) => (o as MaGoiY.Sug)?.Ma ?? t ?? "",
+        ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<MaGoiY.Sug>((x, _) => new TextBlock { FontSize = 12.5, Text = x is null ? "" : $"{x.Ma} — {x.Ten}  ·  size {x.Size}  ·  tồn {x.Ton:#,0}" }),
+    };
+    private static List<MaGoiY.Sug>? _stock;
+    private static DateTime _stockAt;
     private readonly TextBox _addDate = new() { Watermark = "dd/mm/yyyy", Width = 110 }, _addSize = new() { Watermark = "51/60", Width = 90 },
         _addSl = new() { Watermark = "0", Width = 90 }, _addNet = new() { Watermark = "trống = tự tính", Width = 130 };
     private readonly AutoCompleteBox _addMa = new() { Watermark = "TÔM GIA CÔNG", Width = 200, FilterMode = AutoCompleteFilterMode.ContainsOrdinal };
@@ -80,7 +95,10 @@ public sealed class RaDongView : UserControl, IPage
     {
         _edit = Svc.CanEdit;
         _gGrid = new SheetGrid(_gm) { SpareRows = 0, Display = NumDisplay, CellBackground = GroupBg };
-        _rGrid = new SheetGrid(_rm) { SpareRows = 0, Display = NumDisplay };
+        _rGrid = new SheetGrid(_rm) { SpareRows = 0, Display = NumDisplay, CellBackground = RawBg };
+        _raMa.TextChanged += (_, _) => UpdateRaInfo();
+        _raMa.SelectionChanged += (_, _) => UpdateRaInfo();
+        _raSl.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await AddRawCode(); } };
         _sGrid = new SheetGrid(_sm) { SpareRows = 0, Display = NumDisplay, CellBackground = SavedBg, CheckCol = PickCol, CheckFill = _ => "1" };
         _gm.Changed += () => { if (!_loading) OnGroupGridChanged(); };
         _rm.Changed += () => { if (!_loading) OnRawGridChanged(); };
@@ -189,6 +207,15 @@ public sealed class RaDongView : UserControl, IPage
                 await Act(Svc.ClearBang1, b2: true);
             })));
         }
+        if (_edit)
+            bar.Children.Add(Btn("＋ Thêm mã hàng", () =>
+            {
+                _raBox.IsVisible = !_raBox.IsVisible;
+                if (!_raBox.IsVisible) return;
+                _rawToggle.IsChecked = true;   // nhập ở Dòng gốc
+                if (string.IsNullOrEmpty(_raDate.Text)) _raDate.Text = DateTime.Today.ToString("dd/MM/yyyy");
+                LoadStock(); _raMa.Focus();
+            }));
         bar.Children.Add(ToolRow.More(Btn("Làm mới ánh xạ", async () => { await Act(Svc.LoadMapping, b2: true); _status.Text = "Đã đọc lại Mã hóa sản phẩm + Ánh xạ tên hàng."; })));
         bar.Children.Add(new TextBlock { Text = "Ngày", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5, Margin = new Thickness(6, 0, 0, 0) });
         bar.Children.Add(_dayFilter);
@@ -206,7 +233,7 @@ public sealed class RaDongView : UserControl, IPage
             bar.Children.Add(ToolRow.More(Btn("↺ Hoàn lại số gốc", async () =>
             {
                 var keys = SelectedGroupKeys();
-                if (keys.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) các dòng nhóm có ô vàng (đã sửa tay) rồi bấm lại."); return; }
+                if (keys.Count == 0) { await Ui.Message(this, "Tích (hoặc bôi đen) các dòng nhóm có ô vàng (đã sửa tay) rồi bấm lại."); return; }
                 await Act(() => Svc.RevertGroups(keys), b2: true);
             })));
             bar.Children.Add(_undoBtn);
@@ -217,8 +244,16 @@ public sealed class RaDongView : UserControl, IPage
             Text = "Bảng gộp: sửa thẳng ô Tên sản phẩm / Size / Trọng lượng / số (ô vàng = đã sửa tay, ô xanh = Net app tự tính = Số lượng × Trọng lượng). Bảng chưa gộp: sửa / xóa từng dòng gốc, Bảng gộp tự tính lại.",
             Classes = { "muted" }, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
         };
+        var ra = new WrapPanel { ItemSpacing = 6, LineSpacing = 6 };
+        ra.Children.Add(_raDateLb); ra.Children.Add(_raDate);
+        ra.Children.Add(new TextBlock { Text = "Mã hàng", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 }); ra.Children.Add(_raMa);
+        ra.Children.Add(new TextBlock { Text = "Số lượng", VerticalAlignment = VerticalAlignment.Center, FontSize = 12.5 }); ra.Children.Add(_raSl);
+        ra.Children.Add(Btn("Thêm", async () => await AddRawCode(), primary: true));
+        var raHost = new StackPanel(); raHost.Children.Add(ra); raHost.Children.Add(_raInfo);
+        _raBox.Child = raHost; _raBox.Classes.Add("card"); _raBox.Padding = new Thickness(8); _raBox.Margin = new Thickness(0, 0, 0, 6);
+        ToolTip.SetTip(_raMa, "Chỉ nhập Mã hàng + Số lượng: app tự điền Tên hàng, Trọng lượng, Net (= Số lượng × Trọng lượng) và ánh xạ Tên sản phẩm / Size.");
         var head = new StackPanel();
-        head.Children.Add(bar); head.Children.Add(_b2Info); head.Children.Add(hint);
+        head.Children.Add(bar); head.Children.Add(_raBox); head.Children.Add(_b2Info); head.Children.Add(hint);
         var root = new DockPanel();
         DockPanel.SetDock(head, Dock.Top);
         root.Children.Add(head);
@@ -229,6 +264,7 @@ public sealed class RaDongView : UserControl, IPage
     private void ShowBang2()
     {
         if (!_ready) return;
+        _raDate.IsVisible = _raDateLb.IsVisible = TongHopService.FindDateColumn(Svc.Bang1.Headers).Length > 0;
         var raw = _rawToggle.IsChecked == true;
         _gridHost.Children.Clear();
         _gridHost.Children.Add(raw ? _rGrid : _gGrid);
@@ -344,25 +380,33 @@ public sealed class RaDongView : UserControl, IPage
 
     private List<string> SelectedGroupKeys()
     {
-        var s = _gGrid.Selection;
+        // 1.188: có dòng ĐÃ TÍCH (ô vuông đầu dòng) thì lấy các dòng tích; không thì lấy vùng đang bôi đen (trước chỉ đọc vùng bôi đen → tích bao nhiêu cũng chỉ xóa 1 dòng)
         var keys = new List<string>();
-        for (var r = s.R1; r <= s.R2 && r < _gRowKey.Count; r++) if (_gRowKey[r] is { } k && !keys.Contains(k)) keys.Add(k);
+        foreach (var r in PickedRows(_gGrid)) if (r < _gRowKey.Count && _gRowKey[r] is { } k && !keys.Contains(k)) keys.Add(k);
         return keys;
+    }
+
+    /// <summary>Dòng được chọn để thao tác: các dòng đã tích; chưa tích dòng nào thì vùng đang bôi đen.</summary>
+    private static List<int> PickedRows(SheetGrid g)
+    {
+        var ticked = g.CheckedRows;
+        if (ticked.Count > 0) return ticked.ToList();
+        var s = g.Selection;
+        return Enumerable.Range(s.R1, s.Rows).ToList();
     }
 
     private async Task DeleteSelected()
     {
         if (_rawToggle.IsChecked == true)
         {
-            var s = _rGrid.Selection;
-            var rows = Enumerable.Range(s.R1, s.Rows).Where(r => r < _rRows.Count).Select(r => _rRows[r]).ToList();
+            var rows = PickedRows(_rGrid).Where(r => r >= 0 && r < _rRows.Count).Distinct().Select(r => _rRows[r]).ToList();
             if (rows.Count == 0) return;
             if (!await Ui.Confirm(this, $"Xóa {rows.Count} dòng gốc đã chọn? Bảng gộp sẽ tự tính lại. Có thể bấm \"Hoàn tác\".", "Xóa dòng gốc", "Xóa")) return;
             await Act(() => Svc.DeleteRawRows(rows), b2: true);
             return;
         }
         var keys = SelectedGroupKeys();
-        if (keys.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) các dòng nhóm cần xóa rồi bấm lại."); return; }
+        if (keys.Count == 0) { await Ui.Message(this, "Tích (hoặc bôi đen) các dòng nhóm cần xóa rồi bấm lại."); return; }
         if (!await Ui.Confirm(this, $"Xóa {keys.Count} nhóm đã chọn? Xóa luôn các dòng gốc thuộc các nhóm này. Có thể bấm \"Hoàn tác\".", "Xóa nhóm", "Xóa")) return;
         await Act(() => Svc.DeleteGroups(keys), b2: true);
     }
@@ -407,6 +451,53 @@ public sealed class RaDongView : UserControl, IPage
     }
 
     private static bool FindTen(string h) => TongHopService.NormSearch(h).Contains("ten hang");
+
+    private IBrush? RawBg(int r, int c) => r < _rRows.Count && c < _rCols.Count && _rRows[r].ContainsKey("__tay") ? HandBg : null;
+
+    /// <summary>Gợi ý mã từ Tồn kho An An (mã còn tồn), nạp ngầm, làm mới sau 5 phút.</summary>
+    private void LoadStock()
+    {
+        if (_stock is not null && (DateTime.Now - _stockAt).TotalMinutes < 5) { _raMa.ItemsSource = _stock; return; }
+        if (_stock is not null) _raMa.ItemsSource = _stock;
+        _stockAt = DateTime.Now;
+        var s = App.Services;
+        Task.Run(() =>
+        {
+            try
+            {
+                var data = new KhoLanh.Core.TimNhanh.GsService(s).Build();
+                var list = MaGoiY.Build(data.AnAn, MaGoiY.ReadCatalog(s.Lan), data.Seg).Where(x => x.CoTon).ToList();
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => { _stock = list; _raMa.ItemsSource = list; UpdateRaInfo(); });
+            }
+            catch { /* gợi ý chỉ để tiện: không có thì vẫn gõ tay đủ 21 ký tự */ }
+        });
+    }
+
+    private MaGoiY.Sug? RaPick()
+    {
+        var code = RaDongService.ExtractCode(_raMa.Text).ToUpperInvariant();
+        return code.Length == 0 ? null : _stock?.FirstOrDefault(x => string.Equals(x.Ma, code, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Cho người dùng thấy app sẽ ánh xạ gì trước khi bấm Thêm.</summary>
+    private void UpdateRaInfo()
+    {
+        var code = RaDongService.ExtractCode(_raMa.Text).ToUpperInvariant();
+        if (code.Length != TongHopService.CodeLength) { _raInfo.Text = code.Length == 0 ? "" : $"Mã đang gõ {code.Length}/{TongHopService.CodeLength} ký tự — chọn mã từ danh sách gợi ý."; return; }
+        var sug = RaPick();
+        var tl = sug is not null && RaDongService.Num(sug.Tl) is > 0 ? $" · {sug.Tl} kg/đơn vị" : "";
+        _raInfo.Text = $"→ {Svc.ProductLabel(code)} · Size {Svc.FormatSize(RaDongService.SegmentRaw(code, 8, "—"))}{tl}" + (sug is null ? " · (mã không có trong Tồn kho An An)" : $" · tồn {sug.Ton:#,0}") + " · Net = Số lượng × Trọng lượng";
+    }
+
+    private async Task AddRawCode()
+    {
+        var sug = RaPick(); var sl = (_raSl.Text ?? "").Trim();
+        RaDongService.AddRawResult? r = null;
+        if (!await Act(() => r = Svc.AddRawRow(_raDate.Text ?? "", _raMa.Text ?? "", sl, sug?.Tl ?? "", sug?.Ten ?? ""), b2: true)) return;
+        _raMa.Text = ""; _raSl.Text = ""; _raInfo.Text = "";
+        _status.Text = $"Đã thêm {r!.Code} · {r.Product} · size {r.Size} · SL {sl}" + (r.Net is { } n ? $" · Net {n.ToString("#,0.00", Ui.Vi)} kg" : "") + (r.Note.Length > 0 ? " — " + r.Note : "") + " (dòng tô hồng = nhập tay, Bảng gộp đã tự tính lại).";
+        _raMa.Focus();
+    }
 
     private async void OnRawGridChanged()
     {

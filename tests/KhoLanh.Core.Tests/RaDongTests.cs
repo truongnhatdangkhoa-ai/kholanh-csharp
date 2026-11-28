@@ -76,6 +76,41 @@ public class RaDongTests : IDisposable
     }
 
     [Fact]
+    public void Them_ma_hang_nhap_tay_chi_can_ma_va_so_luong_app_tu_anh_xa()
+    {
+        var rd = _s.RaDong; rd.Load();
+        Assert.Throws<BusinessException>(() => rd.AddRawRow("", A, "5"));    // chưa nạp file
+        rd.SetBang1(RaDongService.ReadExcel(MakeFile("t.xlsx", (D1, A, 10, 10.8, 108.0), (D1, C, 3, 12, 36.0))));
+        var before = rd.Compute();
+        // mã mới (B chưa có trong file) + trọng lượng gợi ý từ tồn
+        var r = rd.AddRawRow("02/11/2026", "TPC-" + B, "4", "9", "Tôm HLSO 91/120");
+        Assert.Equal(B, r.Code); Assert.Equal(36, r.Net); Assert.Equal(9, r.Weight); Assert.Equal("", r.Note);
+        Assert.Equal(3, rd.Bang1.Rows.Count);
+        var row = rd.Bang1.Rows[^1];
+        Assert.Equal("TPC-" + B, RaDongService.S(row["Mã hàng"])); Assert.Equal("Tôm HLSO 91/120", RaDongService.S(row["Tên hàng"]));
+        Assert.Equal(true, row["__tay"]!.GetValue<bool>());
+        var g = rd.Compute();
+        var grp = g.Order.Select(k => g.ByKey[k]).Single(x => x.Date == "02/11/2026");
+        Assert.Equal(4, grp.Sums["Số lượng"]); Assert.Equal(36, grp.Sums["Net"]);
+        // mã đã có trong file, không có gợi ý → lấy trọng lượng từ dòng đã nạp
+        var r2 = rd.AddRawRow("01/11/2026", A, "2");
+        Assert.Equal(10.8, r2.Weight); Assert.Equal(21.6, r2.Net);
+        var d1 = rd.Compute(); var ec = d1.Order.Select(k => d1.ByKey[k]).Single(x => x.Date == "01/11/2026" && x.Product == "ECUADOR");
+        Assert.Equal(12, ec.Sums["Số lượng"]); Assert.Equal(129.6, ec.Sums["Net"]);
+        // mã lạ, không biết trọng lượng → Net trống + ghi chú
+        var r3 = rd.AddRawRow("01/11/2026", "VRHLBTNXXXR000500IME1", "3");
+        Assert.Null(r3.Net); Assert.Contains("Chưa biết trọng lượng", r3.Note);
+        // kiểm tra đầu vào
+        Assert.Throws<BusinessException>(() => rd.AddRawRow("", "ABC", "1"));
+        Assert.Throws<BusinessException>(() => rd.AddRawRow("", A, "0"));
+        Assert.Throws<BusinessException>(() => rd.AddRawRow("32/13/2026", A, "1"));
+        // lưu / đọc lại + hoàn tác
+        rd.Load(); Assert.Equal(5, rd.Bang1.Rows.Count); Assert.True(rd.Bang1.Rows[^1].ContainsKey("__tay"));
+        rd.AddRawRow("01/11/2026", A, "1"); Assert.Equal(6, rd.Bang1.Rows.Count);
+        rd.UndoBang2(); Assert.Equal(5, rd.Bang1.Rows.Count);
+    }
+
+    [Fact]
     public void Edit_groups_raw_rows_and_undo()
     {
         var rd = _s.RaDong; rd.Load();

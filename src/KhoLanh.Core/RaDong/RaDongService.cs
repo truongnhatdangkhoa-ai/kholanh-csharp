@@ -739,6 +739,58 @@ public sealed class RaDongService
         SaveBang1();
     }
 
+    /// <summary>Kết quả thêm 1 dòng gốc nhập tay: app đã ánh xạ những gì (để báo người dùng).</summary>
+    public sealed record AddRawResult(string Code, string Product, string Size, double? Weight, double? Net, string Note);
+
+    /// <summary>
+    /// 1.187: bổ sung mã hàng vào Số liệu nạp (Dòng gốc) — người dùng chỉ nhập MÃ + SỐ LƯỢNG (+ ngày nếu file có cột Ngày), app tự điền phần còn lại theo cột của file đã nạp:
+    /// Tên hàng (gợi ý từ Tồn kho An An, không có thì Tên sản phẩm theo Ánh xạ), Trọng lượng (kg / đơn vị: gợi ý từ tồn → dòng cùng mã đã nạp), Net = Số lượng × Trọng lượng.
+    /// Tên sản phẩm / Size ở Bảng gộp tự ánh xạ từ mã. Dòng gắn <c>__tay</c> (tô hồng ở Dòng gốc), hoàn tác được.
+    /// </summary>
+    public AddRawResult AddRawRow(string date, string maRaw, string slRaw, string weightHint = "", string tenHint = "")
+    {
+        RequireWrite();
+        if (Bang1.Headers.Count == 0 || Bang1.CodeCol.Length == 0) throw new BusinessException("Chưa có số liệu nạp — bấm \"Nạp file Excel…\" trước (app thêm dòng theo các cột của file đã nạp).");
+        var code = ExtractCode(maRaw);
+        if (code.Length != TongHopService.CodeLength) throw new BusinessException($"Mã hàng phải đủ {TongHopService.CodeLength} ký tự (bỏ tiền tố \"{CodePrefix}\"); đang có {code.Length}. Chọn mã từ gợi ý Tồn kho An An.");
+        code = code.ToUpperInvariant();
+        var sl = Num(slRaw);
+        if (sl is null || sl <= 0) throw new BusinessException("Số lượng phải là số lớn hơn 0.");
+        var g = Compute(noEdits: true);
+        var slCol = SlColOf(g.NumericCols, g.NetCol);
+        if (slCol.Length == 0) throw new BusinessException("File đã nạp không có cột Số lượng nên không thêm dòng theo Mã + Số lượng được.");
+        var row = new Dictionary<string, JsonNode?>();
+        foreach (var h in Bang1.Headers) row[h] = "";
+        var ed = new JsonObject();
+        void Put(string col, JsonNode? v) { if (col.Length == 0 || !row.ContainsKey(col)) return; row[col] = v; ed[col] = true; }
+        Put(Bang1.CodeCol, CodePrefix + code);
+        if (g.HasDate)
+        {
+            var d = string.IsNullOrWhiteSpace(date) ? DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : date.Trim();
+            if (!DateTime.TryParseExact(d, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) throw new BusinessException("Ngày phải dạng dd/mm/yyyy.");
+            Put(g.DateCol, d);
+        }
+        var product = ProductLabel(code);
+        var tenCol = FindTenHangColumn(Bang1.Headers);
+        Put(tenCol, tenHint.Trim().Length > 0 ? tenHint.Trim() : product);
+        // trọng lượng 1 đơn vị: gợi ý tồn → dòng cùng mã đã nạp (giá trị gặp nhiều nhất)
+        double? w = Num(weightHint) is { } wh && wh > 0 ? wh : null;
+        if (w is null && g.WeightCol.Length > 0)
+            w = Bang1.Rows.Where(r => S(r.GetValueOrDefault("__code")) == code).Select(r => Num(r.GetValueOrDefault(g.WeightCol))).Where(x => x is > 0)
+                .GroupBy(x => x!.Value).OrderByDescending(x => x.Count()).Select(x => (double?)x.Key).FirstOrDefault();
+        if (g.WeightCol.Length > 0 && w is not null) Put(g.WeightCol, JsonValue.Create(w.Value));
+        Put(slCol, JsonValue.Create(Round(sl.Value)));
+        double? net = w is not null ? Round(sl.Value * w.Value) : null;
+        if (g.NetCol.Length > 0 && Bang1.Headers.Contains(g.NetCol) && net is not null) Put(g.NetCol, JsonValue.Create(net.Value));
+        row["__code"] = code; row["__ed"] = ed; row["__tay"] = true;
+        PushUndo("Thêm mã hàng nhập tay");
+        Bang1.Rows.Add(row);
+        SaveBang1();
+        Log("Thêm mã hàng nhập tay", $"{code} · SL {Round(sl.Value)}");
+        var note = w is null ? "Chưa biết trọng lượng của mã này nên Net để trống — sửa Trọng lượng / Net ở Dòng gốc." : "";
+        return new AddRawResult(code, product, FormatSize(SegmentRaw(code, 8, "—")), w, net, note);
+    }
+
     /// <summary>Bỏ sửa tay không còn khớp nhóm nào (sau khi nạp lại / xóa dòng).</summary>
     public void PruneEdits()
     {
