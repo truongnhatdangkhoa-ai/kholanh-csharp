@@ -47,7 +47,10 @@ public sealed class PhieuKhoView : UserControl, IPage
     private readonly TextBlock _totals = new() { FontSize = 12.5, FontWeight = FontWeight.SemiBold, Foreground = Dark, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _side = new() { Spacing = 0 };
     private readonly Border _main = new();
-    private int _openBlock;
+    // 1.188: mọi mặt hàng mở sẵn trên 1 trang cuộn dọc như tờ Excel (người dùng duyệt mẫu A); bấm "▾ Mặt hàng n" để thu gọn từng cái
+    private readonly HashSet<int> _collapsed = new();
+    private readonly TextBlock _footText = new() { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Dark };
+    private readonly Border _foot;
     private TextBox? _soBox, _o40Box;
     private readonly List<(MatHang M, GridModel Gm)> _blocks = new();
     private readonly Button _save, _exp, _copy;
@@ -80,6 +83,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         _groups.Attach(_lg, () => RenderList());
         _savedPill = PhieuShell.Pill(_savedText, "ok");
         _errPill = PhieuShell.Pill(_errText, "bad");
+        _foot = new Border { Background = AppTheme.Brush("#FFF4C2"), BorderBrush = AppTheme.Brush("#B9C3D0"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6), Margin = new Thickness(0, 8, 0, 0), Child = _footText };
 
         _save = PhieuShell.Btn("Lưu phiếu", async () => await DoSave(), primary: true); _save.IsEnabled = _edit;
         _exp = PhieuShell.Btn("Xuất Excel", async () => await DoExport()); _exp.IsEnabled = _export; ToolTip.SetTip(_exp, "Xuất Excel (.xlsm) điền vào file mẫu");
@@ -233,7 +237,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     {
         if (_dirty && _cur is not null && _cur.Id == p.Id) { ShowFull(_editPage); return; }   // đang soạn đúng phiếu này → giữ thay đổi
         if (_dirty && _cur is not null && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và mở phiếu khác?", "Chưa lưu", "Bỏ thay đổi")) return;
-        _cur = Clone(p); _dirty = false; _openBlock = 0;
+        _cur = Clone(p); _dirty = false; _collapsed.Clear();
         ShowEditor();
         ShowFull(_editPage);
         if (PhieuKhoService.TagOf(p) is { } tag)
@@ -248,7 +252,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     private async Task NewPhieu()
     {
         if (_dirty && !await Ui.Confirm(this, "Phiếu đang soạn chưa lưu. Bỏ thay đổi và tạo phiếu mới?", "Chưa lưu", "Bỏ thay đổi")) return;
-        _cur = Svc.NewPhieu(); _dirty = true; _openBlock = 0;
+        _cur = Svc.NewPhieu(); _dirty = true; _collapsed.Clear();
         ShowEditor();
         ShowFull(_editPage);
     }
@@ -276,7 +280,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) { RefreshAll(); return; }
         _loading = true;
         var p = _cur;
-        _openBlock = Math.Clamp(_openBlock, 0, Math.Max(0, p.Mh.Count - 1));
+        _collapsed.RemoveWhere(i => i >= p.Mh.Count);
         var F = PhieuShell.Field; var P = PhieuShell.Pair;
         // --- khung phải: thông tin phiếu
         var date = new CalendarDatePicker { SelectedDateFormat = CalendarDatePickerFormat.Custom, CustomDateFormatString = "dd/MM/yyyy", IsEnabled = _edit };
@@ -325,15 +329,23 @@ public sealed class PhieuKhoView : UserControl, IPage
         // --- bên trái: mặt hàng xếp dọc, mặt hàng đang mở giãn hết chiều cao
         Control? footer = null;
         if (_edit && p.Mh.Count < XuatKhauLayout.NB)
-            footer = Btn("➕ Thêm mặt hàng", async () => { p.Mh.Add(new MatHang()); _openBlock = p.Mh.Count - 1; _dirty = true; ShowEditor(); await Task.CompletedTask; });
-        _main.Child = PhieuShell.Stack(null, p.Mh.Count, _openBlock, (i, open) => BuildBlock(p, i, open), footer);
+            footer = Btn("➕ Thêm mặt hàng", async () => { p.Mh.Add(new MatHang()); _dirty = true; ShowEditor(); await Task.CompletedTask; });
+        var list = new StackPanel { Spacing = 8 };
+        for (var i = 0; i < p.Mh.Count; i++) list.Children.Add(BuildBlock(p, i, !_collapsed.Contains(i)));
+        if (footer is not null) list.Children.Add(footer);
+        var sv = new ScrollViewer { Content = list, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
+        if (_foot.Parent is Panel old) old.Children.Remove(_foot);   // dựng lại khung soạn: thanh tổng dùng lại, gỡ khỏi khung cũ trước
+        var foot = _foot;
+        var dock = new DockPanel();
+        DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot); dock.Children.Add(sv);
+        _main.Child = dock;
         _loading = false;
         RefreshAll();
     }
 
     private static TextBlock SideHead(string t) => new() { Text = t, FontWeight = FontWeight.Bold, FontSize = 13, Foreground = Dark, Margin = new Thickness(0, 8, 0, 4) };
 
-    private void OpenBlock(int i) { if (i == _openBlock) return; _openBlock = i; ShowEditor(); }
+    private void ToggleBlock(int i) { if (!_collapsed.Remove(i)) _collapsed.Add(i); ShowEditor(); }
 
     private Control BuildBlock(Phieu p, int bi, bool open)
     {
@@ -346,10 +358,11 @@ public sealed class PhieuKhoView : UserControl, IPage
             rm.Click += async (_, _) =>
             {
                 if (UsedBlock(m) && !await Ui.Confirm(this, $"Xóa mặt hàng {bi + 1}" + (m.Ten.Length > 0 ? $" ({m.Ten})" : "") + "?", "Xóa mặt hàng", "Xóa")) return;
-                p.Mh.Remove(m); if (p.Mh.Count == 0) p.Mh.Add(new MatHang()); if (_openBlock >= bi && _openBlock > 0) _openBlock--; _dirty = true; ShowEditor();
+                p.Mh.Remove(m); if (p.Mh.Count == 0) p.Mh.Add(new MatHang()); _collapsed.Clear(); _dirty = true; ShowEditor();
             };
         }
-        var tog = PhieuShell.Toggle($"Mặt hàng {bi + 1}", open, () => OpenBlock(bi));
+        var tog = PhieuShell.Toggle($"Mặt hàng {bi + 1}", open, () => ToggleBlock(bi));
+        ToolTip.SetTip(tog, open ? "Bấm để thu gọn mặt hàng này" : "Bấm để mở mặt hàng này");
         if (!open)
         {
             var sum = m.DongList.Where(UsedRow).ToList();
@@ -364,7 +377,7 @@ public sealed class PhieuKhoView : UserControl, IPage
             var row = PhieuShell.Row(cells.ToArray());
             var card = PhieuShell.Card(row, new Thickness(8, 4));
             card.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
-            card.PointerPressed += (_, e) => { if (e.Source is not Button && !(e.Source as Visual)?.GetVisualAncestors().OfType<Button>().Any() == true) OpenBlock(bi); };
+            card.PointerPressed += (_, e) => { if (e.Source is not Button && !(e.Source as Visual)?.GetVisualAncestors().OfType<Button>().Any() == true) ToggleBlock(bi); };
             return card;
         }
         var ten = Tb(m.Ten, v => m.Ten = v, watermark: "Tên hàng"); ToolTip.SetTip(ten, "Tên hàng");
@@ -379,8 +392,8 @@ public sealed class PhieuKhoView : UserControl, IPage
         var gm = new GridModel { ReadOnly = !_edit };
         gm.Load(new[]
         {
-            new GridColumn("date", "DATE (dd.mm.yyyy)", 118), new GridColumn("size", "Size", 70), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 150),
-            new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 160), new GridColumn("kien", "Số kiện", 80, "number"), new GridColumn("mks", "MKS (x / số)", 95),
+            new GridColumn("date", "DATE (dd.mm.yyyy)", 105), new GridColumn("size", "Size", 66), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 120),
+            new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 140), new GridColumn("kien", "Số kiện", 76, "number"), new GridColumn("mks", "MKS (x / số)", 82),
             new GridColumn("nettay", "NET sửa tay", 90, "number"), new GridColumn("net", "NET / kiện", 90, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 120, "number") { ReadOnly = true },
         }, m.DongList.Select(d => new[] { d.Date, d.Size, d.Ma, d.Packing, d.Kien, d.Mks, d.NetTay, "", "" }));
         // 1.153: chỉ chừa 2 dòng trống dưới dữ liệu (gõ vào dòng trống cuối thì lưới tự dài thêm); bảng cao vừa đủ, quá ~16 dòng mới cuộn trong bảng.
@@ -452,6 +465,8 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _errPill.IsVisible = false; _savedPill.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export; _copy.IsEnabled = true;
         var t = TotalsOf(_cur); var unit = _cur.DonVi == "bdl" ? "bdl" : "kiện";
+        var nDong = _cur.Mh.Sum(mh => mh.DongList.Count(UsedRow));
+        _footText.Text = $"Tổng cả phiếu · {_cur.Mh.Count} mặt hàng · {nDong} dòng · {t.Kien:#,0.##} {unit} · {t.Kg:#,0.00} kg";
         _totals.Text = $"{t.Kien:#,0.##} {unit} · {t.Kg:#,0.00} kg\nAn An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}" + (t.Kien > 0 ? "\n" + DocSo(t.Kien) + " " + unit : "");
         var errs = Validate(Clone(_cur));
         _err.IsVisible = errs.Count > 0;
