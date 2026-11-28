@@ -133,6 +133,7 @@ public sealed partial class ViTriView : UserControl, IPage
             return left > 0 ? left.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) : "x";
         };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
+        _gm.CellLocked = (r, c) => c == ColX && r >= 0 && r < _rowIdx.Count && Locked(_rowIdx[r]);   // 1.191
         _pv = new SheetGrid(_pvm) { SpareRows = 0 };
         _dg = new SheetGrid(_dm) { SpareRows = 0, CellBackground = DraftBg, EmptyText = "Phiếu chưa có dòng nào — bấm “Chọn hàng từ tồn…” để chọn mã hàng cần xuất.", LargeTitle = "Phiếu đang soạn" };
         _dm.Changed += () => { if (!_dLoading) OnDraftChanged(); };
@@ -555,6 +556,8 @@ public sealed partial class ViTriView : UserControl, IPage
         Avalonia.Threading.Dispatcher.UIThread.Post(() => { RenderStock(); RenderDraft(); });
     }
 
+    /// <summary>1.191: ô hết tồn (SL tồn 0) không đang soạn / sửa → KHÓA cột SL xuất; nếu đã xuất ở phiếu trước thì cột đó hiện đúng SL đã xuất (vd 50).</summary>
+    private bool Locked(int i) => Svc.Rows[i].Sl <= 1e-9 && !_draft.ContainsKey(i) && !(_editing?.Bonus.ContainsKey(i) ?? false);
     private double Avail(int i) => Svc.Rows[i].Sl + (_editing?.Bonus.GetValueOrDefault(i) ?? 0);
 
     private void RenderStock()
@@ -586,7 +589,7 @@ public sealed partial class ViTriView : UserControl, IPage
                     if (hit is not null && !hit(r)) return false;
                 }
                 if (_draft.ContainsKey(i)) return true;
-                return _onlyStock.IsChecked != true || r.Sl > 1e-9 || (_editing?.Bonus.ContainsKey(i) ?? false);
+                return _onlyStock.IsChecked != true || r.Sl > 1e-9 || (_editing?.Bonus.ContainsKey(i) ?? false) || _done.ContainsKey(i);   // 1.191: ô đã xuất hết ở phiếu trước vẫn hiện (khóa) để kiểm soát SL đã chọn
             }).OrderBy(i => Svc.Rows[i], Comparer<Row>.Create((a, b) => CmpViTri(a.Vt, b.Vt) is var c && c != 0 ? c : string.Compare(a.Ma, b.Ma, StringComparison.Ordinal))).ToList();
             var rows = _rowIdx.Select(i =>
             {
@@ -594,7 +597,7 @@ public sealed partial class ViTriView : UserControl, IPage
                 return new[]
                 {
                     r.Vt.Length > 0 ? r.Vt : NoPos, r.Ma, TenOf(r), Svc.SizeOf(r), Raw(TlOf(r)), r.Dt, r.Hd, Raw(r.Sl),
-                    _draft.TryGetValue(i, out var x) ? Raw(x) : "", _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(Round(r.Sl * r.Tl)), r.Lo,
+                    _draft.TryGetValue(i, out var x) ? Raw(x) : (Locked(i) && _done.TryGetValue(i, out var dx) ? Raw(dx) : ""), _done.TryGetValue(i, out var d) ? Raw(d) : "", Raw(Round(r.Sl * r.Tl)), r.Lo,
                 };
             }).ToList();
             var cols = StockCols.Select(c => new GridColumn(c.Key, c.Header, c.Width, c.Type) { ReadOnly = c.ReadOnly || (c.Key == "x" && !_edit) }).ToList();
@@ -639,7 +642,7 @@ public sealed partial class ViTriView : UserControl, IPage
         if (r >= _rowIdx.Count) return null;
         var i = _rowIdx[r];
         if (_draft.TryGetValue(i, out var x)) return x > Avail(i) + 1e-9 ? OverBg : PickBg;
-        if (c == ColX + 1 && _done.ContainsKey(i)) return DoneBg;
+        if (c >= ColX && c <= ColX + 1 && _done.ContainsKey(i)) return DoneBg;
         if (Svc.Rows[i].Sl <= 1e-9) return ZeroBg;
         return null;
     }
