@@ -248,6 +248,8 @@ public sealed class ChungTuView : UserControl, IPage
         if (_export)
         {
             tools.Children.Add(Btn("Xuất Excel phiếu chọn", async () => await ExcelSel(false)));
+            tools.Children.Add(Btn("Xuất PDF phiếu chọn", async () => await PdfSel(false), tip: "Tạo thẳng file PDF A4 (không cần mở trình duyệt / chọn máy in)"));
+            tools.Children.Add(ToolRow.More(Btn("Xuất PDF tất cả", async () => await PdfSel(true))));
             tools.Children.Add(ToolRow.More(Btn("Xuất Excel tất cả", async () => await ExcelSel(true))));
             tools.Children.Add(ToolRow.More(Btn("🖨 In tất cả các ngày…", async () => await PrintSel(true))));
         }
@@ -362,6 +364,25 @@ public sealed class ChungTuView : UserControl, IPage
             Ui.OpenExternal(path);
             _status.Text = "Đã mở trang in trong trình duyệt — bấm In hoặc chọn \"Lưu dưới dạng PDF\". " + path;
         }
+    }
+
+    /// <summary>1.194: xuất PDF trực tiếp (Edge / Chrome chạy ngầm) — cùng nội dung với trang in.</summary>
+    private async Task PdfSel(bool all)
+    {
+        var list = all ? _groups : Selected().ToList();
+        if (list.Count == 0) { await Ui.Message(this, "Chọn ít nhất 1 phiếu trong danh sách."); return; }
+        var ans = await Ui.Prompt(this, $"Số bản cho mỗi ngày (sắp xuất {list.Count} phiếu):", "Số bản / ngày", Svc.Copies.ToString());
+        if (ans is null) return;
+        if (!int.TryParse(ans.Trim(), out var n) || n < 1) { await Ui.Message(this, "Số bản phải là số nguyên từ 1 đến 20."); return; }
+        n = Math.Min(20, n);
+        _form["fSoBanMoiNgay"].Text = n.ToString(); SaveForm();
+        var name = list.Count == 1 ? list[0].SoPhieu : (Svc.Meta().SoPhieu is { Length: > 1 } sp && sp != "—" ? sp : K(_mod).Prefix);
+        var path = await Ui.SaveFile(this, "Xuất PDF phiếu xuất", Ui.SafeFileName(name) + ".pdf", "pdf", "PDF");
+        if (path is null) return;
+        var tmp = Path.Combine(App.DataFolder, "in-chung-tu");
+        _status.Text = "Đang tạo PDF…";
+        if (await Act(() => Svc.WritePdf(_mod, list, n, path, tmp), $"Đã xuất {list.Count} phiếu ra {Path.GetFileName(path)}")) Ui.Exported(this, path);
+        else if (_status.Text == "Đang tạo PDF…") _status.Text = "";
     }
 
     private async Task ExcelSel(bool all)

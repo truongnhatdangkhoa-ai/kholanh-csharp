@@ -122,6 +122,23 @@ public sealed class SheetGrid : UserControl
     }
     /// <summary>Phím cách = tích: bảng có cột tích, hoặc bảng chỉ xem có ô tích (bảng sửa được: phím cách để gõ).</summary>
     private bool SpaceTicks => HasCheckCol || (TickMode && Model.ReadOnly);
+    // 1.194: cột "mã" (có giá trị bắt đầu bằng số 0 như 01082026) canh TRÁI cả cột — trước chỉ ô có số 0 đầu canh trái, ô khác (10082026) canh phải nên cột lệch nhau
+    private (int, int, int) _codeVer = (-1, -1, -1);
+    private readonly Dictionary<int, bool> _codeCols = new();
+    internal bool IsCodeColumn(int c)
+    {
+        var ver = (Model.Version, Model.Loads, Model.ColCount);
+        if (ver != _codeVer) { _codeVer = ver; _codeCols.Clear(); }
+        if (_codeCols.TryGetValue(c, out var hit)) return hit;
+        var code = false;
+        if (c >= 0 && c < Model.ColCount && Model.Columns[c].Type == "text")
+            for (var r = 0; r < Model.RowCount && r < 500 && !code; r++)
+            {
+                var v = Model.Get(r, c);
+                code = v.Length > 1 && v[0] == '0' && char.IsDigit(v[1]);
+            }
+        return _codeCols[c] = code;
+    }
     internal bool IsChecked(int m)
     {
         if (m < 0 || m >= Model.RowCount || IsRowLocked(m)) return false;
@@ -1220,7 +1237,7 @@ public sealed class SheetGrid : UserControl
                         var nl = shown.IndexOfAny(new[] { '\r', '\n' });
                         if (nl >= 0) shown = shown[..nl] + " …";
                         var ft = new FormattedText(shown, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, _g.RowBold?.Invoke(mr) == true ? HeadFace : Face, 13, _g.CellForeground?.Invoke(mr, c) ?? Text);
-                        var num = m.Columns[c].Type == "number" || (m.Columns[c].Type == "text" && LooksNumber(raw));
+                        var num = m.Columns[c].Type == "number" || (m.Columns[c].Type == "text" && !_g.IsCodeColumn(c) && LooksNumber(raw));
                         var tx = num ? cx + cw - ft.Width - 6 : cx + 6;
                         using (dc.PushClip(rect.Deflate(new Thickness(2, 0))))
                             dc.DrawText(ft, new Point(Math.Max(cx + 4, tx), y + (rh - ft.Height) / 2));

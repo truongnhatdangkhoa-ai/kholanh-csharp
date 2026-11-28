@@ -229,4 +229,22 @@ public class ChungTuTests : IDisposable
         Assert.Contains("DISPATCHING NOTE", html);
         Assert.Contains("BM02/QT23", html);
     }
+
+    [Fact]
+    public void Xuat_PDF_truc_tiep_tu_trang_in()
+    {
+        if (HtmlPdf.FindBrowser() is null) return;   // máy chạy test không có Edge / Chrome → bỏ qua
+        Ct.Load();
+        Ct.Import("tbb", File_("x.xlsx"));
+        var eff = Ct.Effective("tbb");
+        var pdf = Path.Combine(_dir, "ra", "phieu.pdf");
+        Ct.WritePdf("tbb", eff.Take(2).ToList(), 2, pdf, Path.Combine(_dir, "in"));
+        var bytes = File.ReadAllBytes(pdf);
+        Assert.True(bytes.Length > 1500);
+        Assert.Equal("%PDF", System.Text.Encoding.ASCII.GetString(bytes, 0, 4));
+        Assert.Empty(Directory.GetFiles(Path.Combine(_dir, "in"), "*.html"));   // trang tạm đã xóa
+        // 2 phiếu × 2 bản = 4 trang A4
+        var pages = System.Text.RegularExpressions.Regex.Matches(System.Text.Encoding.Latin1.GetString(bytes), @"/Type\s*/Page[^s]").Count;
+        Assert.Equal(4, pages);
+    }
 }
