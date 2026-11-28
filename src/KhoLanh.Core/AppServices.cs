@@ -160,6 +160,7 @@ public class AppServices
         // 1.121: đệm thư lịch xuất đã đọc cạnh database (lượt quét sau chỉ tải thư mới)
         if (LichXuat.Mail is KhoLanh.Core.LichXuat.ImapMailSource ims) ims.CachePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath))!, "email-lich-xuat-dem.json");
         TroLy = new KhoLanh.Core.TroLy.TroLyService(Db, () => Lan, Session, Audit, Backup, () => Lan, Drive, Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".") { Settings = Settings };
+        TroLy.LichXuat = () => LichXuat;   // 1.186: Trợ lý kiểm tra lịch xuất / email
         HeThong = new KhoLanh.Core.Lan.HeThongService(this);
     }
 

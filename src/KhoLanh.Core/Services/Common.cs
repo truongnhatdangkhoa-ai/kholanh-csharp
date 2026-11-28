@@ -172,6 +172,23 @@ public class SettingsService
     /// Mở app: khóa quan trọng nào có trong file dự phòng mà bảng KHÔNG còn dòng (bị xóa ngoài app) thì nạp lại. Khóa còn trong bảng (kể cả rỗng) giữ nguyên.
     /// Trả danh sách khóa đã nạp lại.
     /// </summary>
+    /// <summary>1.186: khóa có trong bản dự phòng cài đặt mà bảng settings đang thiếu (không sửa gì) — Trợ lý báo "Cài đặt máy bị mất".</summary>
+    public List<string> MissingFromMirror()
+    {
+        var miss = new List<string>();
+        try
+        {
+            if (!File.Exists(MirrorPath)) return miss;
+            var d = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(MirrorPath));
+            if (d == null || d.Count == 0) return miss;
+            using var c = _db.Open();
+            var have = c.Query<string>("SELECT key FROM settings").ToHashSet(StringComparer.Ordinal);
+            miss.AddRange(d.Keys.Where(k => Mirrored(k) && !have.Contains(k)));
+        }
+        catch { }
+        return miss;
+    }
+
     public List<string> RestoreFromMirror()
     {
         var restored = new List<string>();

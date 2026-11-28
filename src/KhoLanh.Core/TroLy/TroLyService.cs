@@ -138,6 +138,9 @@ public sealed partial class TroLyService
         StepRun("Đồng bộ", () => f.AddRange(CheckSync(CollectSync(now))));
         StepRun("Cấu hình kết nối", () => f.AddRange(CheckConfig(CollectConfig())));
         StepRun("Thao tác chậm", () => f.AddRange(CheckSlow(Perf.Read(_dataDir, now))));
+        StepRun("Lịch xuất & email", () => f.AddRange(CheckLichXuat(now)));       // 1.186
+        StepRun("Đồng bộ giữa các máy", () => f.AddRange(CheckDongBoMay(now)));   // 1.186
+        StepRun("Sau cập nhật", () => f.AddRange(CheckSauCapNhatMay(deep)));       // 1.186
         StepRun("Hiệu năng", () => f.AddRange(CheckPerf(now)));   // 1.101: CPU / RAM cao kéo dài, ổ sắp đầy, chậm dần sau cập nhật
 
         var st = LoadState();
