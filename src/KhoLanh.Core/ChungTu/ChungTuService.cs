@@ -73,7 +73,19 @@ public sealed class ChungTuService
     public Dictionary<string, string> Files { get; } = Kinds.ToDictionary(k => k.Key, _ => "");
     public Dictionary<string, List<List<string>>> Merged { get; } = Kinds.ToDictionary(k => k.Key, _ => new List<List<string>>());
     public Dictionary<string, List<Dictionary<string, string>>> Signers { get; } = Kinds.ToDictionary(k => k.Key, _ => new List<Dictionary<string, string>>());
-    public Dictionary<string, string> Form { get; private set; } = DefaultForm();
+    /// <summary>1.193: mỗi loại phiếu (TBB / Xả / Kiểm) có bộ thông tin phiếu RIÊNG — tránh lẫn lộn khi đổi tab.</summary>
+    public Dictionary<string, Dictionary<string, string>> Forms { get; private set; } = Kinds.ToDictionary(k => k.Key, k => DefaultFormOf(k.Key));
+    /// <summary>Thông tin phiếu của loại đang mở (<see cref="Mod"/>).</summary>
+    public Dictionary<string, string> Form => FormOf(Mod);
+    public Dictionary<string, string> FormOf(string mod)
+    {
+        if (!Forms.TryGetValue(mod, out var f)) Forms[mod] = f = DefaultFormOf(mod);
+        return f;
+    }
+    public static Dictionary<string, string> DefaultFormOf(string mod)
+    {
+        var f = DefaultForm(); f["fLoaiChungTu"] = K(mod).Loai; return f;
+    }
     public string Mod { get; set; } = "tbb";
     public bool Loaded { get; private set; }
 
@@ -147,7 +159,7 @@ public sealed class ChungTuService
             Rows[k.Key] = Read(k.RowSheet).OfType<JsonObject>().Select(FromStored).Where(r => r.MaHang.Length > 0).ToList();
             Files[k.Key] = ""; Merged[k.Key] = new();
         }
-        Form = DefaultForm();
+        Forms = Kinds.ToDictionary(k => k.Key, k => DefaultFormOf(k.Key));
         Mod = "tbb";
         var raw = string.Concat(Read(SheetMeta).OfType<JsonObject>().Select(o => S(o["data"])));
         if (raw.StartsWith("__JSON__"))
@@ -165,8 +177,23 @@ public sealed class ChungTuService
                     }
                     var mod = S(meta["mod"]);
                     if (Kinds.Any(k => k.Key == mod)) Mod = mod;
-                    if (meta["form"] is JsonObject form)
-                        foreach (var key in FormKeys) if (form[key] is { } v) Form[key] = S(v);
+                    if (meta["forms"] is JsonObject forms)
+                    {
+                        foreach (var k in Kinds)
+                            if (forms[k.Key] is JsonObject fk)
+                                foreach (var key in FormKeys) if (fk[key] is { } v) Forms[k.Key][key] = S(v);
+                    }
+                    else if (meta["form"] is JsonObject form)
+                    {
+                        // bản cũ (≤ 1.192): 1 bộ thông tin dùng chung → chép cho cả 3 loại, sửa phần lẫn của loại khác
+                        foreach (var k in Kinds)
+                        {
+                            foreach (var key in FormKeys) if (form[key] is { } v) Forms[k.Key][key] = S(v);
+                            var f = Forms[k.Key];
+                            if (Kinds.Any(o => o.Key != k.Key && f["fLoaiChungTu"] == o.Loai)) f["fLoaiChungTu"] = k.Loai;
+                            if (Kinds.Any(o => o.Key != k.Key && f["fSoPhieu"].StartsWith(o.Prefix + "-"))) f["fSoPhieu"] = SuggestNumber(k.Key, DateTime.Today);
+                        }
+                    }
                 }
             }
             catch { /* hỏng thì bỏ qua */ }
@@ -198,7 +225,8 @@ public sealed class ChungTuService
             ["v"] = 1, ["mod"] = Mod,
             ["files"] = new JsonObject(Kinds.Select(k => KeyValuePair.Create(k.Key, (JsonNode?)Files[k.Key]))),
             ["merged"] = new JsonObject(Kinds.Select(k => KeyValuePair.Create(k.Key, (JsonNode?)new JsonArray(Merged[k.Key].Select(a => (JsonNode?)new JsonArray(a.Select(x => (JsonNode?)x).ToArray())).ToArray())))),
-            ["form"] = new JsonObject(FormKeys.Select(f => KeyValuePair.Create(f, (JsonNode?)Form.GetValueOrDefault(f, "")))),
+            ["form"] = new JsonObject(FormKeys.Select(f => KeyValuePair.Create(f, (JsonNode?)Form.GetValueOrDefault(f, "")))),   // giữ cho bản cũ đọc được
+            ["forms"] = new JsonObject(Kinds.Select(k => KeyValuePair.Create(k.Key, (JsonNode?)new JsonObject(FormKeys.Select(f => KeyValuePair.Create(f, (JsonNode?)FormOf(k.Key).GetValueOrDefault(f, ""))))))),
             ["at"] = DateTimeOffset.Now.ToUnixTimeMilliseconds(),
         };
         var json = obj.ToJsonString(new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
