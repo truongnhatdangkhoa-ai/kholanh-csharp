@@ -53,6 +53,7 @@ public sealed class PhieuKhoView : UserControl, IPage
     private readonly Border _foot;
     private TextBox? _soBox, _o40Box;
     private readonly List<(MatHang M, GridModel Gm)> _blocks = new();
+    private readonly List<(MatHang M, TextBlock T)> _blockSums = new();
     private readonly Button _save, _exp, _copy;
 
     private string? _openId;
@@ -276,7 +277,7 @@ public sealed class PhieuKhoView : UserControl, IPage
 
     private void ShowEditor()
     {
-        _side.Children.Clear(); _blocks.Clear(); _soBox = null; _o40Box = null; _main.Child = null;
+        _side.Children.Clear(); _blocks.Clear(); _blockSums.Clear(); _soBox = null; _o40Box = null; _main.Child = null;
         if (_cur is null) { RefreshAll(); return; }
         _loading = true;
         var p = _cur;
@@ -333,11 +334,14 @@ public sealed class PhieuKhoView : UserControl, IPage
         var list = new StackPanel { Spacing = 8 };
         for (var i = 0; i < p.Mh.Count; i++) list.Children.Add(BuildBlock(p, i, !_collapsed.Contains(i)));
         if (footer is not null) list.Children.Add(footer);
+        var hdr = MhHeader(); hdr.Margin = new Thickness(0, 0, 0, 6);
         var sv = new ScrollViewer { Content = list, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
         if (_foot.Parent is Panel old) old.Children.Remove(_foot);   // dựng lại khung soạn: thanh tổng dùng lại, gỡ khỏi khung cũ trước
         var foot = _foot;
         var dock = new DockPanel();
-        DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot); dock.Children.Add(sv);
+        DockPanel.SetDock(foot, Dock.Bottom); dock.Children.Add(foot);
+        DockPanel.SetDock(hdr, Dock.Top); dock.Children.Add(hdr);
+        dock.Children.Add(sv);
         _main.Child = dock;
         _loading = false;
         RefreshAll();
@@ -390,15 +394,18 @@ public sealed class PhieuKhoView : UserControl, IPage
         var head = PhieuShell.Row(headCells.ToArray());
 
         var gm = new GridModel { ReadOnly = !_edit };
-        gm.Load(new[]
+        gm.Load(MhCols(), m.DongList.Select(d => new[] { d.Date, d.Size, d.Ma, d.Packing, d.Kien, d.Mks, d.NetTay, "", "" }));
+        // 1.189 (mẫu C): lưới KHÔNG tiêu đề / dòng tìm / thanh Tổng riêng (tiêu đề cột dùng chung ở đầu trang, tổng ở dòng vàng dưới khối) →
+        // cao đúng bằng số dòng + 1 dòng trống, không thừa chỗ. Tiêu đề lưới (HeadH) bị cắt bằng khung ClipToBounds + lề âm.
+        var grid = new SheetGrid(gm) { SpareRows = MhSpare, MinRows = 0, VerticalAlignment = VerticalAlignment.Top, Filterable = false, ShowTotals = false, Sortable = false, CanEnlarge = false };
+        var clip = new Border { ClipToBounds = true, VerticalAlignment = VerticalAlignment.Top, Child = grid };
+        grid.Margin = new Thickness(0, -SheetGrid.HeadH, 0, 0);
+        void FitMh()
         {
-            new GridColumn("date", "DATE (dd.mm.yyyy)", 105), new GridColumn("size", "Size", 66), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 120),
-            new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 140), new GridColumn("kien", "Số kiện", 76, "number"), new GridColumn("mks", "MKS (x / số)", 82),
-            new GridColumn("nettay", "NET sửa tay", 90, "number"), new GridColumn("net", "NET / kiện", 90, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 120, "number") { ReadOnly = true },
-        }, m.DongList.Select(d => new[] { d.Date, d.Size, d.Ma, d.Packing, d.Kien, d.Mks, d.NetTay, "", "" }));
-        // 1.153: chỉ chừa 2 dòng trống dưới dữ liệu (gõ vào dòng trống cuối thì lưới tự dài thêm); bảng cao vừa đủ, quá ~16 dòng mới cuộn trong bảng.
-        var grid = new SheetGrid(gm) { SpareRows = MhSpare, MinRows = 3, VerticalAlignment = VerticalAlignment.Top };
-        void FitMh() => grid.Height = SheetGrid.FitHeight(Math.Min(gm.RowCount + MhSpare, 16)) + FilterExtra;
+            var rows = Math.Min(gm.RowCount + MhSpare, 16);
+            clip.Height = SheetGrid.RowH * rows + 4;
+            grid.Height = SheetGrid.HeadH + clip.Height;
+        }
         gm.Changed += FitMh; FitMh();
         ToolTip.SetTip(grid, null);
         grid.Display = (r, c, raw) =>
@@ -416,15 +423,47 @@ public sealed class PhieuKhoView : UserControl, IPage
             SyncRows(m, gm); Dirty();
         };
         _blocks.Add((m, gm));
-        var body = new DockPanel();
-        head.Margin = new Thickness(0, 0, 0, 6);
-        DockPanel.SetDock(head, Dock.Top); body.Children.Add(head);
-        var fr = Framed(grid); fr.VerticalAlignment = VerticalAlignment.Top;
-        body.Children.Add(fr);
-        return PhieuShell.Card(body, new Thickness(8, 6, 8, 8));
+        var sumTxt = new TextBlock { FontSize = 12.5, FontWeight = FontWeight.Bold, Foreground = Dark, VerticalAlignment = VerticalAlignment.Center };
+        _blockSums.Add((m, sumTxt));
+        var sumBar = new Border { Background = AppTheme.Brush("#FFF4C2"), BorderBrush = Line_, BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(10, 3), Child = sumTxt };
+        head.Margin = new Thickness(0);
+        var band = new Border { Background = AppTheme.Brush("#E6F0FC"), BorderBrush = Line_, BorderThickness = new Thickness(0, 0, 0, 1), Padding = new Thickness(8, 5), Child = head };
+        var body = new StackPanel();
+        body.Children.Add(band); body.Children.Add(clip); body.Children.Add(sumBar);
+        RefreshSums();
+        return PhieuShell.Card(body, new Thickness(0));
     }
 
-    private const int MhSpare = 2, FilterExtra = 56; // dòng tìm cột + dòng Tổng
+    private static GridColumn[] MhCols() => new[]
+    {
+        new GridColumn("date", "DATE (dd.mm.yyyy)", 105), new GridColumn("size", "Size", 66), new GridColumn("ma", "Mã riêng (nếu nhiều mã)", 120),
+        new GridColumn("packing", "Packing (1.0 kg x 5 x 2)", 140), new GridColumn("kien", "Số kiện", 76, "number"), new GridColumn("mks", "MKS (x / số)", 82),
+        new GridColumn("nettay", "NET sửa tay", 90, "number"), new GridColumn("net", "NET / kiện", 90, "number") { ReadOnly = true }, new GridColumn("kg", "Thành kg", 120, "number") { ReadOnly = true },
+    };
+
+    /// <summary>Tiêu đề cột DÙNG CHUNG cho mọi mặt hàng (cố định ở đầu khung, mẫu C): lưới không dữ liệu, chỉ lấy phần tiêu đề.</summary>
+    private Control MhHeader()
+    {
+        var hm = new GridModel { ReadOnly = true };
+        hm.Load(MhCols(), Array.Empty<string[]>());
+        var hg = new SheetGrid(hm) { SpareRows = 0, MinRows = 0, Filterable = false, ShowTotals = false, Sortable = false, CanEnlarge = false, RowChecks = _edit, Tag = "hdr", VerticalAlignment = VerticalAlignment.Top };
+        hg.Height = SheetGrid.HeadH + 2;
+        var clip = new Border { ClipToBounds = true, Height = SheetGrid.HeadH, VerticalAlignment = VerticalAlignment.Top, Child = hg, IsHitTestVisible = false };
+        return PhieuShell.Card(clip, new Thickness(0));
+    }
+
+    /// <summary>Dòng tổng của từng mặt hàng (vàng, dưới bảng) — gọi lại mỗi lần số liệu đổi.</summary>
+    private void RefreshSums()
+    {
+        foreach (var (m, t) in _blockSums)
+        {
+            var rows = m.DongList.Where(UsedRow).ToList();
+            var k = rows.Sum(d => N0(d.Kien)); var kg = rows.Sum(d => RowNet(d) is { } n ? n * N0(d.Kien) : 0);
+            t.Text = $"Tổng mặt hàng {_cur?.Mh.IndexOf(m) + 1}  ·  {rows.Count} dòng  ·  {Fmt(k)} kiện  ·  {Fmt(kg)} kg";
+        }
+    }
+
+    private const int MhSpare = 1;   // 1 dòng trống dưới dữ liệu (gõ vào thì lưới tự dài thêm)
     private static string Fmt(double d) => d.ToString("#,0.###", Ui.Vi);
     private static double N0(string? s) => Num(s) is { } d && !double.IsNaN(d) ? d : 0;
     private static Dong RowOf(GridModel gm, int r) => new()
@@ -465,6 +504,7 @@ public sealed class PhieuKhoView : UserControl, IPage
         if (_cur is null) { _totals.Text = ""; _err.IsVisible = false; _errPill.IsVisible = false; _savedPill.IsVisible = false; _save.IsEnabled = false; _exp.IsEnabled = false; _copy.IsEnabled = false; return; }
         _save.IsEnabled = _edit; _exp.IsEnabled = _export; _copy.IsEnabled = true;
         var t = TotalsOf(_cur); var unit = _cur.DonVi == "bdl" ? "bdl" : "kiện";
+        RefreshSums();
         var nDong = _cur.Mh.Sum(mh => mh.DongList.Count(UsedRow));
         _footText.Text = $"Tổng cả phiếu · {_cur.Mh.Count} mặt hàng · {nDong} dòng · {t.Kien:#,0.##} {unit} · {t.Kg:#,0.00} kg";
         _totals.Text = $"{t.Kien:#,0.##} {unit} · {t.Kg:#,0.00} kg\nAn An {t.Aa:#,0.##} · Thuận Phước {t.Tp:#,0.##}" + (t.Kien > 0 ? "\n" + DocSo(t.Kien) + " " + unit : "");

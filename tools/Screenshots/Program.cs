@@ -3897,15 +3897,15 @@ void PxScene()
     if (g.Model.RowCount != rows0) Fail("bấm dòng tháng lần 2 không mở lại");
     g.Select(1, 0); g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
     if (!pkv.EditorOpen) Fail("bấm đúp phiếu không mở khung soạn phiếu");
-    var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
+    var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9 && !Equals(x.Tag, "hdr"));
     Console.WriteLine($"[PX] soạn phiếu xuất khẩu: lưới mặt hàng cao {eg.Bounds.Height:0} px, rộng {eg.Bounds.Width:0} px (cửa sổ {main.Bounds.Width:0}×{main.Bounds.Height:0})");
     // 1.153: lưới mặt hàng gọn — chỉ chừa 2 dòng trống dưới dữ liệu
-    if (eg.SpareRows != 2) Fail("lưới mặt hàng phải chỉ chừa 2 dòng trống");
+    if (eg.SpareRows != 1) Fail("lưới mặt hàng phải chỉ chừa 1 dòng trống");
     if (eg.Bounds.Height > HeadHFit(eg.Model.RowCount + 2)) Fail("lưới mặt hàng cao hơn mức vừa đủ");
     NoOverlap("soạn phiếu xuất khẩu");
     {   // 1.188: mọi mặt hàng mở sẵn trên 1 trang (phương án A) — thêm 2 mặt hàng thì phải thấy đủ 3 lưới
         void AddMh() { var bt = main.PageHost.GetVisualDescendants().OfType<Button>().First(x => x.IsEffectivelyVisible && (KhoLanh.App.Controls.Icon.TextOf(x.Content) ?? "").Contains("Thêm mặt hàng")); bt.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(14); }
-        int Open() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Count(x => x.IsEffectivelyVisible && x.Model.ColCount == 9);
+        int Open() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Count(x => x.IsEffectivelyVisible && x.Model.ColCount == 9 && !Equals(x.Tag, "hdr"));
         var nb = ((System.Collections.IList)typeof(KhoLanh.App.Views.PhieuKhoView).GetField("_blocks", bfx)!.GetValue(pkv)!).Count;
         while (nb < 3) { AddMh(); nb = ((System.Collections.IList)typeof(KhoLanh.App.Views.PhieuKhoView).GetField("_blocks", bfx)!.GetValue(pkv)!).Count; }
         Console.WriteLine($"[PX] phiếu {nb} mặt hàng → {Open()} lưới đang mở trên 1 trang");
