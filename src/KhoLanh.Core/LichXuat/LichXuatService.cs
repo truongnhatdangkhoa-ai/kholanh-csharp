@@ -78,6 +78,13 @@ public sealed partial class LichXuatService
         Reconcile();
     }
 
+    /// <summary>1.186 (Trợ lý): đọc lịch + phiếu xuất khẩu MỚI NHẤT mà không ghi gì (không Reconcile) — chỉ để kiểm tra.</summary>
+    public (List<Lich> Lich, List<Phieu> Phieu) PeekForCheck()
+    {
+        var p = _pnx(); p.Load();
+        return (ReadAll().Where(Keep).ToList(), p.List.Where(x => x.Loai == "xuat_khau").ToList());
+    }
+
     public void LoadPnx()
     {
         PnxError = "";

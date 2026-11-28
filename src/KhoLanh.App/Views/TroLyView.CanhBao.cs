@@ -36,6 +36,7 @@ public sealed partial class TroLyView
         actions.Children.Add(Btn("Bỏ qua", () => _ = Mark("boQua")));
         actions.Children.Add(Btn("Lỗi từ nguồn", () => _ = Mark("loiNguon"), "Do file Excel / phần mềm kho gốc — chỉ nhắc 1 lần, không đếm tái phát"));
         actions.Children.Add(Btn("Mở lại (Mới)", () => _ = Mark("moi")));
+        actions.Children.Add(Btn("📊 Báo cáo tuần", () => _ = WeeklyReport(), "Tóm tắt 7 ngày: tình trạng, lỗi phần mềm, hiệu năng, sao lưu, các máy — chép gửi người quản lý"));
         actions.Children.Add(Btn("Chọn hết", () => { foreach (var f in Visible()) if (f.Sev != "xanh") _sel.Add(f.Id); Render(); }));
         actions.Children.Add(Btn("Bỏ chọn", () => { _sel.Clear(); Render(); }));
 
@@ -243,6 +244,9 @@ public sealed partial class TroLyView
             {
                 TroLyFix.SaoLuuNgay => sv.Backup.DailyAutoBackup() is { } p ? "Đã sao lưu: " + System.IO.Path.GetFileName(p) : "Hôm nay đã có bản sao lưu.",
                 TroLyFix.DonBoNho => FreeMemory(),
+                TroLyFix.NoiLaiLan => sv.TroLy.ReconnectLan(),
+                TroLyFix.TaoLaiChiMuc => sv.TroLy.RebuildIndexes(),
+                TroLyFix.NapLaiCaiDat => sv.TroLy.RestoreSettingsFromMirror(),
                 _ => null,
             };
         });
@@ -250,9 +254,22 @@ public sealed partial class TroLyView
         {
             try { msg = await sv.LichXuat.CheckMailAsync(); } catch (Exception e) { msg = "Chưa kết nối được: " + e.Message; }
         }
+        if (ok && f.Fix == TroLyFix.QuetEmail)
+        {
+            try { msg = await sv.LichXuat.RefreshMailForPhieuAsync(TimeSpan.FromSeconds(60)); if (string.IsNullOrEmpty(msg)) msg = "Đã quét lại email, không có thư mới."; }
+            catch (Exception e) { msg = "Chưa quét được: " + e.Message; }
+        }
         if (!ok) return;
         Ui.Notify(this, "Sửa nhanh: " + f.FixLabel, (msg ?? "Đã chạy.") + "\nĐang quét lại để kiểm tra…", Avalonia.Controls.Notifications.NotificationType.Information);
         await Scan(false);
+    }
+
+    /// <summary>1.186: báo cáo tuần cho Quản trị (cũng tự nhắc mỗi 7 ngày ở MainWindow).</summary>
+    private async Task WeeklyReport()
+    {
+        string text = "";
+        if (!await Ui.Run(this, () => text = App.Services.TroLy.WeeklyReport())) return;
+        if (await Ui.Confirm(this, text, "Báo cáo tuần", "Chép báo cáo") && TopLevel.GetTopLevel(this)?.Clipboard is { } cb) await cb.SetTextAsync(text);
     }
 
     private string FreeMemory()
@@ -268,7 +285,7 @@ public sealed partial class TroLyView
     private static bool RollbackFor(Finding f)
     {
         if (f.Sev == "xanh" || !AppUpdater.HasPrevious || f.QFirstAt is not { } first) return false;
-        if (f.Cat != "loi-app" && !f.Title.StartsWith("Chậm hơn sau cập nhật")) return false;
+        if (f.Cat != "loi-app" && f.Cat != TroLyMoRong.CatCapNhat && !f.Title.StartsWith("Chậm hơn sau cập nhật")) return false;
         return App.UpdatedAt() is { } upd && first >= upd;
     }
 

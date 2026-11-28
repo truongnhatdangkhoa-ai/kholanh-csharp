@@ -291,7 +291,7 @@ KhoLanh.Core.Services.BusinessException: Không có quyền
             Mk("sao-luu", "xanh", "Sao lưu", "Bản sao lưu cũ", "x"),
         };
         TroLyFix.Assign(list);
-        Assert.Equal(new[] { TroLyFix.SaoLuuNgay, "", TroLyFix.KiemTraGmail, TroLyFix.DonBoNho, "", "" }, list.Select(f => f.Fix));
+        Assert.Equal(new[] { TroLyFix.SaoLuuNgay, TroLyFix.NoiLaiLan, TroLyFix.KiemTraGmail, TroLyFix.DonBoNho, "", "" }, list.Select(f => f.Fix));
     }
 
     [Fact]

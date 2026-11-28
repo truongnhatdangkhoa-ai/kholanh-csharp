@@ -265,6 +265,16 @@ public partial class MainWindow : Window
         TroLyButton.Content = Controls.Icon.Label($"{r.Do}", "warn");
         ToolTip.SetTip(TroLyButton, $"Trợ lý hệ thống · lần quét lúc {r.At:HH:mm}: {r.Do} cảnh báo nặng, {r.Vang} cần xem. Bấm để mở Trợ lý hệ thống.");
         NotifyFindings(r);
+        // 1.186: báo cáo tuần — nhắc Quản trị mỗi 7 ngày (nội dung đầy đủ ở Trợ lý › 📊 Báo cáo tuần)
+        var tl = App.Services.TroLy;
+        if (tl.WeeklyDue())
+        {
+            tl.WeeklyDone();
+            _ = Task.Run(() => KhoLanh.Core.TroLy.TroLyMoRong.TuanShort(tl.WeeklyData())).ContinueWith(t =>
+            {
+                if (t.IsCompletedSuccessfully) Avalonia.Threading.Dispatcher.UIThread.Post(() => Ui.Notify(this, "Báo cáo tuần của Trợ lý", t.Result + "\nBấm để mở Trợ lý › Báo cáo tuần.", Avalonia.Controls.Notifications.NotificationType.Information, () => Navigate("troly"), 20));
+            });
+        }
     });
 
     /// <summary>
@@ -281,7 +291,7 @@ public partial class MainWindow : Window
             _justUpdated = false;
             var upd = App.UpdatedAt();
             var news = r.Findings.Where(f => f.Sev != "xanh" && f.Q is "moi" or "taiPhat" && f.QFirstAt >= upd
-                && (f.Cat == "loi-app" || f.Title.StartsWith("Chậm hơn sau cập nhật"))).ToList();
+                && (f.Cat == "loi-app" || f.Cat == KhoLanh.Core.TroLy.TroLyMoRong.CatCapNhat || f.Title.StartsWith("Chậm hơn sau cập nhật"))).ToList();
             if (news.Count > 0 && AppUpdater.HasPrevious)
             {
                 foreach (var f in news) seen.Add(Key(f));
