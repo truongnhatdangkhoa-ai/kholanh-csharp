@@ -55,6 +55,9 @@ public sealed class SheetGrid : UserControl
     public Func<int, bool>? TotalsRowFilter { get; set; }
     /// <summary>Dòng tổng / nhóm (▾ ▸ "Tổng …") vẫn được cộng vào dòng Tổng — vd nhóm đang thu gọn chỉ còn dòng tổng nhóm.</summary>
     public Func<int, bool>? TotalsKeepRow { get; set; }
+    /// <summary>1.192: dòng KHÓA MỜ (vd ô đã xuất hết ở phiếu trước): không có ô tích, không tính là đã chọn, số ở cột <see cref="CheckCol"/> không cộng vào dòng Tổng / Đã chọn (không dồn vào phiếu mới).</summary>
+    public Func<int, bool>? RowLocked { get; set; }
+    internal bool IsRowLocked(int m) => RowLocked?.Invoke(m) == true;
     /// <summary>1.95: dòng chữ đậm (vd dòng tổng ngày ở Đối chiếu hàng ngày).</summary>
     public Func<int, bool>? RowBold { get; set; }
     public event Action? SelectionChanged;
@@ -121,7 +124,7 @@ public sealed class SheetGrid : UserControl
     private bool SpaceTicks => HasCheckCol || (TickMode && Model.ReadOnly);
     internal bool IsChecked(int m)
     {
-        if (m < 0 || m >= Model.RowCount) return false;
+        if (m < 0 || m >= Model.RowCount || IsRowLocked(m)) return false;
         if (TickMode) { SyncTicks(); return _ticks.Contains(m); }
         var v = Model.Get(m, _checkCol).Trim();
         return v.Length > 0 && v != "0" && !(GridFilter.TryNumber(v, out var n) && n <= 0);
@@ -133,12 +136,12 @@ public sealed class SheetGrid : UserControl
         {
             SyncTicks();
             var ch = false;
-            foreach (var m in rows) if (m >= 0 && m < Model.RowCount && (on ? _ticks.Add(m) : _ticks.Remove(m))) ch = true;
+            foreach (var m in rows) if (m >= 0 && m < Model.RowCount && !IsRowLocked(m) && (on ? _ticks.Add(m) : _ticks.Remove(m))) ch = true;
             if (ch) { _sumDirty = true; Redraw(); ChecksChanged?.Invoke(); }
             return;
         }
         if (!HasCheck) return;
-        Model.SetCells(rows.Where(m => m >= 0 && m < Model.RowCount && IsChecked(m) != on)
+        Model.SetCells(rows.Where(m => m >= 0 && m < Model.RowCount && !IsRowLocked(m) && IsChecked(m) != on)
             .Select(m => (m, _checkCol, on ? (CheckFill?.Invoke(m) ?? "1") : "")).ToList());
     }
     internal void ToggleRows(IReadOnlyCollection<int> rows)
@@ -150,7 +153,9 @@ public sealed class SheetGrid : UserControl
     internal bool? MasterState()
     {
         var cnt = VCount; if (cnt == 0) return false;
-        var n = 0; for (var v = 0; v < cnt; v++) if (IsChecked(ToModel(v))) n++;   // không cấp phát — gọi mỗi lần vẽ
+        var n = 0; var free = 0;
+        for (var v = 0; v < cnt; v++) { var m = ToModel(v); if (IsRowLocked(m)) continue; free++; if (IsChecked(m)) n++; }   // không cấp phát — gọi mỗi lần vẽ; dòng khóa mờ không tính
+        cnt = free; if (cnt == 0) return false;
         return n == 0 ? false : n == cnt ? true : null;
     }
     internal int TopRow;          // dòng đầu đang thấy
@@ -457,7 +462,7 @@ public sealed class SheetGrid : UserControl
         var g = new SheetGrid(Model)
         {
             SpareRows = SpareRows, EmptyText = EmptyText, Display = Display, AutoNumberFormat = AutoNumberFormat, CellBackground = CellBackground, CellForeground = CellForeground, CanEnlarge = false,
-            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow, RowBold = RowBold,
+            CheckFill = CheckFill, Filterable = Filterable, Suggest = Suggest, TotalsRowFilter = TotalsRowFilter, TotalsKeepRow = TotalsKeepRow, RowLocked = RowLocked, RowBold = RowBold,
         };
         g.SuggestionPicked += (r, c, it) => SuggestionPicked?.Invoke(r, c, it);
         g.CheckCol = CheckCol; g.RowChecks = RowChecks; g._ticks = _ticks; g._tickVer = _tickVer;   // cửa sổ lớn dùng chung dòng đã tích
@@ -1052,12 +1057,13 @@ public sealed class SheetGrid : UserControl
         if (!_sumDirty && ver == _sumVer) return;
         _sumDirty = false; _sumVer = ver;
         var rows = ShownRows;
-        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter, TotalsKeepRow);
+        Func<int, int, bool>? skip = RowLocked is null || _checkCol < 0 ? null : (r, c) => c == _checkCol && IsRowLocked(r);   // 1.192
+        _sumAll = GridTotals.Sum(Model, rows, SumCol, TotalsRowFilter, TotalsKeepRow, skip);
         _chkCount = 0;
         if (HasCheck)
         {
             _chkCount = rows.Count(IsChecked);
-            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false, TotalsKeepRow) : Array.Empty<double?>();
+            _sumChk = _chkCount > 0 ? GridTotals.Sum(Model, rows, SumCol, r => IsChecked(r) && TotalsRowFilter?.Invoke(r) != false, TotalsKeepRow, skip) : Array.Empty<double?>();
         }
         else _sumChk = Array.Empty<double?>();
     }
@@ -1314,7 +1320,7 @@ public sealed class SheetGrid : UserControl
                     var mr = _g.ToModel(r);
                     var ft = new FormattedText((mr + 1).ToString(), CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Face, 11.5, filtered ? Accent : HeadText);
                     dc.DrawText(ft, new Point(_g.NumW - ft.Width - 6, y + (rh - ft.Height) / 2));
-                    if (_g.HasCheck && mr < m.RowCount) DrawCheck(dc, new Point(_g.NumW + 5, y + (rh - 15) / 2), _g.IsChecked(mr));
+                    if (_g.HasCheck && mr < m.RowCount && !_g.IsRowLocked(mr)) DrawCheck(dc, new Point(_g.NumW + 5, y + (rh - 15) / 2), _g.IsChecked(mr));
                     dc.DrawLine(HeadLine, new Point(0, y + rh - 0.5), new Point(rhw, y + rh - 0.5));
                 }
             if (_g.ShowFilterRow)
@@ -1399,7 +1405,7 @@ public sealed class SheetGrid : UserControl
             if (_g.HasCheck && c < 0 && p.X >= _g.NumW)
             {
                 if (r < 0 && p.Y < SheetGrid.HeadH) { var all = _g.ShownRows; _g.SetChecked(all, _g.MasterState() != true); e.Handled = true; return; }
-                if (r >= 0) { var m = _g.ToModel(r); if (m < _g.Model.RowCount) { _g.SelectV(r, _g.Col); _g.ToggleRows(new[] { m }); } e.Handled = true; return; }
+                if (r >= 0) { var m = _g.ToModel(r); if (m < _g.Model.RowCount && !_g.IsRowLocked(m)) { _g.SelectV(r, _g.Col); _g.ToggleRows(new[] { m }); } e.Handled = true; return; }
             }
             if (r < 0 && c < 0 && _g.CanEnlarge && p.Y < SheetGrid.HeadH && p.X < _g.NumW) { e.Handled = true; _ = _g.OpenLarge(); return; }
             if (r < 0 && c < 0) { _g.SelectRangeV(new CellRange(0, 0, Math.Max(0, _g.VCount - 1), _g.Model.ColCount - 1)); return; }
