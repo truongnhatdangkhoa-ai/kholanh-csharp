@@ -2646,6 +2646,52 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v233")
     more.Flyout?.Hide(); P(5);
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v233) — ĐẠT: " : "Xong (v233) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.184: bôi đen kéo NGẮN (người dùng: muốn bôi 1 chữ mà phải kéo 3–4 chữ mới được). Chuột thật, ở cỡ chữ 100 % và 130 %:
+// nhấn nửa trái ký tự k, thả nửa phải ký tự k (kéo ~nửa ký tự) → đúng ký tự k; kéo trọn 1 từ ngắn → đúng từ; kéo ngược → đúng ký tự. SHOTS_ONLY=v256; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v256")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V256] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    const Avalonia.Input.RawInputModifiers No = Avalonia.Input.RawInputModifiers.None;
+    main.Navigate("dongbo"); P(40);
+    string T(TextBlock t) => KhoLanh.App.Controls.TextSelect.TextOf(t);
+    string Sel() => KhoLanh.App.Controls.TextSelect.SelectedText();
+    foreach (var zoomKeys in new[] { 0, 3 })
+    {
+        for (var z = 0; z < zoomKeys; z++) { main.KeyPress(Avalonia.Input.Key.OemPlus, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Equal, "+"); main.KeyRelease(Avalonia.Input.Key.OemPlus, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Equal, "+"); P(5); }
+        P(15);
+        var mc = (main.PageHost.Content as DongBoView)!.MayChu;
+        TextBlock Find() => ((main.PageHost.Content as DongBoView)!.MayChu).GetVisualDescendants().OfType<TextBlock>().First(t => KhoLanh.App.Controls.TextSelect.Selectable(t) && T(t).Length >= 20 && !T(t).Contains('\n'));
+        var t1 = Find();
+        var text = T(t1); var tag = zoomKeys == 0 ? "100%" : "130%";
+        Console.WriteLine($"[V256/{tag}] ô thử: “{text}”");
+        double L(int i) => t1.TextLayout.HitTestTextRange(i, 1).First().X + t1.Padding.Left;
+        double R(int i) { var r = t1.TextLayout.HitTestTextRange(i, 1).First(); return r.X + r.Width + t1.Padding.Left; }
+        Avalonia.Point At(double x) => t1.TranslatePoint(new Avalonia.Point(x, t1.Padding.Top + 6), main) ?? (t1 = Find()).TranslatePoint(new Avalonia.Point(x, t1.Padding.Top + 6), main)!.Value;
+        void Drag(Avalonia.Point a, Avalonia.Point b, int steps)
+        {
+            main.MouseMove(a, No); main.MouseDown(a, Avalonia.Input.MouseButton.Left, No); P(2);
+            for (var i = 1; i <= steps; i++) { main.MouseMove(new Avalonia.Point(a.X + (b.X - a.X) * i / steps, a.Y + (b.Y - a.Y) * i / steps), No); P(1); }
+            main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(4);
+        }
+        foreach (var k in new[] { 1, 4, 8, 12 })
+        {
+            var w = R(k) - L(k);
+            Drag(At(L(k) + w * 0.25), At(L(k) + w * 0.75), 2);
+            Console.WriteLine($"[V256/{tag}] kéo nửa ký tự {k} “{text[k]}” → “{Sel()}”");
+            if (Sel() != text[k].ToString()) Bad($"{tag}: kéo ~nửa ký tự {k} được “{Sel()}” (cần “{text[k]}”)");
+        }
+        var w1 = text.IndexOf(' ');
+        Drag(At(L(0) + 0.5), At(R(w1 - 1) - 0.5), 4);
+        Console.WriteLine($"[V256/{tag}] kéo trọn từ đầu → “{Sel()}” (cần “{text[..w1]}”)");
+        if (Sel() != text[..w1]) Bad($"{tag}: kéo trọn 1 từ chưa đúng");
+        Drag(At(L(4) + (R(4) - L(4)) * 0.75), At(L(4) + (R(4) - L(4)) * 0.25), 2);
+        Console.WriteLine($"[V256/{tag}] kéo ngược 1 ký tự → “{Sel()}”");
+        if (Sel().Length != 1) Bad($"{tag}: kéo ngược 1 ký tự chưa được");
+        Snap(main, "v256-boi-den-ngan-" + tag.TrimEnd('%'));
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v256) — ĐẠT: " : "Xong (v256) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
 {

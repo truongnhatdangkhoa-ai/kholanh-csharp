@@ -134,7 +134,29 @@ public sealed partial class LichXuatService
         var ph = Phieus.Where(p => Hit(p.Lsx)).OrderBy(p => Math.Abs(DayDiff(p.Ngay, ngay))).ToList();
         var list = Lists.Any(l => Hit(l.Lsx));
         var p0 = ph.FirstOrDefault();
-        return new PnxState(list, p0 is not null, p0?.Xe.Cont.Trim().ToUpperInvariant() ?? "", p0?.Xe.SoXe.Trim() ?? "");
+        var xe = p0?.Xe.SoXe.Trim() ?? "";
+        if (xe.Length == 0) xe = XeFromMail(codes, ngay);   // 1.184: chưa có phiếu / phiếu chưa có số xe → lấy số xe từ thư «Thông tin xe» đã nhận
+        return new PnxState(list, p0 is not null, p0?.Xe.Cont.Trim().ToUpperInvariant() ?? "", xe);
+    }
+
+    // 1.184: số xe theo thư «Thông tin xe» (Đã duyệt, 14 ngày) — nhớ ngắn để vẽ Tổng quan không đọc / tách lại thư cho từng dòng
+    private List<(HashSet<string> Codes, string SoXe, DateTime At)>? _xeMail; private DateTime _xeMailAt;
+    private string XeFromMail(List<string> codes, string ngay)
+    {
+        try
+        {
+            if (_xeMail is null || (DateTime.UtcNow - _xeMailAt).TotalSeconds > 20)
+            {
+                var cut = Now().AddDays(-14);
+                _xeMail = EmailRows().Where(r => r.HanhDong == "xe" && r.TrangThai == "Đã duyệt" && r.NhanLuc >= cut).GroupBy(r => r.Id).Select(g => g.First())
+                    .Select(r => (Codes: LichXuatEmail.CodesOf(r.Lsx).Select(PhieuKhoCore.LsxNorm).ToHashSet(), SoXe: PhieuKhoCore.ParseXeEmail(r.GhiChu).Xe.GetValueOrDefault("soXe", "").Trim(), At: r.NhanLuc))
+                    .Where(x => x.SoXe.Length > 0).ToList();
+                _xeMailAt = DateTime.UtcNow;
+            }
+            var hit = _xeMail.Where(x => x.Codes.Overlaps(codes) && (!IsIso(ngay) || Math.Abs((x.At.Date - DateOf(ngay)).TotalDays) <= 3)).OrderByDescending(x => x.At).FirstOrDefault();
+            return hit.SoXe ?? "";
+        }
+        catch { return ""; }
     }
     private static double DayDiff(string a, string b) => IsIso(a) && IsIso(b) ? (DateOf(a) - DateOf(b)).TotalDays : 999;
 
@@ -848,7 +870,32 @@ public sealed partial class LichXuatService
     }
 
     /// <summary>Quét thật (dùng chung cho quét tay của Quản trị và quét nền <see cref="StartAutoEmail"/>).</summary>
+    private readonly SemaphoreSlim _scanGate = new(1, 1);
     private async Task<ScanResult> ScanCoreAsync(CancellationToken ct, Action<string>? progress = null)
+    {
+        await _scanGate.WaitAsync(ct);   // 1.184: quét nền / quét tay / quét khi tạo phiếu không chạy chồng nhau
+        try { var r = await ScanCoreInnerAsync(ct, progress); _xeMail = null; return r; }
+        finally { _scanGate.Release(); }
+    }
+
+    /// <summary>
+    /// 1.184: bấm «Tạo phiếu xuất» → quét lại hộp thư trước (tối đa <paramref name="timeout"/>) để phiếu mới nhận ngay thông tin xe vừa đến.
+    /// Chưa khai báo Gmail / không có quyền / lỗi mạng → bỏ qua, trả ghi chú (không chặn tạo phiếu).
+    /// </summary>
+    public async Task<string> RefreshMailForPhieuAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        try
+        {
+            if (!CanAutoMail || !MailCfg().Ready) return "";
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct); cts.CancelAfter(timeout);
+            var r = await ScanCoreAsync(cts.Token);
+            return r.New > 0 || r.XeFilled > 0 || r.ContSet > 0 ? $"Đã quét lại email: {r.New} thư mới." : "";
+        }
+        catch (OperationCanceledException) { return "Quét lại email chưa xong kịp — phiếu dùng thông tin xe đã nhận trước đó."; }
+        catch (Exception e) { return "Chưa quét lại được email (" + e.Message + ") — phiếu dùng thông tin xe đã nhận trước đó."; }
+    }
+
+    private async Task<ScanResult> ScanCoreInnerAsync(CancellationToken ct, Action<string>? progress = null)
     {
         if (!CanAutoMail) throw new BusinessException("Tài khoản không có quyền sửa Lịch xuất.");
         var cfg = MailCfg();
@@ -936,6 +983,7 @@ public sealed partial class LichXuatService
         SaveEmailRows(store);
         _settings.Set("lx_mail_last", now.ToString("o", CultureInfo.InvariantCulture));
         var waiting = store.Count(r => r.TrangThai.Length == 0);
+        _xeMail = null;
         return new ScanResult(fresh.Count, auto, contN, xeN, waiting, notes) { Recognized = built.Count };
     }
 

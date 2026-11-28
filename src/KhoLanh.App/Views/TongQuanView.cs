@@ -249,14 +249,15 @@ public sealed partial class TongQuanView : UserControl, IPage
         _day.Children.Clear();
         if (h.Today.Count == 0) { _day.Children.Add(new TextBlock { Text = "Không có lịch xuất ngày này.", Foreground = Muted, Margin = new Thickness(4, 8) }); return; }
         var i = 0;
-        foreach (var x in h.Today) _day.Children.Add(DayCard(x, ++i));
+        var anyViec = h.Today.Any(z => z.Viec is not null);
+        foreach (var x in h.Today) _day.Children.Add(DayCard(x, ++i, anyViec));
     }
 
-    private Control DayCard(ContRow x, int n)
+    private Control DayCard(ContRow x, int n, bool hasViec = false)
     {
         var st = StStyle.GetValueOrDefault(x.St, StStyle["plan"]);
         // cột nút (cuối) vừa đủ nút → mọi nút 1 dòng; cột tên giãn phần còn lại (1.125: trước 3* / 2* làm ✎ rớt dòng dù giữa còn trống)
-        var g = new Grid { ColumnDefinitions = new ColumnDefinitions("28,4,*,108,96,84,96,Auto"), Margin = new Thickness(0) };
+        var g = new Grid { ColumnDefinitions = new ColumnDefinitions(hasViec ? "28,4,*,170,108,96,84,96,Auto" : "28,4,*,108,96,84,96,Auto"), Margin = new Thickness(0) };
         g.ColumnDefinitions[2].MinWidth = 160;
         g.Children.Add(new TextBlock { Text = n.ToString(), FontSize = 15, FontWeight = FontWeight.Bold, Foreground = Muted, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center });
         var bar = new Border { Background = B(st.Bar), CornerRadius = new CornerRadius(2) }; Grid.SetColumn(bar, 1); g.Children.Add(bar);
@@ -267,8 +268,10 @@ public sealed partial class TongQuanView : UserControl, IPage
         if (x.Gio.Length > 0) l1.Children.Add(Pill("⏱ " + GioVn(x.Gio), "#EEF1F5", "#334155", 10.5));
         who.Children.Add(l1);
         if (x.Khach.Length > 0) who.Children.Add(new TextBlock { Text = x.Khach, FontSize = 12.5, Foreground = Muted, TextTrimming = TextTrimming.CharacterEllipsis });
-        if (x.Viec is { } v) who.Children.Add(ViecTag(v));
         Grid.SetColumn(who, 2); g.Children.Add(who);
+        // 1.184: «việc cần làm» có cột riêng ngay trước số cont (trước nằm dưới tên khách → dòng cao thấp lẫn lộn)
+        var cb = hasViec ? 1 : 0;
+        if (hasViec) { var vt = x.Viec is { } v ? (Control)ViecTag(v) : new Border(); ((Control)vt).VerticalAlignment = VerticalAlignment.Center; ((Control)vt).Margin = new Thickness(0, 0, 8, 0); Grid.SetColumn(vt, 3); g.Children.Add(vt); }
         Control Cell(string lab, string val, int col)
         {
             var s = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
@@ -276,8 +279,8 @@ public sealed partial class TongQuanView : UserControl, IPage
             s.Children.Add(new TextBlock { Text = val.Length > 0 ? val : "—", FontSize = 13, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
             Grid.SetColumn(s, col); return s;
         }
-        g.Children.Add(Cell("Cont", x.Cont, 3)); g.Children.Add(Cell("Xe", x.Xe, 4)); g.Children.Add(Cell("Khối lượng", x.Kg > 0 ? Tan(x.Kg) + " tấn" : "", 5));
-        var sp = StPill(x.St); sp.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(sp, 6); g.Children.Add(sp);
+        g.Children.Add(Cell("Cont", x.Cont, 3 + cb)); g.Children.Add(Cell("Xe", x.Xe, 4 + cb)); g.Children.Add(Cell("Khối lượng", x.Kg > 0 ? Tan(x.Kg) + " tấn" : "", 5 + cb));
+        var sp = StPill(x.St); sp.HorizontalAlignment = HorizontalAlignment.Left; Grid.SetColumn(sp, 6 + cb); g.Children.Add(sp);
         var ac = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Thickness(8, 0, 2, 0), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
         var px = Svc.CanEdit && Svc.CanPnx;
         if (x.HasList) ac.Children.Add(DoneBtn("Đã có List", () => OpenPnx(1, null, x.Codes.FirstOrDefault()), "Mở List sản xuất của LSX này", fs: 12));
@@ -285,7 +288,7 @@ public sealed partial class TongQuanView : UserControl, IPage
         if (x.HasPhieu) ac.Children.Add(DoneBtn("Đã có phiếu", () => OpenPnx(0, Svc.PhieuOf(Svc.Group(x.Ids))?.Id, null), "Mở Phiếu xuất kho của LSX này", fs: 12));
         else if (x.St != "ok" && px) ac.Children.Add(Btn("Tạo phiếu xuất", async () => await RunPnx(x, true), "Tạo Phiếu xuất kho từ List (chưa có List thì tạo từ tồn kho)", fs: 12));
         if (Svc.CanEdit) { ac.Children.Add(Btn("✉ Cont", async () => await ContMailDialog(x.Ids), "Dán email «Thông tin xe» để cập nhật số cont", fs: 12)); ac.Children.Add(Btn("✎", async () => await EditDialog(x.Ids[0], null), "Sửa lịch", fs: 12)); }
-        Grid.SetColumn(ac, 7); g.Children.Add(ac);
+        Grid.SetColumn(ac, 7 + cb); g.Children.Add(ac);
         var card = new Border { Background = B(x.St == "ok" ? "#FAFCFB" : "#FFFFFF"), BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(6, 8), Child = g, Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand) };
         who.PointerPressed += async (_, _) => await DetailDialog(x.Ids);
         ToolTip.SetTip(who, "Bấm để xem chi tiết lịch, việc cần xử lý, hàng theo tồn kho");
@@ -311,11 +314,18 @@ public sealed partial class TongQuanView : UserControl, IPage
     private async Task RunPnx(ContRow x, bool phieu)
     {
         List<string> notes = new(); string? id = null;
-        if (!await Ui.RunAsync(this, async () => await Task.Run(() =>
+        if (!await Ui.RunAsync(this, async () =>
         {
-            if (phieu) { var r = Svc.CreatePhieu(x.Ids); notes = r.Notes; id = r.Phieu.Id; }
-            else notes = Svc.CreateLists(x.Ids);
-        }))) return;
+            // 1.184: tạo phiếu → quét lại email trước để phiếu mới có ngay thông tin xe vừa đến (chưa có phiếu mới quét, đã có phiếu thì không)
+            var scan = "";
+            if (phieu && Svc.PhieuOf(Svc.Group(x.Ids)) is null && Svc.CanAutoMail)
+                await Ui.Busy(this, "Đang quét lại email «Thông tin xe» để điền vào phiếu…", () => { scan = Svc.RefreshMailForPhieuAsync(TimeSpan.FromSeconds(60)).GetAwaiter().GetResult(); });
+            await Task.Run(() =>
+            {
+                if (phieu) { var r = Svc.CreatePhieu(x.Ids); notes = r.Notes; id = r.Phieu.Id; if (scan.Length > 0) notes.Insert(0, scan); }
+                else notes = Svc.CreateLists(x.Ids);
+            });
+        })) return;
         PaintDay();
         var open = await Ui.Confirm(this, string.Join("\n", notes), phieu ? "Tạo phiếu xuất kho" : "Tạo List sản xuất", phieu ? "Mở phiếu" : "Mở List");
         if (open) await OpenPnx(phieu ? 0 : 1, id, x.Codes.FirstOrDefault());

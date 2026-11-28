@@ -79,7 +79,8 @@ public static class TextSelect
     {
         if (!_down || _anchor is null) return;
         var p = e.GetPosition(top);
-        if (!_dragging && Math.Abs(p.X - _downAt.X) + Math.Abs(p.Y - _downAt.Y) < 4) return;
+        // 1.184: ngưỡng kéo 4 → 1,5 px — ký tự rộng ~7 px, kéo nửa ký tự (~3,5 px) mà ngưỡng 4 thì không bôi được 1 chữ, phải kéo thêm 3–4 chữ mới ăn
+        if (!_dragging && Math.Abs(p.X - _downAt.X) + Math.Abs(p.Y - _downAt.Y) < 1.5) return;
         _dragging = true;
         var hit = HitText(top, p);
         if (hit is null || hit.Tb != _anchor.Tb) { EnsureOrder(); hit = HitText(top, p, nearest: true); }
