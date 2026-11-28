@@ -257,7 +257,8 @@ public sealed class DanhMucMaView : UserControl, IPage
     private async Task DeleteSel()
     {
         if (_save.IsEnabled) { _save.Stop(); Save(); }
-        var sel = _g.Selection; var ids = Enumerable.Range(sel.R1, sel.Rows).Where(r => r < _m.RowCount).Select(r => _m.Get(r, CId)).Where(x => x.Length > 0).Distinct().ToList();
+        var sel = _g.Selection; var rowsPick = _g.CheckedRows.Count > 0 ? _g.CheckedRows.ToList() : Enumerable.Range(sel.R1, sel.Rows).ToList();   // 1.188: có dòng đã tích thì xóa các dòng tích, không thì vùng bôi đen
+        var ids = rowsPick.Where(r => r >= 0 && r < _m.RowCount).Select(r => _m.Get(r, CId)).Where(x => x.Length > 0).Distinct().ToList();
         if (ids.Count == 0) { await Ui.Message(this, "Chọn ô / số dòng của các mã cần xóa trước."); return; }
         if (!await Ui.Confirm(this, $"Xóa {ids.Count} mã khỏi danh mục? (Không xóa mã trong tồn kho / phiếu.)", "Xóa mã", "Xóa")) return;
         if (await Ui.Run(this, () => Svc.Apply(Array.Empty<(string?, string, string, string?)>(), ids, $"Xóa {ids.Count} mã"))) { Draw(sel.R1); PaintXl(); }

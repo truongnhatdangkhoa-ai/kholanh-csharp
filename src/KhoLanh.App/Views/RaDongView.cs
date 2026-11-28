@@ -233,7 +233,7 @@ public sealed class RaDongView : UserControl, IPage
             bar.Children.Add(ToolRow.More(Btn("↺ Hoàn lại số gốc", async () =>
             {
                 var keys = SelectedGroupKeys();
-                if (keys.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) các dòng nhóm có ô vàng (đã sửa tay) rồi bấm lại."); return; }
+                if (keys.Count == 0) { await Ui.Message(this, "Tích (hoặc bôi đen) các dòng nhóm có ô vàng (đã sửa tay) rồi bấm lại."); return; }
                 await Act(() => Svc.RevertGroups(keys), b2: true);
             })));
             bar.Children.Add(_undoBtn);
@@ -380,25 +380,33 @@ public sealed class RaDongView : UserControl, IPage
 
     private List<string> SelectedGroupKeys()
     {
-        var s = _gGrid.Selection;
+        // 1.188: có dòng ĐÃ TÍCH (ô vuông đầu dòng) thì lấy các dòng tích; không thì lấy vùng đang bôi đen (trước chỉ đọc vùng bôi đen → tích bao nhiêu cũng chỉ xóa 1 dòng)
         var keys = new List<string>();
-        for (var r = s.R1; r <= s.R2 && r < _gRowKey.Count; r++) if (_gRowKey[r] is { } k && !keys.Contains(k)) keys.Add(k);
+        foreach (var r in PickedRows(_gGrid)) if (r < _gRowKey.Count && _gRowKey[r] is { } k && !keys.Contains(k)) keys.Add(k);
         return keys;
+    }
+
+    /// <summary>Dòng được chọn để thao tác: các dòng đã tích; chưa tích dòng nào thì vùng đang bôi đen.</summary>
+    private static List<int> PickedRows(SheetGrid g)
+    {
+        var ticked = g.CheckedRows;
+        if (ticked.Count > 0) return ticked.ToList();
+        var s = g.Selection;
+        return Enumerable.Range(s.R1, s.Rows).ToList();
     }
 
     private async Task DeleteSelected()
     {
         if (_rawToggle.IsChecked == true)
         {
-            var s = _rGrid.Selection;
-            var rows = Enumerable.Range(s.R1, s.Rows).Where(r => r < _rRows.Count).Select(r => _rRows[r]).ToList();
+            var rows = PickedRows(_rGrid).Where(r => r >= 0 && r < _rRows.Count).Distinct().Select(r => _rRows[r]).ToList();
             if (rows.Count == 0) return;
             if (!await Ui.Confirm(this, $"Xóa {rows.Count} dòng gốc đã chọn? Bảng gộp sẽ tự tính lại. Có thể bấm \"Hoàn tác\".", "Xóa dòng gốc", "Xóa")) return;
             await Act(() => Svc.DeleteRawRows(rows), b2: true);
             return;
         }
         var keys = SelectedGroupKeys();
-        if (keys.Count == 0) { await Ui.Message(this, "Chọn (bôi đen) các dòng nhóm cần xóa rồi bấm lại."); return; }
+        if (keys.Count == 0) { await Ui.Message(this, "Tích (hoặc bôi đen) các dòng nhóm cần xóa rồi bấm lại."); return; }
         if (!await Ui.Confirm(this, $"Xóa {keys.Count} nhóm đã chọn? Xóa luôn các dòng gốc thuộc các nhóm này. Có thể bấm \"Hoàn tác\".", "Xóa nhóm", "Xóa")) return;
         await Act(() => Svc.DeleteGroups(keys), b2: true);
     }

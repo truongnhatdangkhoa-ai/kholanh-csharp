@@ -2734,6 +2734,15 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v257")
         Snap(main, "v257-them-ma-2");
         s.RaDong.UndoBang2();
     }
+    // sửa kèm: tích 3 dòng → thao tác xóa phải thấy 3 dòng (trước chỉ đọc vùng bôi đen = 1 dòng)
+    {
+        var rg = F<KhoLanh.App.Controls.SheetGrid>("_rGrid");
+        rg.SetChecked(new[] { 0, 2, 4 }, true);
+        var pr = (List<int>)typeof(KhoLanh.App.Views.RaDongView).GetMethod("PickedRows", bf)!.Invoke(null, new object[] { rg })!;
+        Console.WriteLine($"[V257] tích 3 dòng → thao tác thấy {pr.Count} dòng ({string.Join(",", pr)})");
+        if (pr.Count != 3) Bad("tích 3 dòng mà thao tác chỉ thấy " + pr.Count);
+        rg.SetChecked(new[] { 0, 2, 4 }, false);
+    }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v257) — ĐẠT: " : "Xong (v257) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
