@@ -735,6 +735,17 @@ public sealed class ChungTuService
         return path;
     }
 
+    /// <summary>1.194: xuất thẳng PDF (A4, đúng như trang in) — không mở trình duyệt, không cần chọn máy in.</summary>
+    public void WritePdf(string mod, IReadOnlyList<Group> groups, int copies, string pdfPath, string tmpDir)
+    {
+        Directory.CreateDirectory(tmpDir);
+        var html = Path.Combine(tmpDir, $"chung-tu-pdf-{Guid.NewGuid().ToString("N")[..8]}.html");
+        File.WriteAllText(html, PrintHtml(mod, groups, copies), Encoding.UTF8);
+        try { HtmlPdf.Convert(html, pdfPath); }
+        finally { try { File.Delete(html); } catch { } }
+        Log("Xuất PDF", $"{K(mod).Label}: {groups.Count} phiếu × {copies} bản");
+    }
+
     // ------------------------------------------------------------------ xuất Excel (mẫu BM02/QT23)
 
     /// <summary>Mỗi phiếu 1 sheet theo mẫu Phiếu xuất / Dispatching Note (Times New Roman, logo, ô ký).</summary>
