@@ -3897,26 +3897,27 @@ void PxScene()
     if (g.Model.RowCount != rows0) Fail("bấm dòng tháng lần 2 không mở lại");
     g.Select(1, 0); g.RaiseEvent(new Avalonia.Input.TappedEventArgs(Avalonia.Input.Gestures.DoubleTappedEvent, null!)); W(14);
     if (!pkv.EditorOpen) Fail("bấm đúp phiếu không mở khung soạn phiếu");
-    var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 9 && !Equals(x.Tag, "hdr"));
+    var eg = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 15);
     Console.WriteLine($"[PX] soạn phiếu xuất khẩu: lưới mặt hàng cao {eg.Bounds.Height:0} px, rộng {eg.Bounds.Width:0} px (cửa sổ {main.Bounds.Width:0}×{main.Bounds.Height:0})");
     // 1.153: lưới mặt hàng gọn — chỉ chừa 2 dòng trống dưới dữ liệu
-    if (eg.SpareRows != 1) Fail("lưới mặt hàng phải chỉ chừa 1 dòng trống");
-    if (eg.Bounds.Height > HeadHFit(eg.Model.RowCount + 2)) Fail("lưới mặt hàng cao hơn mức vừa đủ");
+    
     NoOverlap("soạn phiếu xuất khẩu");
     {   // 1.188: mọi mặt hàng mở sẵn trên 1 trang (phương án A) — thêm 2 mặt hàng thì phải thấy đủ 3 lưới
         void AddMh() { var bt = main.PageHost.GetVisualDescendants().OfType<Button>().First(x => x.IsEffectivelyVisible && (KhoLanh.App.Controls.Icon.TextOf(x.Content) ?? "").Contains("Thêm mặt hàng")); bt.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(14); }
-        int Open() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Count(x => x.IsEffectivelyVisible && x.Model.ColCount == 9 && !Equals(x.Tag, "hdr"));
+        int Open() => main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().Count(x => x.IsEffectivelyVisible && x.Model.ColCount == 15);
         var nb = ((System.Collections.IList)typeof(KhoLanh.App.Views.PhieuKhoView).GetField("_blocks", bfx)!.GetValue(pkv)!).Count;
         while (nb < 3) { AddMh(); nb = ((System.Collections.IList)typeof(KhoLanh.App.Views.PhieuKhoView).GetField("_blocks", bfx)!.GetValue(pkv)!).Count; }
-        Console.WriteLine($"[PX] phiếu {nb} mặt hàng → {Open()} lưới đang mở trên 1 trang");
-        if (Open() != nb) Fail("không hiện đủ mọi mặt hàng trên 1 trang");
+        Console.WriteLine($"[PX] phiếu {nb} mặt hàng → {Open()} lưới (phải là 1 lưới chung)");
+        if (Open() != 1) Fail("phiếu phải có đúng 1 lưới chung cho mọi mặt hàng");
+        var sg1 = main.PageHost.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.IsEffectivelyVisible && x.Model.ColCount == 15);
+        var nS = Enumerable.Range(0, sg1.Model.RowCount).Count(r => sg1.Model.Get(r, 0) == "S");
+        if (nS != nb) Fail($"số dòng tổng ({nS}) khác số mặt hàng ({nb})");
+        // gõ vào dòng trống cuối của mặt hàng 1 → tự thêm 1 dòng trống mới
+        var rowsBefore = sg1.Model.RowCount;
+        var blank1 = Enumerable.Range(0, sg1.Model.RowCount).First(r => sg1.Model.Get(r, 0) != "S" && Enumerable.Range(6, 7).All(c => sg1.Model.Get(r, c).Length == 0));
+        sg1.Model.Set(blank1, 7, "31/40"); W(4);
+        if (sg1.Model.RowCount != rowsBefore + 1) Fail("gõ vào dòng trống cuối không tự thêm dòng trống mới");
         Snap(main, "30b2-phieu-xuat-khau-3-mat-hang");
-        // thu gọn mặt hàng 2 rồi mở lại
-        var tg = main.PageHost.GetVisualDescendants().OfType<Button>().First(x => x.IsEffectivelyVisible && (KhoLanh.App.Controls.Icon.TextOf(x.Content) ?? "").Contains("Mặt hàng 2"));
-        tg.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(14);
-        if (Open() != nb - 1) Fail("bấm ▾ Mặt hàng 2 không thu gọn");
-        main.PageHost.GetVisualDescendants().OfType<Button>().First(x => x.IsEffectivelyVisible && (KhoLanh.App.Controls.Icon.TextOf(x.Content) ?? "").Contains("Mặt hàng 2")).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); W(14);
-        if (Open() != nb) Fail("bấm ▸ Mặt hàng 2 không mở lại");
     }
     Snap(main, "30b-phieu-xuat-khau-nhap-lieu");
     typeof(KhoLanh.App.Views.PhieuKhoView).GetField("_dirty", bfx)!.SetValue(pkv, false);   // đã thêm 2 mặt hàng thử → bỏ cờ chưa lưu để đóng không hỏi
