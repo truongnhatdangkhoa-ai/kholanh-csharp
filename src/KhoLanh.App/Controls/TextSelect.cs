@@ -34,7 +34,8 @@ public static class TextSelect
     {
         InputElement.PointerPressedEvent.AddClassHandler<TopLevel>((t, e) => OnPressed(t, e), RoutingStrategies.Tunnel, handledEventsToo: true);
         InputElement.PointerMovedEvent.AddClassHandler<TopLevel>((t, e) => OnMoved(t, e), RoutingStrategies.Tunnel, handledEventsToo: true);
-        InputElement.PointerReleasedEvent.AddClassHandler<TopLevel>((_, _) => { _down = false; }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.PointerReleasedEvent.AddClassHandler<TopLevel>((_, _) => { _down = false; _dragging = false; }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        InputElement.PointerCaptureLostEvent.AddClassHandler<TopLevel>((_, _) => { _down = false; _dragging = false; }, RoutingStrategies.Tunnel, handledEventsToo: true);
         InputElement.KeyDownEvent.AddClassHandler<TopLevel>((t, e) => OnKey(t, e), RoutingStrategies.Tunnel);
         Control.LoadedEvent.AddClassHandler<TextBlock>((tb, _) =>
         {
@@ -70,7 +71,7 @@ public static class TextSelect
             var text = TextOf(hit.Tb);
             if (e.ClickCount >= 3) { _anchor = new(hit.Tb, 0); _focus = new(hit.Tb, text.Length); }
             else { var (a, b) = Word(text, hit.Index); _anchor = new(hit.Tb, a); _focus = new(hit.Tb, b); }
-            Paint(); return;
+            Paint(); _down = true; _dragging = false; _downAt = e.GetPosition(top); return;
         }
         _anchor = _focus = hit; _down = true; _dragging = false; _downAt = e.GetPosition(top);
     }
@@ -78,12 +79,22 @@ public static class TextSelect
     private static void OnMoved(TopLevel top, PointerEventArgs e)
     {
         if (!_down || _anchor is null) return;
+        // 1.185: lần bấm mở hộp thoại → lúc nhả chuột sự kiện không về đây, _down kẹt = rê tới đâu bôi đen tới đó. Chuột trái không còn giữ → kết thúc kéo.
+        if (!e.GetCurrentPoint(top).Properties.IsLeftButtonPressed) { _down = false; _dragging = false; return; }
         var p = e.GetPosition(top);
         // 1.184: ngưỡng kéo 4 → 1,5 px — ký tự rộng ~7 px, kéo nửa ký tự (~3,5 px) mà ngưỡng 4 thì không bôi được 1 chữ, phải kéo thêm 3–4 chữ mới ăn
         if (!_dragging && Math.Abs(p.X - _downAt.X) + Math.Abs(p.Y - _downAt.Y) < 1.5) return;
         _dragging = true;
         var hit = HitText(top, p);
-        if (hit is null || hit.Tb != _anchor.Tb) { EnsureOrder(); hit = HitText(top, p, nearest: true); }
+        if ((hit is null || hit.Tb != _anchor.Tb) && Rect(top, _anchor.Tb) is { } ar && p.Y >= ar.Top && p.Y <= ar.Bottom && (p.X < ar.Left || p.X > ar.Right)
+            && top.TranslatePoint(p, _anchor.Tb) is { } lp)
+        {
+            // 1.185: con trỏ vượt mép ô trên đúng dòng chữ đang kéo → bôi tới đầu / cuối ô (trước đây nhảy sang ô gần nhất, nên cuối dòng không bôi được)
+            var tb = _anchor.Tb; var pad = tb.Padding;
+            var r = tb.TextLayout.HitTestPoint(new Point(Math.Clamp(lp.X, 0, Math.Max(0, tb.Bounds.Width)) - pad.Left, lp.Y - pad.Top));
+            hit = new Pos(tb, Math.Clamp(r.TextPosition, 0, TextOf(tb).Length));
+        }
+        else if (hit is null || hit.Tb != _anchor.Tb) { EnsureOrder(); hit = HitText(top, p, nearest: true); }
         if (hit is null || hit == _focus) return;
         if (hit.Tb != _anchor.Tb && !_order.Contains(hit.Tb)) return;   // ra ngoài vùng chữ của trang (thanh menu, hộp khác…) → giữ chỗ cũ
         _focus = hit; Paint();
@@ -202,7 +213,8 @@ public static class TextSelect
     }
 
     private static bool Inside(TopLevel top, Visual v, Point p) => Rect(top, v) is { } r && r.Contains(p);
-    private static Rect? Rect(TopLevel top, Visual v) => v.TranslatePoint(new Point(0, 0), top) is { } o ? new Rect(o, v.Bounds.Size) : null;
+    private static Rect? Rect(TopLevel top, Visual v) =>
+        v.TranslatePoint(new Point(0, 0), top) is { } o && v.TranslatePoint(new Point(v.Bounds.Width, v.Bounds.Height), top) is { } e ? new Rect(o, e) : null;
 
     // ------------------------------------------------------------------ vẽ vùng chọn
 

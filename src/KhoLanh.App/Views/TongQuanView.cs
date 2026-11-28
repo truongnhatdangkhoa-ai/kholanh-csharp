@@ -290,7 +290,17 @@ public sealed partial class TongQuanView : UserControl, IPage
         if (Svc.CanEdit) { ac.Children.Add(Btn("✉ Cont", async () => await ContMailDialog(x.Ids), "Dán email «Thông tin xe» để cập nhật số cont", fs: 12)); ac.Children.Add(Btn("✎", async () => await EditDialog(x.Ids[0], null), "Sửa lịch", fs: 12)); }
         Grid.SetColumn(ac, 7 + cb); g.Children.Add(ac);
         var card = new Border { Background = B(x.St == "ok" ? "#FAFCFB" : "#FFFFFF"), BorderBrush = Line_, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(6, 8), Child = g, Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand) };
-        who.PointerPressed += async (_, _) => await DetailDialog(x.Ids);
+        // 1.185: mở chi tiết khi NHẢ chuột (không phải lúc nhấn): nhấn mở hộp thoại làm kẹt chế độ bôi đen; kéo bôi đen chữ thì không mở. Nền trong suốt → bấm trúng chỗ trống của khung cũng ăn (trước chỉ ăn đúng nét chữ, phải bấm 3–4 lần)
+        who.Background = Avalonia.Media.Brushes.Transparent;
+        Avalonia.Point? downAt = null;
+        who.PointerPressed += (_, e) => downAt = e.GetPosition(who);
+        who.PointerReleased += async (_, e) =>
+        {
+            if (downAt is not { } d0 || e.InitialPressMouseButton != Avalonia.Input.MouseButton.Left) return;
+            var up = e.GetPosition(who); downAt = null;
+            if (Math.Abs(up.X - d0.X) + Math.Abs(up.Y - d0.Y) > 5 || KhoLanh.App.Controls.TextSelect.HasSelection) return;
+            await DetailDialog(x.Ids);
+        };
         ToolTip.SetTip(who, "Bấm để xem chi tiết lịch, việc cần xử lý, hàng theo tồn kho");
         return card;
     }

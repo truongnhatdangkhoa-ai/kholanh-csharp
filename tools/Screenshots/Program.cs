@@ -2601,8 +2601,8 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v233")
     void Drag(Avalonia.Point a, Avalonia.Point b)
     {
         main.MouseMove(a, No); main.MouseDown(a, Avalonia.Input.MouseButton.Left, No); P(2);
-        main.MouseMove(new Avalonia.Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), No); P(2);
-        main.MouseMove(b, No); main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(5);
+        main.MouseMove(new Avalonia.Point((a.X + b.X) / 2, (a.Y + b.Y) / 2), Avalonia.Input.RawInputModifiers.LeftMouseButton); P(2);
+        main.MouseMove(b, Avalonia.Input.RawInputModifiers.LeftMouseButton); main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(5);
     }
     string Sel() => KhoLanh.App.Controls.TextSelect.SelectedText();
     // 1) kéo trong 1 dòng chữ
@@ -2671,7 +2671,7 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v256")
         void Drag(Avalonia.Point a, Avalonia.Point b, int steps)
         {
             main.MouseMove(a, No); main.MouseDown(a, Avalonia.Input.MouseButton.Left, No); P(2);
-            for (var i = 1; i <= steps; i++) { main.MouseMove(new Avalonia.Point(a.X + (b.X - a.X) * i / steps, a.Y + (b.Y - a.Y) * i / steps), No); P(1); }
+            for (var i = 1; i <= steps; i++) { main.MouseMove(new Avalonia.Point(a.X + (b.X - a.X) * i / steps, a.Y + (b.Y - a.Y) * i / steps), Avalonia.Input.RawInputModifiers.LeftMouseButton); P(1); }
             main.MouseUp(b, Avalonia.Input.MouseButton.Left, No); P(4);
         }
         foreach (var k in new[] { 1, 4, 8, 12 })
@@ -2688,6 +2688,12 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v256")
         Drag(At(L(4) + (R(4) - L(4)) * 0.75), At(L(4) + (R(4) - L(4)) * 0.25), 2);
         Console.WriteLine($"[V256/{tag}] kéo ngược 1 ký tự → “{Sel()}”");
         if (Sel().Length != 1) Bad($"{tag}: kéo ngược 1 ký tự chưa được");
+        // 1.185: kéo từ giữa dòng sang phải, vượt mép ô → phải bôi tới hết chữ cuối dòng (trước nhảy sang ô cạnh / mất)
+        var last = text.Length - 1;
+        var tr = t1.TranslatePoint(new Avalonia.Point(t1.Bounds.Width, 0), main)!.Value;
+        Drag(At(L(last - 12) + 1), new Avalonia.Point(tr.X + 60, At(0).Y), 5);
+        Console.WriteLine($"[V256/{tag}] kéo vượt mép phải → “{Sel()}”");
+        if (!text.EndsWith(Sel()) || Sel().Length < 10) Bad($"{tag}: kéo vượt mép phải chưa bôi tới cuối dòng");
         Snap(main, "v256-boi-den-ngan-" + tag.TrimEnd('%'));
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v256) — ĐẠT: " : "Xong (v256) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
