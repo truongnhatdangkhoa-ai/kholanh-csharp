@@ -3148,6 +3148,24 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vt")
     Snap(main, "25g-so-do-phieu-in-vi-tri-trong");
     s.Lan.Dispose(); Console.WriteLine("Xong (vt): " + outDir); return;
 }
+// 1.191: Tồn theo vị trí — ô đã xuất hết ở phiếu trước vẫn hiện, KHÓA, SL tồn 0, SL xuất = SL đã xuất: SHOTS_ONLY=vtkhoa (tự kiểm, thoát mã 1)
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vtkhoa")
+{
+    void W(int ms) { for (var i = 0; i < ms / 30; i++) { Thread.Sleep(30); Pump(); } }
+    var vr = s.ViTri.Rows; var i0 = Enumerable.Range(0, vr.Count).First(i => vr[i].Sl >= 1 && vr[i].Vt.Length > 0);
+    var key = vr[i0].Ma + "|" + vr[i0].Vt; var qty = vr[i0].Sl;
+    s.ViTri.CreateSlip(new List<KhoLanh.Core.ViTri.ViTriService.Pick> { new(i0, qty) }, false, "", DateTime.Today, "");
+    main.Navigate("m7"); W(900);
+    var vv = (ViTriView)main.PageHost.Content!;
+    _ = vv.OpenPickerForTest(); W(600);
+    var g = vv.PickerWindow!.GetVisualDescendants().OfType<KhoLanh.App.Controls.SheetGrid>().First(x => x.Model.ColCount == 12);
+    var r = Enumerable.Range(0, g.Model.RowCount).FirstOrDefault(i => g.Model.Row(i)[1] == vr[i0].Ma && g.Model.Row(i)[0] == vr[i0].Vt, -1);
+    var okv = r >= 0 && g.Model.Get(r, 7) is "0" or "" && g.Model.Get(r, 8) == g.Model.Get(r, 9) && g.Model.Get(r, 8).Length > 0 && g.Model.IsLocked(r, 8);
+    Console.WriteLine($"[VTKHOA] ô {key}: hiện={(r >= 0)} · tồn={(r >= 0 ? g.Model.Get(r, 7) : "")} · SL xuất={(r >= 0 ? g.Model.Get(r, 8) : "")} · khóa={(r >= 0 && g.Model.IsLocked(r, 8))} {(okv ? "ĐẠT" : "HỎNG")}");
+    if (r >= 0) g.Select(r, 8);
+    Snap(vv.PickerWindow!, "24c-vi-tri-o-da-xuat-het-khoa");
+    s.Lan.Dispose(); Console.WriteLine("Xong (vtkhoa): " + outDir); if (!okv) Environment.Exit(1); return;
+}
 // 1.89: Phiếu In vị trí — chọn Khu / Dãy ở CẢ 2 tab con phải giữ đúng lựa chọn (trước luôn về Khu A · Dãy 01): SHOTS_ONLY=kkchon (tự kiểm, thoát mã 1)
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "kkchon")
 {
