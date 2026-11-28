@@ -82,6 +82,45 @@ public class ChungTuTests : IDisposable
     }
 
     [Fact]
+    public void Moi_loai_phieu_co_thong_tin_phieu_rieng()
+    {
+        Ct.Load();
+        Ct.Mod = "xa"; Ct.Form["fKho"] = "Kho Xả"; Ct.Form["fGhiChu"] = "ghi chú xả"; Ct.Form["fLoaiChungTu"] = "Xuất Xả đặc biệt";
+        Ct.Mod = "kiem";
+        Assert.Equal("Xuất Kiểm", Ct.Form["fLoaiChungTu"]);
+        Assert.Equal("Kho Lạnh - An An", Ct.Form["fKho"]);
+        Assert.Equal("", Ct.Form["fGhiChu"]);
+        Ct.Form["fKho"] = "Kho Kiểm"; Ct.SaveForm();
+        Ct.Mod = "tbb";
+        Assert.Equal("Xuất Thay Thùng", Ct.Form["fLoaiChungTu"]);
+        Assert.Equal("Kho Lạnh - An An", Ct.Form["fKho"]);
+        Ct.SaveForm();
+        var again = new ChungTuService(() => _s.Lan, _s.Session, _s.Audit);
+        again.Load();
+        Assert.Equal("Kho Xả", again.FormOf("xa")["fKho"]);
+        Assert.Equal("Xuất Xả đặc biệt", again.FormOf("xa")["fLoaiChungTu"]);
+        Assert.Equal("Kho Kiểm", again.FormOf("kiem")["fKho"]);
+        Assert.Equal("Kho Lạnh - An An", again.FormOf("tbb")["fKho"]);
+    }
+
+    [Fact]
+    public void Meta_cu_mot_bo_thong_tin_chung_duoc_chep_cho_ca_ba_loai()
+    {
+        Ct.Load();
+        // bản ≤ 1.192 chỉ có "form" dùng chung (đang ghi "Xuất Xả", số XA-1128)
+        var json = "{\"v\":1,\"mod\":\"xa\",\"form\":{\"fNgayLap\":\"2026-11-28\",\"fSoPhieu\":\"XA-1128\",\"fLoaiChungTu\":\"Xuất Xả\",\"fMaBieuMau\":\"BM02/QT23\",\"fKho\":\"Kho Lạnh\",\"fSoBanMoiNgay\":\"2\",\"fGhiChu\":\"\"}}";
+        _s.Lan.Write(Db, new Dictionary<string, System.Text.Json.Nodes.JsonArray?> { [SheetMeta] = new System.Text.Json.Nodes.JsonArray(new System.Text.Json.Nodes.JsonObject { ["data"] = "__JSON__" + json }) });
+        var again = new ChungTuService(() => _s.Lan, _s.Session, _s.Audit);
+        again.Load();
+        Assert.Equal("Xuất Xả", again.FormOf("xa")["fLoaiChungTu"]);
+        Assert.Equal("XA-1128", again.FormOf("xa")["fSoPhieu"]);
+        Assert.Equal("Xuất Thay Thùng", again.FormOf("tbb")["fLoaiChungTu"]);
+        Assert.Equal("Xuất Kiểm", again.FormOf("kiem")["fLoaiChungTu"]);
+        Assert.Equal("TBB-" + DateTime.Today.ToString("MMdd"), again.FormOf("tbb")["fSoPhieu"]);
+        Assert.Equal("2", again.FormOf("kiem")["fSoBanMoiNgay"]);
+    }
+
+    [Fact]
     public void Groups_merge_split_and_numbering()
     {
         Ct.Load();
