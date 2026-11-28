@@ -26,6 +26,7 @@ public sealed partial class ViTriView : UserControl, IPage
     private static readonly IBrush PickBg = AppTheme.Brush("#FFF1C9");
     private static readonly IBrush OverBg = AppTheme.Brush("#F8CBAD");
     private static readonly IBrush ZeroBg = AppTheme.Brush("#EDEDED");
+    private static readonly IBrush DimBg = AppTheme.Brush("#EEF1F5"), LockFg = AppTheme.Brush("#9AA5B1");
     private static readonly IBrush DoneBg = AppTheme.Brush("#E2EFDA");
     private static readonly IBrush LockBg = AppTheme.Brush("#EDEDED");
     private static readonly IBrush OffBg = AppTheme.Brush("#FBE3D6");
@@ -48,7 +49,7 @@ public sealed partial class ViTriView : UserControl, IPage
     private readonly CheckBox _onlyPos = new()
     {
         Content = "Lọc vị trí đang chọn", FontSize = 12.5,
-        [ToolTip.TipProperty] = "Hiện mọi mã hàng còn tồn ở các vị trí đã có dòng đang xuất (kể cả mã chưa chọn) — bỏ qua ô tìm và Khu.",
+        [ToolTip.TipProperty] = "Chỉ hiện các vị trí đã có dòng đang xuất, và trong đó chỉ các mã / size khớp ô tìm (ô tìm trống = mọi mã ở vị trí đó). Bỏ qua ô Khu.",
     };
     private readonly TextBlock _gridInfo = new() { Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
     private readonly GridModel _gm = new();
@@ -133,6 +134,8 @@ public sealed partial class ViTriView : UserControl, IPage
             return left > 0 ? left.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) : "x";
         };
         _gm.Changed += () => { if (!_loading) OnGridChanged(); };
+        _grid.RowLocked = r => r >= 0 && r < _rowIdx.Count && Locked(_rowIdx[r]);   // 1.192: khóa mờ — không ô tích, không cộng vào tổng phiếu mới
+        _grid.CellForeground = (r, c) => r >= 0 && r < _rowIdx.Count && Locked(_rowIdx[r]) ? LockFg : null;
         _gm.CellLocked = (r, c) => c == ColX && r >= 0 && r < _rowIdx.Count && Locked(_rowIdx[r]);   // 1.191
         _pv = new SheetGrid(_pvm) { SpareRows = 0 };
         _dg = new SheetGrid(_dm) { SpareRows = 0, CellBackground = DraftBg, EmptyText = "Phiếu chưa có dòng nào — bấm “Chọn hàng từ tồn…” để chọn mã hàng cần xuất.", LargeTitle = "Phiếu đang soạn" };
@@ -582,6 +585,7 @@ public sealed partial class ViTriView : UserControl, IPage
                 if (pos is not null)
                 {
                     if (!pos.Contains(r.Vt)) return false;
+                    if (hit is not null && !hit(r)) return false;   // 1.192: chỉ các size đang tìm kiếm ở vị trí đó, không hiện mọi size trong vị trí
                 }
                 else
                 {
@@ -642,6 +646,7 @@ public sealed partial class ViTriView : UserControl, IPage
         if (r >= _rowIdx.Count) return null;
         var i = _rowIdx[r];
         if (_draft.TryGetValue(i, out var x)) return x > Avail(i) + 1e-9 ? OverBg : PickBg;
+        if (Locked(i) && _done.ContainsKey(i)) return DimBg;   // 1.192: đã làm phiếu → cả dòng khóa mờ
         if (c >= ColX && c <= ColX + 1 && _done.ContainsKey(i)) return DoneBg;
         if (Svc.Rows[i].Sl <= 1e-9) return ZeroBg;
         return null;

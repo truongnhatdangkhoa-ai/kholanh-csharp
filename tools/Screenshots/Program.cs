@@ -3162,6 +3162,12 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "vtkhoa")
     var r = Enumerable.Range(0, g.Model.RowCount).FirstOrDefault(i => g.Model.Row(i)[1] == vr[i0].Ma && g.Model.Row(i)[0] == vr[i0].Vt, -1);
     var okv = r >= 0 && g.Model.Get(r, 7) is "0" or "" && g.Model.Get(r, 8) == g.Model.Get(r, 9) && g.Model.Get(r, 8).Length > 0 && g.Model.IsLocked(r, 8);
     Console.WriteLine($"[VTKHOA] ô {key}: hiện={(r >= 0)} · tồn={(r >= 0 ? g.Model.Get(r, 7) : "")} · SL xuất={(r >= 0 ? g.Model.Get(r, 8) : "")} · khóa={(r >= 0 && g.Model.IsLocked(r, 8))} {(okv ? "ĐẠT" : "HỎNG")}");
+    // 1.192: dòng đã làm phiếu = khóa mờ: không ô tích, không tính "đã chọn", SL xuất không cộng vào Tổng
+    var lockedRow = r >= 0 && g.RowLocked?.Invoke(r) == true && !g.IsChecked(r);
+    var sumAll = Enumerable.Range(0, g.Model.RowCount).Where(i => g.RowLocked?.Invoke(i) != true).Sum(i => double.TryParse(g.Model.Get(i, 8), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0);
+    g.SetChecked(new[] { r }, true); var stillOff = !g.IsChecked(r);
+    Console.WriteLine($"[VTKHOA2] khóa mờ={lockedRow} · bấm tích không ăn={stillOff} · tổng SL xuất (trừ dòng khóa)={sumAll}");
+    if (!lockedRow || !stillOff) okv = false;
     if (r >= 0) g.Select(r, 8);
     Snap(vv.PickerWindow!, "24c-vi-tri-o-da-xuat-het-khoa");
     s.Lan.Dispose(); Console.WriteLine("Xong (vtkhoa): " + outDir); if (!okv) Environment.Exit(1); return;
