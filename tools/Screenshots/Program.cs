@@ -2698,6 +2698,44 @@ if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v256")
     }
     s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v256) — ĐẠT: " : "Xong (v256) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
 }
+// 1.187: Báo cáo rã đông › Số liệu nạp › Dòng gốc: thêm mã hàng chỉ bằng Mã + Số lượng, gợi ý từ Tồn kho An An, app tự ánh xạ. SHOTS_ONLY=v257; thoát mã 1 nếu sai.
+if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "v257")
+{
+    var ok = true; void Bad(string m) { ok = false; Console.WriteLine("[V257] SAI: " + m); }
+    void P(int n = 20) { for (var i = 0; i < n; i++) { Thread.Sleep(30); Pump(); } }
+    main.Navigate("m4"); P(40);
+    var v = (KhoLanh.App.Views.RaDongView)main.PageHost.Content!;
+    var bf = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static;
+    T F<T>(string n) => (T)typeof(KhoLanh.App.Views.RaDongView).GetField(n, bf)!.GetValue(v)!;
+    Button Find(string text) => v.GetVisualDescendants().OfType<Button>().First(b => (KhoLanh.App.Controls.Icon.TextOf(b.Content) ?? "").Contains(text));
+    var before = s.RaDong.Bang1.Rows.Count;
+    Console.WriteLine($"[V257] dòng gốc trước: {before}");
+    Find("Thêm mã hàng").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+    P(80);
+    var box = F<Border>("_raBox"); var ma = F<AutoCompleteBox>("_raMa"); var sl = F<TextBox>("_raSl");
+    if (!box.IsVisible) Bad("khung Thêm mã hàng không mở");
+    var stock = (List<KhoLanh.Core.Entry.MaGoiY.Sug>?)typeof(KhoLanh.App.Views.RaDongView).GetField("_stock", bf)!.GetValue(null);
+    Console.WriteLine($"[V257] gợi ý từ Tồn kho An An: {stock?.Count ?? 0} mã");
+    if (stock is null || stock.Count == 0) { Bad("không có gợi ý từ tồn kho An An"); }
+    else
+    {
+        var g = stock[0];
+        if (!KhoLanh.Core.Entry.MaGoiY.Match(g, g.Ma[..Math.Min(8, g.Ma.Length)])) Bad("gõ 1 đoạn mã không khớp gợi ý");
+        ma.Text = g.Ma; sl.Text = "7"; P(10);
+        Console.WriteLine("[V257] xem trước: " + F<TextBlock>("_raInfo").Text);
+        Snap(main, "v257-them-ma-1");
+        box.GetVisualDescendants().OfType<Button>().First().RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent)); P(30);
+        var after = s.RaDong.Bang1.Rows.Count;
+        Console.WriteLine($"[V257] dòng gốc sau: {after} · mã đã thêm {g.Ma} SL 7");
+        if (after != before + 1) Bad("chưa thêm được dòng");
+        else if (!s.RaDong.Bang1.Rows[^1].ContainsKey("__tay")) Bad("dòng thêm chưa đánh dấu nhập tay");
+        if (!string.IsNullOrEmpty(ma.Text) || !string.IsNullOrEmpty(sl.Text)) Bad("ô nhập chưa được xóa sau khi thêm");
+        Console.WriteLine("[V257] trạng thái: " + F<TextBlock>("_status").Text);
+        Snap(main, "v257-them-ma-2");
+        s.RaDong.UndoBang2();
+    }
+    s.Lan.Dispose(); Console.WriteLine((ok ? "Xong (v257) — ĐẠT: " : "Xong (v257) — CHƯA ĐẠT: ") + outDir); if (!ok) Environment.Exit(1); return;
+}
 // 1.129: máy chủ chạy ẩn — đóng cửa sổ = ẩn xuống khay, máy chủ vẫn chạy. SHOTS_ONLY=chayan; thoát mã 1 nếu sai.
 if (Environment.GetEnvironmentVariable("SHOTS_ONLY") == "chayan")
 {
